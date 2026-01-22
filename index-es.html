@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guías para inquilinos en Boston — Comienza aquí</title>
+    <meta name="description" content="Elige tu ubicación para ver guías locales para inquilinos en Boston." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #1b1f3b;
+        --paper: #f4f6fb;
+        --accent: #5b5bd6;
+        --accent-dark: #3f3aa5;
+        --mint: #c7ddff;
+        --sun: #cbb6ff;
+        --ink-soft: rgba(27, 31, 59, 0.65);
+        --shadow: 0 14px 40px rgba(27, 31, 59, 0.15);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(203, 182, 255, 0.45), transparent 45%),
+          radial-gradient(circle at 80% 10%, rgba(199, 221, 255, 0.6), transparent 40%),
+          linear-gradient(135deg, var(--paper), #edf0ff 55%, #e7f2ff);
+        min-height: 100vh;
+      }
+
+      .wrap {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 56px 28px 80px;
+        position: relative;
+      }
+
+      .halo {
+        position: absolute;
+        inset: -120px auto auto -120px;
+        width: 320px;
+        height: 320px;
+        background: radial-gradient(circle, var(--sun), transparent 70%);
+        opacity: 0.6;
+        z-index: 0;
+      }
+
+      .pulse {
+        position: absolute;
+        right: -80px;
+        top: 80px;
+        width: 240px;
+        height: 240px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(158, 190, 255, 0.7), transparent 70%);
+        z-index: 0;
+      }
+
+      .lang-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #eef0ff;
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        width: fit-content;
+      }
+
+      header {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 16px;
+        margin: 0;
+        animation: fadeUp 700ms ease-out;
+      }
+
+      .intro {
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(91, 91, 214, 0.15);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .intro::after {
+        content: "";
+        position: absolute;
+        right: -60px;
+        bottom: -60px;
+        width: 180px;
+        height: 180px;
+        border-radius: 60px;
+        background: radial-gradient(circle, rgba(91, 91, 214, 0.3), transparent 70%);
+      }
+
+      .intro > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: var(--mint);
+        padding: 8px 14px;
+        border-radius: 999px;
+        width: fit-content;
+      }
+
+      .label-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .label.es {
+        display: inline-flex;
+        margin-top: 0;
+      }
+
+      h1 {
+        font-family: "Fraunces", serif;
+        font-size: clamp(2.6rem, 3vw + 1.5rem, 4.2rem);
+        margin: 0;
+        line-height: 1.05;
+      }
+
+      .lede {
+        font-size: clamp(1.2rem, 1.6vw + 0.6rem, 1.65rem);
+        color: var(--ink-soft);
+        max-width: 760px;
+      }
+
+      .es {
+        display: block;
+        margin-top: 6px;
+        font-size: inherit;
+        color: inherit;
+        line-height: inherit;
+      }
+
+      main {
+        display: grid;
+        gap: 32px;
+        align-items: start;
+        position: relative;
+        z-index: 1;
+      }
+
+      .situation-grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .situation-card {
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: 10px;
+        text-decoration: none;
+        color: var(--ink);
+        background: linear-gradient(145deg, var(--card-soft, #eef0ff), #ffffff 65%);
+        border-radius: 22px;
+        padding: 22px;
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(91, 91, 214, 0.16);
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+        animation: fadeUp 700ms ease-out;
+        animation-delay: var(--delay, 0ms);
+        animation-fill-mode: both;
+        aspect-ratio: 1 / 1;
+        min-height: 210px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .situation-card::after {
+        content: "";
+        position: absolute;
+        right: -28px;
+        bottom: -28px;
+        width: 120px;
+        height: 120px;
+        border-radius: 38px;
+        background: var(--card-accent, rgba(91, 91, 214, 0.28));
+        opacity: 0.2;
+      }
+
+      .situation-card > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .situation-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 42px rgba(27, 31, 59, 0.18);
+        border-color: rgba(91, 91, 214, 0.35);
+      }
+
+      .situation-card[aria-disabled="true"] {
+        cursor: not-allowed;
+        opacity: 0.7;
+        box-shadow: none;
+      }
+
+      .situation-card[aria-disabled="true"]:hover {
+        transform: none;
+      }
+
+      .situation-card:focus-visible {
+        outline: 3px solid rgba(91, 91, 214, 0.6);
+        outline-offset: 3px;
+      }
+
+      .situation-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+
+      .situation-meta {
+        color: var(--ink-soft);
+        line-height: 1.6;
+        font-size: 1.18rem;
+      }
+
+      .disclaimer {
+        font-size: 1rem;
+      }
+
+      .disclaimer {
+        background: #ffe6ea;
+        border: 1px solid #ff5a76;
+        color: #7a1025;
+        padding: 18px 20px;
+        border-radius: 16px;
+        line-height: 1.5;
+        box-shadow: 0 12px 30px rgba(255, 90, 118, 0.16);
+        margin-top: 24px;
+      }
+
+      footer {
+        margin-top: 32px;
+        font-size: 0.95rem;
+        color: var(--ink-soft);
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 980px) {
+        .situation-grid {
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .wrap {
+          padding: 32px 18px 64px;
+        }
+
+        .situation-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .situation-card {
+          aspect-ratio: auto;
+        }
+      }
+
+      @media (min-width: 1200px) {
+        .situation-grid {
+          grid-template-columns: repeat(3, minmax(200px, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="halo"></div>
+      <div class="pulse"></div>
+
+      <main>
+        <header class="intro">
+          <a class="lang-switch" href="index.html">English</a>
+          <h1>¿Necesitas ayuda con la vivienda ahora mismo?</h1>
+          <p class="lede">
+            Elige tu ubicación para ver guías locales para inquilinos.
+          </p>
+        </header>
+
+        <section class="situation-grid">
+          <a
+            class="situation-card"
+            href="heat-not-working-es.html"
+            style="--card-accent: rgba(91, 91, 214, 0.6); --card-soft: #e6e9ff; --delay: 40ms;"
+          >
+            <span class="situation-title">Boston, MA</span>
+            <span class="situation-meta">Guías disponibles.</span>
+          </a>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(99, 142, 255, 0.4); --card-soft: #e5efff; --delay: 90ms;"
+          >
+            <span class="situation-title">Pittsburgh, PA</span>
+            <span class="situation-meta">En desarrollo.</span>
+          </div>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(124, 97, 255, 0.4); --card-soft: #efe8ff; --delay: 140ms;"
+          >
+            <span class="situation-title">Seattle, WA</span>
+            <span class="situation-meta">En desarrollo.</span>
+          </div>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(93, 190, 255, 0.4); --card-soft: #e5f5ff; --delay: 190ms;"
+          >
+            <span class="situation-title">Portland, OR</span>
+            <span class="situation-meta">En desarrollo.</span>
+          </div>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(108, 99, 255, 0.4); --card-soft: #edeaff; --delay: 240ms;"
+          >
+            <span class="situation-title">Chicago, IL</span>
+            <span class="situation-meta">En desarrollo.</span>
+          </div>
+        </section>
+      </main>
+
+      <section class="disclaimer">
+        <strong>No es asesoría legal.</strong> Este sitio ofrece información
+        general y no sustituye a un abogado. Si necesitas ayuda, contacta a
+        servicios legales o a una organización de defensa de inquilinos.
+      </section>
+
+      <footer>Información solo para Boston. Elige un tema para comenzar.</footer>
+    </div>
+  </body>
+</html>
