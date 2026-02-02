@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Boston Tenant Playbooks — Topics</title>
+    <title>Tenant Playbooks — Start Here</title>
     <meta
       name="description"
-      content="Pick what is happening and get a clear, local tenant playbook for Boston, MA."
+      content="Pick your location and get a clear, local tenant playbook."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -69,14 +69,7 @@
         z-index: 0;
       }
 
-      .top-links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: center;
-      }
-
-      .pill {
+      .lang-switch {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -125,36 +118,68 @@
         z-index: 1;
       }
 
+      .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: var(--mint);
+        padding: 8px 14px;
+        border-radius: 999px;
+        width: fit-content;
+      }
+
+      .label-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .label.es {
+        display: inline-flex;
+        margin-top: 0;
+      }
+
       h1 {
         font-family: "Fraunces", serif;
-        font-size: clamp(2.4rem, 3vw + 1.2rem, 3.6rem);
+        font-size: clamp(2.6rem, 3vw + 1.5rem, 4.2rem);
         margin: 0;
         line-height: 1.05;
       }
 
       .lede {
-        font-size: clamp(1.1rem, 1.2vw + 0.6rem, 1.45rem);
+        font-size: clamp(1.2rem, 1.6vw + 0.6rem, 1.65rem);
         color: var(--ink-soft);
         max-width: 760px;
-        margin: 0;
+      }
+
+      .es {
+        display: block;
+        margin-top: 6px;
+        font-size: inherit;
+        color: inherit;
+        line-height: inherit;
       }
 
       main {
         display: grid;
-        gap: 28px;
+        gap: 32px;
         align-items: start;
         position: relative;
         z-index: 1;
       }
 
-      .grid {
+      .situation-grid {
         display: grid;
         gap: 18px;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       }
 
-      .card {
+      .situation-card {
         display: grid;
+        grid-template-rows: auto auto 1fr auto;
         gap: 10px;
         text-decoration: none;
         color: var(--ink);
@@ -167,11 +192,13 @@
         animation: fadeUp 700ms ease-out;
         animation-delay: var(--delay, 0ms);
         animation-fill-mode: both;
+        aspect-ratio: 1 / 1;
+        min-height: 210px;
         position: relative;
         overflow: hidden;
       }
 
-      .card::after {
+      .situation-card::after {
         content: "";
         position: absolute;
         right: -28px;
@@ -183,27 +210,45 @@
         opacity: 0.2;
       }
 
-      .card > * {
+      .situation-card > * {
         position: relative;
         z-index: 1;
       }
 
-      .card:hover {
+      .situation-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 20px 42px rgba(27, 31, 59, 0.18);
         border-color: rgba(91, 91, 214, 0.35);
       }
 
-      .title {
-        font-size: 1.15rem;
-        font-weight: 700;
+      .situation-card[aria-disabled="true"] {
+        cursor: not-allowed;
+        opacity: 0.7;
+        box-shadow: none;
       }
 
-      .meta {
+      .situation-card[aria-disabled="true"]:hover {
+        transform: none;
+      }
+
+      .situation-card:focus-visible {
+        outline: 3px solid rgba(91, 91, 214, 0.6);
+        outline-offset: 3px;
+      }
+
+      .situation-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+
+      .situation-meta {
         color: var(--ink-soft);
         line-height: 1.6;
-        font-size: 1.05rem;
-        margin: 0;
+        font-size: 1.18rem;
+      }
+
+      .disclaimer {
+        font-size: 1rem;
       }
 
       .disclaimer {
@@ -214,11 +259,11 @@
         border-radius: 16px;
         line-height: 1.5;
         box-shadow: 0 12px 30px rgba(255, 90, 118, 0.16);
-        margin-top: 6px;
+        margin-top: 24px;
       }
 
       footer {
-        margin-top: 24px;
+        margin-top: 32px;
         font-size: 0.95rem;
         color: var(--ink-soft);
       }
@@ -234,9 +279,29 @@
         }
       }
 
+      @media (max-width: 980px) {
+        .situation-grid {
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+      }
+
       @media (max-width: 640px) {
         .wrap {
           padding: 32px 18px 64px;
+        }
+
+        .situation-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .situation-card {
+          aspect-ratio: auto;
+        }
+      }
+
+      @media (min-width: 1200px) {
+        .situation-grid {
+          grid-template-columns: repeat(3, minmax(200px, 1fr));
         }
       }
     </style>
@@ -248,48 +313,62 @@
 
       <main>
         <header class="intro">
-          <div class="top-links">
-            <a class="pill" href="../index.html">All locations</a>
-            <a class="pill" href="index-es.html">Español</a>
-          </div>
-          <h1>Boston tenant playbooks</h1>
-          <p class="lede">Pick what’s happening. Each page is a step-by-step playbook with official sources.</p>
+          <a class="lang-switch" href="index-es.html">Español</a>
+          <h1>Need help with housing right now?</h1>
+          <p class="lede">Choose your location to see local tenant playbooks.</p>
         </header>
 
-        <section class="grid" aria-label="Boston tenant topics">
-          <a class="card" href="/boston/heat-not-working.html" style="--card-accent: rgba(91, 91, 214, 0.6); --card-soft: #e6e9ff; --delay: 40ms;">
-            <span class="title">Heat not working</span>
-            <p class="meta">Emergency steps, documentation, and inspections.</p>
+        <section class="situation-grid">
+          <a
+            class="situation-card"
+            href="boston/index.html"
+            style="--card-accent: rgba(91, 91, 214, 0.6); --card-soft: #e6e9ff; --delay: 40ms;"
+          >
+            <span class="situation-title">Boston, MA</span>
+            <span class="situation-meta">Live playbooks available.</span>
           </a>
-          <a class="card" href="/boston/notice-to-quit.html" style="--card-accent: rgba(99, 142, 255, 0.45); --card-soft: #e5efff; --delay: 80ms;">
-            <span class="title">Notice to quit</span>
-            <p class="meta">What it means, deadlines, and what to do next.</p>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(99, 142, 255, 0.4); --card-soft: #e5efff; --delay: 90ms;"
+          >
+            <span class="situation-title">Pittsburgh, PA</span>
+            <span class="situation-meta">In progress.</span>
+          </div>
+          <a
+            class="situation-card"
+            href="seattle/index.html"
+            style="--card-accent: rgba(124, 97, 255, 0.5); --card-soft: #efe8ff; --delay: 140ms;"
+          >
+            <span class="situation-title">Seattle, WA</span>
+            <span class="situation-meta">Live playbooks available.</span>
           </a>
-          <a class="card" href="/boston/uninhabitable-conditions.html" style="--card-accent: rgba(124, 97, 255, 0.45); --card-soft: #efe8ff; --delay: 120ms;">
-            <span class="title">Uninhabitable conditions</span>
-            <p class="meta">Document hazards, request repairs, escalate safely.</p>
-          </a>
-          <a class="card" href="/boston/landlord-entry-without-notice.html" style="--card-accent: rgba(93, 190, 255, 0.45); --card-soft: #e5f5ff; --delay: 160ms;">
-            <span class="title">Landlord entry</span>
-            <p class="meta">Notice rules and how to document violations.</p>
-          </a>
-          <a class="card" href="/boston/cant-pay-rent.html" style="--card-accent: rgba(108, 99, 255, 0.45); --card-soft: #edeaff; --delay: 200ms;">
-            <span class="title">Can’t pay rent</span>
-            <p class="meta">Payment plans, assistance, and eviction basics.</p>
-          </a>
-          <a class="card" href="/boston/security-deposit-not-returned.html" style="--card-accent: rgba(91, 91, 214, 0.35); --card-soft: #eef0ff; --delay: 240ms;">
-            <span class="title">Security deposit</span>
-            <p class="meta">Return rules and how to dispute deductions.</p>
-          </a>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(93, 190, 255, 0.4); --card-soft: #e5f5ff; --delay: 190ms;"
+          >
+            <span class="situation-title">Portland, OR</span>
+            <span class="situation-meta">In progress.</span>
+          </div>
+          <div
+            class="situation-card"
+            aria-disabled="true"
+            style="--card-accent: rgba(108, 99, 255, 0.4); --card-soft: #edeaff; --delay: 240ms;"
+          >
+            <span class="situation-title">Chicago, IL</span>
+            <span class="situation-meta">In progress.</span>
+          </div>
         </section>
       </main>
 
       <section class="disclaimer">
-        <strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer. If you need help,
+        <strong>Not legal advice.</strong> This site provides general
+        information and is not a substitute for a lawyer. If you need help,
         contact legal aid or a tenant advocacy organization.
       </section>
 
-      <footer>Boston-only guidance. Choose a topic to begin.</footer>
+      <footer>Choose a topic to begin.</footer>
     </div>
   </body>
 </html>
