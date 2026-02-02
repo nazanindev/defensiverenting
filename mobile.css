@@ -1,0 +1,82 @@
+/* Mobile readability – load after main styles */
+
+/* Prevent iOS from resizing text; keep comfortable reading size */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  line-height: 1.6;
+}
+
+/* Slightly larger base text on small screens */
+@media (max-width: 640px) {
+  body {
+    font-size: 1.0625rem; /* 17px */
+  }
+}
+
+/* Limit line length for body/answer text (topic pages) */
+.answer,
+.lede {
+  max-width: 70ch;
+}
+
+.answer p,
+.card p {
+  line-height: 1.65;
+}
+
+/* Touch-friendly tap targets (min ~44px) */
+@media (max-width: 640px) {
+  .lang-switch,
+  .pill {
+    min-height: 44px;
+    padding: 12px 16px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .situation-card {
+    min-height: 72px;
+    padding: 20px 18px;
+  }
+
+  .intro {
+    padding: 24px 20px;
+  }
+
+  .card {
+    padding: 20px 18px;
+  }
+
+  .sidebar-nav a {
+    min-height: 48px;
+    padding: 14px 16px;
+    font-size: 1rem;
+  }
+
+  .sidebar-card {
+    padding: 20px 18px;
+  }
+
+  /* Stack sidebar above content on topic pages */
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .wrap {
+    padding: 24px 20px 48px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 1.125rem; /* 18px on very small screens */
+  }
+
+  h1 {
+    font-size: clamp(1.75rem, 5vw + 1rem, 2.5rem);
+  }
+}
