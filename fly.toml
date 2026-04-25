@@ -1,0 +1,42 @@
+# fly.toml — Fly.io configuration for tenant-rights service
+# Deploy: fly deploy
+# Provision DB: fly postgres create --name tenant-rights-db && fly postgres attach tenant-rights-db
+
+app = "tenant-rights"
+primary_region = "bos"
+
+[build]
+
+[env]
+  LISTEN_ADDR = ":8080"
+  LOG_LEVEL   = "info"
+  ENV         = "production"
+
+[[services]]
+  protocol   = "tcp"
+  internal_port = 8080
+
+  [[services.ports]]
+    handlers = ["http"]
+    port     = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port     = 443
+
+  [services.concurrency]
+    type       = "requests"
+    hard_limit = 200
+    soft_limit = 150
+
+  [[services.http_checks]]
+    interval      = "15s"
+    timeout       = "5s"
+    grace_period  = "10s"
+    method        = "GET"
+    path          = "/readyz"
+
+[metrics]
+  port = 9091
+  path = "/metrics"
