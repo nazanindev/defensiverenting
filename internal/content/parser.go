@@ -104,8 +104,11 @@ func RenderMarkdown(md string) template.HTML {
 	)
 	var buf bytes.Buffer
 	if err := gm.Convert([]byte(md), &buf); err != nil {
-		return template.HTML(template.HTMLEscapeString(md))
+		escaped := template.HTMLEscapeString(md)
+		//nolint:gosec // Sanitized/escaped string is intentionally marked safe for template rendering.
+		return template.HTML(escaped)
 	}
+	//nolint:gosec // Markdown content is curated in-repo content, not user input.
 	return template.HTML(buf.String())
 }
 
