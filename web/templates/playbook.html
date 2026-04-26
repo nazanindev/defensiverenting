@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Playbook.Title}} — {{.Jurisdiction.Name}} Tenant Rights</title>
+  <meta name="description" content="{{.Playbook.Title}} — a plain-language, citation-backed guide for tenants in {{.Jurisdiction.Name}}." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/">Tenant Rights</a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <div class="layout-wrap">
+    <div class="halo" aria-hidden="true"></div>
+    <div class="pulse" aria-hidden="true"></div>
+
+    <div class="layout">
+      <aside class="sidebar" aria-label="Site navigation">
+        <nav class="sidebar-card">
+          <span class="sidebar-label">{{.Jurisdiction.Name}} · {{.Topic.Name}}</span>
+          <a class="sidebar-back" href="/j/{{.Jurisdiction.Slug}}">← All topics</a>
+        </nav>
+      </aside>
+
+      <div class="page-content">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="/">Home</a> <span aria-hidden="true">›</span>
+          <a href="/j/{{.Jurisdiction.Slug}}">{{.Jurisdiction.Name}}</a> <span aria-hidden="true">›</span>
+          <span aria-current="page">{{.Topic.Name}}</span>
+        </nav>
+
+        <header class="playbook-header">
+          <span class="city-badge">{{.Jurisdiction.Name}}</span>
+          <h1>{{.Playbook.Title}}</h1>
+          {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
+        </header>
+
+        <main aria-label="Playbook content">
+          <div class="disclaimer-box" role="note">
+            <strong>Not legal advice.</strong> Every statement below links to its primary source. Read the source before relying on this information. If you need legal help, contact your local legal aid organization.
+          </div>
+
+          {{if .Statements}}
+          <ol class="statement-list">
+            {{range .Statements}}
+            <li class="statement-item">
+              <div class="statement-body">{{.BodyHTML}}</div>
+              <div class="citation-chips" aria-label="Sources">
+                {{range .Citations}}
+                <a class="{{chipClass .SourceKind}}"
+                   href="{{.URL}}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
+                  {{chipLabel .Label .Locator}}
+                </a>
+                {{end}}
+              </div>
+            </li>
+            {{end}}
+          </ol>
+          {{else}}
+          <p class="empty-state">No statements available for this playbook yet.</p>
+          {{end}}
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer.</p>
+      <p class="footer-links"><a href="/j/{{.Jurisdiction.Slug}}">← Back to {{.Jurisdiction.Name}}</a></p>
+    </div>
+  </footer>
+</body>
+</html>

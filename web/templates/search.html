@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{if .Query}}Search: {{.Query}}{{else}}Search{{end}} — Tenant Rights</title>
+  <meta name="description" content="Search tenant rights guides{{if .JurisdictionSlug}} for {{.JurisdictionSlug}}{{end}}." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/">Tenant Rights</a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" value="{{.Query}}" placeholder="Search by situation…" aria-label="Search" autofocus />
+        {{if .JurisdictionSlug}}<input type="hidden" name="j" value="{{.JurisdictionSlug}}" />{{end}}
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1 class="search-heading">
+      {{if .Query}}Results for <em>{{.Query}}</em>{{else}}Search{{end}}
+    </h1>
+
+    {{if and .Query (not .Results)}}
+    <p class="empty-state">No results found for <strong>{{.Query}}</strong>. Try different keywords.</p>
+    {{end}}
+
+    {{if .Results}}
+    <ul class="search-results">
+      {{range .Results}}
+      <li class="search-result">
+        {{if eq .Type "playbook"}}
+          <a class="result-title" href="/j/{{.JurisdictionSlug}}/{{.TopicSlug}}">{{.PlaybookTitle}}</a>
+          <span class="result-meta">Playbook · {{.JurisdictionSlug}}</span>
+          {{if .Snippet}}<p class="result-snippet">{{.Snippet}}</p>{{end}}
+        {{else}}
+          {{if and .PlaybookSlug .JurisdictionSlug}}
+          <a class="result-title" href="/j/{{.JurisdictionSlug}}/{{.TopicSlug}}">{{.PlaybookTitle}}</a>
+          {{else}}
+          <span class="result-title">Statement</span>
+          {{end}}
+          <span class="result-meta">Statement · {{.JurisdictionSlug}}</span>
+          {{if .Snippet}}<p class="result-snippet">{{.Snippet}}</p>{{end}}
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer.</p>
+    </div>
+  </footer>
+</body>
+</html>

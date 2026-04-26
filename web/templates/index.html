@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Know Your Tenant Rights</title>
+  <meta name="description" content="Plain-language, citation-backed tenant rights guides — every claim links to a primary source." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/">Tenant Rights</a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="halo" aria-hidden="true"></div>
+    <div class="pulse" aria-hidden="true"></div>
+
+    <section class="hero">
+      <h1>Know your tenant rights.</h1>
+      <p class="lede">Plain-language playbooks for tenants in crisis — every claim backed by a primary source you can verify yourself.</p>
+    </section>
+
+    <section class="city-section" aria-labelledby="cities-heading">
+      <h2 id="cities-heading" class="section-title">Available cities</h2>
+      {{if .Jurisdictions}}
+      <ul class="card-grid">
+        {{range .Jurisdictions}}
+        <li>
+          <a class="card card--link" href="/j/{{.Slug}}">
+            <span class="card-title">{{.Name}}</span>
+            <span class="card-arrow" aria-hidden="true">→</span>
+          </a>
+        </li>
+        {{end}}
+      </ul>
+      {{else}}
+      <p class="empty-state">No city guides yet — check back soon.</p>
+      {{end}}
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer. Every claim links to its primary source so you can verify it yourself.</p>
+    </div>
+  </footer>
+</body>
+</html>
