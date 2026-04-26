@@ -49,28 +49,13 @@ The current corpus covers Boston. The schema is designed to expand to other citi
 
 ```mermaid
 flowchart LR
-    subgraph pipeline["Content pipeline"]
-        md["content/boston/*.md\n(markdown + frontmatter)"]
-        ingest["cmd/ingest\n── cite validator\n── aborts if uncited"]
-        md --> ingest
-    end
+    md(["Markdown\ncontent files"])
+    db[("PostgreSQL")]
+    user(["Renter"])
 
-    subgraph pg["PostgreSQL"]
-        juris["jurisdictions\n(recursive hierarchy)"]
-        stmts["statements · citations\n· playbooks · sources"]
-        idx["tsvector GIN index\n(full-text search)"]
-        juris --> stmts --> idx
-    end
-
-    subgraph server["Go HTTP server"]
-        browse["/j/:city/:topic\nbrowse handler"]
-        search["/search\nsearch handler"]
-    end
-
-    ingest -->|"transactional upsert"| pg
-    pg <-->|"sqlc queries"| server
-    browser(["Browser"]) -->|"request"| server
-    server -->|"server-rendered HTML\n+ citation chips"| browser
+    md -->|"ingested — cite or abort"| db
+    user -->|"what are my rights?"| db
+    db -->|"plain-English answer\n+ primary sources"| user
 ```
 
 Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses markdown content into the database. Full-text search runs through Postgres `tsvector` — no external search service. Deployed on Fly.io with auto-stop machines.
