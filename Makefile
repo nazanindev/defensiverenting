@@ -1,4 +1,4 @@
-.PHONY: all build test lint vet fmt tidy up down ingest migrate clean
+.PHONY: all build test lint vet fmt tidy up down ingest migrate migration-check clean
 
 BINARY_SERVER = bin/server
 BINARY_INGEST = bin/ingest
@@ -46,6 +46,10 @@ down:
 ## Load content into the database (requires db running)
 ingest:
 	docker compose run --rm ingest
+
+## Check legacy HTML to markdown migration coverage
+migration-check:
+	python3 scripts/check_migration_coverage.py
 
 ## Apply migrations directly (requires Postgres at DATABASE_URL)
 migrate:
