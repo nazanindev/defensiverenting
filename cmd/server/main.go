@@ -33,6 +33,11 @@ func main() {
 	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
 
+	if cfg.DatabaseURL == "" {
+		logger.Error("DATABASE_URL is not set — run: fly secrets set DATABASE_URL=$(fly postgres attach --app defensiverenting <db-app-name> --json | jq -r .uri)")
+		os.Exit(1)
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
