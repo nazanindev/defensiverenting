@@ -1,30 +1,21 @@
 # Defensive Renting
 
-A tool that helps renters understand their rights in plain English.
+**staging mvp:** https://defensiverenting.fly.dev/
 
----
-
-## Problem
-
-Tenant law is public. Most renters don't benefit from it because the information is scattered across city statutes, state codes, and agency websites — written for lawyers, not for someone who just got a notice to quit.
+### Problem
+Tenant law is public. Most renters don't benefit from it because the information is scattered across city statutes, state codes, and agency websites, usually written for lawyers and not for someone who just got a notice to quit.
 
 Legal aid organizations do this translation work one call at a time. This project tries to do it at scale.
 
----
+### What the app does
 
-## What it is
+Defensive Renting is an early MVP: a web app that lets renters look up their rights by city and situation. Every piece of guidance traces to a real primary source - statute, regulation, or government document so users can verify what they're reading and bring it to a conversation with a lawyer or housing advocate.
 
-Defensive Renting is an early MVP: a web app that lets renters look up their rights by city and situation. Every piece of guidance traces to a real primary source — statute, regulation, or government document — so users can verify what they're reading and bring it to a conversation with a lawyer or housing advocate.
+### Approach
 
----
+Content is authored in structured markdown and ingested into a Postgres database. Each claim is attached to at least one cited source at the schema level, so there's no path to publishing a statement without a citation. The app serves that content through jurisdiction and topic-scoped playbooks with full-text search.
 
-## Approach
-
-Content is authored in structured markdown and ingested into a Postgres database. Each claim is attached to at least one cited source at the schema level — there's no path to publishing a statement without a citation. The app serves that content through jurisdiction- and topic-scoped playbooks with full-text search.
-
-The current corpus covers Boston. The schema is designed to expand to other cities without structural changes.
-
----
+The current corpus covers Boston and Seattle. The schema is designed to expand to other cities without structural changes.
 
 ## Design principles
 
@@ -32,8 +23,6 @@ The current corpus covers Boston. The schema is designed to expand to other citi
 - **Citations are not optional.** Every claim links to a primary source. If something can't be cited, it doesn't ship.
 - **Honest about limits.** Editorial guidance (practical advice not traceable to a single statute) is labeled distinctly. The app never pretends to give legal advice.
 - **Actionable by default.** Guidance is framed around what the renter can actually do, not just what the law says.
-
----
 
 ## MVP features
 
@@ -43,9 +32,14 @@ The current corpus covers Boston. The schema is designed to expand to other citi
 - Distinct labeling for editorial guidance vs. statutory sources
 - Health and readiness endpoints
 
----
+# Architecture
+See [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/ADRs/`](docs/ADRs/) for full design decisions and tradeoffs. 
 
-## Architecture
+### Data Model
+
+The schema uses a self-referential jurisdictions table so a query for Boston automatically inherits Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration.
+
+Tenant law changes on the timescale of legislative sessions, not days. Pages are served with aggressive HTTP caching so the server rarely needs to render the same page twice. `sources.content_hash` is stored so a future background job can detect when upstream statutes change and flag affected statements for editorial review.
 
 ```mermaid
 erDiagram
@@ -98,17 +92,11 @@ erDiagram
     topics ||--o{ playbooks : ""
 ```
 
-Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses markdown content into the database. Full-text search runs through Postgres `tsvector` — no external search service. Deployed on Fly.io with auto-stop machines.
+### Stack
+Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses markdown content into the database. Full-text search runs through Postgres `tsvector`, so no external search service needed. Deployed on Fly.io with auto-stop machines.
 
-The schema uses a self-referential jurisdictions table so a query for Boston automatically inherits Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration.
 
-Tenant law changes on the timescale of legislative sessions, not days. Pages are served with aggressive HTTP caching (`Cache-Control: public, max-age=86400`) — the server rarely needs to render the same page twice. `sources.content_hash` is stored so a future background job can detect when upstream statutes change and flag affected statements for editorial review.
-
-Design decisions and tradeoffs are documented in [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/ADRs/`](docs/ADRs/).
-
----
-
-## Adding a new jurisdiction
+# Authoring and adding a new jurisdiction
 
 Content lives in `content/<city-slug>/` as one markdown file per topic per language. Adding a city means writing those files, deploying, and running ingest. No schema changes required.
 
