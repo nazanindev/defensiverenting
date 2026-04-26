@@ -275,7 +275,7 @@ These questions were open during drafting and are now closed.
 - **Scope cut.** 1 city (Boston), English only, no wizard, freshness worker in MVP. Seattle, Spanish, and the wizard are v1.1. Rationale: one city done with every claim honestly cited is a stronger story than two cities with weak citations.
 - **Templating.** `templ` (not stdlib `html/template`). Rationale: compile-time type safety means the citation guarantee — no statement renders without citations — is enforced by the Go compiler, not a runtime check.
 - **Search quality.** Postgres `tsvector` for MVP (English only). Acceptable for the current corpus. If Spanish ships in v1.1, revisit whether to swap to Meilisearch at that point, driven by actual search quality testing rather than speculation.
-- **Hosting.** Fly.io. 1 shared-CPU machine (256MB RAM) + 1-core managed Postgres (1GB volume) ≈ $6/mo. Parallel deploy: v2 goes live at `*.fly.dev` first, DNS cutover to Fly once validated, Netlify deprecated.
+- **Hosting.** Fly.io. 1 shared-cpu-1x machine (512MB RAM, auto-stop) + 1 shared-cpu-1x Postgres machine (256MB, always-on) + volume storage. See §19 for cost breakdown.
 
 ## 18. Caching
 
@@ -289,7 +289,7 @@ No background refresher, no Redis, no in-process cache in the MVP. Add a CDN (Cl
 
 ## 19. Deploy and migration from Netlify
 
-The current static site is live on Netlify. The new Go + Postgres service is deployed to **Fly.io** (~$6/mo: 1 shared-CPU machine at 256MB RAM + a 1-core Postgres instance with 1GB volume). The parallel-deploy approach avoids downtime:
+The current static site is live on Netlify. The new Go + Postgres service is deployed to **Fly.io**. The parallel-deploy approach avoids downtime:
 
 1. Deploy v2 to `tenantrights.fly.dev` (Fly subdomain).
 2. Validate manually.
@@ -297,6 +297,20 @@ The current static site is live on Netlify. The new Go + Postgres service is dep
 4. Netlify site is deprecated (or left as a redirect target).
 
 The Fly app is configured via `fly.toml` in the repo root. Secrets (`DATABASE_URL`, `LOG_LEVEL`) are set via `fly secrets set`. The Postgres instance is provisioned as a separate Fly app and attached via `fly postgres attach`.
+
+### Cost model
+
+Fly.io free allowance covers 3 × shared-cpu-1x @ 256MB machines + 3 GB persistent storage + 160 GB outbound transfer/month. Everything below stays within those bounds until real public traffic arrives.
+
+| Scenario | App machine | Postgres machine | Storage | Monthly total |
+|---|---|---|---|---|
+| **Now** — just you, auto-stop | shared-cpu-1x 512MB, idle most of the time | shared-cpu-1x 256MB, always-on (within free tier) | < 10 MB (within 3 GB free) | **< $0.50** |
+| **100 cities, still personal** | same | same | ~100 MB (still within 3 GB free) | **< $0.50** |
+| **Real public traffic, always-on** | shared-cpu-1x 512MB ~$3.19/mo | shared-cpu-1x 512MB ~$3.19/mo | ~1 GB @ $0.15/GB | **~$6.50/mo** |
+
+Data size rationale: Boston corpus ≈ 50 statements × 500 chars ≈ 25 KB raw text. 100 cities at the same density ≈ 2.5 MB raw; with Postgres overhead (indexes, MVCC, metadata) ≈ 50–100 MB total — well within the 3 GB free volume for the foreseeable future.
+
+The app machine is configured with `auto_stop_machines = "stop"` and `min_machines_running = 0` (see `fly.toml`), so it only bills while actively serving requests. Postgres must remain always-on so the app can cold-start.
 
 ## 20. Appendix — proposed ADRs
 
