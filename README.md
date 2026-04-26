@@ -48,14 +48,55 @@ The current corpus covers Boston. The schema is designed to expand to other citi
 ## Architecture
 
 ```mermaid
-flowchart LR
-    md(["Markdown\ncontent files"])
-    db[("PostgreSQL")]
-    user(["Renter"])
+erDiagram
+    jurisdictions {
+        bigint id PK
+        bigint parent_id FK
+        text kind "country|state|city"
+        text slug
+    }
+    sources {
+        bigint id PK
+        text url UK
+        text kind "statute|regulation|editorial..."
+        text content_hash
+    }
+    statements {
+        bigint id PK
+        bigint jurisdiction_id FK
+        text body_md
+        tsvector body_tsv "generated, GIN indexed"
+    }
+    citations {
+        bigint statement_id FK
+        bigint source_id FK
+        text locator
+    }
+    topics {
+        bigint id PK
+        text slug UK
+    }
+    playbooks {
+        bigint id PK
+        bigint jurisdiction_id FK
+        bigint topic_id FK
+        text language
+        tsvector body_tsv "generated, GIN indexed"
+    }
+    playbook_statements {
+        bigint playbook_id FK
+        bigint statement_id FK
+        int position
+    }
 
-    md -->|"ingested — cite or abort"| db
-    user -->|"what are my rights?"| db
-    db -->|"plain-English answer\n+ primary sources"| user
+    jurisdictions ||--o{ jurisdictions : "parent"
+    jurisdictions ||--o{ statements : "scopes"
+    jurisdictions ||--o{ playbooks : "scopes"
+    sources ||--o{ citations : ""
+    statements ||--o{ citations : ""
+    statements ||--o{ playbook_statements : ""
+    playbooks ||--o{ playbook_statements : ""
+    topics ||--o{ playbooks : ""
 ```
 
 Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses markdown content into the database. Full-text search runs through Postgres `tsvector` — no external search service. Deployed on Fly.io with auto-stop machines.
