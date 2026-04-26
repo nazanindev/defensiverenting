@@ -89,7 +89,6 @@ erDiagram
         int position
     }
 
-    jurisdictions ||--o{ jurisdictions : "parent"
     jurisdictions ||--o{ statements : "scopes"
     jurisdictions ||--o{ playbooks : "scopes"
     sources ||--o{ citations : ""
