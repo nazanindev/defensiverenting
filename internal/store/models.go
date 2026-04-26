@@ -99,3 +99,10 @@ type SearchResult struct {
 	JurisdictionSlug string
 	TopicSlug        string
 }
+
+// SitemapEntry is a single playbook URL row used to build sitemap.xml.
+type SitemapEntry struct {
+	JurisdictionSlug string
+	TopicSlug        string
+	LastMod          *time.Time
+}

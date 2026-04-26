@@ -3,14 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Defensive Renting</title>
-  <meta name="description" content="Tenant law is confusing. Your rights don't have to be. Plain-language, citation-backed guides for renters." />
+  <title>Tenant Rights Guides by City — Defensive Renting</title>
+  <meta name="description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides — search by situation or browse by city." />
+  <link rel="canonical" href="/"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Defensive Renting" />
+  <meta property="og:title" content="Tenant Rights Guides by City — Defensive Renting" />
+  <meta property="og:description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides — search by situation or browse by city." />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Tenant Rights Guides by City — Defensive Renting" />
+  <meta name="twitter:description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides — search by situation or browse by city." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/site.css" />
 </head>
-<body>
+<body class="has-hero-search">
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/">Tenant Rights</a>
@@ -27,11 +35,15 @@
 
     <section class="hero">
       <h1>Know your rights before you need them.</h1>
-      <p class="lede">Tenant law is confusing. Your rights don't have to be.</p>
+      <p class="lede">Describe what's happening — get a step-by-step tenant rights playbook backed by primary sources.</p>
+      <form class="hero-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="e.g. landlord entered without notice…" aria-label="Search by situation" autofocus />
+        <button type="submit">Search</button>
+      </form>
     </section>
 
     <section class="city-section" aria-labelledby="cities-heading">
-      <h2 id="cities-heading" class="section-title">Available cities</h2>
+      <h2 id="cities-heading" class="section-title">Or browse by city</h2>
       {{if .Jurisdictions}}
       <ul class="card-grid">
         {{range .Jurisdictions}}

@@ -56,7 +56,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         cfg.ListenAddr,
-		Handler:      apphttp.NewRouter(pg, logger),
+		Handler:      apphttp.NewRouter(pg, logger, cfg.SiteURL),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,

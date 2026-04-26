@@ -12,7 +12,7 @@ import (
 )
 
 // NewRouter wires all routes and middleware onto a chi.Router.
-func NewRouter(db *store.PG, logger *slog.Logger) http.Handler {
+func NewRouter(db *store.PG, logger *slog.Logger, siteURL string) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -23,12 +23,14 @@ func NewRouter(db *store.PG, logger *slog.Logger) http.Handler {
 	r.Get("/healthz", handlers.Healthz)
 	r.Get("/readyz", handlers.Readyz(db))
 
-	// Browse + search — aggressive public caching
+	// Browse + search + SEO meta — aggressive public caching
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.StaticCache)
 		handlers.Browse(r, db, logger)
 		r.Get("/search", handlers.Search(db, logger))
 		r.Get("/editorial", handlers.Editorial)
+		r.Get("/robots.txt", handlers.Robots(siteURL))
+		r.Get("/sitemap.xml", handlers.Sitemap(db, siteURL))
 	})
 
 	// Static assets

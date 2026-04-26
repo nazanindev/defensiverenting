@@ -4,7 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{.Playbook.Title}} — {{.Jurisdiction.Name}} Tenant Rights</title>
-  <meta name="description" content="{{.Playbook.Title}} — a plain-language, citation-backed guide for tenants in {{.Jurisdiction.Name}}." />
+  <meta name="description" content="{{.Playbook.Title}} — free, step-by-step tenant rights guide for {{.Jurisdiction.Name}}, backed by primary sources." />
+  <link rel="canonical" href="/j/{{.Jurisdiction.Slug}}/{{.Topic.Slug}}"/>
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Defensive Renting" />
+  <meta property="og:title" content="{{.Playbook.Title}} — {{.Jurisdiction.Name}} Tenant Rights" />
+  <meta property="og:description" content="{{.Playbook.Title}} — free, step-by-step tenant rights guide for {{.Jurisdiction.Name}}, backed by primary sources." />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="{{.Playbook.Title}} — {{.Jurisdiction.Name}} Tenant Rights" />
+  <meta name="twitter:description" content="{{.Playbook.Title}} — free, step-by-step tenant rights guide for {{.Jurisdiction.Name}}, backed by primary sources." />
+  {{if .StructuredData}}<script type="application/ld+json">{{.StructuredData}}</script>{{end}}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
