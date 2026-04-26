@@ -148,5 +148,5 @@ func articleSchema(title, jurisdiction string) template.JS {
 		Publisher:   org{"Organization", "Defensive Renting"},
 	}
 	data, _ := json.Marshal(schema)
-	return template.JS(data)
+	return template.JS(data) //nolint:gosec // safe: json.Marshal HTML-escapes all string fields; no raw user input reaches this value
 }
