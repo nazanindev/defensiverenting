@@ -89,7 +89,6 @@ erDiagram
         int position
     }
 
-    jurisdictions ||--o{ jurisdictions : "parent"
     jurisdictions ||--o{ statements : "scopes"
     jurisdictions ||--o{ playbooks : "scopes"
     sources ||--o{ citations : ""
@@ -103,6 +102,8 @@ Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses m
 
 The schema uses a self-referential jurisdictions table so a query for Boston automatically inherits Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration.
 
+Tenant law changes on the timescale of legislative sessions, not days. Pages are served with aggressive HTTP caching (`Cache-Control: public, max-age=86400`) — the server rarely needs to render the same page twice. `sources.content_hash` is stored so a future background job can detect when upstream statutes change and flag affected statements for editorial review.
+
 Design decisions and tradeoffs are documented in [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/ADRs/`](docs/ADRs/).
 
 ---
@@ -113,6 +114,7 @@ Design decisions and tradeoffs are documented in [`docs/DESIGN.md`](docs/DESIGN.
 - Wizard-style intake ("what's your situation?") to route users to the right playbook
 - Semantic search over the cited corpus
 - Organization accounts so local tenant groups can contribute and maintain content for their jurisdiction
+- Prometheus metrics and structured tracing
 
 ---
 
