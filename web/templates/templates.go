@@ -13,6 +13,7 @@ import (
 	"github.com/nazanin212/bostontenantsrights/internal/store"
 )
 
+
 //go:embed *.html
 var tmplFS embed.FS
 
@@ -64,11 +65,12 @@ type JurisdictionPage struct {
 
 // PlaybookPage is a single topic playbook with cited statements.
 type PlaybookPage struct {
-	Playbook     store.Playbook
-	Jurisdiction store.Jurisdiction
-	Topic        store.Topic
-	IntroHTML    template.HTML
-	Statements   []RenderedStatement
+	Playbook       store.Playbook
+	Jurisdiction   store.Jurisdiction
+	Topic          store.Topic
+	IntroHTML      template.HTML
+	Statements     []RenderedStatement
+	StructuredData template.JS // JSON-LD Article schema, pre-marshaled
 }
 
 // RenderedStatement is a statement whose body has been converted to HTML.

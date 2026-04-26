@@ -14,6 +14,9 @@ type Store interface {
 	// Search
 	Search(ctx context.Context, query string, jurisdictionID *int64, language string) ([]SearchResult, error)
 
+	// SEO
+	ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error)
+
 	// Health
 	Ping(ctx context.Context) error
 

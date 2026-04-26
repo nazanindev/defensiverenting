@@ -3,14 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{.Jurisdiction.Name}} Tenant Rights</title>
-  <meta name="description" content="Tenant rights guides for {{.Jurisdiction.Name}} — pick a topic to get a step-by-step playbook." />
+  <title>{{.Jurisdiction.Name}} Tenant Rights Guide — Defensive Renting</title>
+  <meta name="description" content="Free tenant rights guides for {{.Jurisdiction.Name}} — step-by-step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
+  <link rel="canonical" href="/j/{{.Jurisdiction.Slug}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Defensive Renting" />
+  <meta property="og:title" content="{{.Jurisdiction.Name}} Tenant Rights Guide — Defensive Renting" />
+  <meta property="og:description" content="Free tenant rights guides for {{.Jurisdiction.Name}} — step-by-step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="{{.Jurisdiction.Name}} Tenant Rights Guide — Defensive Renting" />
+  <meta name="twitter:description" content="Free tenant rights guides for {{.Jurisdiction.Name}} — step-by-step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/site.css" />
 </head>
-<body>
+<body class="has-hero-search">
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/">Tenant Rights</a>
@@ -30,12 +38,17 @@
 
     <section class="hero">
       <span class="city-badge">{{.Jurisdiction.Name}}</span>
-      <h1>Tenant topics for {{.Jurisdiction.Name}}</h1>
-      <p class="lede">Select a situation to get a step-by-step playbook — every statement backed by a primary source.</p>
+      <h1>What's your situation?</h1>
+      <p class="lede">Describe what's happening and get a step-by-step tenant rights playbook — every statement backed by a primary source.</p>
+      <form class="hero-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="e.g. heat stopped working…" aria-label="Search by situation" autofocus />
+        <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
+        <button type="submit">Search</button>
+      </form>
     </section>
 
     <section aria-labelledby="topics-heading">
-      <h2 id="topics-heading" class="section-title">Topics</h2>
+      <h2 id="topics-heading" class="section-title">Or pick a topic</h2>
       {{if .Topics}}
       <ul class="card-grid">
         {{range .Topics}}

@@ -258,6 +258,32 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 	return results, pbRows.Err()
 }
 
+// ---- SEO -------------------------------------------------------------------
+
+// ListSitemapURLs returns jurisdiction/topic slug pairs for all English playbooks.
+func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT j.slug, t.slug, pb.last_reviewed_at
+		FROM playbooks pb
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		JOIN topics        t ON t.id  = pb.topic_id
+		WHERE pb.language = 'en'
+		ORDER BY j.slug, t.slug`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []SitemapEntry
+	for rows.Next() {
+		var e SitemapEntry
+		if err := rows.Scan(&e.JurisdictionSlug, &e.TopicSlug, &e.LastMod); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 // ---- Ingest ----------------------------------------------------------------
 
 func (pg *PG) UpsertJurisdiction(ctx context.Context, params UpsertJurisdictionParams) (Jurisdiction, error) {

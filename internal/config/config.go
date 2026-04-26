@@ -10,6 +10,7 @@ type Config struct {
 	ListenAddr  string
 	LogLevel    string
 	Env         string
+	SiteURL     string
 }
 
 func Load() Config {
@@ -23,6 +24,7 @@ func Load() Config {
 		ListenAddr:  env("LISTEN_ADDR", ":8080"),
 		LogLevel:    env("LOG_LEVEL", "info"),
 		Env:         e,
+		SiteURL:     env("SITE_URL", "https://defensiverenting.com"),
 	}
 }
 

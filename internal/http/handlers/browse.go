@@ -2,13 +2,15 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"html/template"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
 	"github.com/nazanin212/bostontenantsrights/internal/content"
+	"github.com/nazanin212/bostontenantsrights/internal/store"
 	tmpl "github.com/nazanin212/bostontenantsrights/web/templates"
 )
 
@@ -106,11 +108,12 @@ func playbook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		}
 
 		render(w, r, http.StatusOK, tmpl.PlaybookPage{
-			Playbook:   pb.Playbook,
-			Jurisdiction: pb.Jurisdiction,
-			Topic:      pb.Topic,
-			IntroHTML:  introHTML,
-			Statements: statements,
+			Playbook:       pb.Playbook,
+			Jurisdiction:   pb.Jurisdiction,
+			Topic:          pb.Topic,
+			IntroHTML:      introHTML,
+			Statements:     statements,
+			StructuredData: articleSchema(pb.Playbook.Title, pb.Jurisdiction.Name),
 		})
 	}
 }
@@ -121,4 +124,29 @@ func anchorFragment(locator string) string {
 		return ""
 	}
 	return "#" + locator
+}
+
+// articleSchema builds a Schema.org Article JSON-LD blob for a playbook page.
+func articleSchema(title, jurisdiction string) template.JS {
+	type org struct {
+		Type string `json:"@type"`
+		Name string `json:"name"`
+	}
+	schema := struct {
+		Context     string `json:"@context"`
+		Type        string `json:"@type"`
+		Headline    string `json:"headline"`
+		Description string `json:"description"`
+		Author      org    `json:"author"`
+		Publisher   org    `json:"publisher"`
+	}{
+		Context:     "https://schema.org",
+		Type:        "Article",
+		Headline:    title + " — " + jurisdiction + " Tenant Rights",
+		Description: "Plain-language, citation-backed guide for tenants in " + jurisdiction + ".",
+		Author:      org{"Organization", "Defensive Renting"},
+		Publisher:   org{"Organization", "Defensive Renting"},
+	}
+	data, _ := json.Marshal(schema)
+	return template.JS(data)
 }
