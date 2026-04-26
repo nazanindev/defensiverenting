@@ -13,11 +13,16 @@ type Config struct {
 }
 
 func Load() Config {
+	e := env("ENV", "development")
+	dbDefault := ""
+	if e == "development" {
+		dbDefault = "postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable"
+	}
 	return Config{
-		DatabaseURL: env("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable"),
+		DatabaseURL: env("DATABASE_URL", dbDefault),
 		ListenAddr:  env("LISTEN_ADDR", ":8080"),
 		LogLevel:    env("LOG_LEVEL", "info"),
-		Env:         env("ENV", "development"),
+		Env:         e,
 	}
 }
 
