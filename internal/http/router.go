@@ -28,6 +28,7 @@ func NewRouter(db *store.PG, logger *slog.Logger) http.Handler {
 		r.Use(middleware.StaticCache)
 		handlers.Browse(r, db, logger)
 		r.Get("/search", handlers.Search(db, logger))
+		r.Get("/editorial", handlers.Editorial)
 	})
 
 	// Static assets

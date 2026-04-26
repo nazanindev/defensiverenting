@@ -93,6 +93,9 @@ type SearchPage struct {
 	Results          []store.SearchResult
 }
 
+// EditorialPage is the /editorial explainer page.
+type EditorialPage struct{}
+
 // Render dispatches to the correct template based on the concrete page type.
 func Render(w io.Writer, page any) error {
 	switch p := page.(type) {
@@ -104,6 +107,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "playbook.html", p)
 	case SearchPage:
 		return tmpl.ExecuteTemplate(w, "search.html", p)
+	case EditorialPage:
+		return tmpl.ExecuteTemplate(w, "editorial.html", p)
 	default:
 		return fmt.Errorf("unknown page type %T", page)
 	}
