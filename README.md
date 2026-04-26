@@ -1,103 +1,69 @@
-# Tenant Rights
+# Defensive Renting
 
-Plain-language, citation-backed tenant rights guides. Every claim a tenant reads traces to a primary source — a statute, regulation, or government document — that they can verify themselves.
-
-Live: [defensiverenting.fly.dev](https://defensiverenting.fly.dev)
+A tool that helps renters understand their rights in plain English.
 
 ---
 
-## What makes this interesting (architecturally)
+## Problem
 
-### Citation guarantee enforced at three independent layers
+Tenant law is public. Most renters don't benefit from it because the information is scattered across city statutes, state codes, and agency websites — written for lawyers, not for someone who just got a notice to quit.
 
-The differentiating property of the product is that no statement can ever appear on screen without a citation. This is enforced at three layers so no single failure mode breaks it:
-
-**1. Schema layer.** There is no `source_url` column on `statements`. Citations live in a separate `citations` join table. The ingest function wraps every playbook write in a single transaction and aborts if any statement arrives with an empty sources slice:
-
-```go
-if len(sp.Sources) == 0 {
-    return fmt.Errorf("statement %d has no citations — ingest aborted", i)
-}
-```
-
-**2. Content-author layer.** The markdown parser requires every prose paragraph to end with a `[source-ref]` citation token. Files that fail this check exit non-zero, failing CI before anything reaches the database.
-
-**3. Render layer.** The browse handler validates `Citations` is non-empty before constructing a `RenderedStatement`. In production it skips the statement silently; in development it logs loudly. A citation-less claim cannot reach the UI.
-
-The editorial escape hatch (for objective practical guidance that isn't derivable from a single statute) preserves the guarantee: it cites a canonical `editorial` source row seeded at migration time, rendered with a distinct gray chip so readers always know the authority type.
+Legal aid organizations do this translation work one call at a time. This project tries to do it at scale.
 
 ---
 
-### Schema design
+## What it is
 
-```sql
-jurisdictions  →  self-referential (country → state → city)
-sources        →  url, publisher, kind, content_hash, retrieved_at
-statements     →  body_md, body_tsv (generated), embedding vector (nullable)
-citations      →  statement_id, source_id, locator
-playbooks      →  jurisdiction_id, topic_id, language, intro_md
-```
-
-**Recursive jurisdiction queries.** A tenant in Boston inherits Boston + Massachusetts + federal rules. A single `WITH RECURSIVE` CTE pulls all ancestor rows; application code never needs to know the hierarchy depth.
-
-**Full-text search without an external service.** `tsvector` generated columns on `statements.body_md` and `playbooks.title || intro_md`, GIN-indexed, queried with `ts_rank_cd`. No Elasticsearch, no Meilisearch, no sync job.
-
-**pgvector seam.** `statements.embedding vector` is nullable from day one. Populating it for RAG retrieval is a v2 offline job — no schema migration required when that work starts.
-
-**Org extensibility without a rewrite.** When tenant organizations contribute content (v3), the migration is additive:
-
-```sql
-ALTER TABLE sources    ADD COLUMN org_id BIGINT REFERENCES organizations(id);
-ALTER TABLE statements ADD COLUMN org_id BIGINT REFERENCES organizations(id);
-ALTER TABLE playbooks  ADD COLUMN org_id BIGINT REFERENCES organizations(id);
-```
-
-`NULL` means platform-authored. Existing rows, routes, and tests require no changes.
+Defensive Renting is an early MVP: a web app that lets renters look up their rights by city and situation. Every piece of guidance traces to a real primary source — statute, regulation, or government document — so users can verify what they're reading and bring it to a conversation with a lawyer or housing advocate.
 
 ---
 
-### Stack
+## Approach
 
-| Layer | Choice | Why |
-|---|---|---|
-| Language | Go 1.23 | Single binary, fast compile, straightforward concurrency |
-| Database | PostgreSQL 16 | `tsvector` search, recursive CTEs, pgvector path |
-| Query layer | sqlc + pgxpool | Type-safe generated queries, connection pooling |
-| Migrations | golang-migrate | Versioned, transactional, CI-verified |
-| Router | chi | Lightweight, idiomatic middleware chaining |
-| Templates | `html/template` | Compiled into binary, type-checked page structs |
-| CI | GitHub Actions | vet, lint, race tests against a real Postgres service container |
-| Hosting | Fly.io | Distroless image, nonroot, auto-stop machines (~$3/mo idle) |
+Content is authored in structured markdown and ingested into a Postgres database. Each claim is attached to at least one cited source at the schema level — there's no path to publishing a statement without a citation. The app serves that content through jurisdiction- and topic-scoped playbooks with full-text search.
+
+The current corpus covers Boston. The schema is designed to expand to other cities without structural changes.
 
 ---
 
-### Running locally
+## Design principles
 
-```bash
-docker compose up -d db
-docker compose run --rm ingest
-go run ./cmd/server
-```
-
-Or bring up everything at once:
-
-```bash
-docker compose --profile ingest up
-```
-
-Tests run against a real Postgres (no mocks):
-
-```bash
-go test ./... -race
-```
+- **Clarity over completeness.** A short, accurate answer is better than an exhaustive one that a stressed renter won't finish reading.
+- **Citations are not optional.** Every claim links to a primary source. If something can't be cited, it doesn't ship.
+- **Honest about limits.** Editorial guidance (practical advice not traceable to a single statute) is labeled distinctly. The app never pretends to give legal advice.
+- **Actionable by default.** Guidance is framed around what the renter can actually do, not just what the law says.
 
 ---
 
-### Design decisions
+## MVP features
 
-Full context lives in [`docs/DESIGN.md`](docs/DESIGN.md) and four ADRs:
+- Browse playbooks by city and topic (e.g. Boston → Notice to Quit)
+- Full-text search across statements and playbooks
+- Inline citation chips linking to primary sources
+- Distinct labeling for editorial guidance vs. statutory sources
+- Health and readiness endpoints
 
-- [ADR-001](docs/ADRs/ADR-001-postgres-over-sqlite.md) — PostgreSQL over SQLite
-- [ADR-002](docs/ADRs/ADR-002-server-rendered-templates.md) — Server-rendered templates over SPA
-- [ADR-003](docs/ADRs/ADR-003-citations-as-first-class.md) — Citations as a first-class data primitive
-- [ADR-004](docs/ADRs/ADR-004-org-extensibility.md) — Org extensibility without schema rewrite
+---
+
+## Architecture
+
+Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses markdown content into the database. Full-text search runs through Postgres `tsvector` — no external search service. Deployed on Fly.io with auto-stop machines.
+
+The schema uses a self-referential jurisdictions table so a query for Boston automatically inherits Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration.
+
+Design decisions and tradeoffs are documented in [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/ADRs/`](docs/ADRs/).
+
+---
+
+## Future work
+
+- Expand to additional cities
+- Wizard-style intake ("what's your situation?") to route users to the right playbook
+- Semantic search over the cited corpus
+- Organization accounts so local tenant groups can contribute and maintain content for their jurisdiction
+
+---
+
+## Disclaimer
+
+This is not legal advice. If you are facing eviction or a housing dispute, contact a lawyer or your local legal aid organization.
