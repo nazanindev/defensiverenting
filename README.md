@@ -1,21 +1,28 @@
-# Defensive Renting
+# Defensive Renting 
+
+**Turning tenant law into structured, cited, and searchable guidance**
+
+A backend system for a tenant rights platform that turns complex housing law into clear, actionable guidance with verifiable citations. Designed to help renters understand their rights by structuring legal data into queryable, source-backed playbooks.
+
+Content is authored in structured markdown, ingested into Postgres, served through APIs scoped by jurisdiction and topic with built-in full-text search.
 
 **staging mvp:** https://defensiverenting.fly.dev/
 
 ### Problem
-Tenant law is public. Most renters don't benefit from it because the information is scattered across city statutes, state codes, and agency websites, usually written for lawyers and not for someone who just got a notice to quit.
+Tenant law is public, but most renters can't use it. Information is scattered across statutes, regulations, and agency websites, and written for lawyers, not for someone dealing with an urgent housing issue.
 
-Legal aid organizations do this translation work one call at a time. This project tries to do it at scale.
+Legal aid organizations do this translation work one case at a time. This project aims to make that process scalable.
 
-### What the app does
+## What the app does
 
-Defensive Renting is an early MVP: a web app that lets renters look up their rights by city and situation. Every piece of guidance traces to a real primary source - statute, regulation, or government document so users can verify what they're reading and bring it to a conversation with a lawyer or housing advocate.
+Defensive Renting is an early MVP: a web app that lets renters look up their rights by city and situation. Every piece of guidance is backed by a primary source — statute, regulation, or government document — so users can verify what they’re reading and use it in conversations with lawyers or housing advocates.
 
-### Approach
+## Why this is different
 
-Content is authored in structured markdown and ingested into a Postgres database. Each claim is attached to at least one cited source at the schema level, so there's no path to publishing a statement without a citation. The app serves that content through jurisdiction and topic-scoped playbooks with full-text search.
-
-The current corpus covers Boston and Seattle. The schema is designed to expand to other cities without structural changes.
+- **Citations are enforced at the data level** — there is no path to publishing an uncited claim  
+- **Structured legal data model** enables consistent, queryable guidance across jurisdictions  
+- **Clear separation of statutory vs. editorial guidance**  
+- **Designed for actionability**, not just legal completeness
 
 ## Design principles
 
