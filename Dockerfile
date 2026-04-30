@@ -23,7 +23,6 @@ COPY --from=build /bin/ingest  /ingest
 # in production the same files are embedded in the binary via embed.FS (TODO: v1.1).
 # For now, copy them so the container has them at the expected path.
 COPY --from=build /src/web/static /web/static
-COPY --from=build /src/content /content
 
 EXPOSE 8080
 
