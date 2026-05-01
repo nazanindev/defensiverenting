@@ -44,8 +44,10 @@ down:
 	docker compose down
 
 ## Load content into the database (requires db running)
+## Content repo location: make ingest CONTENT_DIR=/path/to/tenant-playbooks
+CONTENT_DIR ?= ../tenant-playbooks
 ingest:
-	docker compose run --rm ingest
+	go run ./cmd/ingest -content $(CONTENT_DIR) -db "$(DATABASE_URL)"
 
 ## Check legacy HTML to markdown migration coverage
 migration-check:
@@ -53,7 +55,7 @@ migration-check:
 
 ## Apply migrations directly (requires Postgres at DATABASE_URL)
 migrate:
-	@go run ./cmd/server -migrate-only 2>/dev/null || go run ./cmd/ingest -db "$(DATABASE_URL)" -content /dev/null
+	go run ./cmd/server -migrate-only
 
 ## Start server locally (requires Postgres at DATABASE_URL)
 run:
