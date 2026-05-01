@@ -34,7 +34,7 @@ services:
     entrypoint: ["/ingest"]
     command: ["-content", "/content", "-db", "postgres://postgres:postgres@db:5432/tenants?sslmode=disable"]
     volumes:
-      - ${CONTENT_DIR:-../defensiverenting-content}:/content:ro
+      - ${CONTENT_DIR:-../tenant-playbooks}:/content:ro
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/tenants?sslmode=disable
     depends_on:

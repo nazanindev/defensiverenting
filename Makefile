@@ -44,9 +44,10 @@ down:
 	docker compose down
 
 ## Load content into the database (requires db running)
-## Content repo location: make ingest CONTENT_DIR=/path/to/defensiverenting-content
-CONTENT_DIR ?= ../defensiverenting-content
+## Content repo location: make ingest CONTENT_DIR=/path/to/tenant-playbooks
+CONTENT_DIR ?= ../tenant-playbooks
 ingest:
+	docker compose up -d db
 	CONTENT_DIR=$(CONTENT_DIR) docker compose run --rm ingest
 
 ## Apply migrations directly (requires Postgres at DATABASE_URL)
