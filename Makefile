@@ -47,8 +47,7 @@ down:
 ## Content repo location: make ingest CONTENT_DIR=/path/to/tenant-playbooks
 CONTENT_DIR ?= ../tenant-playbooks
 ingest:
-	docker compose up -d db
-	CONTENT_DIR=$(CONTENT_DIR) docker compose run --rm ingest
+	go run ./cmd/ingest -content $(CONTENT_DIR) -db "$(DATABASE_URL)"
 
 ## Apply migrations directly (requires Postgres at DATABASE_URL)
 migrate:
