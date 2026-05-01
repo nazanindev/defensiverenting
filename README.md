@@ -197,6 +197,10 @@ The ingest command is idempotent — re-running it on existing content is safe.
 - Semantic search over the cited corpus
 - Organization accounts so local tenant groups can contribute and maintain content for their jurisdiction
 - Prometheus metrics and structured tracing
+- **Language translation** — serve playbooks in multiple languages (Spanish, Chinese, Portuguese, etc.) using the existing `language` field in the schema; allow users to switch languages inline without navigating away
+- **SEO optimization** — structured data markup (`LegalService`, `FAQPage` schema.org types), canonical URLs, city/topic-specific meta descriptions, and a sitemap so renters find the right playbook from a search engine before they even know this tool exists
+- **Tailwind CSS** — replace the current hand-rolled styles with Tailwind for faster iteration, consistent spacing/typography, and easier responsive design across the playbook and search pages
+- **Better search** — ranked results with snippet highlighting, filters by city and topic, and (longer-term) semantic/vector search over the cited corpus so a renter can type a question in plain English and land on the right playbook
 
 ---
 
