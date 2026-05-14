@@ -57,6 +57,7 @@ type Playbook struct {
 	Slug           string
 	Title          string
 	IntroMD        string
+	Status         string
 	LastReviewedAt *time.Time
 }
 

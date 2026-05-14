@@ -464,7 +464,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	err := pg.pool.QueryRow(ctx, `
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
-			pb.slug, pb.title, pb.intro_md, pb.last_reviewed_at,
+			pb.slug, pb.title, pb.intro_md, pb.status, pb.last_reviewed_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug,
 			t.id, t.slug, t.name
 		FROM playbooks pb
@@ -474,7 +474,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	).Scan(
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
-		&p.Playbook.IntroMD, &p.Playbook.LastReviewedAt,
+		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.LastReviewedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug,
 		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
