@@ -504,6 +504,58 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	return p, statementRows.Err()
 }
 
+// AuthorUpdatePlaybook replaces a playbook's metadata and all its statements in one transaction.
+// Unlike IngestPlaybook, it targets by ID so city/topic can be changed on drafts.
+func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlaybookParams) error {
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			UPDATE playbooks
+			SET jurisdiction_id = $2, topic_id = $3, language = $4,
+			    slug = $5, title = $6, intro_md = $7
+			WHERE id = $1`,
+			params.ID, params.JurisdictionID, params.TopicID,
+			params.Language, params.Slug, params.Title, params.IntroMD,
+		); err != nil {
+			return fmt.Errorf("update playbook: %w", err)
+		}
+
+		if _, err := tx.Exec(ctx, `DELETE FROM playbook_statements WHERE playbook_id = $1`, params.ID); err != nil {
+			return fmt.Errorf("clear playbook_statements: %w", err)
+		}
+
+		for i, sp := range params.Statements {
+			if len(sp.Sources) == 0 {
+				return fmt.Errorf("statement %d has no citations", i)
+			}
+			var stmtID int64
+			if err := tx.QueryRow(ctx, `
+				INSERT INTO statements (jurisdiction_id, language, body_md)
+				VALUES ($1, $2, $3) RETURNING id`,
+				params.JurisdictionID, sp.Language, sp.BodyMD,
+			).Scan(&stmtID); err != nil {
+				return fmt.Errorf("insert statement %d: %w", i, err)
+			}
+			for _, cite := range sp.Sources {
+				if _, err := tx.Exec(ctx, `
+					INSERT INTO citations (statement_id, source_id, locator)
+					VALUES ($1, $2, $3)
+					ON CONFLICT (statement_id, source_id) DO UPDATE SET locator = EXCLUDED.locator`,
+					stmtID, cite.SourceID, cite.Locator,
+				); err != nil {
+					return fmt.Errorf("insert citation for statement %d: %w", i, err)
+				}
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO playbook_statements (playbook_id, statement_id, position)
+				VALUES ($1, $2, $3)`, params.ID, stmtID, i,
+			); err != nil {
+				return fmt.Errorf("link statement %d to playbook: %w", i, err)
+			}
+		}
+		return nil
+	})
+}
+
 // AuthorListPlaybooks returns all playbooks (draft and published) for the authoring dashboard.
 func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error) {
 	rows, err := pg.pool.Query(ctx, `

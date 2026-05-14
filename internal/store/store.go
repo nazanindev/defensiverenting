@@ -30,8 +30,20 @@ type Store interface {
 	// Authoring
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
+	AuthorUpdatePlaybook(ctx context.Context, p AuthorUpdatePlaybookParams) error
 	AuthorPublishPlaybook(ctx context.Context, id int64) error
 	AuthorDeletePlaybook(ctx context.Context, id int64) error
+}
+
+type AuthorUpdatePlaybookParams struct {
+	ID             int64
+	JurisdictionID int64
+	TopicID        int64
+	Language       string
+	Slug           string
+	Title          string
+	IntroMD        string
+	Statements     []IngestStatementParams
 }
 
 type UpsertJurisdictionParams struct {

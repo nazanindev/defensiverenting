@@ -87,8 +87,8 @@
     <section>
       <h2>Playbook</h2>
 
-      {{if .EditMode}}
-      <!-- Edit mode: city and topic are locked -->
+      {{if and .EditMode (eq .Status "published")}}
+      <!-- Published edit: city and topic are locked -->
       <div class="g2">
         <div class="field">
           <label>City</label>
@@ -100,13 +100,13 @@
         </div>
       </div>
       {{else}}
-      <!-- New mode: city and topic selectors -->
+      <!-- New or draft-edit: city and topic selectors -->
       <div class="g2">
         <div class="field">
           <label>City *</label>
           <select name="jurisdiction_select" id="city-sel" onchange="onCityChange(this)" required>
             <option value="">— pick a city —</option>
-            {{range .Cities}}<option value="{{.Slug}}" data-name="{{.Name}}">{{.Name}}</option>{{end}}
+            {{range .Cities}}<option value="{{.Slug}}"{{if eq .Slug $.SelectedCitySlug}} selected{{end}} data-name="{{.Name}}">{{.Name}}</option>{{end}}
             <option value="new">+ New city…</option>
           </select>
         </div>
@@ -114,13 +114,13 @@
           <label>Topic *</label>
           <select name="topic_key" id="topic-sel" onchange="onTopicChange(this.value)" required>
             <option value="">— pick a topic —</option>
-            <option value="heat-not-working">Heat Not Working</option>
-            <option value="cant-pay-rent">Can't Pay Rent</option>
-            <option value="notice-to-quit">Notice to Quit</option>
-            <option value="security-deposit-not-returned">Security Deposit Not Returned</option>
-            <option value="landlord-entry-without-notice">Landlord Entry Without Notice</option>
-            <option value="uninhabitable-conditions">Uninhabitable Conditions</option>
-            <option value="custom">Custom…</option>
+            <option value="heat-not-working"{{if eq .SelectedTopicKey "heat-not-working"}} selected{{end}}>Heat Not Working</option>
+            <option value="cant-pay-rent"{{if eq .SelectedTopicKey "cant-pay-rent"}} selected{{end}}>Can't Pay Rent</option>
+            <option value="notice-to-quit"{{if eq .SelectedTopicKey "notice-to-quit"}} selected{{end}}>Notice to Quit</option>
+            <option value="security-deposit-not-returned"{{if eq .SelectedTopicKey "security-deposit-not-returned"}} selected{{end}}>Security Deposit Not Returned</option>
+            <option value="landlord-entry-without-notice"{{if eq .SelectedTopicKey "landlord-entry-without-notice"}} selected{{end}}>Landlord Entry Without Notice</option>
+            <option value="uninhabitable-conditions"{{if eq .SelectedTopicKey "uninhabitable-conditions"}} selected{{end}}>Uninhabitable Conditions</option>
+            <option value="custom"{{if .IsCustomTopic}} selected{{end}}>Custom…</option>
           </select>
         </div>
       </div>
@@ -150,14 +150,16 @@
         </div>
       </div>
 
-      <!-- Custom topic field (hidden until "Custom…" selected) -->
-      <div id="custom-topic-panel" style="display:none" class="field">
+      <!-- Custom topic field (hidden until "Custom…" selected, or pre-shown for custom topics) -->
+      <div id="custom-topic-panel" style="display:{{if .IsCustomTopic}}block{{else}}none{{end}}" class="field">
         <label>Custom topic name</label>
         <input type="text" name="custom_topic_name" id="custom-topic-name"
-               oninput="onCustomTopicInput(this.value)" placeholder="Mold in Apartment">
+               oninput="onCustomTopicInput(this.value)"
+               value="{{if .IsCustomTopic}}{{.SelectedTopicKey}}{{end}}"
+               placeholder="Mold in Apartment">
         <div class="derived">
           <span class="derived-label">topic id →</span>
-          <span class="derived-value" id="topic-key-preview">…</span>
+          <span class="derived-value" id="topic-key-preview">{{if .IsCustomTopic}}{{.SelectedTopicKey}}{{else}}…{{end}}</span>
         </div>
       </div>
 

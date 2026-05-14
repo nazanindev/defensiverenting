@@ -389,6 +389,44 @@ func (s *srv) delete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+// knownTopicKeys is the set of standard topic keys that appear in the form dropdown.
+var knownTopicKeys = map[string]bool{
+	"heat-not-working": true, "cant-pay-rent": true,
+	"notice-to-quit": true, "security-deposit-not-returned": true,
+	"landlord-entry-without-notice": true, "uninhabitable-conditions": true,
+}
+
+// editFormData builds the template data map for the edit form.
+func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements, errMsg string) map[string]any {
+	editorial, _ := s.pg.GetEditorialSource(ctx)
+	pj, _ := json.Marshal(buildPreload(pw, editorial.ID))
+
+	citySlug := pw.Jurisdiction.Slug
+	topicKey := strings.TrimPrefix(pw.Topic.Slug, citySlug+"-")
+	isCustom := !knownTopicKeys[topicKey]
+
+	data := map[string]any{
+		"EditMode":         true,
+		"EditID":           pw.Playbook.ID,
+		"Status":           pw.Playbook.Status,
+		"CityName":         pw.Jurisdiction.Name,
+		"TopicSlug":        pw.Topic.Slug,
+		"SelectedCitySlug": citySlug,
+		"SelectedTopicKey": topicKey,
+		"IsCustomTopic":    isCustom,
+		"Title":            pw.Playbook.Title,
+		"Intro":            pw.Playbook.IntroMD,
+		"Error":            errMsg,
+		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
+		"PreloadJSON": template.JS(pj),
+	}
+	if pw.Playbook.Status == "draft" {
+		cities, _ := s.pg.ListCityJurisdictions(ctx)
+		data["Cities"] = cities
+	}
+	return data
+}
+
 func (s *srv) showEditForm(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -400,19 +438,7 @@ func (s *srv) showEditForm(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	editorial, _ := s.pg.GetEditorialSource(r.Context())
-	pj, _ := json.Marshal(buildPreload(pw, editorial.ID))
-	//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
-	s.render(w, "form.html", map[string]any{
-		"EditMode":    true,
-		"EditID":      pw.Playbook.ID,
-		"CityName":    pw.Jurisdiction.Name,
-		"TopicSlug":   pw.Topic.Slug,
-		"Title":       pw.Playbook.Title,
-		"Intro":       pw.Playbook.IntroMD,
-		"Error":       "",
-		"PreloadJSON": template.JS(pj),
-	})
+	s.render(w, "form.html", s.editFormData(r.Context(), pw, ""))
 }
 
 func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
@@ -430,32 +456,86 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	editErr := func(msg string) {
-		editorial, _ := s.pg.GetEditorialSource(context.Background())
-		pj, _ := json.Marshal(buildPreload(existing, editorial.ID))
-		title := r.FormValue("title")
-		if title == "" {
-			title = existing.Playbook.Title
+		// Preserve what the user typed for title/intro on re-render
+		pw := existing
+		pw.Playbook.Title = r.FormValue("title")
+		if pw.Playbook.Title == "" {
+			pw.Playbook.Title = existing.Playbook.Title
 		}
-		intro := r.FormValue("intro")
-		if intro == "" {
-			intro = existing.Playbook.IntroMD
+		pw.Playbook.IntroMD = r.FormValue("intro")
+		if pw.Playbook.IntroMD == "" {
+			pw.Playbook.IntroMD = existing.Playbook.IntroMD
 		}
-		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
-		s.render(w, "form.html", map[string]any{
-			"EditMode":    true,
-			"EditID":      existing.Playbook.ID,
-			"CityName":    existing.Jurisdiction.Name,
-			"TopicSlug":   existing.Topic.Slug,
-			"Title":       title,
-			"Intro":       intro,
-			"Error":       msg,
-			"PreloadJSON": template.JS(pj),
-		})
+		s.render(w, "form.html", s.editFormData(context.Background(), pw, msg))
 	}
 
 	if err := r.ParseForm(); err != nil {
 		editErr("Invalid form data: " + err.Error())
 		return
+	}
+
+	// Resolve jurisdiction and topic — editable for drafts, locked for published.
+	var jurisdictionID, topicID int64
+	var lang, slug string
+	if existing.Playbook.Status == "draft" {
+		jSlug := r.FormValue("jurisdiction_select")
+		var j store.Jurisdiction
+		var citySlug string
+		if jSlug == "new" {
+			cityName := strings.TrimSpace(r.FormValue("new_city_name"))
+			stateName := strings.TrimSpace(r.FormValue("new_state_name"))
+			if cityName == "" || stateName == "" {
+				editErr("City name and state name are required for a new city")
+				return
+			}
+			citySlug = toSlug(cityName)
+			state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+				Kind: "state", Name: stateName, Slug: toSlug(stateName),
+			})
+			if err != nil {
+				editErr("Failed to create state: " + err.Error())
+				return
+			}
+			j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+				ParentID: &state.ID, Kind: "city", Name: cityName, Slug: citySlug,
+			})
+			if err != nil {
+				editErr("Failed to create city: " + err.Error())
+				return
+			}
+		} else {
+			j, err = s.pg.GetJurisdictionBySlug(ctx, jSlug)
+			if err != nil {
+				editErr("Unknown city selected")
+				return
+			}
+			citySlug = jSlug
+		}
+		topicKey := r.FormValue("topic_key")
+		if topicKey == "custom" {
+			topicKey = toSlug(strings.TrimSpace(r.FormValue("custom_topic_name")))
+		}
+		if topicKey == "" {
+			editErr("Please select a topic")
+			return
+		}
+		topicSlug := citySlug + "-" + topicKey
+		topic, err := s.pg.UpsertTopic(ctx, store.UpsertTopicParams{
+			Slug: topicSlug, Name: slugToTitle(topicSlug),
+		})
+		if err != nil {
+			editErr("Failed to save topic: " + err.Error())
+			return
+		}
+		jurisdictionID = j.ID
+		topicID = topic.ID
+		lang = "en"
+		slug = topicSlug
+	} else {
+		jurisdictionID = existing.Playbook.JurisdictionID
+		topicID = existing.Playbook.TopicID
+		lang = existing.Playbook.Language
+		slug = existing.Playbook.Slug
 	}
 
 	srcIndices := parseIndices(r.FormValue("active_sources"))
@@ -522,15 +602,15 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
-		JurisdictionID: existing.Playbook.JurisdictionID,
-		TopicID:        existing.Playbook.TopicID,
-		Language:       existing.Playbook.Language,
-		Slug:           existing.Playbook.Slug,
+	if err := s.pg.AuthorUpdatePlaybook(ctx, store.AuthorUpdatePlaybookParams{
+		ID:             id,
+		JurisdictionID: jurisdictionID,
+		TopicID:        topicID,
+		Language:       lang,
+		Slug:           slug,
 		Title:          title,
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
 		Statements:     statements,
-		Status:         existing.Playbook.Status,
 	}); err != nil {
 		editErr("Failed to save playbook: " + err.Error())
 		return
