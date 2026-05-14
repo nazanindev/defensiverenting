@@ -171,6 +171,7 @@
       <div class="field">
         <label>Title *</label>
         <input type="text" name="title" id="title-input" required
+               value="{{.Title}}"
                placeholder="e.g. Heat Not Working in Chicago — What Can I Do?">
         <p class="hint">Written as a question a renter would search. Auto-suggested — edit freely.</p>
       </div>
@@ -178,7 +179,7 @@
       <div class="field">
         <label>Intro</label>
         <textarea name="intro" rows="2"
-                  placeholder="1–2 sentences framing the situation. E.g. 'No heat is an emergency. Here are your options.'"></textarea>
+                  placeholder="1–2 sentences framing the situation. E.g. 'No heat is an emergency. Here are your options.'">{{.Intro}}</textarea>
       </div>
     </section>
 

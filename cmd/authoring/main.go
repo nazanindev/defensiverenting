@@ -408,6 +408,8 @@ func (s *srv) showEditForm(w http.ResponseWriter, r *http.Request) {
 		"EditID":      pw.Playbook.ID,
 		"CityName":    pw.Jurisdiction.Name,
 		"TopicSlug":   pw.Topic.Slug,
+		"Title":       pw.Playbook.Title,
+		"Intro":       pw.Playbook.IntroMD,
 		"Error":       "",
 		"PreloadJSON": template.JS(pj),
 	})
@@ -430,12 +432,22 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 	editErr := func(msg string) {
 		editorial, _ := s.pg.GetEditorialSource(context.Background())
 		pj, _ := json.Marshal(buildPreload(existing, editorial.ID))
+		title := r.FormValue("title")
+		if title == "" {
+			title = existing.Playbook.Title
+		}
+		intro := r.FormValue("intro")
+		if intro == "" {
+			intro = existing.Playbook.IntroMD
+		}
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
 		s.render(w, "form.html", map[string]any{
 			"EditMode":    true,
 			"EditID":      existing.Playbook.ID,
 			"CityName":    existing.Jurisdiction.Name,
 			"TopicSlug":   existing.Topic.Slug,
+			"Title":       title,
+			"Intro":       intro,
 			"Error":       msg,
 			"PreloadJSON": template.JS(pj),
 		})
