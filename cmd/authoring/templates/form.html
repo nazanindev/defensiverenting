@@ -202,14 +202,14 @@ let curCitySlug = '', curCityName = '';
 let curTopicKey = '';
 let lastAutoTitle = '';
 
-// Known title templates
+// Known title templates (string concat — avoid ES6 template literals which confuse Go's html/template)
 const TITLE_TMPL = {
-  'heat-not-working':               c => `Heat Not Working in ${c} — What Can I Do?`,
-  'cant-pay-rent':                  c => `Can't Pay Rent in ${c} — What Are My Options?`,
-  'notice-to-quit':                 c => `Notice to Quit in ${c} — What Does It Mean?`,
-  'security-deposit-not-returned':  c => `Security Deposit Not Returned in ${c} — What Can I Do?`,
-  'landlord-entry-without-notice':  c => `Landlord Entry Without Notice in ${c} — What Are My Rights?`,
-  'uninhabitable-conditions':       c => `Uninhabitable Conditions in ${c} — How to Report Them`,
+  'heat-not-working':               function(c) { return 'Heat Not Working in ' + c + ' — What Can I Do?'; },
+  'cant-pay-rent':                  function(c) { return 'Can\'t Pay Rent in ' + c + ' — What Are My Options?'; },
+  'notice-to-quit':                 function(c) { return 'Notice to Quit in ' + c + ' — What Does It Mean?'; },
+  'security-deposit-not-returned':  function(c) { return 'Security Deposit Not Returned in ' + c + ' — What Can I Do?'; },
+  'landlord-entry-without-notice':  function(c) { return 'Landlord Entry Without Notice in ' + c + ' — What Are My Rights?'; },
+  'uninhabitable-conditions':       function(c) { return 'Uninhabitable Conditions in ' + c + ' — How to Report Them'; },
 };
 
 // Init from preload (?from=id)
@@ -270,7 +270,7 @@ function updateDerived() {
     ? slugify(document.getElementById('custom-topic-name')?.value || '')
     : curTopicKey;
 
-  const fullSlug = curCitySlug && topicKey ? `${curCitySlug}-${topicKey}` : '';
+  const fullSlug = curCitySlug && topicKey ? curCitySlug + '-' + topicKey : '';
   if (fullSlug) {
     setText('full-slug-preview', fullSlug);
     show('full-slug-row');
@@ -322,18 +322,18 @@ function rmStmt(id) {
 // ── Sync DOM → state ──────────────────────────────────────────────────────
 
 function sync() {
-  sources.forEach(src => {
-    src.url       = v(`src_url_${src.id}`);
-    src.publisher = v(`src_pub_${src.id}`);
-    src.kind      = v(`src_kind_${src.id}`) || src.kind;
-    src.locator   = v(`src_loc_${src.id}`);
+  sources.forEach(function(src) {
+    src.url       = v('src_url_' + src.id);
+    src.publisher = v('src_pub_' + src.id);
+    src.kind      = v('src_kind_' + src.id) || src.kind;
+    src.locator   = v('src_loc_' + src.id);
   });
-  stmts.forEach(st => {
-    st.body      = v(`stmt_${st.id}`);
-    st.editorial = c(`edit_${st.id}`);
-    sources.forEach(src => {
-      st.cites[src.id]    = c(`cite_${st.id}_${src.id}`);
-      st.locators[src.id] = v(`loc_${st.id}_${src.id}`);
+  stmts.forEach(function(st) {
+    st.body      = v('stmt_' + st.id);
+    st.editorial = c('edit_' + st.id);
+    sources.forEach(function(src) {
+      st.cites[src.id]    = c('cite_' + st.id + '_' + src.id);
+      st.locators[src.id] = v('loc_' + st.id + '_' + src.id);
     });
   });
 }
@@ -352,78 +352,80 @@ function renderSources() {
     el.innerHTML = '<p class="no-items">Add sources you\'ll cite in the statements below.</p>';
     return;
   }
-  el.innerHTML = sources.map((s, i) => `
-    <div class="card">
-      <div class="card-hd">
-        <span class="card-num">Source ${i + 1}</span>
-        <button type="button" class="btn btn-rm" onclick="rmSource(${s.id})">Remove</button>
-      </div>
-      <div class="g2">
-        <div class="field">
-          <label>URL *</label>
-          <input type="url" name="src_url_${s.id}" value="${esc(s.url)}" placeholder="https://…" required>
-        </div>
-        <div class="field">
-          <label>Publisher *</label>
-          <input type="text" name="src_pub_${s.id}" value="${esc(s.publisher)}" placeholder="Illinois Legislature" required>
-        </div>
-      </div>
-      <div class="g2">
-        <div class="field">
-          <label>Type</label>
-          <select name="src_kind_${s.id}">${kindOpts(s.kind)}</select>
-        </div>
-        <div class="field">
-          <label>Locator <span style="font-weight:400;color:#a0aec0">(optional)</span></label>
-          <input type="text" name="src_loc_${s.id}" value="${esc(s.locator)}" placeholder="§ 410.200">
-          <p class="hint">Specific section or chapter shown next to the citation link.</p>
-        </div>
-      </div>
-    </div>
-  `).join('');
+  el.innerHTML = sources.map(function(s, i) {
+    return '<div class="card">' +
+      '<div class="card-hd">' +
+        '<span class="card-num">Source ' + (i + 1) + '</span>' +
+        '<button type="button" class="btn btn-rm" onclick="rmSource(' + s.id + ')">Remove</button>' +
+      '</div>' +
+      '<div class="g2">' +
+        '<div class="field">' +
+          '<label>URL *</label>' +
+          '<input type="url" name="src_url_' + s.id + '" value="' + esc(s.url) + '" placeholder="https://…" required>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Publisher *</label>' +
+          '<input type="text" name="src_pub_' + s.id + '" value="' + esc(s.publisher) + '" placeholder="Illinois Legislature" required>' +
+        '</div>' +
+      '</div>' +
+      '<div class="g2">' +
+        '<div class="field">' +
+          '<label>Type</label>' +
+          '<select name="src_kind_' + s.id + '">' + kindOpts(s.kind) + '</select>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Locator <span style="font-weight:400;color:#a0aec0">(optional)</span></label>' +
+          '<input type="text" name="src_loc_' + s.id + '" value="' + esc(s.locator) + '" placeholder="§ 410.200">' +
+          '<p class="hint">Specific section or chapter shown next to the citation link.</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function renderStmts() {
   const el = document.getElementById('stmts-container');
   if (!stmts.length) {
     const msg = sources.length
-      ? 'Click "+ Add statement" to write the first step.'
+      ? 'Click &quot;+ Add statement&quot; to write the first step.'
       : 'Add sources first, then write statements.';
-    el.innerHTML = `<p class="no-items">${msg}</p>`;
+    el.innerHTML = '<p class="no-items">' + msg + '</p>';
     return;
   }
-  el.innerHTML = stmts.map((st, i) => `
-    <div class="card">
-      <div class="card-hd">
-        <span class="card-num">Statement ${i + 1}</span>
-        <button type="button" class="btn btn-rm" onclick="rmStmt(${st.id})">Remove</button>
-      </div>
-      <textarea name="stmt_${st.id}" rows="3" placeholder="One citable fact in plain English, 1–3 sentences…" required
-                style="width:100%;margin-bottom:0">${esc(st.body)}</textarea>
-      <div class="cite-hd">Cite:</div>
-      ${sources.map((src, si) => `
-        <div class="cite-row">
-          <input type="checkbox" name="cite_${st.id}_${src.id}" id="cb_${st.id}_${src.id}"
-                 ${st.cites[src.id] ? 'checked' : ''}>
-          <label class="cite-name" for="cb_${st.id}_${src.id}">
-            Source ${si + 1}
-            ${src.publisher ? `<span style="color:#a0aec0">— ${esc(src.publisher)}</span>` : ''}
-            ${src.kind ? `<span class="kind-tag">${src.kind.replace(/_/g,' ')}</span>` : ''}
-          </label>
-          <input type="text" name="loc_${st.id}_${src.id}"
-                 value="${esc(st.locators[src.id] || '')}"
-                 placeholder="${esc(src.locator || 'section override')}">
-        </div>
-      `).join('')}
-      <div class="cite-row">
-        <input type="checkbox" name="edit_${st.id}" id="ed_${st.id}" ${st.editorial ? 'checked' : ''}>
-        <label class="cite-name" for="ed_${st.id}" style="color:#718096">
-          Editorial guidance
-          <span style="font-weight:400;font-size:.75rem"> — practical advice not tied to a specific law</span>
-        </label>
-      </div>
-    </div>
-  `).join('');
+  el.innerHTML = stmts.map(function(st, i) {
+    const citesHtml = sources.map(function(src, si) {
+      return '<div class="cite-row">' +
+        '<input type="checkbox" name="cite_' + st.id + '_' + src.id + '" id="cb_' + st.id + '_' + src.id + '"' +
+          (st.cites[src.id] ? ' checked' : '') + '>' +
+        '<label class="cite-name" for="cb_' + st.id + '_' + src.id + '">' +
+          'Source ' + (si + 1) +
+          (src.publisher ? '<span style="color:#a0aec0">— ' + esc(src.publisher) + '</span>' : '') +
+          (src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
+        '</label>' +
+        '<input type="text" name="loc_' + st.id + '_' + src.id + '"' +
+          ' value="' + esc(st.locators[src.id] || '') + '"' +
+          ' placeholder="' + esc(src.locator || 'section override') + '">' +
+      '</div>';
+    }).join('');
+
+    return '<div class="card">' +
+      '<div class="card-hd">' +
+        '<span class="card-num">Statement ' + (i + 1) + '</span>' +
+        '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
+      '</div>' +
+      '<textarea name="stmt_' + st.id + '" rows="3" placeholder="One citable fact in plain English, 1–3 sentences…" required' +
+        ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
+      '<div class="cite-hd">Cite:</div>' +
+      citesHtml +
+      '<div class="cite-row">' +
+        '<input type="checkbox" name="edit_' + st.id + '" id="ed_' + st.id + '"' + (st.editorial ? ' checked' : '') + '>' +
+        '<label class="cite-name" for="ed_' + st.id + '" style="color:#718096">' +
+          'Editorial guidance' +
+          '<span style="font-weight:400;font-size:.75rem"> — practical advice not tied to a specific law</span>' +
+        '</label>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function updateHidden() {
@@ -440,7 +442,7 @@ function beforeSubmit() {
   for (let i = 0; i < stmts.length; i++) {
     const st = stmts[i];
     if (!st.editorial && !sources.some(s => st.cites[s.id])) {
-      alert(`Statement ${i + 1} has no citation.\nCheck a source or mark it as editorial guidance.`);
+      alert('Statement ' + (i + 1) + ' has no citation.\nCheck a source or mark it as editorial guidance.');
       return false;
     }
   }
@@ -456,14 +458,17 @@ function slugify(s) {
 function show(id) { document.getElementById(id).style.display = 'block'; }
 function hide(id) { document.getElementById(id).style.display = 'none'; }
 function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t; }
-function v(name) { const el = document.querySelector(`[name="${name}"]`); return el ? el.value : ''; }
-function c(name) { const el = document.querySelector(`[name="${name}"]`); return el ? el.checked : false; }
+function v(name) { const el = document.querySelector('[name="' + name + '"]'); return el ? el.value : ''; }
+function c(name) { const el = document.querySelector('[name="' + name + '"]'); return el ? el.checked : false; }
 function esc(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function kindOpts(sel) {
   return [['statute','Statute'],['regulation','Regulation'],['gov_guidance','Gov guidance'],['nonprofit','Nonprofit'],['editorial','Editorial']]
-    .map(([v,l]) => `<option value="${v}"${v===sel?' selected':''}>${l}</option>`).join('');
+    .map(function(pair) {
+      const v = pair[0], l = pair[1];
+      return '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + l + '</option>';
+    }).join('');
 }
 </script>
 </body>
