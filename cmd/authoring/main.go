@@ -74,7 +74,7 @@ func main() {
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 
-	httpSrv := &http.Server{Addr: *addr, Handler: mux}
+	httpSrv := &http.Server{Addr: *addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 
 	go func() {
 		sig := make(chan os.Signal, 1)
@@ -118,6 +118,7 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 			if pw, err := s.pg.AuthorGetPlaybook(r.Context(), id); err == nil {
 				editorial, _ := s.pg.GetEditorialSource(r.Context())
 				pj, _ := json.Marshal(buildPreload(pw, editorial.ID))
+				//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
 				data["PreloadJSON"] = template.JS(pj)
 			}
 		}
