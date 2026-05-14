@@ -65,13 +65,13 @@ func (pg *PG) GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdict
 	return scanJurisdiction(row)
 }
 
-// ListTopicsByJurisdiction returns topics that have a playbook for the given jurisdiction + language.
+// ListTopicsByJurisdiction returns topics that have a published playbook for the given jurisdiction + language.
 func (pg *PG) ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT t.id, t.slug, t.name
 		FROM topics t
 		JOIN playbooks p ON p.topic_id = t.id
-		WHERE p.jurisdiction_id = $1 AND p.language = $2
+		WHERE p.jurisdiction_id = $1 AND p.language = $2 AND p.status = 'published'
 		ORDER BY t.name`, jurisdictionID, language)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id
-		WHERE j.slug = $1 AND t.slug = $2 AND pb.language = $3`,
+		WHERE j.slug = $1 AND t.slug = $2 AND pb.language = $3 AND pb.status = 'published'`,
 		jurisdictionSlug, topicSlug, language,
 	).Scan(
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
@@ -267,7 +267,7 @@ func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id
-		WHERE pb.language = 'en'
+		WHERE pb.language = 'en' AND pb.status = 'published'
 		ORDER BY j.slug, t.slug`)
 	if err != nil {
 		return nil, err
@@ -338,16 +338,21 @@ func (pg *PG) GetEditorialSource(ctx context.Context) (Source, error) {
 // IngestPlaybook writes a full playbook atomically. The transaction is rolled
 // back if any statement has zero citations, enforcing the citation guarantee at the DB layer.
 func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) error {
+	status := params.Status
+	if status == "" {
+		status = "published"
+	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var playbookID int64
 		err := tx.QueryRow(ctx, `
-			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
 			ON CONFLICT (jurisdiction_id, topic_id, language) DO UPDATE
-			    SET slug = EXCLUDED.slug, title = EXCLUDED.title, intro_md = EXCLUDED.intro_md
+			    SET slug = EXCLUDED.slug, title = EXCLUDED.title, intro_md = EXCLUDED.intro_md,
+			        status = EXCLUDED.status
 			RETURNING id`,
 			params.JurisdictionID, params.TopicID, params.Language,
-			params.Slug, params.Title, params.IntroMD,
+			params.Slug, params.Title, params.IntroMD, status,
 		).Scan(&playbookID)
 		if err != nil {
 			return fmt.Errorf("upsert playbook: %w", err)
@@ -449,6 +454,91 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 	}
 	_ = order
 	return out
+}
+
+// ---- Authoring -------------------------------------------------------------
+
+// AuthorGetPlaybook fetches any playbook by ID regardless of status, used for reference/preview.
+func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error) {
+	var p PlaybookWithStatements
+	err := pg.pool.QueryRow(ctx, `
+		SELECT
+			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
+			pb.slug, pb.title, pb.intro_md, pb.last_reviewed_at,
+			j.id, j.parent_id, j.kind, j.name, j.slug,
+			t.id, t.slug, t.name
+		FROM playbooks pb
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		JOIN topics        t ON t.id  = pb.topic_id
+		WHERE pb.id = $1`, id,
+	).Scan(
+		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
+		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
+		&p.Playbook.IntroMD, &p.Playbook.LastReviewedAt,
+		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
+		&p.Jurisdiction.Name, &p.Jurisdiction.Slug,
+		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return p, ErrNotFound
+		}
+		return p, err
+	}
+	statementRows, err := pg.pool.Query(ctx, `
+		SELECT
+			s.id, s.body_md, ps.position,
+			c.source_id, c.locator,
+			src.url, src.publisher, src.kind
+		FROM playbook_statements ps
+		JOIN statements s   ON s.id  = ps.statement_id
+		JOIN citations  c   ON c.statement_id = s.id
+		JOIN sources    src ON src.id = c.source_id
+		WHERE ps.playbook_id = $1
+		ORDER BY ps.position, c.source_id`, p.Playbook.ID)
+	if err != nil {
+		return p, err
+	}
+	defer statementRows.Close()
+	p.Statements = assembleStatements(statementRows)
+	return p, statementRows.Err()
+}
+
+// AuthorListPlaybooks returns all playbooks (draft and published) for the authoring dashboard.
+func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT pb.id, pb.title, j.name, j.slug, t.slug, pb.language, pb.status
+		FROM playbooks pb
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		JOIN topics        t ON t.id  = pb.topic_id
+		ORDER BY pb.status DESC, j.name, t.slug`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuthorPlaybookRow
+	for rows.Next() {
+		var r AuthorPlaybookRow
+		if err := rows.Scan(&r.ID, &r.Title, &r.JurisdictionName, &r.JurisdictionSlug,
+			&r.TopicSlug, &r.Language, &r.Status); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// AuthorPublishPlaybook sets a playbook's status to "published".
+func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
+	_, err := pg.pool.Exec(ctx,
+		`UPDATE playbooks SET status = 'published' WHERE id = $1`, id)
+	return err
+}
+
+// AuthorDeletePlaybook deletes a playbook and its statements (via CASCADE).
+func (pg *PG) AuthorDeletePlaybook(ctx context.Context, id int64) error {
+	_, err := pg.pool.Exec(ctx, `DELETE FROM playbooks WHERE id = $1`, id)
+	return err
 }
 
 // ErrNotFound is returned when a requested row does not exist.

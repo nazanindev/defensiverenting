@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New Playbook — Defensive Renting</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; }
+  .page { max-width: 700px; margin: 0 auto; padding: 32px 24px 80px; }
+  .back { color: #5b5bd6; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
+  .back:hover { text-decoration: underline; }
+  h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 24px; }
+  .error { background: #fff5f5; border: 1px solid #fc8181; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; color: #c53030; font-size: .875rem; }
+
+  section { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 22px; margin-bottom: 16px; }
+  section h2 { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #a0aec0; margin-bottom: 16px; }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field > label { display: block; font-size: .82rem; font-weight: 600; color: #4a5568; margin-bottom: 5px; }
+  .hint { font-size: .75rem; color: #a0aec0; margin-top: 4px; }
+
+  input[type=text], input[type=url], textarea, select {
+    width: 100%; padding: 7px 10px; border: 1px solid #cbd5e0; border-radius: 6px;
+    font-size: .875rem; font-family: inherit; color: #1b1f3b; background: #fff;
+    transition: border-color .15s;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none; border-color: #5b5bd6; box-shadow: 0 0 0 3px rgba(91,91,214,.1);
+  }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* derived slug preview */
+  .derived { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .derived-label { font-size: .72rem; color: #a0aec0; flex-shrink: 0; }
+  .derived-value { font-size: .72rem; color: #5b5bd6; font-family: monospace; background: #f0f4ff; padding: 2px 6px; border-radius: 4px; }
+
+  /* new-city panel */
+  #new-city-panel { margin-top: 12px; padding: 14px 16px; background: #f8f9ff; border-radius: 8px; border: 1px solid #e0e7ff; }
+  #new-city-panel .panel-label { font-size: .75rem; font-weight: 700; color: #6366f1; margin-bottom: 10px; }
+
+  /* custom topic */
+  #custom-topic-panel { margin-top: 10px; }
+
+  /* source + statement cards */
+  .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; background: #fafbff; }
+  .card-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .card-num { font-size: .82rem; font-weight: 700; color: #4a5568; }
+
+  /* citation rows */
+  .cite-hd { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #a0aec0; margin: 12px 0 8px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+  .cite-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
+  .cite-row input[type=checkbox] { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; accent-color: #5b5bd6; }
+  .cite-name { flex: 1; font-size: .82rem; color: #2d3748; }
+  .cite-sub { font-size: .72rem; color: #a0aec0; }
+  .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
+
+  .no-items { font-size: .8rem; color: #c0c8d8; font-style: italic; padding: 4px 0 8px; }
+
+  /* kind tags */
+  .kind-tag { display: inline-block; padding: .1rem .4rem; border-radius: 3px; font-size: .68rem; font-weight: 700; background: #e9d8fd; color: #6b21a8; margin-left: 5px; vertical-align: middle; }
+
+  /* buttons */
+  .btn { display: inline-block; padding: .38rem .85rem; border-radius: 6px; font-size: .82rem; font-family: inherit; cursor: pointer; border: none; font-weight: 500; }
+  .btn-add { background: #eff6ff; color: #1d4ed8; border: 1px dashed #93c5fd; margin-top: 4px; }
+  .btn-add:hover { background: #dbeafe; }
+  .btn-rm { background: transparent; color: #dc2626; border: 1px solid #fecaca; padding: .22rem .55rem; font-size: .75rem; }
+  .btn-rm:hover { background: #fef2f2; }
+  .btn-save { background: #5b5bd6; color: #fff; padding: .55rem 1.6rem; font-size: .9rem; }
+  .btn-save:hover { background: #4a4ac0; }
+
+  .footer { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+  .footer-note { font-size: .75rem; color: #a0aec0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <a href="/" class="back">← Back</a>
+  <h1>New Playbook</h1>
+
+  {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+
+  <form method="post" action="/new" onsubmit="return beforeSubmit()">
+
+    <!-- ── Playbook details ──────────────────────────────────── -->
+    <section>
+      <h2>Playbook</h2>
+
+      <div class="g2">
+        <div class="field">
+          <label>City *</label>
+          <select name="jurisdiction_select" id="city-sel" onchange="onCityChange(this)" required>
+            <option value="">— pick a city —</option>
+            {{range .Cities}}<option value="{{.Slug}}" data-name="{{.Name}}">{{.Name}}</option>{{end}}
+            <option value="new">+ New city…</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Topic *</label>
+          <select name="topic_key" id="topic-sel" onchange="onTopicChange(this.value)" required>
+            <option value="">— pick a topic —</option>
+            <option value="heat-not-working">Heat Not Working</option>
+            <option value="cant-pay-rent">Can't Pay Rent</option>
+            <option value="notice-to-quit">Notice to Quit</option>
+            <option value="security-deposit-not-returned">Security Deposit Not Returned</option>
+            <option value="landlord-entry-without-notice">Landlord Entry Without Notice</option>
+            <option value="uninhabitable-conditions">Uninhabitable Conditions</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- New-city fields (hidden until "New city…" selected) -->
+      <div id="new-city-panel" style="display:none">
+        <p class="panel-label">New city</p>
+        <div class="g2">
+          <div class="field">
+            <label>City name</label>
+            <input type="text" name="new_city_name" id="new-city-name"
+                   oninput="onCityNameInput(this.value)" placeholder="Chicago">
+            <div class="derived">
+              <span class="derived-label">slug →</span>
+              <span class="derived-value" id="city-slug-preview">…</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>State name</label>
+            <input type="text" name="new_state_name" id="new-state-name"
+                   oninput="onStateNameInput(this.value)" placeholder="Illinois">
+            <div class="derived">
+              <span class="derived-label">slug →</span>
+              <span class="derived-value" id="state-slug-preview">…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom topic field (hidden until "Custom…" selected) -->
+      <div id="custom-topic-panel" style="display:none" class="field">
+        <label>Custom topic name</label>
+        <input type="text" name="custom_topic_name" id="custom-topic-name"
+               oninput="onCustomTopicInput(this.value)" placeholder="Mold in Apartment">
+        <div class="derived">
+          <span class="derived-label">topic id →</span>
+          <span class="derived-value" id="topic-key-preview">…</span>
+        </div>
+      </div>
+
+      <!-- Full slug preview (always shown once city+topic chosen) -->
+      <div class="derived" id="full-slug-row" style="display:none; margin-bottom:14px">
+        <span class="derived-label">playbook id →</span>
+        <span class="derived-value" id="full-slug-preview">…</span>
+      </div>
+
+      <div class="field">
+        <label>Title *</label>
+        <input type="text" name="title" id="title-input" required
+               placeholder="e.g. Heat Not Working in Chicago — What Can I Do?">
+        <p class="hint">Written as a question a renter would search. Auto-suggested — edit freely.</p>
+      </div>
+
+      <div class="field">
+        <label>Intro</label>
+        <textarea name="intro" rows="2"
+                  placeholder="1–2 sentences framing the situation. E.g. "No heat is an emergency. Here are your options.""></textarea>
+      </div>
+    </section>
+
+    <!-- ── Sources ───────────────────────────────────────────── -->
+    <section>
+      <h2>Sources</h2>
+      <div id="sources-container"><p class="no-items">Add sources you'll cite in the statements below.</p></div>
+      <button type="button" class="btn btn-add" onclick="addSource()">+ Add source</button>
+      <input type="hidden" name="active_sources" id="active_sources" value="">
+    </section>
+
+    <!-- ── Statements ────────────────────────────────────────── -->
+    <section>
+      <h2>Statements</h2>
+      <div id="stmts-container"><p class="no-items">Each statement is one citable fact shown to the renter. Add sources first.</p></div>
+      <button type="button" class="btn btn-add" onclick="addStmt()">+ Add statement</button>
+      <input type="hidden" name="active_stmts" id="active_stmts" value="">
+    </section>
+
+    <div class="footer">
+      <button type="submit" class="btn btn-save">Save as draft</button>
+      <span class="footer-note">Won't go live until you publish from the dashboard.</span>
+    </div>
+  </form>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+
+const PRELOAD = {{.PreloadJSON}};
+
+let sources = [], stmts = [];
+let nextSrcId = 0, nextStmtId = 0;
+
+let curCitySlug = '', curCityName = '';
+let curTopicKey = '';
+let lastAutoTitle = '';
+
+// Known title templates
+const TITLE_TMPL = {
+  'heat-not-working':               c => `Heat Not Working in ${c} — What Can I Do?`,
+  'cant-pay-rent':                  c => `Can't Pay Rent in ${c} — What Are My Options?`,
+  'notice-to-quit':                 c => `Notice to Quit in ${c} — What Does It Mean?`,
+  'security-deposit-not-returned':  c => `Security Deposit Not Returned in ${c} — What Can I Do?`,
+  'landlord-entry-without-notice':  c => `Landlord Entry Without Notice in ${c} — What Are My Rights?`,
+  'uninhabitable-conditions':       c => `Uninhabitable Conditions in ${c} — How to Report Them`,
+};
+
+// Init from preload (?from=id)
+if (PRELOAD && PRELOAD.sources) {
+  PRELOAD.sources.forEach(s => {
+    sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
+  });
+  PRELOAD.stmts.forEach(s => {
+    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, cites: {}, locators: {} };
+    (s.cites || []).forEach(i => { st.cites[i] = true; });
+    Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
+    stmts.push(st);
+  });
+  render();
+}
+
+// ── City / topic derivation ────────────────────────────────────────────────
+
+function onCityChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (sel.value === 'new') {
+    curCitySlug = '';
+    curCityName = '';
+    show('new-city-panel');
+  } else {
+    curCitySlug = sel.value;
+    curCityName = opt.dataset.name || opt.text;
+    hide('new-city-panel');
+  }
+  updateDerived();
+}
+
+function onCityNameInput(v) {
+  curCitySlug = slugify(v);
+  curCityName = v;
+  setText('city-slug-preview', curCitySlug || '…');
+  updateDerived();
+}
+
+function onStateNameInput(v) {
+  setText('state-slug-preview', slugify(v) || '…');
+}
+
+function onTopicChange(v) {
+  curTopicKey = v;
+  v === 'custom' ? show('custom-topic-panel') : hide('custom-topic-panel');
+  updateDerived();
+}
+
+function onCustomTopicInput(v) {
+  curTopicKey = slugify(v);
+  setText('topic-key-preview', curTopicKey || '…');
+  updateDerived();
+}
+
+function updateDerived() {
+  const topicKey = curTopicKey === 'custom'
+    ? slugify(document.getElementById('custom-topic-name')?.value || '')
+    : curTopicKey;
+
+  const fullSlug = curCitySlug && topicKey ? `${curCitySlug}-${topicKey}` : '';
+  if (fullSlug) {
+    setText('full-slug-preview', fullSlug);
+    show('full-slug-row');
+  } else {
+    hide('full-slug-row');
+  }
+
+  // Auto-suggest title if the author hasn't manually edited it
+  const ti = document.getElementById('title-input');
+  if (ti && curCityName && topicKey) {
+    const cur = ti.value;
+    if (cur === '' || cur === lastAutoTitle) {
+      const fn = TITLE_TMPL[topicKey];
+      const suggested = fn ? fn(curCityName) : '';
+      if (suggested) { ti.value = suggested; lastAutoTitle = suggested; }
+    }
+  }
+}
+
+// ── Sources ────────────────────────────────────────────────────────────────
+
+function addSource() {
+  sync();
+  sources.push({ id: nextSrcId++, url: '', publisher: '', kind: 'statute', locator: '' });
+  render();
+}
+
+function rmSource(id) {
+  sync();
+  sources = sources.filter(s => s.id !== id);
+  stmts.forEach(st => { delete st.cites[id]; delete st.locators[id]; });
+  render();
+}
+
+// ── Statements ────────────────────────────────────────────────────────────
+
+function addStmt() {
+  sync();
+  stmts.push({ id: nextStmtId++, body: '', editorial: false, cites: {}, locators: {} });
+  render();
+}
+
+function rmStmt(id) {
+  sync();
+  stmts = stmts.filter(s => s.id !== id);
+  render();
+}
+
+// ── Sync DOM → state ──────────────────────────────────────────────────────
+
+function sync() {
+  sources.forEach(src => {
+    src.url       = v(`src_url_${src.id}`);
+    src.publisher = v(`src_pub_${src.id}`);
+    src.kind      = v(`src_kind_${src.id}`) || src.kind;
+    src.locator   = v(`src_loc_${src.id}`);
+  });
+  stmts.forEach(st => {
+    st.body      = v(`stmt_${st.id}`);
+    st.editorial = c(`edit_${st.id}`);
+    sources.forEach(src => {
+      st.cites[src.id]    = c(`cite_${st.id}_${src.id}`);
+      st.locators[src.id] = v(`loc_${st.id}_${src.id}`);
+    });
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+
+function render() {
+  renderSources();
+  renderStmts();
+  updateHidden();
+}
+
+function renderSources() {
+  const el = document.getElementById('sources-container');
+  if (!sources.length) {
+    el.innerHTML = '<p class="no-items">Add sources you\'ll cite in the statements below.</p>';
+    return;
+  }
+  el.innerHTML = sources.map((s, i) => `
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-num">Source ${i + 1}</span>
+        <button type="button" class="btn btn-rm" onclick="rmSource(${s.id})">Remove</button>
+      </div>
+      <div class="g2">
+        <div class="field">
+          <label>URL *</label>
+          <input type="url" name="src_url_${s.id}" value="${esc(s.url)}" placeholder="https://…" required>
+        </div>
+        <div class="field">
+          <label>Publisher *</label>
+          <input type="text" name="src_pub_${s.id}" value="${esc(s.publisher)}" placeholder="Illinois Legislature" required>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="field">
+          <label>Type</label>
+          <select name="src_kind_${s.id}">${kindOpts(s.kind)}</select>
+        </div>
+        <div class="field">
+          <label>Locator <span style="font-weight:400;color:#a0aec0">(optional)</span></label>
+          <input type="text" name="src_loc_${s.id}" value="${esc(s.locator)}" placeholder="§ 410.200">
+          <p class="hint">Specific section or chapter shown next to the citation link.</p>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderStmts() {
+  const el = document.getElementById('stmts-container');
+  if (!stmts.length) {
+    const msg = sources.length
+      ? 'Click "+ Add statement" to write the first step.'
+      : 'Add sources first, then write statements.';
+    el.innerHTML = `<p class="no-items">${msg}</p>`;
+    return;
+  }
+  el.innerHTML = stmts.map((st, i) => `
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-num">Statement ${i + 1}</span>
+        <button type="button" class="btn btn-rm" onclick="rmStmt(${st.id})">Remove</button>
+      </div>
+      <textarea name="stmt_${st.id}" rows="3" placeholder="One citable fact in plain English, 1–3 sentences…" required
+                style="width:100%;margin-bottom:0">${esc(st.body)}</textarea>
+      <div class="cite-hd">Cite:</div>
+      ${sources.map((src, si) => `
+        <div class="cite-row">
+          <input type="checkbox" name="cite_${st.id}_${src.id}" id="cb_${st.id}_${src.id}"
+                 ${st.cites[src.id] ? 'checked' : ''}>
+          <label class="cite-name" for="cb_${st.id}_${src.id}">
+            Source ${si + 1}
+            ${src.publisher ? `<span style="color:#a0aec0">— ${esc(src.publisher)}</span>` : ''}
+            ${src.kind ? `<span class="kind-tag">${src.kind.replace(/_/g,' ')}</span>` : ''}
+          </label>
+          <input type="text" name="loc_${st.id}_${src.id}"
+                 value="${esc(st.locators[src.id] || '')}"
+                 placeholder="${esc(src.locator || 'section override')}">
+        </div>
+      `).join('')}
+      <div class="cite-row">
+        <input type="checkbox" name="edit_${st.id}" id="ed_${st.id}" ${st.editorial ? 'checked' : ''}>
+        <label class="cite-name" for="ed_${st.id}" style="color:#718096">
+          Editorial guidance
+          <span style="font-weight:400;font-size:.75rem"> — practical advice not tied to a specific law</span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateHidden() {
+  document.getElementById('active_sources').value = sources.map(s => s.id).join(',');
+  document.getElementById('active_stmts').value   = stmts.map(s => s.id).join(',');
+}
+
+// ── Submit guard ──────────────────────────────────────────────────────────
+
+function beforeSubmit() {
+  sync();
+  updateHidden();
+  if (!stmts.length) { alert('Add at least one statement.'); return false; }
+  for (let i = 0; i < stmts.length; i++) {
+    const st = stmts[i];
+    if (!st.editorial && !sources.some(s => st.cites[s.id])) {
+      alert(`Statement ${i + 1} has no citation.\nCheck a source or mark it as editorial guidance.`);
+      return false;
+    }
+  }
+  return true;
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+
+function slugify(s) {
+  return (s || '').toLowerCase().replace(/'/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+
+function show(id) { document.getElementById(id).style.display = 'block'; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t; }
+function v(name) { const el = document.querySelector(`[name="${name}"]`); return el ? el.value : ''; }
+function c(name) { const el = document.querySelector(`[name="${name}"]`); return el ? el.checked : false; }
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function kindOpts(sel) {
+  return [['statute','Statute'],['regulation','Regulation'],['gov_guidance','Gov guidance'],['nonprofit','Nonprofit'],['editorial','Editorial']]
+    .map(([v,l]) => `<option value="${v}"${v===sel?' selected':''}>${l}</option>`).join('');
+}
+</script>
+</body>
+</html>

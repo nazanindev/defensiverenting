@@ -26,6 +26,12 @@ type Store interface {
 	UpsertTopic(ctx context.Context, t UpsertTopicParams) (Topic, error)
 	IngestPlaybook(ctx context.Context, p IngestPlaybookParams) error
 	GetEditorialSource(ctx context.Context) (Source, error)
+
+	// Authoring
+	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
+	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
+	AuthorPublishPlaybook(ctx context.Context, id int64) error
+	AuthorDeletePlaybook(ctx context.Context, id int64) error
 }
 
 type UpsertJurisdictionParams struct {
@@ -55,6 +61,7 @@ type IngestPlaybookParams struct {
 	Title          string
 	IntroMD        string
 	Statements     []IngestStatementParams
+	Status         string // "draft" | "published"; defaults to "published" if empty
 }
 
 type IngestStatementParams struct {

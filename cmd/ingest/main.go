@@ -179,6 +179,7 @@ func ingestFile(ctx context.Context, pg *store.PG, path string, editorialSourceI
 		Title:          pb.Title,
 		IntroMD:        pb.Intro,
 		Statements:     statements,
+		Status:         "published",
 	}); err != nil {
 		return fmt.Errorf("ingest playbook: %w", err)
 	}
