@@ -106,3 +106,14 @@ type SitemapEntry struct {
 	TopicSlug        string
 	LastMod          *time.Time
 }
+
+// AuthorPlaybookRow is a summary row shown in the authoring dashboard.
+type AuthorPlaybookRow struct {
+	ID               int64
+	Title            string
+	JurisdictionName string
+	JurisdictionSlug string
+	TopicSlug        string
+	Language         string
+	Status           string
+}

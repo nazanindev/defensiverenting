@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Playbook.Playbook.Title}} — Reference</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; }
+  .page { max-width: 780px; margin: 0 auto; padding: 32px 24px 80px; }
+  .back { color: #5b5bd6; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
+  .back:hover { text-decoration: underline; }
+
+  /* Header */
+  .header { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 22px; margin-bottom: 20px; }
+  .header-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .tag { display: inline-block; padding: .2rem .6rem; border-radius: 6px; font-size: .75rem; font-weight: 600; }
+  .tag-city { background: #e9d8fd; color: #553c9a; }
+  .tag-topic { background: #bee3f8; color: #2c5282; }
+  .tag-lang { background: #e2e8f0; color: #4a5568; }
+  .tag-draft { background: #fef3c7; color: #92400e; }
+  .tag-published { background: #d1fae5; color: #065f46; }
+  h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+  .intro { font-size: .9rem; color: #4a5568; line-height: 1.6; }
+  .use-btn { margin-top: 16px; }
+
+  /* Sections */
+  section { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 22px; margin-bottom: 20px; }
+  section h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #718096; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f5; }
+
+  /* Sources */
+  .source-item { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid #f0f0f5; }
+  .source-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .source-num { width: 24px; height: 24px; background: #5b5bd6; color: #fff; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .source-body {}
+  .source-publisher { font-weight: 600; font-size: .9rem; }
+  .source-url { font-size: .78rem; color: #5b5bd6; word-break: break-all; margin-top: 3px; }
+  .source-url a { color: #5b5bd6; text-decoration: none; }
+  .source-url a:hover { text-decoration: underline; }
+  .source-meta { display: flex; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px; font-size: .72rem; font-weight: 600; }
+  .badge-kind { background: #e9d8fd; color: #553c9a; }
+  .badge-locator { background: #e2e8f0; color: #4a5568; font-family: monospace; }
+
+  /* Statements */
+  .stmt-item { padding: 14px 0; border-bottom: 1px solid #f0f0f5; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+  .stmt-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .stmt-num { width: 24px; height: 24px; background: #e2e8f0; color: #4a5568; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .stmt-body { font-size: .9rem; line-height: 1.6; color: #2d3748; margin-bottom: 8px; }
+  .stmt-cites { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cite-chip { display: inline-flex; align-items: center; gap: 5px; padding: .2rem .55rem; border-radius: 6px; font-size: .75rem; font-weight: 600; border: 1px solid; }
+  .cite-chip-src { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+  .cite-chip-editorial { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+  .cite-num { width: 16px; height: 16px; background: #5b5bd6; color: #fff; border-radius: 50%; font-size: .65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* CTA */
+  .cta { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cta-text { font-size: .875rem; color: #3730a3; line-height: 1.5; }
+  .cta-text strong { display: block; margin-bottom: 3px; }
+  .btn { display: inline-block; padding: .45rem 1.1rem; border-radius: 6px; font-size: .875rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 600; }
+  .btn-primary { background: #5b5bd6; color: #fff; }
+  .btn-primary:hover { background: #4a4ac0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <a href="/" class="back">← Back to playbooks</a>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-meta">
+      <span class="tag tag-city">{{.Playbook.Jurisdiction.Name}}</span>
+      <span class="tag tag-topic">{{.Playbook.Topic.Slug}}</span>
+      <span class="tag tag-lang">{{.Playbook.Playbook.Language}}</span>
+      {{if eq .Playbook.Playbook.Status "draft"}}
+      <span class="tag tag-draft">draft</span>
+      {{else}}
+      <span class="tag tag-published">published</span>
+      {{end}}
+    </div>
+    <h1>{{.Playbook.Playbook.Title}}</h1>
+    {{if .Playbook.Playbook.IntroMD}}<p class="intro">{{.Playbook.Playbook.IntroMD}}</p>{{end}}
+  </div>
+
+  <!-- Sources -->
+  <section>
+    <h2>Sources ({{len .Sources}})</h2>
+    {{if .Sources}}
+    {{range .Sources}}
+    <div class="source-item">
+      <div class="source-num">{{.Num}}</div>
+      <div class="source-body">
+        <div class="source-publisher">{{.Publisher}}</div>
+        <div class="source-url"><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></div>
+        <div class="source-meta">
+          <span class="badge badge-kind">{{.Kind}}</span>
+        </div>
+      </div>
+    </div>
+    {{end}}
+    {{else}}
+    <p style="color:#a0aec0;font-size:.875rem">No non-editorial sources.</p>
+    {{end}}
+  </section>
+
+  <!-- Statements -->
+  <section>
+    <h2>Statements ({{len .Stmts}})</h2>
+    {{range .Stmts}}
+    <div class="stmt-item">
+      <div class="stmt-num">{{.Num}}</div>
+      <div>
+        <p class="stmt-body">{{.Body}}</p>
+        <div class="stmt-cites">
+          {{range .Cites}}
+          <span class="cite-chip cite-chip-src">
+            <span class="cite-num">{{.Num}}</span>
+            {{if .Locator}}{{.Locator}}{{else}}Source {{.Num}}{{end}}
+          </span>
+          {{end}}
+          {{if .Editorial}}
+          <span class="cite-chip cite-chip-editorial">Editorial guidance</span>
+          {{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </section>
+
+  <!-- CTA -->
+  <div class="cta">
+    <div class="cta-text">
+      <strong>Use this as a starting point</strong>
+      Opens the authoring form pre-filled with this playbook's sources and statements. Change the city and adapt the content for the new jurisdiction.
+    </div>
+    <a href="/new?from={{.Playbook.Playbook.ID}}" class="btn btn-primary">Use as starting point →</a>
+  </div>
+</div>
+</body>
+</html>

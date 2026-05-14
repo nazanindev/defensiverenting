@@ -1,15 +1,17 @@
 .PHONY: all build test lint vet fmt tidy up down ingest migrate clean
 
-BINARY_SERVER = bin/server
-BINARY_INGEST = bin/ingest
+BINARY_SERVER   = bin/server
+BINARY_INGEST   = bin/ingest
+BINARY_AUTHORING = bin/authoring
 DATABASE_URL   ?= postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable
 
 all: tidy vet lint build test
 
 ## Build binaries
 build:
-	go build -o $(BINARY_SERVER) ./cmd/server
-	go build -o $(BINARY_INGEST) ./cmd/ingest
+	go build -o $(BINARY_SERVER)   ./cmd/server
+	go build -o $(BINARY_INGEST)   ./cmd/ingest
+	go build -o $(BINARY_AUTHORING) ./cmd/authoring
 
 ## Run tests (requires Postgres at DATABASE_URL)
 test:
@@ -56,6 +58,10 @@ migrate:
 ## Start server locally (requires Postgres at DATABASE_URL)
 run:
 	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/server
+
+## Start authoring service locally (requires Postgres at DATABASE_URL)
+authoring:
+	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/authoring
 
 clean:
 	rm -rf bin/
