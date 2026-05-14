@@ -60,6 +60,8 @@
   .btn { display: inline-block; padding: .45rem 1.1rem; border-radius: 6px; font-size: .875rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 600; }
   .btn-primary { background: #5b5bd6; color: #fff; }
   .btn-primary:hover { background: #4a4ac0; }
+  .btn-secondary { background: #fff; color: #5b5bd6; border: 1px solid #c7d2fe; }
+  .btn-secondary:hover { background: #eef2ff; }
 </style>
 </head>
 <body>
@@ -130,10 +132,13 @@
   <!-- CTA -->
   <div class="cta">
     <div class="cta-text">
-      <strong>Use this as a starting point</strong>
-      Opens the authoring form pre-filled with this playbook's sources and statements. Change the city and adapt the content for the new jurisdiction.
+      <strong>Actions</strong>
+      Edit this playbook, or use it as a starting point for a new city.
     </div>
-    <a href="/new?from={{.Playbook.Playbook.ID}}" class="btn btn-primary">Use as starting point →</a>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a href="/edit/{{.Playbook.Playbook.ID}}" class="btn btn-primary">Edit playbook</a>
+      <a href="/new?from={{.Playbook.Playbook.ID}}" class="btn btn-secondary">Use as starting point →</a>
+    </div>
   </div>
 </div>
 </body>

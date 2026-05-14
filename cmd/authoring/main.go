@@ -70,6 +70,8 @@ func main() {
 	mux.HandleFunc("GET /{$}", s.dashboard)
 	mux.HandleFunc("GET /new", s.showForm)
 	mux.HandleFunc("POST /new", s.submitForm)
+	mux.HandleFunc("GET /edit/{id}", s.showEditForm)
+	mux.HandleFunc("POST /edit/{id}", s.submitEditForm)
 	mux.HandleFunc("GET /view/{id}", s.viewPlaybook)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
@@ -385,6 +387,144 @@ func (s *srv) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *srv) showEditForm(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	pw, err := s.pg.AuthorGetPlaybook(r.Context(), id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	editorial, _ := s.pg.GetEditorialSource(r.Context())
+	pj, _ := json.Marshal(buildPreload(pw, editorial.ID))
+	//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
+	s.render(w, "form.html", map[string]any{
+		"EditMode":    true,
+		"EditID":      pw.Playbook.ID,
+		"CityName":    pw.Jurisdiction.Name,
+		"TopicSlug":   pw.Topic.Slug,
+		"Error":       "",
+		"PreloadJSON": template.JS(pj),
+	})
+}
+
+func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	existing, err := s.pg.AuthorGetPlaybook(ctx, id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+
+	editErr := func(msg string) {
+		editorial, _ := s.pg.GetEditorialSource(context.Background())
+		pj, _ := json.Marshal(buildPreload(existing, editorial.ID))
+		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
+		s.render(w, "form.html", map[string]any{
+			"EditMode":    true,
+			"EditID":      existing.Playbook.ID,
+			"CityName":    existing.Jurisdiction.Name,
+			"TopicSlug":   existing.Topic.Slug,
+			"Error":       msg,
+			"PreloadJSON": template.JS(pj),
+		})
+	}
+
+	if err := r.ParseForm(); err != nil {
+		editErr("Invalid form data: " + err.Error())
+		return
+	}
+
+	srcIndices := parseIndices(r.FormValue("active_sources"))
+	sourceByIdx := make(map[int]store.Source, len(srcIndices))
+	srcLocatorByIdx := make(map[int]string, len(srcIndices))
+	for _, i := range srcIndices {
+		u := strings.TrimSpace(r.FormValue(fmt.Sprintf("src_url_%d", i)))
+		pub := strings.TrimSpace(r.FormValue(fmt.Sprintf("src_pub_%d", i)))
+		knd := r.FormValue(fmt.Sprintf("src_kind_%d", i))
+		loc := r.FormValue(fmt.Sprintf("src_loc_%d", i))
+		if u == "" || pub == "" {
+			editErr(fmt.Sprintf("Source %d is missing a URL or publisher", i+1))
+			return
+		}
+		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{URL: u, Publisher: pub, Kind: knd})
+		if err != nil {
+			editErr("Failed to save source: " + err.Error())
+			return
+		}
+		sourceByIdx[i] = src
+		srcLocatorByIdx[i] = loc
+	}
+
+	editorialSrc, err := s.pg.GetEditorialSource(ctx)
+	if err != nil {
+		editErr("Editorial source not found — run migrations first")
+		return
+	}
+
+	stmtIndices := parseIndices(r.FormValue("active_stmts"))
+	var statements []store.IngestStatementParams
+	for _, ji := range stmtIndices {
+		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
+		if body == "" {
+			continue
+		}
+		var cites []store.IngestCitationParams
+		for _, i := range srcIndices {
+			if r.FormValue(fmt.Sprintf("cite_%d_%d", ji, i)) == "on" {
+				loc := r.FormValue(fmt.Sprintf("loc_%d_%d", ji, i))
+				if loc == "" {
+					loc = srcLocatorByIdx[i]
+				}
+				cites = append(cites, store.IngestCitationParams{SourceID: sourceByIdx[i].ID, Locator: loc})
+			}
+		}
+		if r.FormValue(fmt.Sprintf("edit_%d", ji)) == "on" {
+			cites = append(cites, store.IngestCitationParams{SourceID: editorialSrc.ID})
+		}
+		if len(cites) == 0 {
+			editErr(fmt.Sprintf("Statement %d needs at least one citation", ji+1))
+			return
+		}
+		statements = append(statements, store.IngestStatementParams{BodyMD: body, Language: "en", Sources: cites})
+	}
+	if len(statements) == 0 {
+		editErr("At least one statement is required")
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		editErr("Title is required")
+		return
+	}
+
+	if err := s.pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
+		JurisdictionID: existing.Playbook.JurisdictionID,
+		TopicID:        existing.Playbook.TopicID,
+		Language:       existing.Playbook.Language,
+		Slug:           existing.Playbook.Slug,
+		Title:          title,
+		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
+		Statements:     statements,
+		Status:         existing.Playbook.Status,
+	}); err != nil {
+		editErr("Failed to save playbook: " + err.Error())
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/view/%d", id), http.StatusSeeOther)
 }
 
 // ---- helpers ----------------------------------------------------------------

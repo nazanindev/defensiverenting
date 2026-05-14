@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>New Playbook — Defensive Renting</title>
+<title>{{if .EditMode}}Edit Playbook{{else}}New Playbook{{end}} — Defensive Renting</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; }
@@ -77,16 +77,30 @@
 <body>
 <div class="page">
   <a href="/" class="back">← Back</a>
-  <h1>New Playbook</h1>
+  <h1>{{if .EditMode}}Edit Playbook{{else}}New Playbook{{end}}</h1>
 
   {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 
-  <form method="post" action="/new" onsubmit="return beforeSubmit()">
+  <form method="post" action="{{if .EditMode}}/edit/{{.EditID}}{{else}}/new{{end}}" onsubmit="return beforeSubmit()">
 
     <!-- ── Playbook details ──────────────────────────────────── -->
     <section>
       <h2>Playbook</h2>
 
+      {{if .EditMode}}
+      <!-- Edit mode: city and topic are locked -->
+      <div class="g2">
+        <div class="field">
+          <label>City</label>
+          <div style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:.875rem;background:#f8f9ff;color:#4a5568">{{.CityName}}</div>
+        </div>
+        <div class="field">
+          <label>Topic</label>
+          <div style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:.875rem;background:#f8f9ff;color:#4a5568">{{.TopicSlug}}</div>
+        </div>
+      </div>
+      {{else}}
+      <!-- New mode: city and topic selectors -->
       <div class="g2">
         <div class="field">
           <label>City *</label>
@@ -152,6 +166,7 @@
         <span class="derived-label">playbook id →</span>
         <span class="derived-value" id="full-slug-preview">…</span>
       </div>
+      {{end}}
 
       <div class="field">
         <label>Title *</label>
@@ -184,8 +199,8 @@
     </section>
 
     <div class="footer">
-      <button type="submit" class="btn btn-save">Save as draft</button>
-      <span class="footer-note">Won't go live until you publish from the dashboard.</span>
+      <button type="submit" class="btn btn-save">{{if .EditMode}}Save changes{{else}}Save as draft{{end}}</button>
+      {{if not .EditMode}}<span class="footer-note">Won't go live until you publish from the dashboard.</span>{{end}}
     </div>
   </form>
 </div>
