@@ -7,6 +7,7 @@ import "context"
 type Store interface {
 	// Browse
 	ListCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
+	ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (PlaybookWithStatements, error)

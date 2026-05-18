@@ -15,7 +15,7 @@ import (
 )
 
 type browseStore interface {
-	ListCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, id int64, lang string) ([]store.Topic, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (store.PlaybookWithStatements, error)
@@ -30,7 +30,7 @@ func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 
 func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		jurisdictions, err := db.ListCityJurisdictions(r.Context())
+		jurisdictions, err := db.ListPublishedCityJurisdictions(r.Context())
 		if err != nil {
 			logger.ErrorContext(r.Context(), "list jurisdictions", slog.Any("err", err))
 			http.Error(w, "internal error", http.StatusInternalServerError)

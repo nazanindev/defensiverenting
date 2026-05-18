@@ -22,7 +22,7 @@ type stubStore struct {
 	playbookErr   error
 }
 
-func (s *stubStore) ListCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
+func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
 	return s.jurisdictions, nil
 }
 

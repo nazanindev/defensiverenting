@@ -57,6 +57,23 @@ func (pg *PG) ListCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	return scanJurisdictions(rows)
 }
 
+// ListPublishedCityJurisdictions returns city-level jurisdictions that have
+// at least one published playbook. Used by the public site to avoid showing
+// cities whose only playbooks have been deleted or were never published.
+func (pg *PG) ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdiction, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug
+		FROM jurisdictions j
+		JOIN playbooks p ON p.jurisdiction_id = j.id
+		WHERE j.kind = 'city' AND p.status = 'published'
+		ORDER BY j.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJurisdictions(rows)
+}
+
 // GetJurisdictionBySlug looks up one jurisdiction by its URL slug.
 func (pg *PG) GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdiction, error) {
 	row := pg.pool.QueryRow(ctx, `
