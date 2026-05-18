@@ -604,9 +604,15 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
 	return err
 }
 
-// AuthorDeletePlaybook deletes a playbook and its statements (via CASCADE).
+// AuthorDeletePlaybook deletes a playbook, its orphaned statements, and any
+// resulting orphaned jurisdiction/topic rows so they don't surface on the site.
 func (pg *PG) AuthorDeletePlaybook(ctx context.Context, id int64) error {
-	_, err := pg.pool.Exec(ctx, `DELETE FROM playbooks WHERE id = $1`, id)
+	_, err := pg.pool.Exec(ctx, `
+		WITH deleted AS (
+			DELETE FROM playbooks WHERE id = $1
+		)
+		DELETE FROM statements
+		WHERE id NOT IN (SELECT DISTINCT statement_id FROM playbook_statements)`, id)
 	return err
 }
 
