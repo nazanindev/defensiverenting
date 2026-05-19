@@ -88,11 +88,6 @@
     </div>
   </div>
 
-  <footer class="site-footer">
-    <div class="wrap">
-      <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer.</p>
-      <p class="footer-links"><a href="/j/{{.Jurisdiction.Slug}}">← Back to {{.Jurisdiction.Name}}</a></p>
-    </div>
-  </footer>
+  {{template "site-footer" .}}
 </body>
 </html>

@@ -98,6 +98,12 @@ type SearchPage struct {
 // EditorialPage is the /editorial explainer page.
 type EditorialPage struct{}
 
+// AboutPage is the /about page.
+type AboutPage struct{}
+
+// SupportPage is the /support page.
+type SupportPage struct{}
+
 // Render dispatches to the correct template based on the concrete page type.
 func Render(w io.Writer, page any) error {
 	switch p := page.(type) {
@@ -111,6 +117,10 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "search.html", p)
 	case EditorialPage:
 		return tmpl.ExecuteTemplate(w, "editorial.html", p)
+	case AboutPage:
+		return tmpl.ExecuteTemplate(w, "about.html", p)
+	case SupportPage:
+		return tmpl.ExecuteTemplate(w, "support.html", p)
 	default:
 		return fmt.Errorf("unknown page type %T", page)
 	}

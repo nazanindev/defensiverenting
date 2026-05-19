@@ -397,6 +397,82 @@ h1 {
 .chip--gov::before        { content: "🏛 "; }
 .chip--editorial::before  { content: "Ed. "; }
 
+/* ── Prose (about, support, editorial) ─────────────────── */
+
+.prose {
+  max-width: 680px;
+  line-height: 1.7;
+  position: relative;
+  z-index: 1;
+  padding-top: 8px;
+}
+
+.prose h1 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(2rem, 3vw + 1rem, 3rem);
+  margin: 0 0 24px;
+  line-height: 1.1;
+}
+
+.prose h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  color: var(--ink);
+}
+
+.prose p {
+  margin: 0 0 16px;
+  color: var(--ink);
+}
+
+.prose ul {
+  margin: 0 0 16px;
+  padding-left: 24px;
+}
+
+.prose li {
+  margin-bottom: 6px;
+}
+
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* ── Support banner (homepage strip) ───────────────────── */
+
+.support-banner {
+  background: var(--mint);
+  border-radius: 12px;
+  padding: 12px 20px;
+  margin-bottom: 32px;
+  font-size: .95rem;
+  color: var(--ink);
+  position: relative;
+  z-index: 1;
+}
+
+.support-banner a {
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.support-banner a:hover { text-decoration: underline; }
+
+/* ── Support CTA box (support page) ────────────────────── */
+
+.support-cta-box {
+  background: var(--mint);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin: 24px 0;
+}
+
+.support-cta-box p { margin: 0 0 8px; }
+.support-cta-box p:last-child { margin: 0; }
+
 /* ── Search ─────────────────────────────────────────────── */
 
 .search-heading {

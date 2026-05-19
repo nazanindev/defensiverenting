@@ -42,6 +42,10 @@
       </form>
     </section>
 
+    <div class="support-banner">
+      This site is free, ad-free, and written by a real person. <a href="/support">Support our work →</a>
+    </div>
+
     <section class="city-section" aria-labelledby="cities-heading">
       <h2 id="cities-heading" class="section-title">Or browse by city</h2>
       {{if .Jurisdictions}}
@@ -61,10 +65,6 @@
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="wrap">
-      <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer. Every claim links to its primary source so you can verify it yourself.</p>
-    </div>
-  </footer>
+  {{template "site-footer" .}}
 </body>
 </html>

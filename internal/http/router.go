@@ -30,6 +30,8 @@ func NewRouter(db *store.PG, logger *slog.Logger, siteURL string) http.Handler {
 		handlers.Browse(r, db, logger)
 		r.Get("/search", handlers.Search(db, logger))
 		r.Get("/editorial", handlers.Editorial)
+		r.Get("/about", handlers.About)
+		r.Get("/support", handlers.Support)
 		r.Get("/robots.txt", handlers.Robots(siteURL))
 		r.Get("/sitemap.xml", handlers.Sitemap(db, siteURL))
 	})
