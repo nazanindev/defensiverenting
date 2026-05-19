@@ -473,6 +473,109 @@ h1 {
 .support-cta-box p { margin: 0 0 8px; }
 .support-cta-box p:last-child { margin: 0; }
 
+/* ── Directory (resource listing) ──────────────────────── */
+
+.directory-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.directory-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+}
+
+.directory-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.directory-body p { margin: 0 0 6px; }
+.directory-body p:last-child { margin: 0; }
+.directory-body strong { color: var(--ink); }
+
+.directory-source {
+  display: inline-block;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.directory-source:hover { text-decoration: underline; }
+
+/* ── FAQ ────────────────────────────────────────────────── */
+
+.faq-list {
+  display: grid;
+  gap: 16px;
+}
+
+.faq-item {
+  background: white;
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+}
+
+.faq-body {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  margin-bottom: 14px;
+}
+
+.faq-body p { margin: 0 0 10px; }
+.faq-body p:last-child { margin: 0; }
+.faq-body strong { color: var(--ink); font-size: 1.08rem; }
+
+/* ── Checklist ──────────────────────────────────────────── */
+
+.checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.checklist-item {
+  background: white;
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  transition: opacity .2s;
+}
+
+.checklist-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.checklist-check {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checklist-check:checked ~ .checklist-body {
+  opacity: .5;
+  text-decoration-line: none;
+}
+
+.checklist-body { flex: 1; min-width: 0; }
+
 /* ── Search ─────────────────────────────────────────────── */
 
 .search-heading {

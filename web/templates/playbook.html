@@ -62,6 +62,65 @@
           </div>
 
           {{if .Statements}}
+
+          {{if eq .Playbook.PageKind "directory"}}
+          <ul class="directory-grid">
+            {{range .Statements}}
+            <li class="directory-card">
+              <div class="directory-body">{{.BodyHTML}}</div>
+              {{range .Citations}}{{if ne .SourceKind "editorial"}}
+              <a class="directory-source" href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Label}} →</a>
+              {{end}}{{end}}
+            </li>
+            {{end}}
+          </ul>
+
+          {{else if eq .Playbook.PageKind "faq"}}
+          <dl class="faq-list">
+            {{range .Statements}}
+            <div class="faq-item">
+              <div class="faq-body">{{.BodyHTML}}</div>
+              <div class="citation-chips" aria-label="Sources">
+                {{range .Citations}}
+                <a class="{{chipClass .SourceKind}}"
+                   href="{{.URL}}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
+                  {{chipLabel .Label .Locator}}
+                </a>
+                {{end}}
+              </div>
+            </div>
+            {{end}}
+          </dl>
+
+          {{else if eq .Playbook.PageKind "checklist"}}
+          <ul class="checklist-list">
+            {{range .Statements}}
+            <li class="checklist-item">
+              <label class="checklist-row">
+                <input type="checkbox" class="checklist-check">
+                <div class="checklist-body">
+                  <div class="statement-body">{{.BodyHTML}}</div>
+                  <div class="citation-chips" aria-label="Sources">
+                    {{range .Citations}}
+                    <a class="{{chipClass .SourceKind}}"
+                       href="{{.URL}}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
+                      {{chipLabel .Label .Locator}}
+                    </a>
+                    {{end}}
+                  </div>
+                </div>
+              </label>
+            </li>
+            {{end}}
+          </ul>
+
+          {{else}}
           <ol class="statement-list">
             {{range .Statements}}
             <li class="statement-item">
@@ -80,6 +139,8 @@
             </li>
             {{end}}
           </ol>
+          {{end}}
+
           {{else}}
           <p class="empty-state">No statements available for this playbook yet.</p>
           {{end}}

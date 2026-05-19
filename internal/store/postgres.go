@@ -114,7 +114,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	err := pg.pool.QueryRow(ctx, `
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
-			pb.slug, pb.title, pb.intro_md, pb.last_reviewed_at,
+			pb.slug, pb.title, pb.intro_md, pb.page_kind, pb.last_reviewed_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug,
 			t.id, t.slug, t.name
 		FROM playbooks pb
@@ -125,7 +125,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	).Scan(
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
-		&p.Playbook.IntroMD, &p.Playbook.LastReviewedAt,
+		&p.Playbook.IntroMD, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug,
 		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
@@ -359,17 +359,21 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 	if status == "" {
 		status = "published"
 	}
+	pageKind := params.PageKind
+	if pageKind == "" {
+		pageKind = "playbook"
+	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var playbookID int64
 		err := tx.QueryRow(ctx, `
-			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (jurisdiction_id, topic_id, language) DO UPDATE
 			    SET slug = EXCLUDED.slug, title = EXCLUDED.title, intro_md = EXCLUDED.intro_md,
-			        status = EXCLUDED.status
+			        status = EXCLUDED.status, page_kind = EXCLUDED.page_kind
 			RETURNING id`,
 			params.JurisdictionID, params.TopicID, params.Language,
-			params.Slug, params.Title, params.IntroMD, status,
+			params.Slug, params.Title, params.IntroMD, status, pageKind,
 		).Scan(&playbookID)
 		if err != nil {
 			return fmt.Errorf("upsert playbook: %w", err)
@@ -481,7 +485,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	err := pg.pool.QueryRow(ctx, `
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
-			pb.slug, pb.title, pb.intro_md, pb.status, pb.last_reviewed_at,
+			pb.slug, pb.title, pb.intro_md, pb.status, pb.page_kind, pb.last_reviewed_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug,
 			t.id, t.slug, t.name
 		FROM playbooks pb
@@ -491,7 +495,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	).Scan(
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
-		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.LastReviewedAt,
+		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug,
 		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
@@ -525,13 +529,17 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 // Unlike IngestPlaybook, it targets by ID so city/topic can be changed on drafts.
 func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlaybookParams) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		pageKind := params.PageKind
+		if pageKind == "" {
+			pageKind = "playbook"
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE playbooks
 			SET jurisdiction_id = $2, topic_id = $3, language = $4,
-			    slug = $5, title = $6, intro_md = $7
+			    slug = $5, title = $6, intro_md = $7, page_kind = $8
 			WHERE id = $1`,
 			params.ID, params.JurisdictionID, params.TopicID,
-			params.Language, params.Slug, params.Title, params.IntroMD,
+			params.Language, params.Slug, params.Title, params.IntroMD, pageKind,
 		); err != nil {
 			return fmt.Errorf("update playbook: %w", err)
 		}
@@ -576,7 +584,7 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 // AuthorListPlaybooks returns all playbooks (draft and published) for the authoring dashboard.
 func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT pb.id, pb.title, j.name, j.slug, t.slug, pb.language, pb.status
+		SELECT pb.id, pb.title, j.name, j.slug, t.slug, pb.language, pb.status, pb.page_kind
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id
@@ -589,7 +597,7 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 	for rows.Next() {
 		var r AuthorPlaybookRow
 		if err := rows.Scan(&r.ID, &r.Title, &r.JurisdictionName, &r.JurisdictionSlug,
-			&r.TopicSlug, &r.Language, &r.Status); err != nil {
+			&r.TopicSlug, &r.Language, &r.Status, &r.PageKind); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

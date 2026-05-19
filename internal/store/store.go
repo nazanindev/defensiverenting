@@ -44,6 +44,7 @@ type AuthorUpdatePlaybookParams struct {
 	Slug           string
 	Title          string
 	IntroMD        string
+	PageKind       string
 	Statements     []IngestStatementParams
 }
 
@@ -73,6 +74,7 @@ type IngestPlaybookParams struct {
 	Slug           string
 	Title          string
 	IntroMD        string
+	PageKind       string // "playbook"|"directory"|"faq"|"checklist"; defaults to "playbook"
 	Statements     []IngestStatementParams
 	Status         string // "draft" | "published"; defaults to "published" if empty
 }

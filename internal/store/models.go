@@ -58,6 +58,7 @@ type Playbook struct {
 	Title          string
 	IntroMD        string
 	Status         string
+	PageKind       string // playbook|directory|faq|checklist
 	LastReviewedAt *time.Time
 }
 
@@ -117,4 +118,5 @@ type AuthorPlaybookRow struct {
 	TopicSlug        string
 	Language         string
 	Status           string
+	PageKind         string
 }

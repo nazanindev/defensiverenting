@@ -114,15 +114,40 @@
           <label>Topic *</label>
           <select name="topic_key" id="topic-sel" onchange="onTopicChange(this.value)" required>
             <option value="">— pick a topic —</option>
-            <option value="heat-not-working"{{if eq .SelectedTopicKey "heat-not-working"}} selected{{end}}>Heat Not Working</option>
-            <option value="cant-pay-rent"{{if eq .SelectedTopicKey "cant-pay-rent"}} selected{{end}}>Can't Pay Rent</option>
-            <option value="notice-to-quit"{{if eq .SelectedTopicKey "notice-to-quit"}} selected{{end}}>Notice to Quit</option>
-            <option value="security-deposit-not-returned"{{if eq .SelectedTopicKey "security-deposit-not-returned"}} selected{{end}}>Security Deposit Not Returned</option>
-            <option value="landlord-entry-without-notice"{{if eq .SelectedTopicKey "landlord-entry-without-notice"}} selected{{end}}>Landlord Entry Without Notice</option>
-            <option value="uninhabitable-conditions"{{if eq .SelectedTopicKey "uninhabitable-conditions"}} selected{{end}}>Uninhabitable Conditions</option>
+            <optgroup label="Legal rights">
+              <option value="heat-not-working"{{if eq .SelectedTopicKey "heat-not-working"}} selected{{end}}>Heat Not Working</option>
+              <option value="cant-pay-rent"{{if eq .SelectedTopicKey "cant-pay-rent"}} selected{{end}}>Can't Pay Rent</option>
+              <option value="notice-to-quit"{{if eq .SelectedTopicKey "notice-to-quit"}} selected{{end}}>Notice to Quit</option>
+              <option value="security-deposit-not-returned"{{if eq .SelectedTopicKey "security-deposit-not-returned"}} selected{{end}}>Security Deposit Not Returned</option>
+              <option value="landlord-entry-without-notice"{{if eq .SelectedTopicKey "landlord-entry-without-notice"}} selected{{end}}>Landlord Entry Without Notice</option>
+              <option value="uninhabitable-conditions"{{if eq .SelectedTopicKey "uninhabitable-conditions"}} selected{{end}}>Uninhabitable Conditions</option>
+              <option value="rent-increase"{{if eq .SelectedTopicKey "rent-increase"}} selected{{end}}>Rent Increase</option>
+              <option value="discrimination"{{if eq .SelectedTopicKey "discrimination"}} selected{{end}}>Housing Discrimination</option>
+              <option value="lease-renewal"{{if eq .SelectedTopicKey "lease-renewal"}} selected{{end}}>Lease Renewal</option>
+              <option value="noise-complaints"{{if eq .SelectedTopicKey "noise-complaints"}} selected{{end}}>Noise Complaints</option>
+            </optgroup>
+            <optgroup label="Guides &amp; checklists">
+              <option value="move-in-checklist"{{if eq .SelectedTopicKey "move-in-checklist"}} selected{{end}}>Move-In Checklist</option>
+              <option value="move-out-checklist"{{if eq .SelectedTopicKey "move-out-checklist"}} selected{{end}}>Move-Out Checklist</option>
+            </optgroup>
+            <optgroup label="Resources">
+              <option value="resource-directory"{{if eq .SelectedTopicKey "resource-directory"}} selected{{end}}>Resource Directory</option>
+            </optgroup>
             <option value="custom"{{if .IsCustomTopic}} selected{{end}}>Custom…</option>
           </select>
         </div>
+      </div>
+
+      <!-- Page kind selector -->
+      <div class="field" style="margin-top:10px">
+        <label>Page type *</label>
+        <select name="page_kind" id="page-kind-sel" onchange="onPageKindChange(this.value)">
+          <option value="playbook"{{if or (eq $.SelectedPageKind "playbook") (eq $.SelectedPageKind "")}} selected{{end}}>Playbook — step-by-step legal rights guide</option>
+          <option value="directory"{{if eq $.SelectedPageKind "directory"}} selected{{end}}>Resource directory — list of orgs or services</option>
+          <option value="faq"{{if eq $.SelectedPageKind "faq"}} selected{{end}}>FAQ — common questions answered</option>
+          <option value="checklist"{{if eq $.SelectedPageKind "checklist"}} selected{{end}}>Checklist — action items for the renter</option>
+        </select>
+        <p class="hint" id="page-kind-hint">Numbered statements backed by statute or regulation citations.</p>
       </div>
 
       <!-- New-city fields (hidden until "New city…" selected) -->
@@ -228,7 +253,26 @@ const TITLE_TMPL = {
   'security-deposit-not-returned':  function(c) { return 'Security Deposit Not Returned in ' + c + ' — What Can I Do?'; },
   'landlord-entry-without-notice':  function(c) { return 'Landlord Entry Without Notice in ' + c + ' — What Are My Rights?'; },
   'uninhabitable-conditions':       function(c) { return 'Uninhabitable Conditions in ' + c + ' — How to Report Them'; },
+  'rent-increase':                  function(c) { return 'Rent Increase in ' + c + ' — What Are My Rights?'; },
+  'discrimination':                 function(c) { return 'Housing Discrimination in ' + c + ' — Know Your Rights'; },
+  'lease-renewal':                  function(c) { return 'Lease Renewal in ' + c + ' — What You Should Know'; },
+  'noise-complaints':               function(c) { return 'Noise Complaints in ' + c + ' — Your Rights as a Tenant'; },
+  'move-in-checklist':              function(c) { return 'Move-In Checklist for ' + c + ' Renters'; },
+  'move-out-checklist':             function(c) { return 'Move-Out Checklist for ' + c + ' Renters'; },
+  'resource-directory':             function(c) { return 'Rental Assistance Resources in ' + c; },
 };
+
+const PAGE_KIND_HINTS = {
+  'playbook':   'Numbered statements backed by statute or regulation citations.',
+  'directory':  'Each statement is one organization or resource. Cite the org\'s own website as the source.',
+  'faq':        'Each statement answers one question. Start the body with the question in bold.',
+  'checklist':  'Action items for the renter. Editorial guidance citations are fine here.',
+};
+
+function onPageKindChange(v) {
+  const hint = document.getElementById('page-kind-hint');
+  if (hint) hint.textContent = PAGE_KIND_HINTS[v] || '';
+}
 
 // Init from preload (?from=id)
 if (PRELOAD && PRELOAD.sources) {

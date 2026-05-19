@@ -353,6 +353,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		Slug:           topicSlug,
 		Title:          title,
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
+		PageKind:       r.FormValue("page_kind"),
 		Statements:     statements,
 		Status:         "draft",
 	}); err != nil {
@@ -394,6 +395,10 @@ var knownTopicKeys = map[string]bool{
 	"heat-not-working": true, "cant-pay-rent": true,
 	"notice-to-quit": true, "security-deposit-not-returned": true,
 	"landlord-entry-without-notice": true, "uninhabitable-conditions": true,
+	"rent-increase": true, "discrimination": true,
+	"lease-renewal": true, "move-in-checklist": true,
+	"move-out-checklist": true, "noise-complaints": true,
+	"resource-directory": true,
 }
 
 // editFormData builds the template data map for the edit form.
@@ -414,6 +419,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"SelectedCitySlug": citySlug,
 		"SelectedTopicKey": topicKey,
 		"IsCustomTopic":    isCustom,
+		"SelectedPageKind": pw.Playbook.PageKind,
 		"Title":            pw.Playbook.Title,
 		"Intro":            pw.Playbook.IntroMD,
 		"Error":            errMsg,
@@ -610,6 +616,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		Slug:           slug,
 		Title:          title,
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
+		PageKind:       r.FormValue("page_kind"),
 		Statements:     statements,
 	}); err != nil {
 		editErr("Failed to save playbook: " + err.Error())
