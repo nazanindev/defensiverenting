@@ -1,14 +1,14 @@
 /* Tenant Rights — shared stylesheet */
 
 :root {
-  --ink:        #1b1f3b;
-  --paper:      #f4f6fb;
-  --accent:     #5b5bd6;
-  --accent-dark:#3f3aa5;
-  --mint:       #c7ddff;
-  --sun:        #cbb6ff;
-  --ink-soft:   rgba(27,31,59,0.65);
-  --shadow:     0 14px 40px rgba(27,31,59,0.15);
+  --ink:        #1e1215;
+  --paper:      #fdf8f8;
+  --accent:     #9b2335;
+  --accent-dark:#4a1223;
+  --mint:       #fce8eb;
+  --sun:        #f5d0d6;
+  --ink-soft:   rgba(30,18,21,0.60);
+  --shadow:     0 14px 40px rgba(74,18,35,0.12);
   --radius:     20px;
 }
 
@@ -18,7 +18,7 @@ body {
   margin: 0;
   font-family: "Space Grotesk", sans-serif;
   color: var(--ink);
-  background: linear-gradient(135deg, var(--paper), #edf0ff 55%, #e7f2ff);
+  background: linear-gradient(135deg, var(--paper), #fdf0f2 55%, #faf5f6);
   min-height: 100vh;
 }
 
@@ -50,8 +50,8 @@ body {
   position: absolute;
   inset: -100px auto auto -100px;
   width: 300px; height: 300px;
-  background: radial-gradient(circle, var(--sun), transparent 70%);
-  opacity: .6;
+  background: radial-gradient(circle, rgba(245,208,214,.8), transparent 70%);
+  opacity: .7;
   pointer-events: none;
   z-index: 0;
 }
@@ -61,7 +61,7 @@ body {
   right: -60px; top: 60px;
   width: 220px; height: 220px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(158,190,255,.7), transparent 70%);
+  background: radial-gradient(circle, rgba(252,232,235,.9), transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -69,9 +69,9 @@ body {
 /* ── Site header ─────────────────────────────────────────── */
 
 .site-header {
-  background: white;
-  border-bottom: 1px solid #e4e8f5;
-  box-shadow: 0 2px 12px rgba(27,31,59,.07);
+  background: var(--accent-dark);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 2px 16px rgba(74,18,35,.25);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -89,9 +89,10 @@ body {
   font-family: "Fraunces", serif;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--ink);
+  color: #fff;
   text-decoration: none;
   white-space: nowrap;
+  letter-spacing: .01em;
 }
 
 .header-search {
@@ -105,15 +106,20 @@ body {
 .header-search input[type="search"] {
   flex: 1;
   padding: 8px 14px;
-  border: 1.5px solid #d0d5ef;
+  border: 1.5px solid rgba(255,255,255,0.25);
   border-radius: 999px;
   font-size: .95rem;
   font-family: inherit;
   outline: none;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
 }
 
+.header-search input[type="search"]::placeholder { color: rgba(255,255,255,0.55); }
+
 .header-search input[type="search"]:focus {
-  border-color: var(--accent);
+  border-color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.18);
 }
 
 .header-search button {
@@ -128,7 +134,7 @@ body {
   white-space: nowrap;
 }
 
-.header-search button:hover { background: var(--accent-dark); }
+.header-search button:hover { background: #7a1a28; }
 
 /* ── Hero ───────────────────────────────────────────────── */
 
@@ -148,7 +154,7 @@ body {
 .hero-search input[type="search"] {
   flex: 1;
   padding: 14px 20px;
-  border: 2px solid #d0d5ef;
+  border: 2px solid #e8d0d4;
   border-radius: 999px;
   font-size: 1rem;
   font-family: inherit;
@@ -381,10 +387,10 @@ h1 {
 
 .chip:hover { opacity: .8; text-decoration: underline; }
 
-.chip--statute    { background: #dbeaff; color: #1a4282; }
-.chip--regulation { background: #e8deff; color: #3a1580; }
-.chip--gov        { background: #d6f5e8; color: #0a5432; }
-.chip--editorial  { background: #f0f0f0; color: #555;    }
+.chip--statute    { background: #fce8eb; color: #4a1223; }
+.chip--regulation { background: #f5e8f0; color: #5a1240; }
+.chip--gov        { background: #e8f5ee; color: #0a5432; }
+.chip--editorial  { background: #f5f0f0; color: #5a4040; }
 
 .chip--statute::before    { content: "§"; }
 .chip--regulation::before { content: "§"; }
@@ -446,7 +452,7 @@ a.result-title:hover { text-decoration: underline; }
 .site-footer {
   margin-top: 64px;
   padding: 32px 0;
-  border-top: 1px solid #e4e8f5;
+  border-top: 1px solid #f0dde0;
 }
 
 .disclaimer {
