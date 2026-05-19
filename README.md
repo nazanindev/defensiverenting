@@ -1,39 +1,38 @@
-A backend system for a tenant rights platform that turns complex housing law into clear, source-backed guidance.
+**Defensive Renting** — free tenant rights hub with citation-backed guides, primary source links, and local resource directories organized by city and situation.
 
-Content is authored in structured Markdown, ingested into PostgreSQL, and served through jurisdiction with built-in full-text search. The system is designed to support SEO, analytics, and future legal-aid integration workflows.
+https://defensiverenting.fly.dev
 
-**MVP:** https://defensiverenting.fly.dev/
+## What it is
 
-## Problem
-Tenant law is public, but can difficult for renters to navigate. Information is fragmented across statutes, regulations, and one-off websites, and is usually written for lawyers or legal professionals.
+Tenant law is public, but nearly impossible to navigate when you're in a stressful situation. It's fragmented across statutes, regulations, and government PDFs — written for lawyers, not renters.
 
-Legal aid and local tenant organizations often do this translation work one jurisdiction at a time. This project defines the pipeline that lays the groundwork to make that process scalable.
+Defensive Renting turns that raw legal material into structured, plain-language guides. Every statement on the site links directly to its primary source — a statute, ordinance, or government document — so renters can read what the law actually says, not just what someone summarized. The platform also includes local resource directories pointing to legal aid providers, tenant unions, and housing agencies.
 
-## How it works
-
-Renters can search by city and situation. Each page provides guidance backed by a primary source cited in line so users can verify what they’re reading and use it in conversations with lawyers or housing advocates. 
-
-_Disclaimer: Not legal advice._
+Content is researched and written by a human author using a custom internal authoring tool, not generated.
 
 ## Design principles
 
-- **Citations enforced at the data level** — there is no path to publishing an uncited claim  
-- **Structured legal data model** enables consistent, queryable guidance across jurisdictions  
-- **Clear separation of statutory vs. editorial guidance**  
+- **Citations enforced at the data level** — there is no path to publishing an uncited claim
+- **Structured legal data model** enables consistent, queryable guidance across jurisdictions
+- **Clear separation of statutory vs. editorial guidance**
 - **Designed for actionability**, not just legal completeness
 
-## MVP features
+## How it works
 
-- Browse playbooks by city and topic (e.g. Boston → Notice to Quit)
-- Full-text search across statements and playbooks
-- Inline citation chips linking to primary sources
-- Health and readiness endpoints
+Renters search by situation or browse by city. Each playbook provides step-by-step guidance backed by inline citation chips — click any chip to read the actual statute. A separate directory page type lists local organizations with their official sources.
 
-See [`docs/DESIGN.md`](docs/DESIGN.md) and [`docs/ADRs/`](docs/ADRs/) for full design decisions and tradeoffs. 
+Content is authored through an internal tool that enforces citation at submission time. The author researches primary sources, writes plain-language statements, and links each one to its statute or ordinance before it can be published. No statement goes live without a citation attached.
 
-### Data Model
+## Stack
 
-The schema uses a self-referential jurisdictions table so a query for Boston automatically inherits Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration. 
+- **Go** — single binary per service, ~12MB images, ~1.5s cold starts on Fly.io
+- **PostgreSQL** — full-text search via `tsvector` (no external search service), `content_hash` on sources for change detection
+- **Server-rendered HTML** — no JS framework; the authoring tool uses vanilla JS for its dynamic form
+- **Fly.io** — two apps: public site (`fly.toml`) and internal authoring service (`fly.authoring.toml`), auto-deployed via GitHub Actions
+
+## Data model
+
+The schema uses a self-referential jurisdictions table so a query for Boston can inherit Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration.
 
 ```mermaid
 erDiagram
@@ -86,30 +85,23 @@ erDiagram
     topics ||--o{ playbooks : ""
 ```
 
-### Stack
+## Roadmap
 
-Go HTTP server, PostgreSQL, server-rendered HTML. A separate ingest CLI parses markdown content into the database for now. Full-text search runs through Postgres `tsvector`, so no external search service needed. Deployed on Fly.io.
+### Source fetching and author assist
+When the author adds a source URL in the authoring tool, the service fetches and stores the page content alongside the source record. The author sees the fetched text in a side panel while writing statements — no tab-switching to read the law. Fetched content is stored in Postgres; `content_hash` already exists in the schema for change detection.
 
-## Future work (ordered by priority)
+### Source change monitoring
+A scheduled crawler re-fetches all cited sources on a cadence (weekly or on-demand). If the content hash changes, the source is flagged in the authoring dashboard for the author to review. The author can dismiss the flag (no material change) or open the diff and update affected statements. Government statute pages do change — rent control thresholds, notice periods, penalty amounts — and this is the mechanism that keeps the site accurate over time.
 
-- SEO optimization and metadata gen
-- Wizard-style intake flows ("what's your situation?") to route to the correct playbook
-- Tailwind CSS
-- Adding additional cities and jurisdictions
-- Language translation and localization support
-- Improved search:
-  - ranked full-text search
-  - snippet highlighting
-  - filtering by city and topic
-  - semantic/vector retrieval over the cited corpus so renters can ask questions in plain English and land on the correct playbook
+### Jurisdiction expansion
+Adding cities is the main growth lever. The authoring tool already supports creating new jurisdictions; the bottleneck is research time, not infrastructure.
 
-## Very future work
-- Organization accounts so local tenant groups can contribute and maintain jurisdiction-specific content
-- Editorial workflows, versioning, and citation validation pipelines 
-- Prometheus metrics, structured tracing, and operational dashboards
+### Semantic search
+The `embedding` column on statements is already in the schema. Adding a vector index (pgvector) and an embedding step in the ingest pipeline would let renters describe their situation in plain English and land on the right playbook without knowing the legal term for it.
+
+### Language localization
+The data model stores `language` on playbooks. A second pass of authoring in Spanish (or other languages) would use the same infrastructure with no schema changes.
 
 ---
 
-## _Disclaimer_
-
-_This is not legal advice. If you are facing eviction or a housing dispute, contact a lawyer or your local legal aid organization._
+_Not legal advice. If you are facing eviction or a housing dispute, contact a lawyer or your local legal aid organization._
