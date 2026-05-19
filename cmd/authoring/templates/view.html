@@ -4,67 +4,83 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Playbook.Playbook.Title}} — Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 780px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
   .page { max-width: 780px; margin: 0 auto; padding: 32px 24px 80px; }
-  .back { color: #5b5bd6; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
+  .back { color: #9b2335; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
   .back:hover { text-decoration: underline; }
 
-  /* Header */
-  .header { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 22px; margin-bottom: 20px; }
+  /* Header card */
+  .header { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 20px 22px; margin-bottom: 20px; }
   .header-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
   .tag { display: inline-block; padding: .2rem .6rem; border-radius: 6px; font-size: .75rem; font-weight: 600; }
-  .tag-city { background: #e9d8fd; color: #553c9a; }
-  .tag-topic { background: #bee3f8; color: #2c5282; }
-  .tag-lang { background: #e2e8f0; color: #4a5568; }
+  .tag-city { background: #fde8eb; color: #7a1c2a; }
+  .tag-topic { background: #e8f4fd; color: #2c5282; }
+  .tag-lang { background: #f0ebe8; color: #5c3a3a; }
   .tag-draft { background: #fef3c7; color: #92400e; }
   .tag-published { background: #d1fae5; color: #065f46; }
-  h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
-  .intro { font-size: .9rem; color: #4a5568; line-height: 1.6; }
-  .use-btn { margin-top: 16px; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+  .intro { font-size: .9rem; color: #5c3a3a; line-height: 1.6; }
 
   /* Sections */
-  section { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 22px; margin-bottom: 20px; }
-  section h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #718096; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f5; }
+  section { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 20px 22px; margin-bottom: 20px; }
+  section h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #9a7878; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f5eded; }
 
   /* Sources */
-  .source-item { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid #f0f0f5; }
+  .source-item { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid #f5eded; }
   .source-item:last-child { border-bottom: none; padding-bottom: 0; }
-  .source-num { width: 24px; height: 24px; background: #5b5bd6; color: #fff; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .source-num { width: 24px; height: 24px; background: #9b2335; color: #fff; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
   .source-body {}
   .source-publisher { font-weight: 600; font-size: .9rem; }
-  .source-url { font-size: .78rem; color: #5b5bd6; word-break: break-all; margin-top: 3px; }
-  .source-url a { color: #5b5bd6; text-decoration: none; }
+  .source-url { font-size: .78rem; color: #9b2335; word-break: break-all; margin-top: 3px; }
+  .source-url a { color: #9b2335; text-decoration: none; }
   .source-url a:hover { text-decoration: underline; }
   .source-meta { display: flex; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
   .badge { display: inline-block; padding: .15rem .5rem; border-radius: 4px; font-size: .72rem; font-weight: 600; }
-  .badge-kind { background: #e9d8fd; color: #553c9a; }
-  .badge-locator { background: #e2e8f0; color: #4a5568; font-family: monospace; }
+  .badge-kind { background: #fde8eb; color: #7a1c2a; }
+  .badge-locator { background: #f0ebe8; color: #5c3a3a; font-family: monospace; }
 
   /* Statements */
-  .stmt-item { padding: 14px 0; border-bottom: 1px solid #f0f0f5; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+  .stmt-item { padding: 14px 0; border-bottom: 1px solid #f5eded; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
   .stmt-item:last-child { border-bottom: none; padding-bottom: 0; }
-  .stmt-num { width: 24px; height: 24px; background: #e2e8f0; color: #4a5568; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
-  .stmt-body { font-size: .9rem; line-height: 1.6; color: #2d3748; margin-bottom: 8px; }
+  .stmt-num { width: 24px; height: 24px; background: #f0e8e8; color: #7a1c2a; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .stmt-body { font-size: .9rem; line-height: 1.6; color: #2d1f1f; margin-bottom: 8px; }
   .stmt-cites { display: flex; flex-wrap: wrap; gap: 6px; }
   .cite-chip { display: inline-flex; align-items: center; gap: 5px; padding: .2rem .55rem; border-radius: 6px; font-size: .75rem; font-weight: 600; border: 1px solid; }
-  .cite-chip-src { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
+  .cite-chip-src { background: #fdf0f2; color: #7a1c2a; border-color: #f0c0c8; }
   .cite-chip-editorial { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-  .cite-num { width: 16px; height: 16px; background: #5b5bd6; color: #fff; border-radius: 50%; font-size: .65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cite-num { width: 16px; height: 16px; background: #9b2335; color: #fff; border-radius: 50%; font-size: .65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
   /* CTA */
-  .cta { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .cta-text { font-size: .875rem; color: #3730a3; line-height: 1.5; }
+  .cta { background: #fdf0f2; border: 1px solid #f0c0c8; border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cta-text { font-size: .875rem; color: #4a1223; line-height: 1.5; }
   .cta-text strong { display: block; margin-bottom: 3px; }
   .btn { display: inline-block; padding: .45rem 1.1rem; border-radius: 6px; font-size: .875rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 600; }
-  .btn-primary { background: #5b5bd6; color: #fff; }
-  .btn-primary:hover { background: #4a4ac0; }
-  .btn-secondary { background: #fff; color: #5b5bd6; border: 1px solid #c7d2fe; }
-  .btn-secondary:hover { background: #eef2ff; }
+  .btn-primary { background: #9b2335; color: #fff; }
+  .btn-primary:hover { background: #7a1c2a; }
+  .btn-secondary { background: #fff; color: #9b2335; border: 1px solid #f0c0c8; }
+  .btn-secondary:hover { background: #fdf0f2; }
 </style>
 </head>
 <body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      <a href="https://defensiverenting.fly.dev" target="_blank" rel="noopener" style="color:#fff;text-decoration:none;font-size:.82rem;font-weight:600;font-family:'Space Grotesk',sans-serif;background:rgba(255,255,255,.15);padding:.25rem .7rem;border-radius:5px">View live site ↗</a>
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
 <div class="page">
   <a href="/" class="back">← Back to playbooks</a>
 

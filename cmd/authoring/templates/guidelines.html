@@ -4,27 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Content Guidelines — Defensive Renting Authoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; min-height: 100vh; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
   .page { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
-  .back { color: #5b5bd6; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 24px; }
+  .back { color: #9b2335; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 24px; }
   .back:hover { text-decoration: underline; }
-  h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
-  .subtitle { font-size: .95rem; color: #718096; margin-bottom: 36px; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { font-size: .95rem; color: #9a7878; margin-bottom: 36px; }
 
-  h2 { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #718096; margin: 36px 0 16px; padding-top: 36px; border-top: 1px solid #e2e8f0; }
+  h2 { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #9a7878; margin: 36px 0 16px; padding-top: 36px; border-top: 1px solid #e8dede; }
   h2:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
-  h3 { font-size: 1rem; font-weight: 700; color: #1b1f3b; margin: 20px 0 8px; }
+  h3 { font-size: 1rem; font-weight: 700; color: #1e1215; margin: 20px 0 8px; }
 
-  p { font-size: .9rem; line-height: 1.65; color: #2d3748; margin-bottom: 12px; }
-  ul, ol { font-size: .9rem; line-height: 1.65; color: #2d3748; padding-left: 20px; margin-bottom: 12px; }
+  p { font-size: .9rem; line-height: 1.65; color: #2d1f1f; margin-bottom: 12px; }
+  ul, ol { font-size: .9rem; line-height: 1.65; color: #2d1f1f; padding-left: 20px; margin-bottom: 12px; }
   li { margin-bottom: 5px; }
 
-  .type-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
-  .type-name { font-weight: 700; font-size: .95rem; color: #1b1f3b; margin-bottom: 4px; }
-  .type-desc { font-size: .875rem; color: #4a5568; line-height: 1.55; margin-bottom: 10px; }
-  .type-example { font-size: .8rem; color: #718096; font-style: italic; }
+  .type-card { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
+  .type-name { font-weight: 700; font-size: .95rem; color: #1e1215; margin-bottom: 4px; }
+  .type-desc { font-size: .875rem; color: #5c3a3a; line-height: 1.55; margin-bottom: 10px; }
+  .type-example { font-size: .8rem; color: #9a7878; font-style: italic; }
 
   .do { color: #276749; }
   .dont { color: #c53030; }
@@ -34,10 +42,19 @@
   .callout { background: #fffbeb; border: 1px solid #f6e05e; border-radius: 8px; padding: 14px 16px; margin: 16px 0; font-size: .875rem; color: #744210; line-height: 1.55; }
   .callout strong { display: block; margin-bottom: 4px; }
 
-  code { background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-size: .82rem; font-family: monospace; }
+  code { background: #f0e8e8; padding: 2px 6px; border-radius: 4px; font-size: .82rem; font-family: monospace; color: #7a1c2a; }
 </style>
 </head>
 <body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      <a href="https://defensiverenting.fly.dev" target="_blank" rel="noopener" style="color:#fff;text-decoration:none;font-size:.82rem;font-weight:600;font-family:'Space Grotesk',sans-serif;background:rgba(255,255,255,.15);padding:.25rem .7rem;border-radius:5px">View live site ↗</a>
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
 <div class="page">
   <a href="/" class="back">← Back to dashboard</a>
   <h1>Content Guidelines</h1>

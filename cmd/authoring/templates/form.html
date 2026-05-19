@@ -4,77 +4,97 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{if .EditMode}}Edit Playbook{{else}}New Playbook{{end}} — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 700px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
   .page { max-width: 700px; margin: 0 auto; padding: 32px 24px 80px; }
-  .back { color: #5b5bd6; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
+  .back { color: #9b2335; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
   .back:hover { text-decoration: underline; }
-  h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 24px; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 24px; }
   .error { background: #fff5f5; border: 1px solid #fc8181; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; color: #c53030; font-size: .875rem; }
 
-  section { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px 22px; margin-bottom: 16px; }
-  section h2 { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #a0aec0; margin-bottom: 16px; }
+  section { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 20px 22px; margin-bottom: 16px; }
+  section h2 { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #b08080; margin-bottom: 16px; }
 
   .field { margin-bottom: 14px; }
   .field:last-child { margin-bottom: 0; }
-  .field > label { display: block; font-size: .82rem; font-weight: 600; color: #4a5568; margin-bottom: 5px; }
-  .hint { font-size: .75rem; color: #a0aec0; margin-top: 4px; }
+  .field > label { display: block; font-size: .82rem; font-weight: 600; color: #5c3a3a; margin-bottom: 5px; }
+  .hint { font-size: .75rem; color: #b08080; margin-top: 4px; }
 
   input[type=text], input[type=url], textarea, select {
-    width: 100%; padding: 7px 10px; border: 1px solid #cbd5e0; border-radius: 6px;
-    font-size: .875rem; font-family: inherit; color: #1b1f3b; background: #fff;
+    width: 100%; padding: 7px 10px; border: 1px solid #dcc8c8; border-radius: 6px;
+    font-size: .875rem; font-family: inherit; color: #1e1215; background: #fff;
     transition: border-color .15s;
   }
   input:focus, textarea:focus, select:focus {
-    outline: none; border-color: #5b5bd6; box-shadow: 0 0 0 3px rgba(91,91,214,.1);
+    outline: none; border-color: #9b2335; box-shadow: 0 0 0 3px rgba(155,35,53,.1);
   }
   .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* derived slug preview */
   .derived { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-  .derived-label { font-size: .72rem; color: #a0aec0; flex-shrink: 0; }
-  .derived-value { font-size: .72rem; color: #5b5bd6; font-family: monospace; background: #f0f4ff; padding: 2px 6px; border-radius: 4px; }
+  .derived-label { font-size: .72rem; color: #b08080; flex-shrink: 0; }
+  .derived-value { font-size: .72rem; color: #9b2335; font-family: monospace; background: #fdf0f2; padding: 2px 6px; border-radius: 4px; }
 
   /* new-city panel */
-  #new-city-panel { margin-top: 12px; padding: 14px 16px; background: #f8f9ff; border-radius: 8px; border: 1px solid #e0e7ff; }
-  #new-city-panel .panel-label { font-size: .75rem; font-weight: 700; color: #6366f1; margin-bottom: 10px; }
+  #new-city-panel { margin-top: 12px; padding: 14px 16px; background: #fdf8f8; border-radius: 8px; border: 1px solid #f0d8db; }
+  #new-city-panel .panel-label { font-size: .75rem; font-weight: 700; color: #9b2335; margin-bottom: 10px; }
 
   /* custom topic */
   #custom-topic-panel { margin-top: 10px; }
 
   /* source + statement cards */
-  .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; background: #fafbff; }
+  .card { border: 1px solid #e8dede; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; background: #fffafa; }
   .card-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .card-num { font-size: .82rem; font-weight: 700; color: #4a5568; }
+  .card-num { font-size: .82rem; font-weight: 700; color: #5c3a3a; }
 
   /* citation rows */
-  .cite-hd { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #a0aec0; margin: 12px 0 8px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+  .cite-hd { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #b08080; margin: 12px 0 8px; padding-top: 10px; border-top: 1px dashed #e8dede; }
   .cite-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
-  .cite-row input[type=checkbox] { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; accent-color: #5b5bd6; }
+  .cite-row input[type=checkbox] { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; accent-color: #9b2335; }
   .cite-name { flex: 1; font-size: .82rem; color: #2d3748; }
-  .cite-sub { font-size: .72rem; color: #a0aec0; }
+  .cite-sub { font-size: .72rem; color: #b08080; }
   .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
 
-  .no-items { font-size: .8rem; color: #c0c8d8; font-style: italic; padding: 4px 0 8px; }
+  .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
   /* kind tags */
-  .kind-tag { display: inline-block; padding: .1rem .4rem; border-radius: 3px; font-size: .68rem; font-weight: 700; background: #e9d8fd; color: #6b21a8; margin-left: 5px; vertical-align: middle; }
+  .kind-tag { display: inline-block; padding: .1rem .4rem; border-radius: 3px; font-size: .68rem; font-weight: 700; background: #fde8eb; color: #9b2335; margin-left: 5px; vertical-align: middle; }
 
   /* buttons */
   .btn { display: inline-block; padding: .38rem .85rem; border-radius: 6px; font-size: .82rem; font-family: inherit; cursor: pointer; border: none; font-weight: 500; }
-  .btn-add { background: #eff6ff; color: #1d4ed8; border: 1px dashed #93c5fd; margin-top: 4px; }
-  .btn-add:hover { background: #dbeafe; }
+  .btn-add { background: #fdf0f2; color: #9b2335; border: 1px dashed #f0b0ba; margin-top: 4px; }
+  .btn-add:hover { background: #fae0e4; }
   .btn-rm { background: transparent; color: #dc2626; border: 1px solid #fecaca; padding: .22rem .55rem; font-size: .75rem; }
   .btn-rm:hover { background: #fef2f2; }
-  .btn-save { background: #5b5bd6; color: #fff; padding: .55rem 1.6rem; font-size: .9rem; }
-  .btn-save:hover { background: #4a4ac0; }
+  .drag-handle { cursor: grab; color: #c8a8a8; font-size: 1.1rem; line-height: 1; padding: 0 6px 0 0; user-select: none; flex-shrink: 0; }
+  .drag-handle:active { cursor: grabbing; }
+  .card.drag-over { outline: 2px solid #9b2335; background: #fdf0f2; }
+  .btn-save { background: #9b2335; color: #fff; padding: .55rem 1.6rem; font-size: .9rem; }
+  .btn-save:hover { background: #7a1c2a; }
 
   .footer { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
-  .footer-note { font-size: .75rem; color: #a0aec0; }
+  .footer-note { font-size: .75rem; color: #b08080; }
 </style>
 </head>
 <body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      <a href="https://defensiverenting.fly.dev" target="_blank" rel="noopener" style="color:#fff;text-decoration:none;font-size:.82rem;font-weight:600;font-family:'Space Grotesk',sans-serif;background:rgba(255,255,255,.15);padding:.25rem .7rem;border-radius:5px">View live site ↗</a>
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
 <div class="page">
   <a href="/" class="back">← Back</a>
   <h1>{{if .EditMode}}Edit Playbook{{else}}New Playbook{{end}}</h1>
@@ -143,9 +163,7 @@
         <label>Page type *</label>
         <select name="page_kind" id="page-kind-sel" onchange="onPageKindChange(this.value)">
           <option value="playbook"{{if or (eq $.SelectedPageKind "playbook") (eq $.SelectedPageKind "")}} selected{{end}}>Playbook — step-by-step legal rights guide</option>
-          <option value="directory"{{if eq $.SelectedPageKind "directory"}} selected{{end}}>Resource directory — list of orgs or services</option>
-          <option value="faq"{{if eq $.SelectedPageKind "faq"}} selected{{end}}>FAQ — common questions answered</option>
-          <option value="checklist"{{if eq $.SelectedPageKind "checklist"}} selected{{end}}>Checklist — action items for the renter</option>
+          <option value="directory"{{if eq $.SelectedPageKind "directory"}} selected{{end}}>Directory — list of orgs or services</option>
         </select>
         <p class="hint" id="page-kind-hint">Numbered statements backed by statute or regulation citations.</p>
       </div>
@@ -212,17 +230,17 @@
 
     <!-- ── Sources ───────────────────────────────────────────── -->
     <section>
-      <h2>Sources</h2>
+      <h2 id="sources-heading">Sources</h2>
       <div id="sources-container"><p class="no-items">Add sources you'll cite in the statements below.</p></div>
-      <button type="button" class="btn btn-add" onclick="addSource()">+ Add source</button>
+      <button type="button" class="btn btn-add" id="add-source-btn" onclick="addSource()">+ Add source</button>
       <input type="hidden" name="active_sources" id="active_sources" value="">
     </section>
 
     <!-- ── Statements ────────────────────────────────────────── -->
     <section>
-      <h2>Statements</h2>
+      <h2 id="stmts-heading">Statements</h2>
       <div id="stmts-container"><p class="no-items">Each statement is one citable fact shown to the renter. Add sources first.</p></div>
-      <button type="button" class="btn btn-add" onclick="addStmt()">+ Add statement</button>
+      <button type="button" class="btn btn-add" id="add-stmt-btn" onclick="addStmt()">+ Add statement</button>
       <input type="hidden" name="active_stmts" id="active_stmts" value="">
     </section>
 
@@ -240,10 +258,12 @@ const PRELOAD = {{.PreloadJSON}};
 
 let sources = [], stmts = [];
 let nextSrcId = 0, nextStmtId = 0;
+let curPageKind = document.getElementById('page-kind-sel')?.value || 'playbook';
 
 let curCitySlug = '', curCityName = '';
 let curTopicKey = '';
 let lastAutoTitle = '';
+let dragSrcIdx = null;
 
 // Known title templates (string concat — avoid ES6 template literals which confuse Go's html/template)
 const TITLE_TMPL = {
@@ -263,15 +283,28 @@ const TITLE_TMPL = {
 };
 
 const PAGE_KIND_HINTS = {
-  'playbook':   'Numbered statements backed by statute or regulation citations.',
-  'directory':  'Each statement is one organization or resource. Cite the org\'s own website as the source.',
-  'faq':        'Each statement answers one question. Start the body with the question in bold.',
-  'checklist':  'Action items for the renter. Editorial guidance citations are fine here.',
+  'playbook':  'Numbered statements backed by statute or regulation citations.',
+  'directory': 'Each entry is one organization. Cite the org\'s own official website — not a third-party directory.',
+};
+
+const PAGE_KIND_LABELS = {
+  sources: { playbook: 'Sources', directory: 'Organizations' },
+  stmts:   { playbook: 'Statements', directory: 'Entries' },
 };
 
 function onPageKindChange(v) {
+  curPageKind = v;
   const hint = document.getElementById('page-kind-hint');
   if (hint) hint.textContent = PAGE_KIND_HINTS[v] || '';
+  const sh = document.getElementById('sources-heading');
+  if (sh) sh.textContent = PAGE_KIND_LABELS.sources[v] || 'Sources';
+  const eh = document.getElementById('stmts-heading');
+  if (eh) eh.textContent = PAGE_KIND_LABELS.stmts[v] || 'Statements';
+  const ab = document.getElementById('add-source-btn');
+  if (ab) ab.textContent = v === 'directory' ? '+ Add organization' : '+ Add source';
+  const sb = document.getElementById('add-stmt-btn');
+  if (sb) sb.textContent = v === 'directory' ? '+ Add entry' : '+ Add statement';
+  render();
 }
 
 // Init from preload (?from=id)
@@ -356,7 +389,8 @@ function updateDerived() {
 
 function addSource() {
   sync();
-  sources.push({ id: nextSrcId++, url: '', publisher: '', kind: 'statute', locator: '' });
+  const defaultKind = curPageKind === 'directory' ? 'nonprofit' : 'statute';
+  sources.push({ id: nextSrcId++, url: '', publisher: '', kind: defaultKind, locator: '' });
   render();
 }
 
@@ -411,36 +445,50 @@ function render() {
 function renderSources() {
   const el = document.getElementById('sources-container');
   if (!sources.length) {
-    el.innerHTML = '<p class="no-items">Add sources you\'ll cite in the statements below.</p>';
+    const emptyMsg = curPageKind === 'directory'
+      ? 'Add one entry per organization — use their official website as the source URL.'
+      : 'Add sources you\'ll cite in the statements below.';
+    el.innerHTML = '<p class="no-items">' + emptyMsg + '</p>';
     return;
   }
+  const isDir = curPageKind === 'directory';
   el.innerHTML = sources.map(function(s, i) {
+    const srcLabel = isDir ? 'Organization ' + (i + 1) : 'Source ' + (i + 1);
+    const pubPlaceholder = isDir ? 'Allegheny County Legal Aid' : 'Illinois Legislature';
+    const locatorRow = isDir ? '' :
+      '<div class="field">' +
+        '<label>Locator <span style="font-weight:400;color:#b08080">(optional)</span></label>' +
+        '<input type="text" name="src_loc_' + s.id + '" value="' + esc(s.locator) + '" placeholder="§ 410.200">' +
+        '<p class="hint">Specific section or chapter shown next to the citation link.</p>' +
+      '</div>';
     return '<div class="card">' +
       '<div class="card-hd">' +
-        '<span class="card-num">Source ' + (i + 1) + '</span>' +
+        '<span class="card-num">' + srcLabel + '</span>' +
         '<button type="button" class="btn btn-rm" onclick="rmSource(' + s.id + ')">Remove</button>' +
       '</div>' +
       '<div class="g2">' +
         '<div class="field">' +
-          '<label>URL *</label>' +
+          '<label>Website URL *</label>' +
           '<input type="url" name="src_url_' + s.id + '" value="' + esc(s.url) + '" placeholder="https://…" required>' +
         '</div>' +
         '<div class="field">' +
-          '<label>Publisher *</label>' +
-          '<input type="text" name="src_pub_' + s.id + '" value="' + esc(s.publisher) + '" placeholder="Illinois Legislature" required>' +
+          '<label>' + (isDir ? 'Organization name *' : 'Publisher *') + '</label>' +
+          '<input type="text" name="src_pub_' + s.id + '" value="' + esc(s.publisher) + '" placeholder="' + pubPlaceholder + '" required>' +
         '</div>' +
       '</div>' +
-      '<div class="g2">' +
-        '<div class="field">' +
-          '<label>Type</label>' +
-          '<select name="src_kind_' + s.id + '">' + kindOpts(s.kind) + '</select>' +
-        '</div>' +
-        '<div class="field">' +
-          '<label>Locator <span style="font-weight:400;color:#a0aec0">(optional)</span></label>' +
-          '<input type="text" name="src_loc_' + s.id + '" value="' + esc(s.locator) + '" placeholder="§ 410.200">' +
-          '<p class="hint">Specific section or chapter shown next to the citation link.</p>' +
-        '</div>' +
-      '</div>' +
+      (isDir ? '' :
+        '<div class="g2">' +
+          '<div class="field">' +
+            '<label>Type</label>' +
+            '<select name="src_kind_' + s.id + '">' + kindOpts(s.kind) + '</select>' +
+          '</div>' +
+          locatorRow +
+        '</div>'
+      ) +
+      (isDir ?
+        '<input type="hidden" name="src_kind_' + s.id + '" value="' + esc(s.kind) + '">' +
+        '<input type="hidden" name="src_loc_' + s.id + '" value="">'
+      : '') +
     '</div>';
   }).join('');
 }
@@ -448,44 +496,64 @@ function renderSources() {
 function renderStmts() {
   const el = document.getElementById('stmts-container');
   if (!stmts.length) {
-    const msg = sources.length
-      ? 'Click &quot;+ Add statement&quot; to write the first step.'
-      : 'Add sources first, then write statements.';
+    let msg;
+    if (curPageKind === 'directory') {
+      msg = sources.length ? 'Click &quot;+ Add entry&quot; to describe the first organization.' : 'Add organizations above first, then write entries.';
+    } else {
+      msg = sources.length ? 'Click &quot;+ Add statement&quot; to write the first step.' : 'Add sources first, then write statements.';
+    }
     el.innerHTML = '<p class="no-items">' + msg + '</p>';
     return;
   }
+  const isDir = curPageKind === 'directory';
+  const stmtPlaceholder = isDir
+    ? '**Organization Name** — what they do and how to reach them. Include phone, address, or hours if available.'
+    : 'One citable fact in plain English, 1–3 sentences…';
   el.innerHTML = stmts.map(function(st, i) {
     const citesHtml = sources.map(function(src, si) {
+      const srcLabel = isDir ? esc(src.publisher) || ('Org ' + (si + 1)) : 'Source ' + (si + 1);
+      const locInput = isDir ? '' :
+        '<input type="text" name="loc_' + st.id + '_' + src.id + '"' +
+          ' value="' + esc(st.locators[src.id] || '') + '"' +
+          ' placeholder="' + esc(src.locator || 'section override') + '">';
       return '<div class="cite-row">' +
         '<input type="checkbox" name="cite_' + st.id + '_' + src.id + '" id="cb_' + st.id + '_' + src.id + '"' +
           (st.cites[src.id] ? ' checked' : '') + '>' +
         '<label class="cite-name" for="cb_' + st.id + '_' + src.id + '">' +
-          'Source ' + (si + 1) +
-          (src.publisher ? '<span style="color:#a0aec0">— ' + esc(src.publisher) + '</span>' : '') +
-          (src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
+          srcLabel +
+          (!isDir && src.publisher ? '<span style="color:#b08080"> — ' + esc(src.publisher) + '</span>' : '') +
+          (!isDir && src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
         '</label>' +
-        '<input type="text" name="loc_' + st.id + '_' + src.id + '"' +
-          ' value="' + esc(st.locators[src.id] || '') + '"' +
-          ' placeholder="' + esc(src.locator || 'section override') + '">' +
+        locInput +
       '</div>';
     }).join('');
 
-    return '<div class="card">' +
-      '<div class="card-hd">' +
-        '<span class="card-num">Statement ' + (i + 1) + '</span>' +
-        '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
-      '</div>' +
-      '<textarea name="stmt_' + st.id + '" rows="3" placeholder="One citable fact in plain English, 1–3 sentences…" required' +
-        ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
-      '<div class="cite-hd">Cite:</div>' +
-      citesHtml +
+    const editorialRow = isDir ? '' :
       '<div class="cite-row">' +
         '<input type="checkbox" name="edit_' + st.id + '" id="ed_' + st.id + '"' + (st.editorial ? ' checked' : '') + '>' +
-        '<label class="cite-name" for="ed_' + st.id + '" style="color:#718096">' +
+        '<label class="cite-name" for="ed_' + st.id + '" style="color:#9a7878">' +
           'Editorial guidance' +
           '<span style="font-weight:400;font-size:.75rem"> — practical advice not tied to a specific law</span>' +
         '</label>' +
+      '</div>';
+
+    const cardLabel = isDir ? 'Entry ' + (i + 1) : 'Statement ' + (i + 1);
+    return '<div class="card" draggable="true"' +
+      ' ondragstart="onDragStart(event,' + i + ')"' +
+      ' ondragover="onDragOver(event,' + i + ')"' +
+      ' ondragleave="onDragLeave(event)"' +
+      ' ondrop="onDrop(event,' + i + ')"' +
+      ' ondragend="onDragEnd()">' +
+      '<div class="card-hd">' +
+        '<span class="drag-handle" title="Drag to reorder">⠿</span>' +
+        '<span class="card-num">' + cardLabel + '</span>' +
+        '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
+      '<textarea name="stmt_' + st.id + '" rows="3" placeholder="' + stmtPlaceholder + '" required' +
+        ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
+      '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
+      citesHtml +
+      editorialRow +
     '</div>';
   }).join('');
 }
@@ -493,6 +561,39 @@ function renderStmts() {
 function updateHidden() {
   document.getElementById('active_sources').value = sources.map(s => s.id).join(',');
   document.getElementById('active_stmts').value   = stmts.map(s => s.id).join(',');
+}
+
+// ── Drag-to-reorder (statements) ──────────────────────────────────────────
+
+function onDragStart(e, idx) {
+  if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+  sync();
+  dragSrcIdx = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(idx));
+}
+function onDragOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('#stmts-container .card').forEach(function(el, i) {
+    el.classList.toggle('drag-over', i === idx && i !== dragSrcIdx);
+  });
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e, idx) {
+  e.preventDefault();
+  document.querySelectorAll('#stmts-container .card').forEach(function(el) { el.classList.remove('drag-over'); });
+  if (dragSrcIdx === null || dragSrcIdx === idx) { dragSrcIdx = null; return; }
+  var moved = stmts.splice(dragSrcIdx, 1)[0];
+  stmts.splice(idx, 0, moved);
+  dragSrcIdx = null;
+  render();
+}
+function onDragEnd() {
+  dragSrcIdx = null;
+  document.querySelectorAll('#stmts-container .card').forEach(function(el) { el.classList.remove('drag-over'); });
 }
 
 // ── Submit guard ──────────────────────────────────────────────────────────
@@ -526,11 +627,13 @@ function esc(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function kindOpts(sel) {
-  return [['statute','Statute'],['regulation','Regulation'],['gov_guidance','Gov guidance'],['nonprofit','Nonprofit'],['editorial','Editorial']]
-    .map(function(pair) {
-      const v = pair[0], l = pair[1];
-      return '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + l + '</option>';
-    }).join('');
+  const opts = curPageKind === 'directory'
+    ? [['nonprofit','Nonprofit'],['gov_guidance','Gov guidance']]
+    : [['statute','Statute'],['regulation','Regulation'],['gov_guidance','Gov guidance'],['nonprofit','Nonprofit'],['editorial','Editorial']];
+  return opts.map(function(pair) {
+    const v = pair[0], l = pair[1];
+    return '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + l + '</option>';
+  }).join('');
 }
 </script>
 </body>

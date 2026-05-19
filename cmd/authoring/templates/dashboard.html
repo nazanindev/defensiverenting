@@ -4,44 +4,61 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Authoring — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; min-height: 100vh; }
-  .page { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 960px; margin: 0 auto; padding: 36px 24px; }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
-  h1 { font-size: 1.4rem; font-weight: 700; }
-  .tip { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: .875rem; color: #3730a3; line-height: 1.5; }
-  .tip strong { display: block; margin-bottom: 4px; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; }
   .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .875rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
-  .btn-primary { background: #5b5bd6; color: #fff; padding: .45rem 1.1rem; }
-  .btn-primary:hover { background: #4a4ac0; }
-  .btn-view { background: #f0f4ff; color: #3730a3; border: 1px solid #c7d2fe; }
-  .btn-view:hover { background: #e0e7ff; }
+  .btn-primary { background: #9b2335; color: #fff; padding: .45rem 1.1rem; }
+  .btn-primary:hover { background: #7a1c2a; }
+  .btn-view { background: #fdf0f2; color: #4a1223; border: 1px solid #f0c0c8; }
+  .btn-view:hover { background: #fae0e4; }
   .btn-success { background: #38a169; color: #fff; }
   .btn-success:hover { background: #2f855a; }
   .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
   .btn-danger:hover { background: #fff5f5; }
-  .card { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; }
+  .card { background: #fff; border-radius: 10px; border: 1px solid #e8dede; overflow: hidden; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 10px 16px; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #718096; border-bottom: 1px solid #e2e8f0; background: #f7f8fc; }
-  td { padding: 13px 16px; border-bottom: 1px solid #f0f0f5; font-size: .875rem; vertical-align: middle; }
+  th { text-align: left; padding: 10px 16px; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #9a7878; border-bottom: 1px solid #e8dede; background: #fdf8f8; }
+  td { padding: 13px 16px; border-bottom: 1px solid #f5eded; font-size: .875rem; vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
   .badge { display: inline-block; padding: .2rem .55rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
   .badge-draft { background: #fef3c7; color: #92400e; }
   .badge-published { background: #d1fae5; color: #065f46; }
+  .badge-playbook { background: #fde8eb; color: #7a1c2a; }
+  .badge-directory { background: #e8f4fd; color: #2c5282; }
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .actions form { margin: 0; }
-  .empty { text-align: center; padding: 60px 24px; color: #a0aec0; }
-  .empty a { color: #5b5bd6; }
+  .empty { text-align: center; padding: 60px 24px; color: #b08080; }
+  .empty a { color: #9b2335; }
 </style>
 </head>
 <body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      <a href="https://defensiverenting.fly.dev" target="_blank" rel="noopener" style="color:#fff;text-decoration:none;font-size:.82rem;font-weight:600;font-family:'Space Grotesk',sans-serif;background:rgba(255,255,255,.15);padding:.25rem .7rem;border-radius:5px">View live site ↗</a>
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
 <div class="page">
   <div class="toolbar">
-    <h1>Playbooks</h1>
+    <h1>Pages</h1>
     <div style="display:flex;gap:10px">
       <a href="/guidelines" class="btn btn-view">Content guidelines</a>
-      <a href="/new" class="btn btn-primary">+ New Playbook</a>
+      <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
   </div>
 
@@ -52,6 +69,7 @@
         <tr>
           <th>City</th>
           <th>Title</th>
+          <th>Type</th>
           <th>Lang</th>
           <th>Status</th>
           <th>Actions</th>
@@ -62,6 +80,7 @@
         <tr>
           <td>{{.JurisdictionName}}</td>
           <td>{{.Title}}</td>
+          <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           <td>{{.Language}}</td>
           <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
           <td>
