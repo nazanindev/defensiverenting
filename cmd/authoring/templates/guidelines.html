@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Guidelines — Defensive Renting Authoring</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f7f8fc; color: #1b1f3b; min-height: 100vh; }
+  .page { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+  .back { color: #5b5bd6; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 24px; }
+  .back:hover { text-decoration: underline; }
+  h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { font-size: .95rem; color: #718096; margin-bottom: 36px; }
+
+  h2 { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #718096; margin: 36px 0 16px; padding-top: 36px; border-top: 1px solid #e2e8f0; }
+  h2:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  h3 { font-size: 1rem; font-weight: 700; color: #1b1f3b; margin: 20px 0 8px; }
+
+  p { font-size: .9rem; line-height: 1.65; color: #2d3748; margin-bottom: 12px; }
+  ul, ol { font-size: .9rem; line-height: 1.65; color: #2d3748; padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 5px; }
+
+  .type-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
+  .type-name { font-weight: 700; font-size: .95rem; color: #1b1f3b; margin-bottom: 4px; }
+  .type-desc { font-size: .875rem; color: #4a5568; line-height: 1.55; margin-bottom: 10px; }
+  .type-example { font-size: .8rem; color: #718096; font-style: italic; }
+
+  .do { color: #276749; }
+  .dont { color: #c53030; }
+  .do::before { content: "✓ "; font-weight: 700; }
+  .dont::before { content: "✗ "; font-weight: 700; }
+
+  .callout { background: #fffbeb; border: 1px solid #f6e05e; border-radius: 8px; padding: 14px 16px; margin: 16px 0; font-size: .875rem; color: #744210; line-height: 1.55; }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  code { background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-size: .82rem; font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="page">
+  <a href="/" class="back">← Back to dashboard</a>
+  <h1>Content Guidelines</h1>
+  <p class="subtitle">How to write for Defensive Renting. Read this before authoring your first page.</p>
+
+  <!-- ── Page types ───────────────────────────────────── -->
+  <h2>Page types</h2>
+  <p>Every page you create is one of two types. Choose based on what the page is doing — explaining the law, or pointing to help.</p>
+
+  <div class="type-card">
+    <div class="type-name">Playbook</div>
+    <div class="type-desc">Step-by-step legal rights guide. Each statement is one citable fact backed by a statute, regulation, or government document. This is the core format of the site — use it for anything that explains what the law says or what a renter's rights are.</div>
+    <div class="type-example">Examples: Notice to Quit in Pittsburgh, Heat Not Working in Boston, Security Deposit Not Returned in Chicago</div>
+  </div>
+
+  <div class="type-card">
+    <div class="type-name">Directory</div>
+    <div class="type-desc">A listing of organizations or services that can help renters with a specific problem. Each statement is one org — what they do, how to reach them, and a link to their official website. Do not use an aggregator site as the source; find the org's own URL.</div>
+    <div class="type-example">Examples: Rental Assistance Resources in Pittsburgh, Legal Aid Organizations in Boston</div>
+  </div>
+
+  <!-- ── Writing a playbook ───────────────────────────── -->
+  <h2>Writing a playbook</h2>
+
+  <h3>Statements</h3>
+  <p>Each statement is one citable fact. Keep it focused — if you need more than 3 sentences, split it into two statements.</p>
+  <ul>
+    <li class="do">Write in plain English for someone in a stressful situation, not a lawyer</li>
+    <li class="do">One fact per statement — what the law says, what the renter is entitled to, what the landlord must do</li>
+    <li class="do">Use concrete language: "Your landlord must respond within 14 days" not "Your landlord should respond promptly"</li>
+    <li class="dont">Don't write summaries or topic introductions as statements — those go in the intro field</li>
+    <li class="dont">Don't repeat general facts that apply everywhere — check if the statement already exists for a parent jurisdiction</li>
+  </ul>
+
+  <h3>Citations</h3>
+  <p>Every statement must cite at least one primary source. Here's what counts:</p>
+  <ul>
+    <li><strong>Statute</strong> — the actual section of law (e.g. <code>Mass. Gen. Laws c. 239, § 8A</code>)</li>
+    <li><strong>Regulation</strong> — an administrative rule (e.g. <code>105 CMR 410.200</code>)</li>
+    <li><strong>Gov guidance</strong> — a government-published tenant guide, court self-help page, or official FAQ</li>
+    <li><strong>Nonprofit</strong> — a legal aid organization's published guide. Use sparingly — prefer statutes when you can find them</li>
+    <li><strong>Editorial</strong> — practical advice that can't be traced to a specific law. Use rarely and only for genuinely universal advice</li>
+  </ul>
+
+  <div class="callout">
+    <strong>What not to cite</strong>
+    Aggregator sites (e.g. needhelppayingbills.com), general HUD landing pages, Wikipedia, or any site that is itself summarizing other sources. Go to the original.
+  </div>
+
+  <h3>Title and intro</h3>
+  <ul>
+    <li class="do">Title: written as a question a renter would search — the form auto-suggests one, edit freely</li>
+    <li class="do">Intro: 1–2 sentences that orient the reader. "No heat in winter is an emergency. Here are your rights." Not a summary of what follows</li>
+    <li class="dont">Don't include "Not legal advice" in your text — it's added automatically</li>
+  </ul>
+
+  <!-- ── Writing a directory ──────────────────────────── -->
+  <h2>Writing a directory</h2>
+
+  <h3>Each entry (statement) should include</h3>
+  <ul>
+    <li>Organization name — bold it in the statement body</li>
+    <li>What they do in 1–2 sentences</li>
+    <li>How to reach them: phone number, address, or website</li>
+    <li>Citation: the organization's own official website — not a third-party directory</li>
+  </ul>
+
+  <div class="callout">
+    <strong>The most common mistake</strong>
+    Citing one aggregator site (like needhelppayingbills.com) as the source for every entry. Each organization must cite its own URL. If you can't find an org's official site, leave it out.
+  </div>
+
+  <h3>Before you publish a directory</h3>
+  <ul>
+    <li class="do">Verify each org still operates and serves the jurisdiction</li>
+    <li class="do">Check that phone numbers and addresses are current</li>
+    <li class="dont">Don't list national organizations unless you've confirmed they have a local presence</li>
+    <li class="dont">Don't duplicate entries — check for the same org listed under a different name</li>
+  </ul>
+
+  <!-- ── General ──────────────────────────────────────── -->
+  <h2>General</h2>
+
+  <h3>Draft vs published</h3>
+  <p>Every new page saves as a draft and won't appear on the public site until you click Publish. Use drafts to get feedback before going live. Once published, the city will appear on the homepage.</p>
+
+  <h3>Editing published pages</h3>
+  <p>You can edit a published page at any time. Changes go live immediately on save — there's no re-publish step. Be careful with published pages; treat edits like they're already live.</p>
+
+  <h3>When in doubt</h3>
+  <p>If you're unsure whether a source is good enough, default to leaving it out rather than publishing something you can't verify. A shorter, accurate page is better than a longer one with a shaky citation.</p>
+</div>
+</body>
+</html>

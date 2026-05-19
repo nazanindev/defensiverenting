@@ -68,6 +68,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
+	mux.HandleFunc("GET /guidelines", s.guidelines)
 	mux.HandleFunc("GET /new", s.showForm)
 	mux.HandleFunc("POST /new", s.submitForm)
 	mux.HandleFunc("GET /edit/{id}", s.showEditForm)
@@ -95,6 +96,10 @@ func main() {
 }
 
 // ---- handlers ---------------------------------------------------------------
+
+func (s *srv) guidelines(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "guidelines.html", nil)
+}
 
 func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	playbooks, err := s.pg.AuthorListPlaybooks(r.Context())
