@@ -9,6 +9,7 @@ import (
 	"github.com/nazanin212/bostontenantsrights/internal/http/handlers"
 	"github.com/nazanin212/bostontenantsrights/internal/http/middleware"
 	"github.com/nazanin212/bostontenantsrights/internal/store"
+	webstatic "github.com/nazanin212/bostontenantsrights/web/static"
 )
 
 // NewRouter wires all routes and middleware onto a chi.Router.
@@ -34,7 +35,7 @@ func NewRouter(db *store.PG, logger *slog.Logger, siteURL string) http.Handler {
 	})
 
 	// Static assets
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(webstatic.Files))))
 
 	return r
 }
