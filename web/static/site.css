@@ -86,6 +86,9 @@ body {
 }
 
 .site-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: "Fraunces", serif;
   font-size: 1.25rem;
   font-weight: 700;
@@ -93,6 +96,13 @@ body {
   text-decoration: none;
   white-space: nowrap;
   letter-spacing: .01em;
+}
+
+.site-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .header-search {

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{.Jurisdiction.Name}} Tenant Rights Guide — Defensive Renting</title>
   <meta name="description" content="Free tenant rights guides for {{.Jurisdiction.Name}} — step-by-step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
@@ -21,7 +22,7 @@
 <body class="has-hero-search">
   <header class="site-header">
     <div class="wrap">
-      <a class="site-logo" href="/">Defensive Renting</a>
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="Defensive Renting" class="site-logo-img" /><span>Defensive Renting</span></a>
       <form class="header-search" action="/search" method="get" role="search">
         <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
         <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />

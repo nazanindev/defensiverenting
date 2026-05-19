@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{if .Query}}Search: {{.Query}}{{else}}Search{{end}} — Defensive Renting</title>
   <meta name="description" content="Search tenant rights guides{{if .JurisdictionSlug}} for {{.JurisdictionSlug}}{{end}}." />
@@ -14,7 +15,7 @@
 <body>
   <header class="site-header">
     <div class="wrap">
-      <a class="site-logo" href="/">Defensive Renting</a>
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="Defensive Renting" class="site-logo-img" /><span>Defensive Renting</span></a>
       <form class="header-search" action="/search" method="get" role="search">
         <input type="search" name="q" value="{{.Query}}" placeholder="Search by situation…" aria-label="Search" autofocus />
         {{if .JurisdictionSlug}}<input type="hidden" name="j" value="{{.JurisdictionSlug}}" />{{end}}
