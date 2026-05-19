@@ -1,10 +1,12 @@
 // cmd/authoring is a small internal service for authoring new city playbooks.
-// It writes directly to the shared Postgres DB. No auth — keep the URL private.
+// It writes directly to the shared Postgres DB.
+// Auth: HTTP Basic Auth. Set AUTHORING_USER and AUTHORING_PASSWORD env vars.
 // Run: authoring -addr :8081 -db $DATABASE_URL
 package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -33,6 +35,20 @@ type srv struct {
 	tmpl *template.Template
 }
 
+func basicAuth(user, pass string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+		if !ok ||
+			subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
+			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Defensive Renting Authoring"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	addr := flag.String("addr", ":8081", "listen address")
 	dsn := flag.String("db", os.Getenv("DATABASE_URL"), "Postgres DSN")
@@ -42,6 +58,13 @@ func main() {
 
 	if *dsn == "" {
 		log.Error("DATABASE_URL or -db flag required")
+		os.Exit(1)
+	}
+
+	authUser := os.Getenv("AUTHORING_USER")
+	authPass := os.Getenv("AUTHORING_PASSWORD")
+	if authUser == "" || authPass == "" {
+		log.Error("AUTHORING_USER and AUTHORING_PASSWORD env vars are required")
 		os.Exit(1)
 	}
 
@@ -77,7 +100,7 @@ func main() {
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 
-	httpSrv := &http.Server{Addr: *addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	httpSrv := &http.Server{Addr: *addr, Handler: basicAuth(authUser, authPass, mux), ReadHeaderTimeout: 5 * time.Second}
 
 	go func() {
 		sig := make(chan os.Signal, 1)
