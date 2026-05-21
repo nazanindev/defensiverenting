@@ -98,6 +98,10 @@
     </div>
     <h1>{{.Playbook.Playbook.Title}}</h1>
     {{if .Playbook.Playbook.IntroMD}}<p class="intro">{{.Playbook.Playbook.IntroMD}}</p>{{end}}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <a href="/edit/{{.Playbook.Playbook.ID}}" class="btn btn-primary">Edit playbook</a>
+      <a href="/new?from={{.Playbook.Playbook.ID}}" class="btn btn-secondary">Use as starting point →</a>
+    </div>
   </div>
 
   <!-- Sources -->
@@ -145,17 +149,6 @@
     {{end}}
   </section>
 
-  <!-- CTA -->
-  <div class="cta">
-    <div class="cta-text">
-      <strong>Actions</strong>
-      Edit this playbook, or use it as a starting point for a new city.
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a href="/edit/{{.Playbook.Playbook.ID}}" class="btn btn-primary">Edit playbook</a>
-      <a href="/new?from={{.Playbook.Playbook.ID}}" class="btn btn-secondary">Use as starting point →</a>
-    </div>
-  </div>
 </div>
 </body>
 </html>
