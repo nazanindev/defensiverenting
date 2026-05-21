@@ -264,6 +264,7 @@ let curCitySlug = '', curCityName = '';
 let curTopicKey = '';
 let lastAutoTitle = '';
 let dragSrcIdx = null;
+let dragAllowed = false;
 
 // Known title templates (string concat — avoid ES6 template literals which confuse Go's html/template)
 const TITLE_TMPL = {
@@ -545,7 +546,7 @@ function renderStmts() {
       ' ondrop="onDrop(event,' + i + ')"' +
       ' ondragend="onDragEnd()">' +
       '<div class="card-hd">' +
-        '<span class="drag-handle" title="Drag to reorder">⠿</span>' +
+        '<span class="drag-handle" title="Drag to reorder" onmousedown="dragAllowed=true">⠿</span>' +
         '<span class="card-num">' + cardLabel + '</span>' +
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
@@ -566,7 +567,9 @@ function updateHidden() {
 // ── Drag-to-reorder (statements) ──────────────────────────────────────────
 
 function onDragStart(e, idx) {
-  if (!e.target.closest('.drag-handle')) { e.preventDefault(); return; }
+  var allowed = dragAllowed;
+  dragAllowed = false;
+  if (!allowed) { e.preventDefault(); return; }
   sync();
   dragSrcIdx = idx;
   e.dataTransfer.effectAllowed = 'move';
