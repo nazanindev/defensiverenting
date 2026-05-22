@@ -17,12 +17,21 @@ primary_region = 'ewr'
   min_machines_running = 0
   initial_cluster_size = 1
 
+  [http_service.concurrency]
+    type       = 'requests'
+    hard_limit = 10
+    soft_limit = 5
+
   [[http_service.checks]]
     interval     = '15s'
     timeout      = '5s'
     grace_period = '10s'
     method       = 'GET'
     path         = '/healthz'
+
+[restart]
+  policy      = 'always'
+  max_retries = 5
 
 [[vm]]
   cpu_kind  = 'shared'
