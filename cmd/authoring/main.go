@@ -126,7 +126,8 @@ func main() {
 		hm := http.NewServeMux()
 		hm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 		hm.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-		if err := http.ListenAndServe(":8080", hm); err != nil {
+		legacy := &http.Server{Addr: ":8080", Handler: hm, ReadHeaderTimeout: 5 * time.Second}
+		if err := legacy.ListenAndServe(); err != nil {
 			log.Warn("legacy health-check server on :8080 stopped", slog.Any("err", err))
 		}
 	}()
