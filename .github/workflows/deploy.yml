@@ -11,20 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --config fly.toml --app defensiverenting --dockerfile Dockerfile
+      # --local-only builds the image on this runner, avoiding the shared
+      # remote builder that was causing the main image to land on the
+      # authoring app when both deploys ran from the same build context.
+      - run: flyctl deploy --local-only --config fly.toml --app defensiverenting --dockerfile Dockerfile
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   deploy-authoring:
     name: Deploy authoring service
     runs-on: ubuntu-latest
-    # Run after main to avoid parallel remote-builder conflicts that have
-    # caused the wrong image to land on the authoring app three times.
-    needs: deploy-main
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --config fly.authoring.toml --app defensiverenting-authoring --dockerfile Dockerfile.authoring
+      - run: flyctl deploy --local-only --config fly.authoring.toml --app defensiverenting-authoring --dockerfile Dockerfile.authoring
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: Smoke test — authoring must require auth (401), not serve main site (200)
