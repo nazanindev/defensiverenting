@@ -29,7 +29,7 @@ primary_region = 'ewr'
     method       = 'GET'
     path         = '/healthz'
 
-[restart]
+[[restart]]
   policy      = 'always'
   max_retries = 5
 
