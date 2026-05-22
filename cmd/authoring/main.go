@@ -118,6 +118,19 @@ func main() {
 		_ = httpSrv.Shutdown(shutCtx)
 	}()
 
+	// Satisfy the legacy port-8080 health check that Fly wrote into this app's
+	// config when the wrong image ran here. Without this the 8080 check fires,
+	// fails, and Fly rolls back to the old bad release. Once the authoring
+	// binary passes both checks it becomes the stable rollback target too.
+	go func() {
+		hm := http.NewServeMux()
+		hm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+		hm.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+		if err := http.ListenAndServe(":8080", hm); err != nil {
+			log.Warn("legacy health-check server on :8080 stopped", slog.Any("err", err))
+		}
+	}()
+
 	log.Info("authoring started", slog.String("addr", *addr))
 	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Error("serve", slog.Any("err", err))
