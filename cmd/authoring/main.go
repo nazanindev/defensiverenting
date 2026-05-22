@@ -100,7 +100,14 @@ func main() {
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 
-	httpSrv := &http.Server{Addr: *addr, Handler: basicAuth(authUser, authPass, mux), ReadHeaderTimeout: 5 * time.Second}
+	// /healthz is outside the auth wrapper so Fly's health check can reach it.
+	outer := http.NewServeMux()
+	outer.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	outer.Handle("/", basicAuth(authUser, authPass, mux))
+
+	httpSrv := &http.Server{Addr: *addr, Handler: outer, ReadHeaderTimeout: 5 * time.Second}
 
 	go func() {
 		sig := make(chan os.Signal, 1)

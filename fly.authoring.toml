@@ -17,6 +17,13 @@ primary_region = 'ewr'
   min_machines_running = 0
   initial_cluster_size = 1
 
+  [[http_service.checks]]
+    interval     = '15s'
+    timeout      = '5s'
+    grace_period = '10s'
+    method       = 'GET'
+    path         = '/healthz'
+
 [[vm]]
   cpu_kind  = 'shared'
   cpus      = 1
