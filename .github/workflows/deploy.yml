@@ -1,13 +1,24 @@
-name: Deploy authoring service
+name: Deploy
 
 on:
   push:
     branches: [main]
 
 jobs:
-  deploy:
+  deploy-main:
+    name: Deploy main site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --local-only --config fly.toml --app defensiverenting --dockerfile Dockerfile
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_MAIN_DEPLOY_TOKEN }}
+
+  deploy-authoring:
     name: Deploy authoring service
     runs-on: ubuntu-latest
+    needs: [deploy-main]
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
