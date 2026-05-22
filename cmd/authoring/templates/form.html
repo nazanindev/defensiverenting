@@ -632,7 +632,7 @@ function esc(s) {
 function kindOpts(sel) {
   const opts = curPageKind === 'directory'
     ? [['nonprofit','Nonprofit'],['gov_guidance','Gov guidance']]
-    : [['statute','Statute'],['regulation','Regulation'],['gov_guidance','Gov guidance'],['nonprofit','Nonprofit'],['editorial','Editorial']];
+    : [['statute','Statute'],['regulation','Regulation'],['gov_guidance','Gov guidance'],['nonprofit','Nonprofit'],['editorial','Editorial'],['court_ruling','Court ruling']];
   return opts.map(function(pair) {
     const v = pair[0], l = pair[1];
     return '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + l + '</option>';

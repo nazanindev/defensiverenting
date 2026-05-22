@@ -37,6 +37,8 @@ func funcMap() template.FuncMap {
 				return "chip chip--regulation"
 			case "editorial":
 				return "chip chip--editorial"
+			case "court_ruling":
+				return "chip chip--court-ruling"
 			default:
 				return "chip chip--gov"
 			}
@@ -85,7 +87,7 @@ type CitationChip struct {
 	URL        string
 	Label      string
 	Locator    string
-	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial
+	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial|court_ruling
 }
 
 // SearchPage holds search results.
