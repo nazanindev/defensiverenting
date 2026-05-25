@@ -539,20 +539,20 @@ function renderStmts() {
       '</div>';
 
     const cardLabel = isDir ? 'Entry ' + (i + 1) : 'Statement ' + (i + 1);
-    return '<div class="card" draggable="true" id="card_' + st.id + '"' +
+    return '<div class="card" draggable="false" id="card_' + st.id + '"' +
       ' ondragstart="onDragStart(event,' + i + ')"' +
       ' ondragover="onDragOver(event,' + i + ')"' +
       ' ondragleave="onDragLeave(event)"' +
       ' ondrop="onDrop(event,' + i + ')"' +
       ' ondragend="onDragEnd()">' +
       '<div class="card-hd">' +
-        '<span class="drag-handle" title="Drag to reorder" onmousedown="dragAllowed=true">⠿</span>' +
+        '<span class="drag-handle" title="Drag to reorder"' +
+          ' onmousedown="enableDrag(event,\'card_' + st.id + '\')">⠿</span>' +
         '<span class="card-num">' + cardLabel + '</span>' +
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
       '<textarea name="stmt_' + st.id + '" rows="3" placeholder="' + stmtPlaceholder + '" required' +
-        ' ondragstart="event.stopPropagation()" onmousedown="event.stopPropagation()"' +
-        ' style="width:100%;margin-bottom:0;user-select:text;-webkit-user-select:text">' + esc(st.body) + '</textarea>' +
+        ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
       citesHtml +
       editorialRow +
@@ -567,14 +567,16 @@ function updateHidden() {
 
 // ── Drag-to-reorder (statements) ──────────────────────────────────────────
 
+function enableDrag(e, cardId) {
+  var card = document.getElementById(cardId);
+  if (card) card.draggable = true;
+  dragAllowed = true;
+}
+
 function onDragStart(e, idx) {
   var allowed = dragAllowed;
   dragAllowed = false;
-  var tag = e.target.tagName.toLowerCase();
-  if (!allowed || tag === 'textarea' || tag === 'input' || tag === 'select') {
-    e.preventDefault();
-    return;
-  }
+  if (!allowed) { e.preventDefault(); return; }
   sync();
   dragSrcIdx = idx;
   e.dataTransfer.effectAllowed = 'move';
@@ -601,7 +603,10 @@ function onDrop(e, idx) {
 }
 function onDragEnd() {
   dragSrcIdx = null;
-  document.querySelectorAll('#stmts-container .card').forEach(function(el) { el.classList.remove('drag-over'); });
+  document.querySelectorAll('#stmts-container .card').forEach(function(el) {
+    el.classList.remove('drag-over');
+    el.draggable = false;
+  });
 }
 
 // ── Submit guard ──────────────────────────────────────────────────────────
