@@ -539,7 +539,7 @@ function renderStmts() {
       '</div>';
 
     const cardLabel = isDir ? 'Entry ' + (i + 1) : 'Statement ' + (i + 1);
-    return '<div class="card" draggable="true"' +
+    return '<div class="card" draggable="true" id="card_' + st.id + '"' +
       ' ondragstart="onDragStart(event,' + i + ')"' +
       ' ondragover="onDragOver(event,' + i + ')"' +
       ' ondragleave="onDragLeave(event)"' +
@@ -551,7 +551,8 @@ function renderStmts() {
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
       '<textarea name="stmt_' + st.id + '" rows="3" placeholder="' + stmtPlaceholder + '" required' +
-        ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
+        ' ondragstart="event.stopPropagation()" onmousedown="event.stopPropagation()"' +
+        ' style="width:100%;margin-bottom:0;user-select:text;-webkit-user-select:text">' + esc(st.body) + '</textarea>' +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
       citesHtml +
       editorialRow +
@@ -569,7 +570,11 @@ function updateHidden() {
 function onDragStart(e, idx) {
   var allowed = dragAllowed;
   dragAllowed = false;
-  if (!allowed) { e.preventDefault(); return; }
+  var tag = e.target.tagName.toLowerCase();
+  if (!allowed || tag === 'textarea' || tag === 'input' || tag === 'select') {
+    e.preventDefault();
+    return;
+  }
   sync();
   dragSrcIdx = idx;
   e.dataTransfer.effectAllowed = 'move';
