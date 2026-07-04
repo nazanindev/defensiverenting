@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/nazanin212/bostontenantsrights/internal/discover"
 )
 
 // PG is the Postgres implementation of Store.
@@ -328,6 +330,129 @@ func (pg *PG) UpsertSource(ctx context.Context, params UpsertSourceParams) (Sour
 	var s Source
 	err := row.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind, &s.RetrievedAt, &s.ContentHash)
 	return s, err
+}
+
+// ---- source discovery -------------------------------------------------------
+
+// InsertCandidates bulk-inserts discovered candidates for a jurisdiction.
+// Re-running discovery is idempotent: an existing (jurisdiction, url) row is left
+// untouched so its triage status is preserved. Returns the count newly added.
+func (pg *PG) InsertCandidates(ctx context.Context, jurisdictionID int64, cands []discover.Candidate) (int, error) {
+	if len(cands) == 0 {
+		return 0, nil
+	}
+	tx, err := pg.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // no-op after a successful commit
+
+	added := 0
+	for _, c := range cands {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO source_candidates
+				(jurisdiction_id, url, publisher, title, kind_guess, rationale, confidence, discovered_via)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (jurisdiction_id, url) DO NOTHING`,
+			jurisdictionID, c.URL, c.Publisher, c.Title, c.KindGuess, c.Rationale, c.Confidence, c.Via)
+		if err != nil {
+			return 0, fmt.Errorf("insert candidate %s: %w", c.URL, err)
+		}
+		added += int(tag.RowsAffected())
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return added, nil
+}
+
+// ListCandidates returns a jurisdiction's candidates with the given status,
+// ranked by confidence (highest first).
+func (pg *PG) ListCandidates(ctx context.Context, jurisdictionID int64, status string) ([]SourceCandidate, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT id, jurisdiction_id, url, publisher, title, kind_guess, rationale,
+		       confidence, discovered_via, status, source_id, created_at, reviewed_at
+		FROM source_candidates
+		WHERE jurisdiction_id = $1 AND status = $2
+		ORDER BY confidence DESC, id`, jurisdictionID, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanCandidates(rows)
+}
+
+// GetCandidate looks up a single candidate by id.
+func (pg *PG) GetCandidate(ctx context.Context, id int64) (SourceCandidate, error) {
+	row := pg.pool.QueryRow(ctx, `
+		SELECT id, jurisdiction_id, url, publisher, title, kind_guess, rationale,
+		       confidence, discovered_via, status, source_id, created_at, reviewed_at
+		FROM source_candidates WHERE id = $1`, id)
+	return scanCandidate(row)
+}
+
+// SetCandidateStatus records a triage decision. sourceID is non-nil only when a
+// candidate is approved (linking it to the sources row it created).
+func (pg *PG) SetCandidateStatus(ctx context.Context, id int64, status string, sourceID *int64) error {
+	_, err := pg.pool.Exec(ctx, `
+		UPDATE source_candidates
+		SET status = $2, source_id = $3, reviewed_at = NOW()
+		WHERE id = $1`, id, status, sourceID)
+	return err
+}
+
+// CandidateCounts returns the number of pending candidates per city, for the
+// authoring dashboard's "sources to review" badges.
+func (pg *PG) CandidateCounts(ctx context.Context) ([]CandidateCountRow, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT j.id, j.name, j.slug, COUNT(*)
+		FROM source_candidates c
+		JOIN jurisdictions j ON j.id = c.jurisdiction_id
+		WHERE c.status = 'pending'
+		GROUP BY j.id, j.name, j.slug
+		ORDER BY j.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CandidateCountRow
+	for rows.Next() {
+		var r CandidateCountRow
+		if err := rows.Scan(&r.JurisdictionID, &r.JurisdictionName, &r.JurisdictionSlug, &r.PendingCount); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func scanCandidate(row pgx.Row) (SourceCandidate, error) {
+	c, err := scanCandidateRow(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return c, ErrNotFound
+	}
+	return c, err
+}
+
+func scanCandidates(rows pgx.Rows) ([]SourceCandidate, error) {
+	var out []SourceCandidate
+	for rows.Next() {
+		c, err := scanCandidateRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// scanCandidateRow scans the source_candidates columns (in select order) from a single row.
+func scanCandidateRow(row pgx.Row) (SourceCandidate, error) {
+	var c SourceCandidate
+	err := row.Scan(&c.ID, &c.JurisdictionID, &c.URL, &c.Publisher, &c.Title,
+		&c.KindGuess, &c.Rationale, &c.Confidence, &c.DiscoveredVia, &c.Status,
+		&c.SourceID, &c.CreatedAt, &c.ReviewedAt)
+	return c, err
 }
 
 func (pg *PG) UpsertTopic(ctx context.Context, params UpsertTopicParams) (Topic, error) {

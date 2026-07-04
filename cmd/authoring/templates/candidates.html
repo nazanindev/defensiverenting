@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Source candidates — {{.City.Name}} — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 960px; margin: 0 auto; padding: 36px 24px; }
+  .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
+  .crumb a { color: #9b2335; text-decoration: none; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+  .note { color: #7a5c5c; font-size: .85rem; margin-bottom: 22px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
+  .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
+  .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .85rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
+  .btn-success { background: #38a169; color: #fff; }
+  .btn-success:hover { background: #2f855a; }
+  .btn-mute { background: #fdf0f2; color: #7a1c2a; border: 1px solid #f0c0c8; }
+  .btn-mute:hover { background: #fae0e4; }
+  .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
+  .btn-danger:hover { background: #fff5f5; }
+  .cand { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+  .cand-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .cand-title { font-weight: 600; font-size: 1rem; }
+  .cand-title a { color: #1e1215; text-decoration: none; }
+  .cand-title a:hover { color: #9b2335; text-decoration: underline; }
+  .conf { font-size: .75rem; color: #7a5c5c; white-space: nowrap; }
+  .cand-url { font-size: .8rem; color: #9b2335; word-break: break-all; display: block; margin: 4px 0; }
+  .cand-meta { font-size: .82rem; color: #7a5c5c; margin: 6px 0; }
+  .chip { display: inline-block; padding: .15rem .5rem; border-radius: 10px; font-size: .72rem; font-weight: 600; background: #fde8eb; color: #7a1c2a; margin-right: 6px; }
+  .rationale { font-size: .88rem; color: #3a2a2e; margin: 8px 0 12px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions form { margin: 0; }
+  .src-link { font-size: .8rem; color: #38a169; }
+  .empty { text-align: center; padding: 60px 24px; color: #b08080; background: #fff; border: 1px solid #e8dede; border-radius: 10px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <span class="header-badge">Authoring</span>
+  </div>
+</header>
+<div class="page">
+  <div class="crumb"><a href="/">← Dashboard</a></div>
+  <h1>Source candidates — {{.City.Name}}</h1>
+  <p class="note">Approve a source to add it to your research shelf (it becomes a citable source, uncited until you write a statement). Nothing here is published.</p>
+
+  {{$slug := .City.Slug}}
+  <div class="tabs">
+    <a class="tab {{if eq .Status "pending"}}active{{end}}" href="/candidates?j={{$slug}}&status=pending">pending</a>
+    <a class="tab {{if eq .Status "approved"}}active{{end}}" href="/candidates?j={{$slug}}&status=approved">approved</a>
+    <a class="tab {{if eq .Status "snoozed"}}active{{end}}" href="/candidates?j={{$slug}}&status=snoozed">snoozed</a>
+    <a class="tab {{if eq .Status "rejected"}}active{{end}}" href="/candidates?j={{$slug}}&status=rejected">rejected</a>
+  </div>
+
+  {{if .Candidates}}
+    {{range .Candidates}}
+    <div class="cand">
+      <div class="cand-head">
+        <div class="cand-title"><a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Title}}</a></div>
+        <div class="conf">confidence {{.ConfidencePct}}%</div>
+      </div>
+      <a class="cand-url" href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.URL}}</a>
+      <div class="cand-meta"><span class="chip">{{.KindGuess}}</span>{{.Publisher}} · via {{.DiscoveredVia}}</div>
+      {{if .Rationale}}<div class="rationale">{{.Rationale}}</div>{{end}}
+      {{if eq .Status "pending"}}
+      <div class="actions">
+        <form method="post" action="/candidates/{{.ID}}/approve"><input type="hidden" name="j" value="{{$slug}}"><button class="btn btn-success">Approve</button></form>
+        <form method="post" action="/candidates/{{.ID}}/snooze"><input type="hidden" name="j" value="{{$slug}}"><button class="btn btn-mute">Snooze</button></form>
+        <form method="post" action="/candidates/{{.ID}}/reject"><input type="hidden" name="j" value="{{$slug}}"><button class="btn btn-danger">Reject</button></form>
+      </div>
+      {{else if eq .Status "approved"}}
+      <div class="src-link">✓ Added to sources — available in the playbook form</div>
+      {{else}}
+      <div class="actions">
+        <form method="post" action="/candidates/{{.ID}}/approve"><input type="hidden" name="j" value="{{$slug}}"><button class="btn btn-success">Approve</button></form>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  {{else}}
+    <div class="empty">No {{.Status}} candidates for {{.City.Name}}.</div>
+  {{end}}
+</div>
+</body>
+</html>

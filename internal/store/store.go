@@ -1,6 +1,10 @@
 package store
 
-import "context"
+import (
+	"context"
+
+	"github.com/nazanin212/bostontenantsrights/internal/discover"
+)
 
 // Store is the data-access interface for the tenant-rights service.
 // All methods are synchronous; the caller supplies context for cancellation/timeout.
@@ -27,6 +31,13 @@ type Store interface {
 	UpsertTopic(ctx context.Context, t UpsertTopicParams) (Topic, error)
 	IngestPlaybook(ctx context.Context, p IngestPlaybookParams) error
 	GetEditorialSource(ctx context.Context) (Source, error)
+
+	// Source discovery
+	InsertCandidates(ctx context.Context, jurisdictionID int64, cands []discover.Candidate) (int, error)
+	ListCandidates(ctx context.Context, jurisdictionID int64, status string) ([]SourceCandidate, error)
+	GetCandidate(ctx context.Context, id int64) (SourceCandidate, error)
+	SetCandidateStatus(ctx context.Context, id int64, status string, sourceID *int64) error
+	CandidateCounts(ctx context.Context) ([]CandidateCountRow, error)
 
 	// Authoring
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)

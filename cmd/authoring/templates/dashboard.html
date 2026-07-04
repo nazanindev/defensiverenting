@@ -41,6 +41,15 @@
   .actions form { margin: 0; }
   .empty { text-align: center; padding: 60px 24px; color: #b08080; }
   .empty a { color: #9b2335; }
+  .panel { background: #fff; border-radius: 10px; border: 1px solid #e8dede; padding: 18px 20px; margin-bottom: 24px; }
+  .panel h2 { font-family: 'Fraunces', serif; font-size: 1rem; margin-bottom: 12px; }
+  .discover-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .discover-form label { display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; margin-bottom: 3px; }
+  .discover-form select, .discover-form input { padding: .4rem .5rem; border: 1px solid #e0cccc; border-radius: 6px; font-family: inherit; font-size: .875rem; background: #fff; }
+  .discover-form .or { color: #b08080; font-size: .8rem; padding-bottom: .5rem; }
+  .review-links { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f5eded; font-size: .82rem; color: #7a5c5c; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .review-links a { color: #9b2335; text-decoration: none; }
+  .review-links a b { background: #fde8eb; color: #7a1c2a; border-radius: 8px; padding: 0 .4rem; margin-left: 2px; }
 </style>
 </head>
 <body>
@@ -60,6 +69,29 @@
       <a href="/guidelines" class="btn btn-view">Content guidelines</a>
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
+  </div>
+
+  <div class="panel">
+    <h2>Discover sources</h2>
+    <form method="post" action="/discover" class="discover-form">
+      <div>
+        <label>Existing city</label>
+        <select name="jurisdiction_select">
+          <option value="">— select —</option>
+          {{range .Cities}}<option value="{{.Slug}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <span class="or">or new city</span>
+      <div><label>City name</label><input name="new_city_name" placeholder="Chicago"></div>
+      <div><label>State</label><input name="new_state_name" placeholder="Illinois"></div>
+      <button class="btn btn-primary" type="submit">Discover</button>
+    </form>
+    {{if .ReviewCounts}}
+    <div class="review-links">
+      <span>Sources to review:</span>
+      {{range .ReviewCounts}}<a href="/candidates?j={{.JurisdictionSlug}}">{{.JurisdictionName}} <b>{{.PendingCount}}</b></a>{{end}}
+    </div>
+    {{end}}
   </div>
 
 <div class="card">

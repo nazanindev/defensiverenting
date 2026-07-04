@@ -14,6 +14,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -23,6 +24,7 @@ import (
 	"unicode"
 
 	dbpkg "github.com/nazanin212/bostontenantsrights/db"
+	"github.com/nazanin212/bostontenantsrights/internal/discover"
 	"github.com/nazanin212/bostontenantsrights/internal/store"
 )
 
@@ -99,6 +101,11 @@ func main() {
 	mux.HandleFunc("GET /view/{id}", s.viewPlaybook)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
+	mux.HandleFunc("POST /discover", s.discover)
+	mux.HandleFunc("GET /candidates", s.candidates)
+	mux.HandleFunc("POST /candidates/{id}/approve", s.approveCandidate)
+	mux.HandleFunc("POST /candidates/{id}/reject", s.rejectCandidate)
+	mux.HandleFunc("POST /candidates/{id}/snooze", s.snoozeCandidate)
 
 	// /healthz is outside the auth wrapper so Fly's health check can reach it.
 	outer := http.NewServeMux()
@@ -146,12 +153,185 @@ func (s *srv) guidelines(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
-	playbooks, err := s.pg.AuthorListPlaybooks(r.Context())
+	ctx := r.Context()
+	playbooks, err := s.pg.AuthorListPlaybooks(ctx)
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	s.render(w, "dashboard.html", map[string]any{"Playbooks": playbooks})
+	cities, err := s.pg.ListCityJurisdictions(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	counts, err := s.pg.CandidateCounts(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.render(w, "dashboard.html", map[string]any{
+		"Playbooks":    playbooks,
+		"Cities":       cities,
+		"ReviewCounts": counts,
+	})
+}
+
+// ---- source discovery -------------------------------------------------------
+
+// discover resolves the target jurisdiction (an existing city, or a new
+// city+state typed into the form), runs the registry providers, and stores the
+// resulting candidates for the author to triage. Discovery only seeds the
+// research shelf — nothing here writes statements or citations.
+func (s *srv) discover(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	newCity := strings.TrimSpace(r.FormValue("new_city_name"))
+	newState := strings.TrimSpace(r.FormValue("new_state_name"))
+	var j store.Jurisdiction
+	var err error
+	if newCity != "" {
+		if newState == "" {
+			http.Error(w, "State name is required for a new city", http.StatusBadRequest)
+			return
+		}
+		state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+			Kind: "state", Name: newState, Slug: toSlug(newState),
+		})
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+			ParentID: &state.ID, Kind: "city", Name: newCity, Slug: toSlug(newCity),
+		})
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+	} else {
+		slug := r.FormValue("jurisdiction_select")
+		if slug == "" || slug == "new" {
+			http.Error(w, "Select a city or enter a new one", http.StatusBadRequest)
+			return
+		}
+		j, err = s.pg.GetJurisdictionBySlug(ctx, slug)
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+	}
+
+	cands := discover.Run(j.Slug, discover.DefaultProviders()...)
+	if _, err := s.pg.InsertCandidates(ctx, j.ID, cands); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	http.Redirect(w, r, "/candidates?j="+url.QueryEscape(j.Slug), http.StatusSeeOther)
+}
+
+// candidateView decorates a stored candidate with display-only fields.
+type candidateView struct {
+	store.SourceCandidate
+	ConfidencePct int
+}
+
+func (s *srv) candidates(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	slug := r.URL.Query().Get("j")
+	if slug == "" {
+		http.Error(w, "missing ?j=<city-slug>", http.StatusBadRequest)
+		return
+	}
+	j, err := s.pg.GetJurisdictionBySlug(ctx, slug)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+	cands, err := s.pg.ListCandidates(ctx, j.ID, status)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	views := make([]candidateView, len(cands))
+	for i, c := range cands {
+		views[i] = candidateView{SourceCandidate: c, ConfidencePct: int(c.Confidence*100 + 0.5)}
+	}
+	s.render(w, "candidates.html", map[string]any{
+		"City":       j,
+		"Status":     status,
+		"Candidates": views,
+	})
+}
+
+// approveCandidate promotes a candidate into a real (uncited) sources row, ready
+// to attach when the author writes statements, then marks it approved.
+func (s *srv) approveCandidate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	c, err := s.pg.GetCandidate(ctx, id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
+		URL:            c.URL,
+		Publisher:      c.Publisher,
+		JurisdictionID: c.JurisdictionID,
+		Kind:           c.KindGuess,
+	})
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if err := s.pg.SetCandidateStatus(ctx, id, "approved", &src.ID); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.redirectToCandidates(w, r)
+}
+
+func (s *srv) rejectCandidate(w http.ResponseWriter, r *http.Request) {
+	s.triageCandidate(w, r, "rejected")
+}
+
+func (s *srv) snoozeCandidate(w http.ResponseWriter, r *http.Request) {
+	s.triageCandidate(w, r, "snoozed")
+}
+
+func (s *srv) triageCandidate(w http.ResponseWriter, r *http.Request, status string) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := s.pg.SetCandidateStatus(r.Context(), id, status, nil); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.redirectToCandidates(w, r)
+}
+
+// redirectToCandidates returns to the candidate queue for the city carried in
+// the form's hidden "j" field (falls back to the dashboard).
+func (s *srv) redirectToCandidates(w http.ResponseWriter, r *http.Request) {
+	slug := r.FormValue("j")
+	if slug == "" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/candidates?j="+url.QueryEscape(slug), http.StatusSeeOther)
 }
 
 func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
@@ -254,9 +434,9 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "view.html", map[string]any{
-		"Playbook":  pw,
-		"Sources":   sources,
-		"Stmts":     stmts,
+		"Playbook": pw,
+		"Sources":  sources,
+		"Stmts":    stmts,
 	})
 }
 
@@ -717,7 +897,7 @@ type preloadStmt struct {
 	ID        int               `json:"id"`
 	Body      string            `json:"body"`
 	Editorial bool              `json:"editorial"`
-	Cites     []int             `json:"cites"`   // indices into sources slice
+	Cites     []int             `json:"cites"`    // indices into sources slice
 	Locators  map[string]string `json:"locators"` // "srcIdx" -> locator override
 }
 

@@ -36,11 +36,11 @@ type Citation struct {
 }
 
 type CitationWithSource struct {
-	SourceID    int64
-	Locator     string
-	SourceURL   string
-	Publisher   string
-	SourceKind  string // statute|regulation|gov_guidance|nonprofit|editorial
+	SourceID   int64
+	Locator    string
+	SourceURL  string
+	Publisher  string
+	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial
 }
 
 type Topic struct {
@@ -107,6 +107,33 @@ type SitemapEntry struct {
 	JurisdictionSlug string
 	TopicSlug        string
 	LastMod          *time.Time
+}
+
+// SourceCandidate is a proposed source awaiting author triage in the discovery
+// queue. Approving one creates a real sources row (SourceID is then set); it is
+// never turned into a statement automatically.
+type SourceCandidate struct {
+	ID             int64
+	JurisdictionID *int64
+	URL            string
+	Publisher      string
+	Title          string
+	KindGuess      string // mirrors Source.Kind
+	Rationale      string
+	Confidence     float64
+	DiscoveredVia  string
+	Status         string // pending|approved|rejected|snoozed
+	SourceID       *int64
+	CreatedAt      time.Time
+	ReviewedAt     *time.Time
+}
+
+// CandidateCountRow is a per-city pending-candidate tally for the dashboard badge.
+type CandidateCountRow struct {
+	JurisdictionID   int64
+	JurisdictionName string
+	JurisdictionSlug string
+	PendingCount     int
 }
 
 // AuthorPlaybookRow is a summary row shown in the authoring dashboard.
