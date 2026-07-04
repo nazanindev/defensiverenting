@@ -3,6 +3,7 @@
 BINARY_SERVER   = bin/server
 BINARY_INGEST   = bin/ingest
 BINARY_AUTHORING = bin/authoring
+BINARY_MCP      = bin/mcp
 DATABASE_URL   ?= postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable
 
 all: tidy vet lint build test
@@ -12,6 +13,7 @@ build:
 	go build -o $(BINARY_SERVER)   ./cmd/server
 	go build -o $(BINARY_INGEST)   ./cmd/ingest
 	go build -o $(BINARY_AUTHORING) ./cmd/authoring
+	go build -o $(BINARY_MCP)      ./cmd/mcp
 
 ## Run tests (requires Postgres at DATABASE_URL)
 test:
