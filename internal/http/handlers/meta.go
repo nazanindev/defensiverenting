@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nazanin212/bostontenantsrights/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 // Robots serves /robots.txt.

@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	tmpl "github.com/nazanin212/bostontenantsrights/web/templates"
+	tmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
 func Editorial(w http.ResponseWriter, r *http.Request) {

@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	dbpkg "github.com/nazanin212/bostontenantsrights/db"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
+	dbpkg "github.com/nazanindev/defensiverenting/db"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 func testDB(t *testing.T) *store.PG {

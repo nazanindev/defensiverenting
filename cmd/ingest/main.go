@@ -14,9 +14,9 @@ import (
 	"strings"
 	"unicode"
 
-	dbpkg "github.com/nazanin212/bostontenantsrights/db"
-	"github.com/nazanin212/bostontenantsrights/internal/content"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
+	dbpkg "github.com/nazanindev/defensiverenting/db"
+	"github.com/nazanindev/defensiverenting/internal/content"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 func main() {

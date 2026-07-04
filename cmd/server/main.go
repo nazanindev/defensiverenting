@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	dbpkg "github.com/nazanin212/bostontenantsrights/db"
-	"github.com/nazanin212/bostontenantsrights/internal/config"
-	apphttp "github.com/nazanin212/bostontenantsrights/internal/http"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
+	dbpkg "github.com/nazanindev/defensiverenting/db"
+	"github.com/nazanindev/defensiverenting/internal/config"
+	apphttp "github.com/nazanindev/defensiverenting/internal/http"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 func main() {

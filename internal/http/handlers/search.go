@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/nazanin212/bostontenantsrights/internal/store"
-	tmpl "github.com/nazanin212/bostontenantsrights/web/templates"
+	"github.com/nazanindev/defensiverenting/internal/store"
+	tmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
 type searchStore interface {

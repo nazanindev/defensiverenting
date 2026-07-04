@@ -9,9 +9,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/nazanin212/bostontenantsrights/internal/content"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
-	tmpl "github.com/nazanin212/bostontenantsrights/web/templates"
+	"github.com/nazanindev/defensiverenting/internal/content"
+	"github.com/nazanindev/defensiverenting/internal/store"
+	tmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
 type browseStore interface {

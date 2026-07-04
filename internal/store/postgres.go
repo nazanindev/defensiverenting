@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nazanin212/bostontenantsrights/internal/discover"
+	"github.com/nazanindev/defensiverenting/internal/discover"
 )
 
 // PG is the Postgres implementation of Store.

@@ -6,10 +6,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/nazanin212/bostontenantsrights/internal/http/handlers"
-	"github.com/nazanin212/bostontenantsrights/internal/http/middleware"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
-	webstatic "github.com/nazanin212/bostontenantsrights/web/static"
+	"github.com/nazanindev/defensiverenting/internal/http/handlers"
+	"github.com/nazanindev/defensiverenting/internal/http/middleware"
+	"github.com/nazanindev/defensiverenting/internal/store"
+	webstatic "github.com/nazanindev/defensiverenting/web/static"
 )
 
 // NewRouter wires all routes and middleware onto a chi.Router.

@@ -1,4 +1,4 @@
-module github.com/nazanin212/bostontenantsrights
+module github.com/nazanindev/defensiverenting
 
 go 1.23
 

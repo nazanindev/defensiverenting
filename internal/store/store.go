@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 
-	"github.com/nazanin212/bostontenantsrights/internal/discover"
+	"github.com/nazanindev/defensiverenting/internal/discover"
 )
 
 // Store is the data-access interface for the tenant-rights service.

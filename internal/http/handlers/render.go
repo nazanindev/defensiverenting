@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	tmpl "github.com/nazanin212/bostontenantsrights/web/templates"
+	tmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
 // render executes the appropriate template for the given page data.

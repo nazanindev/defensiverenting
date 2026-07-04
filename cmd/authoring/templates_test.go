@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/nazanin212/bostontenantsrights/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 // parseTemplates mirrors the parsing done in main() so tests catch template

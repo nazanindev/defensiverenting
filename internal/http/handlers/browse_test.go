@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/nazanin212/bostontenantsrights/internal/http/handlers"
-	"github.com/nazanin212/bostontenantsrights/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/http/handlers"
+	"github.com/nazanindev/defensiverenting/internal/store"
 	"log/slog"
 	"os"
 )

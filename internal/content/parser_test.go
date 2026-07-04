@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nazanin212/bostontenantsrights/internal/content"
+	"github.com/nazanindev/defensiverenting/internal/content"
 )
 
 var validFile = []byte(`---
