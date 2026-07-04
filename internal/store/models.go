@@ -33,11 +33,13 @@ type Citation struct {
 	StatementID int64
 	SourceID    int64
 	Locator     string
+	Quote       string // verbatim line from the source backing this citation
 }
 
 type CitationWithSource struct {
 	SourceID   int64
 	Locator    string
+	Quote      string // verbatim line from the source backing this citation
 	SourceURL  string
 	Publisher  string
 	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial

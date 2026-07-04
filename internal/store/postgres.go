@@ -143,7 +143,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
 			s.id, s.body_md, ps.position,
-			c.source_id, c.locator,
+			c.source_id, c.locator, c.quote,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
@@ -524,10 +524,10 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 
 			for _, cite := range sp.Sources {
 				if _, err := tx.Exec(ctx, `
-					INSERT INTO citations (statement_id, source_id, locator)
-					VALUES ($1, $2, $3)
-					ON CONFLICT (statement_id, source_id) DO UPDATE SET locator = EXCLUDED.locator`,
-					stmtID, cite.SourceID, cite.Locator,
+					INSERT INTO citations (statement_id, source_id, locator, quote)
+					VALUES ($1, $2, $3, $4)
+					ON CONFLICT (statement_id, source_id) DO UPDATE SET locator = EXCLUDED.locator, quote = EXCLUDED.quote`,
+					stmtID, cite.SourceID, cite.Locator, cite.Quote,
 				); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}
@@ -584,7 +584,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		)
 		if err := rows.Scan(
 			&stmtID, &bodyMD, &position,
-			&c.SourceID, &c.Locator, &c.SourceURL, &c.Publisher, &c.SourceKind,
+			&c.SourceID, &c.Locator, &c.Quote, &c.SourceURL, &c.Publisher, &c.SourceKind,
 		); err != nil {
 			continue
 		}
@@ -634,7 +634,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
 			s.id, s.body_md, ps.position,
-			c.source_id, c.locator,
+			c.source_id, c.locator, c.quote,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
@@ -687,10 +687,10 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			}
 			for _, cite := range sp.Sources {
 				if _, err := tx.Exec(ctx, `
-					INSERT INTO citations (statement_id, source_id, locator)
-					VALUES ($1, $2, $3)
-					ON CONFLICT (statement_id, source_id) DO UPDATE SET locator = EXCLUDED.locator`,
-					stmtID, cite.SourceID, cite.Locator,
+					INSERT INTO citations (statement_id, source_id, locator, quote)
+					VALUES ($1, $2, $3, $4)
+					ON CONFLICT (statement_id, source_id) DO UPDATE SET locator = EXCLUDED.locator, quote = EXCLUDED.quote`,
+					stmtID, cite.SourceID, cite.Locator, cite.Quote,
 				); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}

@@ -96,8 +96,10 @@ type IngestStatementParams struct {
 	Sources  []IngestCitationParams
 }
 
-// IngestCitationParams pairs a source row (already upserted) with its locator.
+// IngestCitationParams pairs a source row (already upserted) with its locator
+// and the verbatim source line (quote) backing the citation.
 type IngestCitationParams struct {
 	SourceID int64
 	Locator  string
+	Quote    string
 }
