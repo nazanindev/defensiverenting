@@ -1,28 +1,14 @@
-package mcpserver
+package drafting
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nazanindev/defensiverenting/internal/discover"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
-
-const draftLanguage = "en"
-
-// reject returns an agent-visible tool error (IsError) carrying an actionable
-// message the model can read and correct, rather than a protocol-level failure.
-func reject[Out any](format string, args ...any) (*mcp.CallToolResult, Out, error) {
-	var zero Out
-	return &mcp.CallToolResult{
-		IsError: true,
-		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf(format, args...)}},
-	}, zero, nil
-}
 
 // ---- find_sources ----------------------------------------------------------
 
@@ -30,7 +16,7 @@ type FindSourcesInput struct {
 	CitySlug string `json:"city_slug" jsonschema:"the city's slug, e.g. \"boston\" or \"chicago\""`
 }
 
-type CandidateOut struct {
+type Candidate struct {
 	URL        string  `json:"url"`
 	Publisher  string  `json:"publisher"`
 	Title      string  `json:"title"`
@@ -41,24 +27,25 @@ type CandidateOut struct {
 }
 
 type FindSourcesOutput struct {
-	Candidates []CandidateOut `json:"candidates"`
+	Candidates []Candidate `json:"candidates"`
 }
 
-func (s *Server) findSources(ctx context.Context, _ *mcp.CallToolRequest, in FindSourcesInput) (*mcp.CallToolResult, FindSourcesOutput, error) {
+// FindSources returns ranked, vetted candidate primary sources for a city.
+func (tb *Toolbelt) FindSources(_ context.Context, in FindSourcesInput) (FindSourcesOutput, error) {
 	slug := strings.TrimSpace(in.CitySlug)
 	if slug == "" {
-		return reject[FindSourcesOutput]("city_slug is required")
+		return FindSourcesOutput{}, reject("city_slug is required")
 	}
 	cands := discover.Run(slug, discover.DefaultProviders()...)
-	out := FindSourcesOutput{Candidates: make([]CandidateOut, 0, len(cands))}
+	out := FindSourcesOutput{Candidates: make([]Candidate, 0, len(cands))}
 	for _, c := range cands {
-		out.Candidates = append(out.Candidates, CandidateOut{
+		out.Candidates = append(out.Candidates, Candidate{
 			URL: c.URL, Publisher: c.Publisher, Title: c.Title,
 			KindGuess: c.KindGuess, Rationale: c.Rationale,
 			Confidence: c.Confidence, Via: c.Via,
 		})
 	}
-	return nil, out, nil
+	return out, nil
 }
 
 // ---- fetch_source ----------------------------------------------------------
@@ -74,23 +61,25 @@ type FetchSourceOutput struct {
 	Truncated bool   `json:"truncated" jsonschema:"true if text was cut for length (full text is still cached for citation checks)"`
 }
 
-func (s *Server) fetchSource(ctx context.Context, _ *mcp.CallToolRequest, in FetchSourceInput) (*mcp.CallToolResult, FetchSourceOutput, error) {
+// FetchSource fetches a URL, caches its extracted text for the verbatim check,
+// and returns the (possibly truncated) text.
+func (tb *Toolbelt) FetchSource(_ context.Context, in FetchSourceInput) (FetchSourceOutput, error) {
 	raw := strings.TrimSpace(in.URL)
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return reject[FetchSourceOutput]("url must be a valid http(s) URL, got %q", raw)
+		return FetchSourceOutput{}, reject("url must be a valid http(s) URL, got %q", raw)
 	}
-	text, err := s.fetch(raw)
+	text, err := tb.fetch(raw)
 	if err != nil {
-		return reject[FetchSourceOutput]("could not fetch %s: %v", raw, err)
+		return FetchSourceOutput{}, reject("could not fetch %s: %v", raw, err)
 	}
-	s.cache.put(raw, text)
+	tb.cache.put(raw, text)
 
 	returned, truncated := text, false
 	if r := []rune(text); len(r) > maxReturnRune {
 		returned, truncated = string(r[:maxReturnRune]), true
 	}
-	return nil, FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated}, nil
+	return FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated}, nil
 }
 
 // ---- save_draft_playbook ---------------------------------------------------
@@ -126,41 +115,44 @@ type SaveDraftOutput struct {
 	Message        string `json:"message"`
 }
 
-func (s *Server) saveDraftPlaybook(ctx context.Context, _ *mcp.CallToolRequest, in SaveDraftInput) (*mcp.CallToolResult, SaveDraftOutput, error) {
+// SaveDraft validates every citation quote against the cached fetched source
+// text, then writes a status="draft" playbook. Guardrail failures are returned
+// as *RejectionError so the caller can hand them back to the model to fix.
+func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraftOutput, error) {
 	if strings.TrimSpace(in.CitySlug) == "" || strings.TrimSpace(in.TopicSlug) == "" || strings.TrimSpace(in.Title) == "" {
-		return reject[SaveDraftOutput]("city_slug, topic_slug and title are required")
+		return SaveDraftOutput{}, reject("city_slug, topic_slug and title are required")
 	}
 	if len(in.Statements) == 0 {
-		return reject[SaveDraftOutput]("a playbook needs at least one statement")
+		return SaveDraftOutput{}, reject("a playbook needs at least one statement")
 	}
 
-	jur, err := s.db.GetJurisdictionBySlug(ctx, in.CitySlug)
+	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.CitySlug)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return reject[SaveDraftOutput]("no jurisdiction with slug %q — call list_jurisdictions to see valid cities", in.CitySlug)
+			return SaveDraftOutput{}, reject("no jurisdiction with slug %q — call list_jurisdictions to see valid cities", in.CitySlug)
 		}
-		return nil, SaveDraftOutput{}, fmt.Errorf("resolve jurisdiction: %w", err)
+		return SaveDraftOutput{}, err
 	}
 
 	// Guardrail: every citation quote must be verbatim in the cached fetched text.
 	citationCount := 0
 	for si, st := range in.Statements {
 		if strings.TrimSpace(st.BodyMD) == "" {
-			return reject[SaveDraftOutput]("statement %d has empty body_md", si+1)
+			return SaveDraftOutput{}, reject("statement %d has empty body_md", si+1)
 		}
 		if len(st.Citations) == 0 {
-			return reject[SaveDraftOutput]("statement %d (%q) has no citations — every statement must cite a source", si+1, truncate(st.BodyMD, 60))
+			return SaveDraftOutput{}, reject("statement %d (%q) has no citations — every statement must cite a source", si+1, truncate(st.BodyMD, 60))
 		}
 		for ci, c := range st.Citations {
 			if strings.TrimSpace(c.URL) == "" || strings.TrimSpace(c.Quote) == "" {
-				return reject[SaveDraftOutput]("statement %d citation %d needs both a url and a quote", si+1, ci+1)
+				return SaveDraftOutput{}, reject("statement %d citation %d needs both a url and a quote", si+1, ci+1)
 			}
-			cached, ok := s.cache.get(strings.TrimSpace(c.URL))
+			cached, ok := tb.cache.get(strings.TrimSpace(c.URL))
 			if !ok {
-				return reject[SaveDraftOutput]("statement %d citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", si+1, ci+1, c.URL, c.URL)
+				return SaveDraftOutput{}, reject("statement %d citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", si+1, ci+1, c.URL, c.URL)
 			}
 			if !strings.Contains(normalizeForMatch(cached), normalizeForMatch(c.Quote)) {
-				return reject[SaveDraftOutput]("statement %d citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", si+1, ci+1, c.URL, truncate(c.Quote, 120))
+				return SaveDraftOutput{}, reject("statement %d citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", si+1, ci+1, c.URL, truncate(c.Quote, 120))
 			}
 			citationCount++
 		}
@@ -175,14 +167,14 @@ func (s *Server) saveDraftPlaybook(ctx context.Context, _ *mcp.CallToolRequest, 
 			if _, done := srcID[u]; done {
 				continue
 			}
-			src, err := s.db.UpsertSource(ctx, store.UpsertSourceParams{
+			src, err := tb.db.UpsertSource(ctx, store.UpsertSourceParams{
 				URL:            u,
 				Publisher:      c.Publisher,
 				JurisdictionID: &jID,
 				Kind:           defaultKind(c.Kind),
 			})
 			if err != nil {
-				return nil, SaveDraftOutput{}, fmt.Errorf("upsert source %s: %w", u, err)
+				return SaveDraftOutput{}, err
 			}
 			srcID[u] = src.ID
 		}
@@ -192,9 +184,9 @@ func (s *Server) saveDraftPlaybook(ctx context.Context, _ *mcp.CallToolRequest, 
 	if topicName == "" {
 		topicName = in.TopicSlug
 	}
-	topic, err := s.db.UpsertTopic(ctx, store.UpsertTopicParams{Slug: in.TopicSlug, Name: topicName})
+	topic, err := tb.db.UpsertTopic(ctx, store.UpsertTopicParams{Slug: in.TopicSlug, Name: topicName})
 	if err != nil {
-		return nil, SaveDraftOutput{}, fmt.Errorf("upsert topic: %w", err)
+		return SaveDraftOutput{}, err
 	}
 
 	stmts := make([]store.IngestStatementParams, 0, len(in.Statements))
@@ -214,7 +206,7 @@ func (s *Server) saveDraftPlaybook(ctx context.Context, _ *mcp.CallToolRequest, 
 		})
 	}
 
-	if err := s.db.IngestPlaybook(ctx, store.IngestPlaybookParams{
+	if err := tb.db.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: jID,
 		TopicID:        topic.ID,
 		Language:       draftLanguage,
@@ -225,10 +217,10 @@ func (s *Server) saveDraftPlaybook(ctx context.Context, _ *mcp.CallToolRequest, 
 		Status:         "draft",
 		Statements:     stmts,
 	}); err != nil {
-		return nil, SaveDraftOutput{}, fmt.Errorf("ingest draft playbook: %w", err)
+		return SaveDraftOutput{}, err
 	}
 
-	return nil, SaveDraftOutput{
+	return SaveDraftOutput{
 		CitySlug:       in.CitySlug,
 		TopicSlug:      in.TopicSlug,
 		StatementCount: len(in.Statements),
@@ -249,16 +241,16 @@ type JurisdictionOut struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) listJurisdictions(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, ListJurisdictionsOutput, error) {
-	js, err := s.db.ListCityJurisdictions(ctx)
+func (tb *Toolbelt) ListJurisdictions(ctx context.Context) (ListJurisdictionsOutput, error) {
+	js, err := tb.db.ListCityJurisdictions(ctx)
 	if err != nil {
-		return nil, ListJurisdictionsOutput{}, err
+		return ListJurisdictionsOutput{}, err
 	}
 	out := ListJurisdictionsOutput{Cities: make([]JurisdictionOut, 0, len(js))}
 	for _, j := range js {
 		out.Cities = append(out.Cities, JurisdictionOut{Slug: j.Slug, Name: j.Name})
 	}
-	return nil, out, nil
+	return out, nil
 }
 
 type ListTopicsInput struct {
@@ -274,23 +266,23 @@ type TopicOut struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) listTopics(ctx context.Context, _ *mcp.CallToolRequest, in ListTopicsInput) (*mcp.CallToolResult, ListTopicsOutput, error) {
-	jur, err := s.db.GetJurisdictionBySlug(ctx, in.CitySlug)
+func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTopicsOutput, error) {
+	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.CitySlug)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return reject[ListTopicsOutput]("no jurisdiction with slug %q", in.CitySlug)
+			return ListTopicsOutput{}, reject("no jurisdiction with slug %q", in.CitySlug)
 		}
-		return nil, ListTopicsOutput{}, err
+		return ListTopicsOutput{}, err
 	}
-	ts, err := s.db.ListTopicsByJurisdiction(ctx, jur.ID, draftLanguage)
+	ts, err := tb.db.ListTopicsByJurisdiction(ctx, jur.ID, draftLanguage)
 	if err != nil {
-		return nil, ListTopicsOutput{}, err
+		return ListTopicsOutput{}, err
 	}
 	out := ListTopicsOutput{Topics: make([]TopicOut, 0, len(ts))}
 	for _, t := range ts {
 		out.Topics = append(out.Topics, TopicOut{Slug: t.Slug, Name: t.Name})
 	}
-	return nil, out, nil
+	return out, nil
 }
 
 type GetPlaybookInput struct {
@@ -316,13 +308,13 @@ type CitationOut struct {
 	Quote     string `json:"quote"`
 }
 
-func (s *Server) getPlaybook(ctx context.Context, _ *mcp.CallToolRequest, in GetPlaybookInput) (*mcp.CallToolResult, GetPlaybookOutput, error) {
-	pb, err := s.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, draftLanguage)
+func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPlaybookOutput, error) {
+	pb, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, draftLanguage)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return reject[GetPlaybookOutput]("no published playbook for %s/%s yet", in.CitySlug, in.TopicSlug)
+			return GetPlaybookOutput{}, reject("no published playbook for %s/%s yet", in.CitySlug, in.TopicSlug)
 		}
-		return nil, GetPlaybookOutput{}, err
+		return GetPlaybookOutput{}, err
 	}
 	out := GetPlaybookOutput{Title: pb.Title, IntroMD: pb.IntroMD}
 	for _, st := range pb.Statements {
@@ -334,27 +326,5 @@ func (s *Server) getPlaybook(ctx context.Context, _ *mcp.CallToolRequest, in Get
 		}
 		out.Statements = append(out.Statements, so)
 	}
-	return nil, out, nil
-}
-
-// ---- helpers ---------------------------------------------------------------
-
-var validKinds = map[string]bool{
-	"statute": true, "regulation": true, "gov_guidance": true,
-	"nonprofit": true, "editorial": true, "court_ruling": true,
-}
-
-func defaultKind(k string) string {
-	if validKinds[k] {
-		return k
-	}
-	return "gov_guidance"
-}
-
-func truncate(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + "…"
+	return out, nil
 }

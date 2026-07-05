@@ -1,15 +1,16 @@
-package mcpserver
+package drafting
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// fakeStore implements only the store.Store methods save_draft_playbook touches;
-// the embedded nil interface panics if any other method is called (none are here).
+// fakeStore implements only the store.Store methods SaveDraft touches; the
+// embedded nil interface panics if any other method is called (none are here).
 type fakeStore struct {
 	store.Store
 	ingested  *store.IngestPlaybookParams
@@ -37,27 +38,28 @@ func (f *fakeStore) IngestPlaybook(_ context.Context, p store.IngestPlaybookPara
 	return nil
 }
 
-func newTestServer(fs *fakeStore, pages map[string]string) *Server {
-	s := &Server{db: fs, cache: newFetchCache(), extract: htmlStripper{}}
-	s.fetch = func(u string) (string, error) {
+func newTestToolbelt(fs *fakeStore, pages map[string]string) *Toolbelt {
+	tb := &Toolbelt{db: fs, cache: newFetchCache(), extract: htmlStripper{}}
+	tb.fetch = func(u string) (string, error) {
 		body, ok := pages[u]
 		if !ok {
 			return "", fmt.Errorf("no such page")
 		}
-		return s.extract.extract(body), nil
+		return tb.extract.extract(body), nil
 	}
-	return s
+	return tb
 }
 
-func mustFetch(t *testing.T, s *Server, u string) {
+func mustFetch(t *testing.T, tb *Toolbelt, u string) {
 	t.Helper()
-	res, _, err := s.fetchSource(context.Background(), nil, FetchSourceInput{URL: u})
-	if err != nil {
-		t.Fatalf("fetch_source(%s) transport error: %v", u, err)
+	if _, err := tb.FetchSource(context.Background(), FetchSourceInput{URL: u}); err != nil {
+		t.Fatalf("FetchSource(%s): %v", u, err)
 	}
-	if res != nil && res.IsError {
-		t.Fatalf("fetch_source(%s) rejected: %v", u, res.Content)
-	}
+}
+
+func isRejection(err error) bool {
+	var re *RejectionError
+	return errors.As(err, &re)
 }
 
 const depositURL = "https://malegislature.gov/Laws/GeneralLaws/PartII/TitleI/Chapter186/Section15B"
@@ -71,12 +73,12 @@ func stmt(body, url, quote string) StatementInput {
 
 func TestSaveDraft_HappyPath(t *testing.T) {
 	fs := &fakeStore{}
-	s := newTestServer(fs, map[string]string{
+	tb := newTestToolbelt(fs, map[string]string{
 		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
 	})
-	mustFetch(t, s, depositURL)
+	mustFetch(t, tb, depositURL)
 
-	res, out, err := s.saveDraftPlaybook(context.Background(), nil, SaveDraftInput{
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug:  "boston",
 		TopicSlug: "security-deposits",
 		TopicName: "Security Deposits",
@@ -89,9 +91,6 @@ func TestSaveDraft_HappyPath(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if res != nil && res.IsError {
-		t.Fatalf("expected success, got rejection: %v", res.Content)
 	}
 	if fs.ingested == nil {
 		t.Fatal("IngestPlaybook was not called")
@@ -112,23 +111,20 @@ func TestSaveDraft_HappyPath(t *testing.T) {
 
 func TestSaveDraft_RejectsFabricatedQuote(t *testing.T) {
 	fs := &fakeStore{}
-	s := newTestServer(fs, map[string]string{
+	tb := newTestToolbelt(fs, map[string]string{
 		depositURL: `<p>A lessor shall, within thirty days, return the security deposit.</p>`,
 	})
-	mustFetch(t, s, depositURL)
+	mustFetch(t, tb, depositURL)
 
-	res, _, err := s.saveDraftPlaybook(context.Background(), nil, SaveDraftInput{
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{
 			// This quote never appears in the fetched text — the guardrail must reject it.
 			stmt("Deposits must be returned within 14 days.", depositURL, "within fourteen days"),
 		},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if res == nil || !res.IsError {
-		t.Fatal("expected the fabricated quote to be rejected, but save succeeded")
+	if !isRejection(err) {
+		t.Fatalf("expected the fabricated quote to be rejected, got err=%v", err)
 	}
 	if fs.ingested != nil {
 		t.Fatal("IngestPlaybook must NOT be called when a quote fails the verbatim check")
@@ -137,17 +133,14 @@ func TestSaveDraft_RejectsFabricatedQuote(t *testing.T) {
 
 func TestSaveDraft_RejectsUnfetchedURL(t *testing.T) {
 	fs := &fakeStore{}
-	s := newTestServer(fs, map[string]string{depositURL: `text`})
+	tb := newTestToolbelt(fs, map[string]string{depositURL: `text`})
 	// Note: no mustFetch — the URL is cited without ever being fetched.
-	res, _, err := s.saveDraftPlaybook(context.Background(), nil, SaveDraftInput{
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "text")},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if res == nil || !res.IsError {
-		t.Fatal("expected rejection when citing a URL that was never fetched")
+	if !isRejection(err) {
+		t.Fatalf("expected rejection when citing a URL that was never fetched, got err=%v", err)
 	}
 	if fs.ingested != nil {
 		t.Fatal("IngestPlaybook must not be called")
@@ -156,22 +149,19 @@ func TestSaveDraft_RejectsUnfetchedURL(t *testing.T) {
 
 func TestSaveDraft_WhitespaceTolerantMatch(t *testing.T) {
 	fs := &fakeStore{}
-	s := newTestServer(fs, map[string]string{
+	tb := newTestToolbelt(fs, map[string]string{
 		// Source renders the clause across lines / with odd spacing.
 		depositURL: "<div>within thirty days\n   after the   termination</div>",
 	})
-	mustFetch(t, s, depositURL)
+	mustFetch(t, tb, depositURL)
 
-	res, _, err := s.saveDraftPlaybook(context.Background(), nil, SaveDraftInput{
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		// Quote uses single spaces; must still match despite layout differences.
 		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days after the termination")},
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if res != nil && res.IsError {
-		t.Fatalf("whitespace-normalized quote should match, got rejection: %v", res.Content)
+		t.Fatalf("whitespace-normalized quote should match, got err=%v", err)
 	}
 	if fs.ingested == nil {
 		t.Fatal("expected save to succeed")
@@ -180,12 +170,12 @@ func TestSaveDraft_WhitespaceTolerantMatch(t *testing.T) {
 
 func TestSaveDraft_RejectsUnknownCity(t *testing.T) {
 	fs := &fakeStore{}
-	s := newTestServer(fs, nil)
-	res, _, _ := s.saveDraftPlaybook(context.Background(), nil, SaveDraftInput{
+	tb := newTestToolbelt(fs, nil)
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug: "atlantis", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "x")},
 	})
-	if res == nil || !res.IsError {
-		t.Fatal("expected rejection for unknown city slug")
+	if !isRejection(err) {
+		t.Fatalf("expected rejection for unknown city slug, got err=%v", err)
 	}
 }
