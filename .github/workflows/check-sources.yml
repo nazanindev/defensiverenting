@@ -1,0 +1,35 @@
+name: Source check
+
+# Weekly source-change check: triggers the authoring app's /check-sources
+# endpoint, which re-fetches every cited source and flags any where a quote we
+# cited no longer appears (a statute likely amended). The check runs in-process
+# on the always-on authoring machine — which already has prod DB access — so
+# there's no DB tunneling here; this workflow just kicks it off. Flagged sources
+# surface in the authoring dashboard for review.
+#
+# Requires two repo secrets matching the authoring app's basic-auth login:
+#   AUTHORING_USER, AUTHORING_PASSWORD
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger source re-check
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -u "${{ secrets.AUTHORING_USER }}:${{ secrets.AUTHORING_PASSWORD }}" \
+            https://defensiverenting-authoring.fly.dev/check-sources)
+          echo "POST /check-sources -> $code"
+          case "$code" in
+            2*|3*) echo "Source re-check triggered; flagged sources will appear in the dashboard." ;;
+            401)   echo "::error::Auth failed — set the AUTHORING_USER / AUTHORING_PASSWORD repo secrets."; exit 1 ;;
+            *)     echo "::error::Unexpected status $code from the authoring app."; exit 1 ;;
+          esac
