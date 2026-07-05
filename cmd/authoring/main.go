@@ -239,21 +239,31 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return
 	}
-	city := strings.TrimSpace(r.FormValue("city_slug"))
 	topic := toSlug(strings.TrimSpace(r.FormValue("topic_slug")))
 	topicName := strings.TrimSpace(r.FormValue("topic_name"))
 
 	redirect := func(param, msg string) {
 		http.Redirect(w, r, "/?"+param+"="+url.QueryEscape(msg), http.StatusSeeOther)
 	}
-	if city == "" || topic == "" {
-		redirect("err", "pick a city and enter a topic slug")
+	if topic == "" {
+		redirect("err", "enter a topic slug")
 		return
 	}
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		redirect("err", "ANTHROPIC_API_KEY is not set on the authoring server — cannot generate")
 		return
 	}
+
+	jur, userErr, err := s.resolveCity(r.Context(), r)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if userErr != "" {
+		redirect("err", userErr)
+		return
+	}
+	city := jur.Slug
 
 	key := city + "/" + topic
 	if !s.jobs.start(key) {
@@ -328,49 +338,51 @@ func (s *srv) discover(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return
 	}
-
-	newCity := strings.TrimSpace(r.FormValue("new_city_name"))
-	newState := strings.TrimSpace(r.FormValue("new_state_name"))
-	var j store.Jurisdiction
-	var err error
-	if newCity != "" {
-		if newState == "" {
-			http.Error(w, "State name is required for a new city", http.StatusBadRequest)
-			return
-		}
-		state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
-			Kind: "state", Name: newState, Slug: toSlug(newState),
-		})
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
-		j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
-			ParentID: &state.ID, Kind: "city", Name: newCity, Slug: toSlug(newCity),
-		})
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
-	} else {
-		slug := r.FormValue("jurisdiction_select")
-		if slug == "" || slug == "new" {
-			http.Error(w, "Select a city or enter a new one", http.StatusBadRequest)
-			return
-		}
-		j, err = s.pg.GetJurisdictionBySlug(ctx, slug)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
+	j, userErr, err := s.resolveCity(ctx, r)
+	if err != nil {
+		s.serverError(w, err)
+		return
 	}
-
+	if userErr != "" {
+		http.Error(w, userErr, http.StatusBadRequest)
+		return
+	}
 	cands := discover.Run(j.Slug, discover.DefaultProviders()...)
 	if _, err := s.pg.InsertCandidates(ctx, j.ID, cands); err != nil {
 		s.serverError(w, err)
 		return
 	}
 	http.Redirect(w, r, "/candidates?j="+url.QueryEscape(j.Slug), http.StatusSeeOther)
+}
+
+// resolveCity returns the target city jurisdiction from the form: an existing
+// city (jurisdiction_select), or a new city+state (new_city_name/new_state_name)
+// that it creates. A non-empty userErr is a bad-input message for the caller to
+// surface; err is a real failure.
+func (s *srv) resolveCity(ctx context.Context, r *http.Request) (store.Jurisdiction, string, error) {
+	newCity := strings.TrimSpace(r.FormValue("new_city_name"))
+	newState := strings.TrimSpace(r.FormValue("new_state_name"))
+	if newCity != "" {
+		if newState == "" {
+			return store.Jurisdiction{}, "State name is required for a new city.", nil
+		}
+		state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+			Kind: "state", Name: newState, Slug: toSlug(newState),
+		})
+		if err != nil {
+			return store.Jurisdiction{}, "", err
+		}
+		city, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+			ParentID: &state.ID, Kind: "city", Name: newCity, Slug: toSlug(newCity),
+		})
+		return city, "", err
+	}
+	slug := strings.TrimSpace(r.FormValue("jurisdiction_select"))
+	if slug == "" || slug == "new" {
+		return store.Jurisdiction{}, "Select a city or enter a new one.", nil
+	}
+	city, err := s.pg.GetJurisdictionBySlug(ctx, slug)
+	return city, "", err
 }
 
 // candidateView decorates a stored candidate with display-only fields.

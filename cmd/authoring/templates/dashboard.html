@@ -27,7 +27,8 @@
   .btn-success:hover { background: #2f855a; }
   .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
   .btn-danger:hover { background: #fff5f5; }
-  .card { background: #fff; border-radius: 10px; border: 1px solid #e8dede; overflow: hidden; }
+  .card { background: #fff; border-radius: 10px; border: 1px solid #e8dede; overflow-x: auto; }
+  .meta-cell { font-size: .76rem; color: #7a5c5c; line-height: 1.5; white-space: nowrap; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 10px 16px; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #9a7878; border-bottom: 1px solid #e8dede; background: #fdf8f8; }
   td { padding: 13px 16px; border-bottom: 1px solid #f5eded; font-size: .875rem; vertical-align: middle; }
@@ -86,12 +87,15 @@
     <h2>Generate a draft with AI <span class="badge-cost">💳 costs money per generation</span></h2>
     <form method="post" action="/generate" class="discover-form">
       <div>
-        <label>City</label>
-        <select name="city_slug">
+        <label>Existing city</label>
+        <select name="jurisdiction_select">
           <option value="">— select —</option>
           {{range .Cities}}<option value="{{.Slug}}">{{.Name}}</option>{{end}}
         </select>
       </div>
+      <span class="or">or new city</span>
+      <div><label>City name</label><input name="new_city_name" placeholder="Chicago"></div>
+      <div><label>State</label><input name="new_state_name" placeholder="Illinois"></div>
       <div><label>Topic slug</label><input name="topic_slug" placeholder="eviction-defense"></div>
       <div><label>Topic name (optional)</label><input name="topic_name" placeholder="Eviction Defense"></div>
       <button class="btn btn-primary" type="submit">Generate draft</button>
@@ -154,10 +158,7 @@
           <th>Type</th>
           <th>Lang</th>
           <th>Status</th>
-          <th>Created</th>
-          <th>Updated</th>
-          <th>Published</th>
-          <th>Content</th>
+          <th>Details</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -169,10 +170,11 @@
           <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           <td>{{.Language}}</td>
           <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
-          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .CreatedAt}}</td>
-          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .UpdatedAt}}</td>
-          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .PublishedAt}}</td>
-          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{.StatementCount}} stmts · {{.SourceCount}} src</td>
+          <td class="meta-cell">
+            <div><strong>{{.StatementCount}}</strong> stmts · <strong>{{.SourceCount}}</strong> src</div>
+            <div>Created {{date .CreatedAt}} · Updated {{date .UpdatedAt}}</div>
+            {{if .PublishedAt}}<div>Published {{date .PublishedAt}}</div>{{end}}
+          </td>
           <td>
             <div class="actions">
               <a href="/view/{{.ID}}" class="btn btn-view">View</a>
