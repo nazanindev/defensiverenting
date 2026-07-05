@@ -52,6 +52,9 @@
   .flash-err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
   .gen-pill { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .15rem .6rem; font-size: .78rem; font-weight: 600; margin-left: 6px; }
   .gen-note { font-size: .78rem; color: #9a7878; margin-top: 12px; line-height: 1.5; }
+  .panel-ai { border-left: 4px solid #9b2335; }
+  .badge-cost { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
+  .badge-free { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
   .review-links { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f5eded; font-size: .82rem; color: #7a5c5c; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   .review-links a { color: #9b2335; text-decoration: none; }
   .review-links a b { background: #fde8eb; color: #7a1c2a; border-radius: 8px; padding: 0 .4rem; margin-left: 2px; }
@@ -79,8 +82,8 @@
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
 
-  <div class="panel">
-    <h2>Generate a draft with AI</h2>
+  <div class="panel panel-ai">
+    <h2>Generate a draft with AI <span class="badge-cost">💳 costs money per generation</span></h2>
     <form method="post" action="/generate" class="discover-form">
       <div>
         <label>City</label>
@@ -96,11 +99,11 @@
     {{if .Generating}}
     <div class="review-links"><span>Generating now:</span>{{range .Generating}}<span class="gen-pill">⏳ {{.}}</span>{{end}}</div>
     {{end}}
-    <p class="gen-note">Claude researches primary sources, verifies every citation quote verbatim, and saves a <strong>draft</strong> for you to review. Nothing is published automatically.</p>
+    <p class="gen-note"><strong>Each run calls the Claude API and costs money — roughly $0.60–$1 per draft.</strong> Claude researches primary sources, verifies every citation quote verbatim, and saves a draft for you to review. Nothing is published automatically.</p>
   </div>
 
   <div class="panel">
-    <h2>Discover sources</h2>
+    <h2>Discover sources <span class="badge-free">free · no AI</span></h2>
     <form method="post" action="/discover" class="discover-form">
       <div>
         <label>Existing city</label>
@@ -119,6 +122,25 @@
       <span>Sources to review:</span>
       {{range .ReviewCounts}}<a href="/candidates?j={{.JurisdictionSlug}}">{{.JurisdictionName}} <b>{{.PendingCount}}</b></a>{{end}}
     </div>
+    {{end}}
+    <p class="gen-note">Instant lookup of known, hand-curated source URLs for a city — <strong>no AI, no cost</strong>. It just fills your research shelf; it never writes statements.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Source monitoring <span class="badge-free">free · no AI</span></h2>
+    <form method="post" action="/check-sources"><button class="btn btn-primary" type="submit">Re-check all sources for changes</button></form>
+    {{if .Flagged}}
+    <div class="review-links" style="flex-direction:column;align-items:stretch;gap:10px">
+      <span><strong>{{len .Flagged}}</strong> source(s) where a quote we cited no longer appears — the law may have been amended; re-verify the guides that cite them:</span>
+      {{range .Flagged}}
+      <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+        <span>⚑ <a href="{{.URL}}" target="_blank" rel="noopener">{{.Publisher}}</a> <span style="color:#9a7878;font-size:.76rem;word-break:break-all">{{.URL}}</span></span>
+        <form method="post" action="/sources/{{.ID}}/dismiss-flag" style="margin:0"><button class="btn btn-view" type="submit">Dismiss</button></form>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="gen-note">Re-fetches every cited source and flags any where the exact text we quoted no longer appears — the precise signal that a statute was amended. Dynamic page content (dates, banners) won't trigger it.</p>
     {{end}}
   </div>
 

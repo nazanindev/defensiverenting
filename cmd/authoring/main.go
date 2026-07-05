@@ -29,6 +29,7 @@ import (
 	"github.com/nazanindev/defensiverenting/internal/discover"
 	"github.com/nazanindev/defensiverenting/internal/draftagent"
 	"github.com/nazanindev/defensiverenting/internal/drafting"
+	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
@@ -142,6 +143,8 @@ func main() {
 	mux.HandleFunc("POST /edit/{id}", s.submitEditForm)
 	mux.HandleFunc("GET /view/{id}", s.viewPlaybook)
 	mux.HandleFunc("POST /generate", s.generateDraft)
+	mux.HandleFunc("POST /check-sources", s.checkSources)
+	mux.HandleFunc("POST /sources/{id}/dismiss-flag", s.dismissSourceFlag)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 	mux.HandleFunc("POST /discover", s.discover)
@@ -212,11 +215,17 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	flagged, err := s.pg.ListFlaggedSources(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	s.render(w, "dashboard.html", map[string]any{
 		"Playbooks":    playbooks,
 		"Cities":       cities,
 		"ReviewCounts": counts,
 		"Generating":   s.jobs.list(),
+		"Flagged":      flagged,
 		"Msg":          r.URL.Query().Get("msg"),
 		"Err":          r.URL.Query().Get("err"),
 	})
@@ -268,6 +277,43 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 		s.log.Info("draftgen saved", slog.String("job", key))
 	}()
 	redirect("msg", "generating draft for "+key+" — refresh in a minute to see it")
+}
+
+// checkSources re-fetches every cited source in the background and flags any
+// whose content changed since last review. No AI, no cost.
+func (s *srv) checkSources(w http.ResponseWriter, r *http.Request) {
+	key := "sources-check"
+	if !s.jobs.start(key) {
+		http.Redirect(w, r, "/?msg="+url.QueryEscape("a source check is already running"), http.StatusSeeOther)
+		return
+	}
+	go func() {
+		defer s.jobs.done(key)
+		res, err := sourcecheck.Run(context.Background(), s.pg, drafting.FetchExtract, func(format string, a ...any) {
+			s.log.Info("sourcecheck", slog.String("msg", fmt.Sprintf(format, a...)))
+		})
+		if err != nil {
+			s.log.Error("sourcecheck failed", slog.Any("err", err))
+			return
+		}
+		s.log.Info("sourcecheck done",
+			slog.Int("sources", res.Sources), slog.Int("flagged", res.Flagged), slog.Int("failed", res.Failed))
+	}()
+	http.Redirect(w, r, "/?msg="+url.QueryEscape("re-checking sources for changes — refresh in a moment"), http.StatusSeeOther)
+}
+
+// dismissSourceFlag clears a source's change flag after the author reviews it.
+func (s *srv) dismissSourceFlag(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := s.pg.DismissSourceFlag(r.Context(), id); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	http.Redirect(w, r, "/?msg="+url.QueryEscape("flag dismissed"), http.StatusSeeOther)
 }
 
 // ---- source discovery -------------------------------------------------------
