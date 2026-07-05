@@ -39,6 +39,12 @@ type Store interface {
 	SetCandidateStatus(ctx context.Context, id int64, status string, sourceID *int64) error
 	CandidateCounts(ctx context.Context) ([]CandidateCountRow, error)
 
+	// Source monitoring
+	ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error)
+	MarkSourceReviewed(ctx context.Context, id int64, changed bool) error
+	ListFlaggedSources(ctx context.Context) ([]Source, error)
+	DismissSourceFlag(ctx context.Context, id int64) error
+
 	// Authoring
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)

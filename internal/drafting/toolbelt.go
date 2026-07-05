@@ -105,6 +105,14 @@ func (tb *Toolbelt) httpFetch(url string) (string, error) {
 	return tb.extract.extract(string(body)), nil
 }
 
+// FetchExtract fetches a URL and returns its extracted readable text using the
+// same HTTP fetch + HTML→text pipeline as the drafting tools. The source-change
+// checker hashes this text, so the extraction matches what the agent reads.
+func FetchExtract(url string) (string, error) {
+	tb := &Toolbelt{extract: htmlStripper{}}
+	return tb.httpFetch(url)
+}
+
 // textExtractor turns a fetched document body into readable text. Kept behind an
 // interface so a sturdier extractor (readability, PDF) can swap in later.
 type textExtractor interface {

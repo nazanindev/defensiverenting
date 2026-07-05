@@ -5,6 +5,7 @@ BINARY_INGEST   = bin/ingest
 BINARY_AUTHORING = bin/authoring
 BINARY_MCP      = bin/mcp
 BINARY_DRAFT    = bin/draft
+BINARY_CHECK    = bin/check-sources
 DATABASE_URL   ?= postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable
 
 all: tidy vet lint build test
@@ -16,6 +17,7 @@ build:
 	go build -o $(BINARY_AUTHORING) ./cmd/authoring
 	go build -o $(BINARY_MCP)      ./cmd/mcp
 	go build -o $(BINARY_DRAFT)    ./cmd/draft
+	go build -o $(BINARY_CHECK)    ./cmd/check-sources
 
 ## Run tests (requires Postgres at DATABASE_URL)
 test:

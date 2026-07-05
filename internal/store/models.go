@@ -18,6 +18,16 @@ type Source struct {
 	Kind           string // statute|regulation|gov_guidance|nonprofit|editorial
 	RetrievedAt    *time.Time
 	ContentHash    *string
+	FlaggedAt      *time.Time // set when a cited quote no longer appears at the source
+}
+
+// CitationCheckRow pairs a source with one verbatim quote cited from it, for the
+// source-change checker to confirm the quote still appears at the URL.
+type CitationCheckRow struct {
+	SourceID  int64
+	URL       string
+	Publisher string
+	Quote     string
 }
 
 type Statement struct {
