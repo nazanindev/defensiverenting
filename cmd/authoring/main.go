@@ -498,8 +498,21 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "form.html", data)
 }
 
-// fmtDate renders a timestamp for the authoring UI (empty/zero → em dash).
-func fmtDate(t time.Time) string {
+// fmtDate renders a timestamp (time.Time or *time.Time) for the authoring UI;
+// nil/zero shows an em dash.
+func fmtDate(v any) string {
+	var t time.Time
+	switch x := v.(type) {
+	case time.Time:
+		t = x
+	case *time.Time:
+		if x == nil {
+			return "—"
+		}
+		t = *x
+	default:
+		return "—"
+	}
 	if t.IsZero() {
 		return "—"
 	}

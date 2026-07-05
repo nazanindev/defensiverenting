@@ -156,6 +156,8 @@
           <th>Status</th>
           <th>Created</th>
           <th>Updated</th>
+          <th>Published</th>
+          <th>Content</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -169,6 +171,8 @@
           <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
           <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .CreatedAt}}</td>
           <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .UpdatedAt}}</td>
+          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .PublishedAt}}</td>
+          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{.StatementCount}} stmts · {{.SourceCount}} src</td>
           <td>
             <div class="actions">
               <a href="/view/{{.ID}}" class="btn btn-view">View</a>

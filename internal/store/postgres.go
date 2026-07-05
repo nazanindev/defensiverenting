@@ -491,11 +491,14 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var playbookID int64
 		err := tx.QueryRow(ctx, `
-			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind, updated_at, published_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), CASE WHEN $7 = 'published' THEN NOW() ELSE NULL END)
 			ON CONFLICT (jurisdiction_id, topic_id, language) DO UPDATE
 			    SET slug = EXCLUDED.slug, title = EXCLUDED.title, intro_md = EXCLUDED.intro_md,
-			        status = EXCLUDED.status, page_kind = EXCLUDED.page_kind, updated_at = NOW()
+			        status = EXCLUDED.status, page_kind = EXCLUDED.page_kind, updated_at = NOW(),
+			        published_at = CASE WHEN EXCLUDED.status = 'published'
+			                            THEN COALESCE(playbooks.published_at, NOW())
+			                            ELSE playbooks.published_at END
 			RETURNING id`,
 			params.JurisdictionID, params.TopicID, params.Language,
 			params.Slug, params.Title, params.IntroMD, status, pageKind,
@@ -611,7 +614,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
 			pb.slug, pb.title, pb.intro_md, pb.status, pb.page_kind, pb.last_reviewed_at,
-			pb.created_at, pb.updated_at,
+			pb.created_at, pb.updated_at, pb.published_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug,
 			t.id, t.slug, t.name
 		FROM playbooks pb
@@ -622,7 +625,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
 		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt,
-		&p.Playbook.CreatedAt, &p.Playbook.UpdatedAt,
+		&p.Playbook.CreatedAt, &p.Playbook.UpdatedAt, &p.Playbook.PublishedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug,
 		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
@@ -712,7 +715,11 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id, pb.title, j.name, j.slug, t.slug, pb.language, pb.status, pb.page_kind,
-		       pb.created_at, pb.updated_at
+		       pb.created_at, pb.updated_at, pb.published_at,
+		       (SELECT count(*) FROM playbook_statements ps WHERE ps.playbook_id = pb.id),
+		       (SELECT count(DISTINCT c.source_id)
+		          FROM playbook_statements ps JOIN citations c ON c.statement_id = ps.statement_id
+		         WHERE ps.playbook_id = pb.id)
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id
@@ -725,7 +732,8 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 	for rows.Next() {
 		var r AuthorPlaybookRow
 		if err := rows.Scan(&r.ID, &r.Title, &r.JurisdictionName, &r.JurisdictionSlug,
-			&r.TopicSlug, &r.Language, &r.Status, &r.PageKind, &r.CreatedAt, &r.UpdatedAt); err != nil {
+			&r.TopicSlug, &r.Language, &r.Status, &r.PageKind, &r.CreatedAt, &r.UpdatedAt,
+			&r.PublishedAt, &r.StatementCount, &r.SourceCount); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -736,7 +744,8 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 // AuthorPublishPlaybook sets a playbook's status to "published".
 func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
 	_, err := pg.pool.Exec(ctx,
-		`UPDATE playbooks SET status = 'published', updated_at = NOW() WHERE id = $1`, id)
+		`UPDATE playbooks SET status = 'published', updated_at = NOW(),
+		     published_at = COALESCE(published_at, NOW()) WHERE id = $1`, id)
 	return err
 }
 

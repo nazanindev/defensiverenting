@@ -74,6 +74,7 @@ type Playbook struct {
 	LastReviewedAt *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	PublishedAt    *time.Time
 }
 
 // StatementRow is a row returned by the GetPlaybookStatements query.
@@ -162,4 +163,7 @@ type AuthorPlaybookRow struct {
 	PageKind         string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	PublishedAt      *time.Time
+	StatementCount   int
+	SourceCount      int
 }
