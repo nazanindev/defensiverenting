@@ -17,14 +17,18 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode"
 
 	dbpkg "github.com/nazanindev/defensiverenting/db"
 	"github.com/nazanindev/defensiverenting/internal/discover"
+	"github.com/nazanindev/defensiverenting/internal/draftagent"
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
@@ -35,6 +39,44 @@ type srv struct {
 	pg   *store.PG
 	log  *slog.Logger
 	tmpl *template.Template
+	jobs *jobSet
+}
+
+// jobSet tracks in-flight AI draft generations by "city/topic" key, so the
+// dashboard can show what's running and duplicate triggers are ignored.
+type jobSet struct {
+	mu sync.Mutex
+	m  map[string]bool
+}
+
+func newJobSet() *jobSet { return &jobSet{m: map[string]bool{}} }
+
+// start marks a job running; it returns false if one is already in flight.
+func (j *jobSet) start(key string) bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.m[key] {
+		return false
+	}
+	j.m[key] = true
+	return true
+}
+
+func (j *jobSet) done(key string) {
+	j.mu.Lock()
+	delete(j.m, key)
+	j.mu.Unlock()
+}
+
+func (j *jobSet) list() []string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	out := make([]string, 0, len(j.m))
+	for k := range j.m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func basicAuth(user, pass string, next http.Handler) http.Handler {
@@ -89,7 +131,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := &srv{pg: pg, log: log, tmpl: tmpl}
+	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
@@ -99,6 +141,7 @@ func main() {
 	mux.HandleFunc("GET /edit/{id}", s.showEditForm)
 	mux.HandleFunc("POST /edit/{id}", s.submitEditForm)
 	mux.HandleFunc("GET /view/{id}", s.viewPlaybook)
+	mux.HandleFunc("POST /generate", s.generateDraft)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 	mux.HandleFunc("POST /discover", s.discover)
@@ -173,7 +216,58 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Playbooks":    playbooks,
 		"Cities":       cities,
 		"ReviewCounts": counts,
+		"Generating":   s.jobs.list(),
+		"Msg":          r.URL.Query().Get("msg"),
+		"Err":          r.URL.Query().Get("err"),
 	})
+}
+
+// generateDraft kicks off an AI drafting run for a city+topic in a background
+// goroutine (it takes minutes) and returns immediately. The draft appears in the
+// dashboard when the run finishes; progress is logged server-side.
+func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+	city := strings.TrimSpace(r.FormValue("city_slug"))
+	topic := toSlug(strings.TrimSpace(r.FormValue("topic_slug")))
+	topicName := strings.TrimSpace(r.FormValue("topic_name"))
+
+	redirect := func(param, msg string) {
+		http.Redirect(w, r, "/?"+param+"="+url.QueryEscape(msg), http.StatusSeeOther)
+	}
+	if city == "" || topic == "" {
+		redirect("err", "pick a city and enter a topic slug")
+		return
+	}
+	if os.Getenv("ANTHROPIC_API_KEY") == "" {
+		redirect("err", "ANTHROPIC_API_KEY is not set on the authoring server — cannot generate")
+		return
+	}
+
+	key := city + "/" + topic
+	if !s.jobs.start(key) {
+		redirect("msg", "already generating "+key)
+		return
+	}
+	go func() {
+		defer s.jobs.done(key)
+		err := draftagent.Run(context.Background(), drafting.New(s.pg), draftagent.Options{
+			CitySlug:  city,
+			TopicSlug: topic,
+			TopicName: topicName,
+			Log: func(format string, a ...any) {
+				s.log.Info("draftgen", slog.String("job", key), slog.String("msg", fmt.Sprintf(format, a...)))
+			},
+		})
+		if err != nil {
+			s.log.Error("draftgen failed", slog.String("job", key), slog.Any("err", err))
+			return
+		}
+		s.log.Info("draftgen saved", slog.String("job", key))
+	}()
+	redirect("msg", "generating draft for "+key+" — refresh in a minute to see it")
 }
 
 // ---- source discovery -------------------------------------------------------

@@ -47,6 +47,11 @@
   .discover-form label { display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; margin-bottom: 3px; }
   .discover-form select, .discover-form input { padding: .4rem .5rem; border: 1px solid #e0cccc; border-radius: 6px; font-family: inherit; font-size: .875rem; background: #fff; }
   .discover-form .or { color: #b08080; font-size: .8rem; padding-bottom: .5rem; }
+  .flash { padding: 10px 14px; border-radius: 8px; font-size: .85rem; margin-bottom: 16px; }
+  .flash-ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+  .flash-err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .gen-pill { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .15rem .6rem; font-size: .78rem; font-weight: 600; margin-left: 6px; }
+  .gen-note { font-size: .78rem; color: #9a7878; margin-top: 12px; line-height: 1.5; }
   .review-links { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f5eded; font-size: .82rem; color: #7a5c5c; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   .review-links a { color: #9b2335; text-decoration: none; }
   .review-links a b { background: #fde8eb; color: #7a1c2a; border-radius: 8px; padding: 0 .4rem; margin-left: 2px; }
@@ -69,6 +74,29 @@
       <a href="/guidelines" class="btn btn-view">Content guidelines</a>
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
+  </div>
+
+  {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+  {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
+
+  <div class="panel">
+    <h2>Generate a draft with AI</h2>
+    <form method="post" action="/generate" class="discover-form">
+      <div>
+        <label>City</label>
+        <select name="city_slug">
+          <option value="">— select —</option>
+          {{range .Cities}}<option value="{{.Slug}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div><label>Topic slug</label><input name="topic_slug" placeholder="eviction-defense"></div>
+      <div><label>Topic name (optional)</label><input name="topic_name" placeholder="Eviction Defense"></div>
+      <button class="btn btn-primary" type="submit">Generate draft</button>
+    </form>
+    {{if .Generating}}
+    <div class="review-links"><span>Generating now:</span>{{range .Generating}}<span class="gen-pill">⏳ {{.}}</span>{{end}}</div>
+    {{end}}
+    <p class="gen-note">Claude researches primary sources, verifies every citation quote verbatim, and saves a <strong>draft</strong> for you to review. Nothing is published automatically.</p>
   </div>
 
   <div class="panel">
