@@ -358,6 +358,15 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "form.html", data)
 }
 
+// hostOf returns the bare host (minus a leading www.) of a URL, for compact
+// display next to a citation quote.
+func hostOf(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return strings.TrimPrefix(u.Host, "www.")
+	}
+	return raw
+}
+
 func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -406,6 +415,9 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 	type viewCite struct {
 		Num     int
 		Locator string
+		Quote   string
+		URL     string
+		Domain  string
 	}
 	type viewStmt struct {
 		Num       int
@@ -427,7 +439,10 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 			if c.SourceID == editorial.ID {
 				vs.Editorial = true
 			} else if m, ok := srcByID[c.SourceID]; ok {
-				vs.Cites = append(vs.Cites, viewCite{Num: m.Idx + 1, Locator: c.Locator})
+				vs.Cites = append(vs.Cites, viewCite{
+					Num: m.Idx + 1, Locator: c.Locator,
+					Quote: c.Quote, URL: c.SourceURL, Domain: hostOf(c.SourceURL),
+				})
 			}
 		}
 		stmts = append(stmts, vs)
