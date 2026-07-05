@@ -73,8 +73,13 @@ func toolDefs() []anthropic.ToolUnionParam {
 	}
 
 	return []anthropic.ToolUnionParam{
-		// Hosted server-side web search for source discovery.
-		{OfWebSearchTool20260209: &anthropic.WebSearchTool20260209Param{MaxUses: anthropic.Int(10)}},
+		// Hosted server-side web search for source discovery. Uses the basic
+		// variant deliberately: the _20260209 "dynamic filtering" variant runs
+		// code-execution under the hood, and echoing an errored code_execution
+		// result block back via ToParam() trips a serialization 400. The basic
+		// variant returns plain web_search_tool_result blocks that round-trip
+		// cleanly, and we only need it to surface candidate URLs to fetch_source.
+		{OfWebSearchTool20250305: &anthropic.WebSearchTool20250305Param{MaxUses: anthropic.Int(10)}},
 
 		customTool("find_sources",
 			"List ranked, vetted authoritative primary sources for a city to seed research.",
