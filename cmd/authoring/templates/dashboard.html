@@ -154,6 +154,8 @@
           <th>Type</th>
           <th>Lang</th>
           <th>Status</th>
+          <th>Created</th>
+          <th>Updated</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -165,6 +167,8 @@
           <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           <td>{{.Language}}</td>
           <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .CreatedAt}}</td>
+          <td style="white-space:nowrap;color:#7a5c5c;font-size:.82rem">{{date .UpdatedAt}}</td>
           <td>
             <div class="actions">
               <a href="/view/{{.ID}}" class="btn btn-view">View</a>

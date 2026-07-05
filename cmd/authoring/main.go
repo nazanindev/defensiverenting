@@ -126,7 +126,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
+	tmpl, err := template.New("").Funcs(template.FuncMap{"date": fmtDate}).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		log.Error("parse templates", slog.Any("err", err))
 		os.Exit(1)
@@ -496,6 +496,14 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "form.html", data)
+}
+
+// fmtDate renders a timestamp for the authoring UI (empty/zero → em dash).
+func fmtDate(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	return t.Format("Jan 2, 2006")
 }
 
 // hostOf returns the bare host (minus a leading www.) of a URL, for compact

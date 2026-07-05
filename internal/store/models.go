@@ -72,6 +72,8 @@ type Playbook struct {
 	Status         string
 	PageKind       string // playbook|directory|faq|checklist
 	LastReviewedAt *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // StatementRow is a row returned by the GetPlaybookStatements query.
@@ -158,4 +160,6 @@ type AuthorPlaybookRow struct {
 	Language         string
 	Status           string
 	PageKind         string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
