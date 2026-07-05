@@ -8,7 +8,7 @@ Tenant law is public, but nearly impossible to navigate when you're in a stressf
 
 Defensive Renting turns that raw legal material into structured, plain-language guides. Every statement on the site links directly to its primary source — a statute, ordinance, or government document — so renters can read what the law actually says, not just what someone summarized. The platform also includes local resource directories pointing to legal aid providers, tenant unions, and housing agencies.
 
-Content is researched and written by a human author using a custom internal authoring tool, not generated.
+Drafts are produced by an AI research agent and human-reviewed before publishing: a citation is saved only if its quote appears **verbatim** in a fetched primary source, and nothing goes live without a human.
 
 ## Design principles
 
@@ -21,7 +21,11 @@ Content is researched and written by a human author using a custom internal auth
 
 Renters search by situation or browse by city. Each playbook provides step-by-step guidance backed by inline citation chips — click any chip to read the actual statute. A separate directory page type lists local organizations with their official sources.
 
-Content is authored through an internal tool that enforces citation at submission time. The author researches primary sources, writes plain-language statements, and links each one to its statute or ordinance before it can be published. No statement goes live without a citation attached.
+Content is authored through an internal tool that enforces citation at submission time. No statement goes live without a citation attached.
+
+## AI-assisted drafting
+
+Pick a city and topic, and a research agent finds authoritative primary sources, reads them, and drafts plain-language statements — each backed by a **verbatim quote** from a real fetched source. The pipeline rejects any citation whose quote isn't literally present in the source, so a fabricated citation can't be saved; every draft lands in the authoring tool for a human to verify and publish. The same tools run over MCP (`cmd/mcp`), so the loop can also be driven from an editor like Claude Code.
 
 ## Stack
 
@@ -29,6 +33,7 @@ Content is authored through an internal tool that enforces citation at submissio
 - **PostgreSQL** — full-text search via `tsvector` (no external search service), `content_hash` on sources for change detection
 - **Server-rendered HTML** — no JS framework; the authoring tool uses vanilla JS for its dynamic form
 - **Fly.io** — two apps: public site (`fly.toml`) and internal authoring service (`fly.authoring.toml`), auto-deployed via GitHub Actions
+- **AI drafting** — an Anthropic-API tool-use agent (`cmd/draft`, `internal/draftagent`) researches sources and writes citation-verified drafts; the same toolbelt is exposed over MCP
 
 ## Data model
 
@@ -86,9 +91,6 @@ erDiagram
 ```
 
 ## Roadmap
-
-### Source fetching and author assist
-When the author adds a source URL in the authoring tool, the service fetches and stores the page content alongside the source record. The author sees the fetched text in a side panel while writing statements — no tab-switching to read the law. Fetched content is stored in Postgres; `content_hash` already exists in the schema for change detection.
 
 ### Source change monitoring
 A scheduled crawler re-fetches all cited sources on a cadence (weekly or on-demand). If the content hash changes, the source is flagged in the authoring dashboard for the author to review. The author can dismiss the flag (no material change) or open the diff and update affected statements. Government statute pages do change — rent control thresholds, notice periods, penalty amounts — and this is the mechanism that keeps the site accurate over time.
