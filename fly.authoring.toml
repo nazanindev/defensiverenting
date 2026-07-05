@@ -12,9 +12,13 @@ primary_region = 'ewr'
 [http_service]
   internal_port = 8081
   force_https   = true
-  auto_stop_machines = 'stop'
+  # Keep one machine always up: the "Generate a draft" button runs the AI
+  # drafting job in a background goroutine (minutes) after the HTTP request
+  # returns. With min=0 + auto-stop, Fly would stop the idle machine mid-draft
+  # and kill the job. One 256MB machine always-on is negligible cost.
+  auto_stop_machines = 'off'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   initial_cluster_size = 1
 
   [http_service.concurrency]
