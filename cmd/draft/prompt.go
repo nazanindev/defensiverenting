@@ -1,0 +1,115 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	anthropic "github.com/anthropics/anthropic-sdk-go"
+)
+
+const systemPrompt = `You research U.S. tenant-rights law and draft citation-backed playbooks for renters.
+
+Hard rules — the drafting pipeline enforces them and will reject violations:
+1. Every statement must cite at least one authoritative primary source (statute, ordinance, or official government guidance). Prefer official domains (.gov, state legislatures, municipal sites) over blogs or summaries.
+2. You may only cite a source AFTER reading it with the fetch_source tool. save_draft_playbook accepts a citation's quote only if that quote appears VERBATIM in text returned by fetch_source — so copy the exact words, do not paraphrase inside a quote.
+3. Do NOT use any built-in web-fetch capability to read sources; use fetch_source, or your quotes cannot be verified and the save will be rejected. web_search (for discovery) is fine.
+4. Statements are atomic, plain-language claims a renter can act on. Write the plain-language claim in body_md; put the exact statutory wording in the citation's quote.
+
+Workflow: use find_sources and web_search to locate authoritative sources → fetch_source each one → write 4-8 statements, each with >=1 verbatim citation → call save_draft_playbook once. The result is a DRAFT; a human reviews and publishes it. You never publish.`
+
+func userPrompt(citySlug, topicSlug, topicName string) string {
+	name := topicName
+	if name == "" {
+		name = titleize(topicSlug)
+	}
+	return fmt.Sprintf(
+		"Draft a tenant-rights playbook for city_slug=%q, topic_slug=%q (topic: %s). "+
+			"Use exactly these slugs when you call save_draft_playbook, and set topic_name to %q. "+
+			"Research the authoritative sources, read each via fetch_source, and save one draft.",
+		citySlug, topicSlug, name, name)
+}
+
+func titleize(slug string) string {
+	parts := strings.Split(slug, "-")
+	for i, p := range parts {
+		if p != "" {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func strProp(desc string) map[string]any {
+	return map[string]any{"type": "string", "description": desc}
+}
+
+func customTool(name, desc string, props map[string]any, required []string) anthropic.ToolUnionParam {
+	return anthropic.ToolUnionParam{OfTool: &anthropic.ToolParam{
+		Name:        name,
+		Description: anthropic.String(desc),
+		InputSchema: anthropic.ToolInputSchemaParam{Properties: props, Required: required},
+	}}
+}
+
+func toolDefs() []anthropic.ToolUnionParam {
+	citationItems := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"url":       strProp("source URL — must have been read via fetch_source first"),
+			"publisher": strProp("publisher, e.g. 'MA Legislature' or 'City of Boston'"),
+			"kind":      strProp("statute|regulation|gov_guidance|nonprofit|editorial|court_ruling"),
+			"locator":   strProp("section pointer, e.g. '§ 15B' (optional)"),
+			"quote":     strProp("the exact verbatim line from the source that backs the statement"),
+		},
+		"required": []string{"url", "quote"},
+	}
+	statementItems := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"body_md":   strProp("one atomic, plain-language claim in Markdown"),
+			"citations": map[string]any{"type": "array", "items": citationItems},
+		},
+		"required": []string{"body_md", "citations"},
+	}
+
+	return []anthropic.ToolUnionParam{
+		// Hosted server-side web search for source discovery.
+		{OfWebSearchTool20260209: &anthropic.WebSearchTool20260209Param{MaxUses: anthropic.Int(10)}},
+
+		customTool("find_sources",
+			"List ranked, vetted authoritative primary sources for a city to seed research.",
+			map[string]any{"city_slug": strProp("the city slug, e.g. 'boston'")},
+			[]string{"city_slug"}),
+
+		customTool("fetch_source",
+			"Fetch a source URL and return its readable text. Read a source through this tool before citing it — quotes are verified against text returned here.",
+			map[string]any{"url": strProp("http(s) URL of the primary source")},
+			[]string{"url"}),
+
+		customTool("save_draft_playbook",
+			"Save a DRAFT playbook. Every citation quote must be verbatim in a fetched source, or the save is rejected. Never publishes.",
+			map[string]any{
+				"city_slug":  strProp("city slug (use the one from the task)"),
+				"topic_slug": strProp("topic slug (use the one from the task)"),
+				"topic_name": strProp("topic display name"),
+				"title":      strProp("playbook title"),
+				"intro_md":   strProp("short Markdown intro for the playbook"),
+				"statements": map[string]any{"type": "array", "items": statementItems},
+			},
+			[]string{"city_slug", "topic_slug", "title", "statements"}),
+
+		customTool("list_jurisdictions",
+			"List the cities known to the platform (slug + name).",
+			map[string]any{}, nil),
+
+		customTool("list_topics",
+			"List topics that already have a published playbook for a city, to avoid duplicating coverage.",
+			map[string]any{"city_slug": strProp("the city slug")},
+			[]string{"city_slug"}),
+
+		customTool("get_playbook",
+			"Fetch an existing published playbook for a city+topic. Returns not-found if none exists.",
+			map[string]any{"city_slug": strProp("city slug"), "topic_slug": strProp("topic slug")},
+			[]string{"city_slug", "topic_slug"}),
+	}
+}
