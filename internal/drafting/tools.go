@@ -134,6 +134,15 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		return SaveDraftOutput{}, err
 	}
 
+	// Refuse to clobber a PUBLISHED playbook. GetPlaybook returns only published
+	// rows, so a not-found here means the slot is free or holds a draft (which
+	// re-drafting may safely overwrite).
+	if _, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, draftLanguage); err == nil {
+		return SaveDraftOutput{}, reject("a PUBLISHED playbook already exists for %s/%s — refusing to overwrite it. Choose a different topic, or a human must unpublish it first.", in.CitySlug, in.TopicSlug)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return SaveDraftOutput{}, err
+	}
+
 	// Guardrail: every citation quote must be verbatim in the cached fetched text.
 	citationCount := 0
 	for si, st := range in.Statements {

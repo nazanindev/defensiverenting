@@ -13,8 +13,16 @@ import (
 // embedded nil interface panics if any other method is called (none are here).
 type fakeStore struct {
 	store.Store
-	ingested  *store.IngestPlaybookParams
-	nextSrcID int64
+	ingested       *store.IngestPlaybookParams
+	nextSrcID      int64
+	publishedTopic bool // when true, GetPlaybook reports an existing published playbook
+}
+
+func (f *fakeStore) GetPlaybook(_ context.Context, _, _, _ string) (store.PlaybookWithStatements, error) {
+	if f.publishedTopic {
+		return store.PlaybookWithStatements{}, nil
+	}
+	return store.PlaybookWithStatements{}, store.ErrNotFound
 }
 
 func (f *fakeStore) GetJurisdictionBySlug(_ context.Context, slug string) (store.Jurisdiction, error) {
@@ -165,6 +173,23 @@ func TestSaveDraft_WhitespaceTolerantMatch(t *testing.T) {
 	}
 	if fs.ingested == nil {
 		t.Fatal("expected save to succeed")
+	}
+}
+
+func TestSaveDraft_RefusesToOverwritePublished(t *testing.T) {
+	fs := &fakeStore{publishedTopic: true}
+	tb := newTestToolbelt(fs, map[string]string{depositURL: "within thirty days"})
+	mustFetch(t, tb, depositURL)
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days")},
+	})
+	if !isRejection(err) {
+		t.Fatalf("expected refusal to overwrite a published playbook, got err=%v", err)
+	}
+	if fs.ingested != nil {
+		t.Fatal("IngestPlaybook must not be called when a published playbook exists")
 	}
 }
 
