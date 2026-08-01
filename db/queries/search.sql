@@ -7,7 +7,7 @@ WITH RECURSIVE ancestors AS (
     FROM   jurisdictions j
     JOIN   ancestors a ON j.id = a.parent_id
 ),
-query AS (SELECT plainto_tsquery('english', $2) AS q)
+query AS (SELECT plainto_tsquery(lang_regconfig($3), $2) AS q)
 SELECT
     s.id,
     s.body_md,
@@ -30,7 +30,7 @@ ORDER BY rank DESC
 LIMIT 20;
 
 -- name: SearchPlaybooks :many
-WITH query AS (SELECT plainto_tsquery('english', $1) AS q)
+WITH query AS (SELECT plainto_tsquery(lang_regconfig($3), $1) AS q)
 SELECT
     p.id,
     p.slug,

@@ -1,6 +1,6 @@
-**Defensive Renting** — free tenant rights hub with citation-backed guides, primary source links, and local resource directories organized by city and situation.
+**RenterLaw** — free tenant rights hub with citation-backed guides, primary source links, and local resource directories organized by city and situation. (Repo/internal codename: Defensive Renting; the authoring service keeps that identity.)
 
-https://defensiverenting.fly.dev
+https://renterlaw.org
 
 ## What it is
 

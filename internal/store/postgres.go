@@ -117,6 +117,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
 			pb.slug, pb.title, pb.intro_md, pb.page_kind, pb.last_reviewed_at,
+			pb.published_at, pb.updated_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug,
 			t.id, t.slug, t.name
 		FROM playbooks pb
@@ -128,6 +129,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
 		&p.Playbook.IntroMD, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt,
+		&p.Playbook.PublishedAt, &p.Playbook.UpdatedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug,
 		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
@@ -178,7 +180,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 				SELECT j.id, j.parent_id FROM jurisdictions j
 				JOIN ancestors a ON j.id = a.parent_id
 			),
-			q AS (SELECT plainto_tsquery('english', $2) AS tsq)
+			q AS (SELECT plainto_tsquery(lang_regconfig($3), $2) AS tsq)
 			SELECT
 				s.id,
 				s.body_md,
@@ -199,7 +201,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			*jurisdictionID, query, language)
 	} else {
 		stmtRows, err = pg.pool.Query(ctx, `
-			WITH q AS (SELECT plainto_tsquery('english', $1) AS tsq)
+			WITH q AS (SELECT plainto_tsquery(lang_regconfig($2), $1) AS tsq)
 			SELECT
 				s.id,
 				s.body_md,
@@ -243,7 +245,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 	}
 
 	pbRows, err := pg.pool.Query(ctx, `
-		WITH q AS (SELECT plainto_tsquery('english', $1) AS tsq)
+		WITH q AS (SELECT plainto_tsquery(lang_regconfig($3), $1) AS tsq)
 		SELECT
 			pb.slug, pb.title, pb.intro_md,
 			ts_rank_cd(pb.body_tsv, q.tsq) AS rank,
@@ -282,7 +284,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 // ListSitemapURLs returns jurisdiction/topic slug pairs for all English playbooks.
 func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT j.slug, t.slug, pb.last_reviewed_at
+		SELECT j.slug, t.slug, COALESCE(pb.last_reviewed_at, pb.published_at, pb.updated_at)
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id

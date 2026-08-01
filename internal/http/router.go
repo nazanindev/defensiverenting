@@ -13,12 +13,14 @@ import (
 )
 
 // NewRouter wires all routes and middleware onto a chi.Router.
-func NewRouter(db *store.PG, logger *slog.Logger, siteURL string) http.Handler {
+// canonicalRedirect enables 301s from non-canonical hosts (off in development).
+func NewRouter(db *store.PG, logger *slog.Logger, siteURL string, canonicalRedirect bool) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
 	r.Use(chimw.Recoverer)
+	r.Use(middleware.CanonicalHost(siteURL, canonicalRedirect))
 
 	// Health endpoints — no caching
 	r.Get("/healthz", handlers.Healthz)

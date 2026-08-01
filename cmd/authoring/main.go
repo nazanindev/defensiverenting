@@ -27,9 +27,9 @@ import (
 
 	dbpkg "github.com/nazanindev/defensiverenting/db"
 	"github.com/nazanindev/defensiverenting/internal/discover"
-	sitehandlers "github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/draftagent"
 	"github.com/nazanindev/defensiverenting/internal/drafting"
+	sitehandlers "github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
 	"github.com/nazanindev/defensiverenting/internal/store"
 	webstatic "github.com/nazanindev/defensiverenting/web/static"
@@ -81,6 +81,13 @@ func (j *jobSet) list() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func noindex(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func basicAuth(user, pass string, next http.Handler) http.Handler {
@@ -163,7 +170,12 @@ func main() {
 	outer.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	outer.Handle("/", basicAuth(authUser, authPass, mux))
+	// This is an internal tool on a public hostname: refuse indexing outright.
+	outer.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
+	})
+	outer.Handle("/", noindex(basicAuth(authUser, authPass, mux)))
 
 	httpSrv := &http.Server{Addr: *addr, Handler: outer, ReadHeaderTimeout: 5 * time.Second}
 

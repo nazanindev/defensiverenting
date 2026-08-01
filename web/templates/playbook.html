@@ -4,16 +4,19 @@
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{.Playbook.Title}} — Defensive Renting</title>
-  <meta name="description" content="{{.Playbook.Title}} — free, step-by-step tenant rights guide for {{.Jurisdiction.Name}}, backed by primary sources." />
-  <link rel="canonical" href="/j/{{.Jurisdiction.Slug}}/{{.Topic.Slug}}"/>
+  <title>{{.Playbook.Title}} — RenterLaw</title>
+  <meta name="description" content="{{.Description}}" />
+  <link rel="canonical" href="{{.Canonical}}"/>
   <meta property="og:type" content="article" />
-  <meta property="og:site_name" content="Defensive Renting" />
-  <meta property="og:title" content="{{.Playbook.Title}} — Defensive Renting" />
-  <meta property="og:description" content="{{.Playbook.Title}} — free, step-by-step tenant rights guide for {{.Jurisdiction.Name}}, backed by primary sources." />
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="{{.Playbook.Title}} — Defensive Renting" />
-  <meta name="twitter:description" content="{{.Playbook.Title}} — free, step-by-step tenant rights guide for {{.Jurisdiction.Name}}, backed by primary sources." />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:url" content="{{.Canonical}}" />
+  <meta property="og:title" content="{{.Playbook.Title}} — RenterLaw" />
+  <meta property="og:description" content="{{.Description}}" />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="{{.Playbook.Title}} — RenterLaw" />
+  <meta name="twitter:description" content="{{.Description}}" />
   {{if .StructuredData}}<script type="application/ld+json">{{.StructuredData}}</script>{{end}}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -26,7 +29,7 @@
   {{end}}
   <header class="site-header">
     <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="Defensive Renting" class="site-logo-img" /><span>Defensive Renting</span></a>
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
       <form class="header-search" action="/search" method="get" role="search">
         <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
         <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />

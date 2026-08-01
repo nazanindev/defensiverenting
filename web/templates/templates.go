@@ -9,15 +9,27 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"strings"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
-
 
 //go:embed *.html
 var tmplFS embed.FS
 
 var tmpl *template.Template
+
+// baseURL is the canonical site origin (no trailing slash) used for absolute
+// canonical/og:url links and JSON-LD. Overridden at startup via SetBaseURL.
+var baseURL = "https://renterlaw.org"
+
+// SetBaseURL sets the canonical site origin, e.g. from the SITE_URL env var.
+func SetBaseURL(u string) {
+	baseURL = strings.TrimRight(u, "/")
+}
+
+// BaseURL returns the canonical site origin with no trailing slash.
+func BaseURL() string { return baseURL }
 
 func init() {
 	var err error
@@ -49,6 +61,9 @@ func funcMap() template.FuncMap {
 			}
 			return label
 		},
+		"absURL": func(path string) string {
+			return baseURL + path
+		},
 	}
 }
 
@@ -56,7 +71,8 @@ func funcMap() template.FuncMap {
 
 // IndexPage is the landing page listing all city jurisdictions.
 type IndexPage struct {
-	Jurisdictions []store.Jurisdiction
+	Jurisdictions  []store.Jurisdiction
+	StructuredData template.JS // JSON-LD WebSite + Organization schema, pre-marshaled
 }
 
 // JurisdictionPage lists topics available for a city.
@@ -72,7 +88,9 @@ type PlaybookPage struct {
 	Topic          store.Topic
 	IntroHTML      template.HTML
 	Statements     []RenderedStatement
-	StructuredData template.JS // JSON-LD Article schema, pre-marshaled
+	Description    string      // meta description, derived from the intro when present
+	Canonical      string      // absolute canonical URL
+	StructuredData template.JS // JSON-LD Article + BreadcrumbList schema, pre-marshaled
 	Preview        bool        // authoring-tool draft preview: shows a banner, never set on the live site
 }
 
