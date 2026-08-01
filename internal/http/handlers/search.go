@@ -48,4 +48,3 @@ func Search(db searchStore, logger *slog.Logger) http.HandlerFunc {
 		})
 	}
 }
-

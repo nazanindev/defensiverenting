@@ -43,6 +43,23 @@ func (s *stubStore) GetPlaybook(_ context.Context, _, _, _ string) (store.Playbo
 	return s.playbook, s.playbookErr
 }
 
+func (s *stubStore) GetTopicBySlug(_ context.Context, slug string) (store.Topic, error) {
+	for _, t := range s.topics {
+		if t.Slug == slug {
+			return t, nil
+		}
+	}
+	return store.Topic{}, store.ErrNotFound
+}
+
+func (s *stubStore) ListPublishedTopics(_ context.Context, _ string) ([]store.Topic, error) {
+	return s.topics, nil
+}
+
+func (s *stubStore) ListJurisdictionsByTopic(_ context.Context, _ int64, _ string) ([]store.Jurisdiction, error) {
+	return s.jurisdictions, nil
+}
+
 func logger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, nil))
 }

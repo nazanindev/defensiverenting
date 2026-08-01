@@ -693,3 +693,14 @@ a.result-title:hover { text-decoration: underline; }
   h1 { font-size: 2rem; }
   .header-search { display: none; }
 }
+
+/* Byline + related-content cross-links */
+.byline { font-size: .85rem; color: var(--ink-soft); margin: .35rem 0 0; }
+.byline a { color: var(--accent); text-decoration: none; }
+.byline a:hover { text-decoration: underline; }
+.related-section { margin-top: 2.5rem; }
+.related-more { margin-top: .9rem; font-size: .9rem; }
+.related-more a { color: var(--accent); text-decoration: none; }
+.related-more a:hover { text-decoration: underline; }
+.empty-state-hint { margin-top: 1rem; font-size: .9rem; color: var(--ink-soft); }
+.author-photo { width: 132px; height: 132px; border-radius: 50%; object-fit: cover; margin: .5rem 0 1rem; box-shadow: var(--shadow); }

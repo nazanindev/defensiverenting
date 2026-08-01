@@ -22,13 +22,25 @@ type browseStore interface {
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, id int64, lang string) ([]store.Topic, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (store.PlaybookWithStatements, error)
+	GetTopicBySlug(ctx context.Context, slug string) (store.Topic, error)
+	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
+	ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]store.Jurisdiction, error)
 }
 
-// Browse wires the three browse routes onto a chi.Router.
+// Reviewer is the human who verifies every playbook before publishing.
+// Surfaced in the byline and as reviewedBy in JSON-LD; bio at ReviewerPath.
+const (
+	ReviewerName = "Cameron Monteith"
+	ReviewerPath = "/authors/cameron-monteith"
+)
+
+// Browse wires the browse routes onto a chi.Router.
 func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 	r.Get("/", index(db, logger))
 	r.Get("/j/{jurisdiction}", jurisdictionIndex(db, logger))
 	r.Get("/j/{jurisdiction}/{topic}", playbook(db, logger))
+	r.Get("/t/{topic}", topicHub(db, logger))
+	r.Get(ReviewerPath, author)
 }
 
 func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
@@ -39,8 +51,15 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		topics, err := db.ListPublishedTopics(r.Context(), "en")
+		if err != nil {
+			logger.ErrorContext(r.Context(), "list published topics", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		render(w, r, http.StatusOK, tmpl.IndexPage{
 			Jurisdictions:  jurisdictions,
+			Topics:         topics,
 			StructuredData: siteSchema(),
 		})
 	}
@@ -85,8 +104,63 @@ func playbook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		render(w, r, http.StatusOK, BuildPlaybookPage(r.Context(), pb, logger))
+		page := BuildPlaybookPage(r.Context(), pb, logger)
+
+		// Cross-links: other topics in this city, and this topic in other cities.
+		// Best-effort; a failure degrades the page rather than 500ing it.
+		if topics, err := db.ListTopicsByJurisdiction(r.Context(), pb.Jurisdiction.ID, "en"); err == nil {
+			for _, t := range topics {
+				if t.ID != pb.Topic.ID {
+					page.SiblingTopics = append(page.SiblingTopics, t)
+				}
+			}
+		} else {
+			logger.ErrorContext(r.Context(), "list sibling topics", slog.Any("err", err))
+		}
+		if cities, err := db.ListJurisdictionsByTopic(r.Context(), pb.Topic.ID, "en"); err == nil {
+			for _, c := range cities {
+				if c.ID != pb.Jurisdiction.ID {
+					page.OtherCities = append(page.OtherCities, c)
+				}
+			}
+		} else {
+			logger.ErrorContext(r.Context(), "list other cities", slog.Any("err", err))
+		}
+
+		render(w, r, http.StatusOK, page)
 	}
+}
+
+func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := chi.URLParam(r, "topic")
+		t, err := db.GetTopicBySlug(r.Context(), slug)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				http.NotFound(w, r)
+				return
+			}
+			logger.ErrorContext(r.Context(), "get topic", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		cities, err := db.ListJurisdictionsByTopic(r.Context(), t.ID, "en")
+		if err != nil {
+			logger.ErrorContext(r.Context(), "list cities for topic", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if len(cities) == 0 {
+			// A topic with no published playbooks is not a public page.
+			http.NotFound(w, r)
+			return
+		}
+		render(w, r, http.StatusOK, tmpl.TopicHubPage{Topic: t, Jurisdictions: cities})
+	}
+}
+
+func author(w http.ResponseWriter, r *http.Request) {
+	render(w, r, http.StatusOK, tmpl.AuthorPage{})
 }
 
 // BuildPlaybookPage converts a stored playbook into the public page model,
@@ -129,6 +203,14 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 
 	canonical := tmpl.BaseURL() + "/j/" + pb.Jurisdiction.Slug + "/" + pb.Topic.Slug
 
+	var reviewedOn string
+	switch {
+	case pb.Playbook.LastReviewedAt != nil:
+		reviewedOn = pb.Playbook.LastReviewedAt.Format("January 2, 2006")
+	case !pb.Playbook.UpdatedAt.IsZero():
+		reviewedOn = pb.Playbook.UpdatedAt.Format("January 2, 2006")
+	}
+
 	return tmpl.PlaybookPage{
 		Playbook:       pb.Playbook,
 		Jurisdiction:   pb.Jurisdiction,
@@ -138,6 +220,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 		Description:    metaDescription(pb.IntroMD, pb.Playbook.Title, pb.Jurisdiction.Name),
 		Canonical:      canonical,
 		StructuredData: playbookSchema(pb, canonical, sourceURLs),
+		ReviewedOn:     reviewedOn,
 	}
 }
 
@@ -178,6 +261,7 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		IsBasedOn     []string  `json:"isBasedOn,omitempty"`
 		Author        schemaOrg `json:"author"`
 		Publisher     schemaOrg `json:"publisher"`
+		ReviewedBy    schemaOrg `json:"reviewedBy"`
 	}{
 		Type:        "Article",
 		Headline:    pb.Playbook.Title + " — " + pb.Jurisdiction.Name + " Tenant Rights",
@@ -187,6 +271,7 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		IsBasedOn:   sourceURLs,
 		Author:      schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
 		Publisher:   schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
+		ReviewedBy:  schemaOrg{Type: "Person", Name: ReviewerName, URL: tmpl.BaseURL() + ReviewerPath},
 	}
 	if pb.Playbook.PublishedAt != nil {
 		article.DatePublished = pb.Playbook.PublishedAt.Format(time.DateOnly)

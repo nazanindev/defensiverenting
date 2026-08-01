@@ -21,6 +21,7 @@ func Robots(siteURL string) http.HandlerFunc {
 type sitemapStore interface {
 	ListCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListSitemapURLs(ctx context.Context) ([]store.SitemapEntry, error)
+	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
 }
 
 // Sitemap serves /sitemap.xml listing all jurisdiction and playbook pages.
@@ -36,13 +37,22 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		topics, err := db.ListPublishedTopics(r.Context(), "en")
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 		fmt.Fprintf(w, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
 		fmt.Fprintf(w, "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n")
 		fmt.Fprintf(w, "  <url><loc>%s/</loc><changefreq>weekly</changefreq></url>\n", siteURL)
-		for _, p := range []string{"/about", "/support", "/editorial"} {
+		for _, p := range []string{"/about", "/support", "/editorial", ReviewerPath} {
 			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>yearly</changefreq></url>\n", siteURL, p)
+		}
+
+		for _, t := range topics {
+			fmt.Fprintf(w, "  <url><loc>%s/t/%s</loc><changefreq>weekly</changefreq></url>\n", siteURL, t.Slug)
 		}
 
 		for _, j := range jurisdictions {

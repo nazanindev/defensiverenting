@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Topic.Name}} — Tenant Rights by City — RenterLaw</title>
+  <meta name="description" content="{{.Topic.Name}}: free, step-by-step tenant rights guides for every city we cover. Every claim cites the law it comes from." />
+  <link rel="canonical" href="{{absURL (printf "/t/%s" .Topic.Slug)}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:url" content="{{absURL (printf "/t/%s" .Topic.Slug)}}" />
+  <meta property="og:title" content="{{.Topic.Name}} — Tenant Rights by City — RenterLaw" />
+  <meta property="og:description" content="{{.Topic.Name}}: free, step-by-step tenant rights guides for every city we cover. Every claim cites the law it comes from." />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{.Topic.Name}} — Tenant Rights by City — RenterLaw" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body class="has-hero-search">
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="halo" aria-hidden="true"></div>
+
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <span aria-current="page">{{.Topic.Name}}</span>
+    </nav>
+
+    <section class="hero">
+      <h1>{{.Topic.Name}}</h1>
+      <p class="lede">Tenant rights on this topic vary by city and state. Pick your city for a step-by-step guide. Every claim cites the law it comes from.</p>
+    </section>
+
+    <section class="city-section" aria-labelledby="cities-heading">
+      <h2 id="cities-heading" class="section-title">Choose your city</h2>
+      <ul class="card-grid">
+        {{$topic := .Topic}}
+        {{range .Jurisdictions}}
+        <li>
+          <a class="card card--link" href="/j/{{.Slug}}/{{$topic.Slug}}">
+            <span class="card-title">{{.Name}}</span>
+            <span class="card-arrow" aria-hidden="true">→</span>
+          </a>
+        </li>
+        {{end}}
+      </ul>
+      <p class="empty-state-hint">Don't see your city? We add new cities regularly. Statewide rules often still apply; check the guide for the nearest covered city in your state to see which laws are cited.</p>
+    </section>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

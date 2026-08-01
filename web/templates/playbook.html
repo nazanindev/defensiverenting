@@ -60,6 +60,7 @@
         <header class="playbook-header">
           <span class="city-badge">{{.Jurisdiction.Name}}</span>
           <h1>{{.Playbook.Title}}</h1>
+          <p class="byline">Reviewed by <a href="/authors/cameron-monteith">Cameron Monteith</a>{{if .ReviewedOn}} · Last verified {{.ReviewedOn}}{{end}}</p>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
         </header>
 
@@ -152,6 +153,41 @@
           <p class="empty-state">No statements available for this playbook yet.</p>
           {{end}}
         </main>
+
+        {{if .SiblingTopics}}
+        <section class="related-section" aria-labelledby="related-city-heading">
+          <h2 id="related-city-heading" class="section-title">More tenant rights in {{.Jurisdiction.Name}}</h2>
+          <ul class="card-grid">
+            {{$j := .Jurisdiction}}
+            {{range .SiblingTopics}}
+            <li>
+              <a class="card card--link" href="/j/{{$j.Slug}}/{{.Slug}}">
+                <span class="card-title">{{.Name}}</span>
+                <span class="card-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+            {{end}}
+          </ul>
+        </section>
+        {{end}}
+
+        {{if .OtherCities}}
+        <section class="related-section" aria-labelledby="related-topic-heading">
+          <h2 id="related-topic-heading" class="section-title">{{.Topic.Name}} in other cities</h2>
+          <ul class="card-grid">
+            {{$t := .Topic}}
+            {{range .OtherCities}}
+            <li>
+              <a class="card card--link" href="/j/{{.Slug}}/{{$t.Slug}}">
+                <span class="card-title">{{.Name}}</span>
+                <span class="card-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+            {{end}}
+          </ul>
+          <p class="related-more"><a href="/t/{{.Topic.Slug}}">All cities for this topic →</a></p>
+        </section>
+        {{end}}
       </div>
     </div>
   </div>

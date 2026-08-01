@@ -72,8 +72,18 @@ func funcMap() template.FuncMap {
 // IndexPage is the landing page listing all city jurisdictions.
 type IndexPage struct {
 	Jurisdictions  []store.Jurisdiction
-	StructuredData template.JS // JSON-LD WebSite + Organization schema, pre-marshaled
+	Topics         []store.Topic // topics with >=1 published playbook, for the browse-by-topic section
+	StructuredData template.JS   // JSON-LD WebSite + Organization schema, pre-marshaled
 }
+
+// TopicHubPage lists every city that has a published playbook for one topic.
+type TopicHubPage struct {
+	Topic         store.Topic
+	Jurisdictions []store.Jurisdiction
+}
+
+// AuthorPage is a reviewer bio page.
+type AuthorPage struct{}
 
 // JurisdictionPage lists topics available for a city.
 type JurisdictionPage struct {
@@ -88,10 +98,13 @@ type PlaybookPage struct {
 	Topic          store.Topic
 	IntroHTML      template.HTML
 	Statements     []RenderedStatement
-	Description    string      // meta description, derived from the intro when present
-	Canonical      string      // absolute canonical URL
-	StructuredData template.JS // JSON-LD Article + BreadcrumbList schema, pre-marshaled
-	Preview        bool        // authoring-tool draft preview: shows a banner, never set on the live site
+	Description    string               // meta description, derived from the intro when present
+	Canonical      string               // absolute canonical URL
+	StructuredData template.JS          // JSON-LD Article + BreadcrumbList schema, pre-marshaled
+	Preview        bool                 // authoring-tool draft preview: shows a banner, never set on the live site
+	ReviewedOn     string               // human-readable last-verified date for the byline; empty hides the date
+	SiblingTopics  []store.Topic        // other published topics in this city
+	OtherCities    []store.Jurisdiction // other cities with this topic published
 }
 
 // RenderedStatement is a statement whose body has been converted to HTML.
@@ -142,6 +155,10 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "about.html", p)
 	case SupportPage:
 		return tmpl.ExecuteTemplate(w, "support.html", p)
+	case TopicHubPage:
+		return tmpl.ExecuteTemplate(w, "topichub.html", p)
+	case AuthorPage:
+		return tmpl.ExecuteTemplate(w, "author.html", p)
 	default:
 		return fmt.Errorf("unknown page type %T", page)
 	}

@@ -108,6 +108,60 @@ func (pg *PG) ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64
 	return topics, rows.Err()
 }
 
+// GetTopicBySlug looks up one topic by its URL slug.
+func (pg *PG) GetTopicBySlug(ctx context.Context, slug string) (Topic, error) {
+	var t Topic
+	err := pg.pool.QueryRow(ctx, `
+		SELECT id, slug, name FROM topics WHERE slug = $1`, slug).
+		Scan(&t.ID, &t.Slug, &t.Name)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return t, ErrNotFound
+		}
+		return t, err
+	}
+	return t, nil
+}
+
+// ListPublishedTopics returns topics that have at least one published playbook.
+func (pg *PG) ListPublishedTopics(ctx context.Context, language string) ([]Topic, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT t.id, t.slug, t.name
+		FROM topics t
+		JOIN playbooks p ON p.topic_id = t.id
+		WHERE p.language = $1 AND p.status = 'published'
+		ORDER BY t.name`, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var topics []Topic
+	for rows.Next() {
+		var t Topic
+		if err := rows.Scan(&t.ID, &t.Slug, &t.Name); err != nil {
+			return nil, err
+		}
+		topics = append(topics, t)
+	}
+	return topics, rows.Err()
+}
+
+// ListJurisdictionsByTopic returns city jurisdictions with a published playbook
+// for the given topic + language.
+func (pg *PG) ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]Jurisdiction, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug
+		FROM jurisdictions j
+		JOIN playbooks p ON p.jurisdiction_id = j.id
+		WHERE p.topic_id = $1 AND p.language = $2 AND p.status = 'published'
+		ORDER BY j.name`, topicID, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJurisdictions(rows)
+}
+
 // GetPlaybook fetches the full playbook with all statements and their citations.
 // Returns ErrNotFound if the (jurisdiction, topic, language) combination does not exist.
 func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (PlaybookWithStatements, error) {
