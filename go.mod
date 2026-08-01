@@ -6,6 +6,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.56.0
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/jackc/pgx/v5 v5.7.2
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/yuin/goldmark v1.7.4
 	gopkg.in/yaml.v3 v3.0.1

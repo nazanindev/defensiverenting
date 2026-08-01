@@ -61,6 +61,7 @@ type FetchSourceOutput struct {
 	Host      string `json:"host"`
 	Text      string `json:"text" jsonschema:"readable text of the source; cite verbatim lines from this"`
 	Truncated bool   `json:"truncated" jsonschema:"true if text was cut for length (full text is still cached for citation checks)"`
+	Via       string `json:"via,omitempty" jsonschema:"how the text was obtained when a fallback was needed, e.g. \"web.archive.org snapshot\"; tell the human reviewer when set"`
 }
 
 // FetchSource fetches a URL, caches its extracted text for the verbatim check,
@@ -71,17 +72,17 @@ func (tb *Toolbelt) FetchSource(_ context.Context, in FetchSourceInput) (FetchSo
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return FetchSourceOutput{}, reject("url must be a valid http(s) URL, got %q", raw)
 	}
-	text, err := tb.fetch(raw)
+	f, err := tb.fetch(raw)
 	if err != nil {
 		return FetchSourceOutput{}, reject("could not fetch %s: %v", raw, err)
 	}
-	tb.cache.put(raw, text)
+	tb.cache.put(raw, f.Text)
 
-	returned, truncated := text, false
-	if r := []rune(text); len(r) > maxReturnRune {
+	returned, truncated := f.Text, false
+	if r := []rune(f.Text); len(r) > maxReturnRune {
 		returned, truncated = string(r[:maxReturnRune]), true
 	}
-	return FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated}, nil
+	return FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated, Via: f.Via}, nil
 }
 
 // ---- save_draft_playbook ---------------------------------------------------
@@ -179,7 +180,8 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			if !ok {
 				return SaveDraftOutput{}, reject("statement %d citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", si+1, ci+1, c.URL, c.URL)
 			}
-			if !strings.Contains(normalizeForMatch(cached), normalizeForMatch(c.Quote)) {
+			if !strings.Contains(normalizeForMatch(cached), normalizeForMatch(c.Quote)) &&
+				!strings.Contains(stripAllWS(cached), stripAllWS(c.Quote)) {
 				return SaveDraftOutput{}, reject("statement %d citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", si+1, ci+1, c.URL, truncate(c.Quote, 120))
 			}
 			citationCount++

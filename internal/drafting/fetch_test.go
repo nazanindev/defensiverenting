@@ -1,0 +1,95 @@
+package drafting
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func longPage(marker string) string {
+	return "<html><body><p>" + marker + " " + strings.Repeat("statute text ", 300) + "</p></body></html>"
+}
+
+func TestHTTPFetch_directSuccess(t *testing.T) {
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(longPage("DIRECT")))
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{extract: htmlStripper{}, archiveBase: "http://127.0.0.1:1/"} // archive unreachable on purpose
+	got, err := tb.httpFetch(direct.URL)
+	if err != nil {
+		t.Fatalf("httpFetch: %v", err)
+	}
+	if !strings.Contains(got.Text, "DIRECT") || got.Via != "" {
+		t.Errorf("got Via=%q text=%.40q, want direct text and empty Via", got.Via, got.Text)
+	}
+}
+
+func TestHTTPFetch_archiveFallbackOnBlock(t *testing.T) {
+	for name, handler := range map[string]http.HandlerFunc{
+		"403 block": func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "Access Denied", http.StatusForbidden)
+		},
+		"js shell": func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`<html><body><div id="app"></div><script>boot()</script></body></html>`))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			direct := httptest.NewServer(handler)
+			defer direct.Close()
+			archive := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.Contains(r.URL.String(), "/snap/") {
+					t.Errorf("archive fallback did not use archiveBase prefix: %s", r.URL)
+				}
+				_, _ = w.Write([]byte(longPage("ARCHIVED")))
+			}))
+			defer archive.Close()
+
+			tb := &Toolbelt{extract: htmlStripper{}, archiveBase: archive.URL + "/snap/"}
+			got, err := tb.httpFetch(direct.URL)
+			if err != nil {
+				t.Fatalf("httpFetch: %v", err)
+			}
+			if !strings.Contains(got.Text, "ARCHIVED") {
+				t.Errorf("text = %.60q, want archived content", got.Text)
+			}
+			if got.Via != "web.archive.org snapshot" {
+				t.Errorf("Via = %q, want snapshot marker", got.Via)
+			}
+		})
+	}
+}
+
+func TestHTTPFetch_errorWhenBothFail(t *testing.T) {
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "nope", http.StatusForbidden)
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{extract: htmlStripper{}, archiveBase: "http://127.0.0.1:1/"}
+	if _, err := tb.httpFetch(direct.URL); err == nil {
+		t.Fatal("httpFetch = nil error, want failure when direct is blocked and archive is down")
+	}
+}
+
+func TestIsPDF(t *testing.T) {
+	if !isPDF("application/pdf", nil) || !isPDF("", []byte("%PDF-1.7 rest")) {
+		t.Error("isPDF should detect content-type and magic bytes")
+	}
+	if isPDF("text/html", []byte("<html>")) {
+		t.Error("isPDF false positive on html")
+	}
+}
+
+func TestStripAllWS_fusedPDFQuoteMatch(t *testing.T) {
+	cached := "THELANDLORDANDTENANTACTOF1951 Relatingtotherights,obligationsandliabilities"
+	quote := "THE LANDLORD AND TENANT ACT OF 1951"
+	if !strings.Contains(stripAllWS(cached), stripAllWS(quote)) {
+		t.Error("spaced quote should match fused PDF text with whitespace stripped")
+	}
+	if strings.Contains(stripAllWS(cached), stripAllWS("THE TENANT LANDLORD ACT")) {
+		t.Error("reordered words must not match")
+	}
+}

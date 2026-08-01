@@ -27,7 +27,11 @@ The reader may not have strong reading skills. They are stressed, short on time,
 - Numbers as digits: "14 days", not "fourteen days".
 - Honest about variation: say "in most states" or "New York law requires" when a rule is not universal. Never overclaim.
 
-Workflow: use find_sources and web_search to locate authoritative sources → fetch_source each one → write 4-8 statements, each with >=1 verbatim citation → call save_draft_playbook once. The result is a DRAFT; a human reviews and publishes it. You never publish.`
+Depth: write 10-14 statements per playbook. Cover the full arc of the situation: what the law says, deadlines and amounts, what the renter should do step by step, what happens if the landlord ignores it, and what happens in court where relevant. Do not pad; every statement must earn its place with a distinct, actionable fact.
+
+Required final section: "Where to get help in {city}". Write 3-5 statements listing real local resources: legal aid organizations, rent assistance programs, the city's complaint or inspection line, and tenant unions or hotlines where they exist. These statements need citations like any other; cite the organization's own site (kind "nonprofit") or the government program page (kind "gov_guidance"). Fetch each via fetch_source first, same as always.
+
+Workflow: use find_sources and web_search to locate authoritative sources → fetch_source each one → write the statements, each with >=1 verbatim citation → call save_draft_playbook once. The result is a DRAFT; a human reviews and publishes it. You never publish.`
 
 func userPrompt(citySlug, topicSlug, topicName string) string {
 	name := topicName

@@ -28,16 +28,24 @@ const draftLanguage = "en"
 
 // Toolbelt bundles the dependencies the drafting operations share.
 type Toolbelt struct {
-	db      store.Store
-	cache   *fetchCache
-	fetch   func(url string) (string, error) // overridable in tests
-	extract textExtractor
+	db          store.Store
+	cache       *fetchCache
+	fetch       func(url string) (fetched, error) // overridable in tests
+	extract     textExtractor
+	archiveBase string // Internet Archive fallback prefix, overridable in tests
+}
+
+// fetched is the result of reading a source: its extracted text, and how it
+// was obtained when a fallback was needed.
+type fetched struct {
+	Text string
+	Via  string // empty for a direct fetch; e.g. "web.archive.org snapshot"
 }
 
 // New builds a Toolbelt backed by a store, an HTTP fetcher, and the default
 // HTML→text extractor.
 func New(db store.Store) *Toolbelt {
-	tb := &Toolbelt{db: db, cache: newFetchCache(), extract: htmlStripper{}}
+	tb := &Toolbelt{db: db, cache: newFetchCache(), extract: htmlStripper{}, archiveBase: defaultArchiveBase}
 	tb.fetch = tb.httpFetch
 	return tb
 }
@@ -84,9 +92,43 @@ const (
 	maxBodyBytes  = 8 << 20 // 8 MiB read cap
 	maxReturnRune = 60_000  // truncate the text returned to the agent (full text is still cached)
 	userAgent     = "defensiverenting-drafting/0.1 (+https://defensiverenting.com)"
+
+	// defaultArchiveBase is the Internet Archive's newest-snapshot endpoint;
+	// the id_ flag returns the original page without archive chrome.
+	defaultArchiveBase = "https://web.archive.org/web/2id_/"
+
+	// minUsableChars is the least extracted text a page can have and still be
+	// quotable. Below it, the fetch is treated as blocked (a JS-only shell or
+	// a bot-block page) and the archive fallback kicks in. JS shells carry up
+	// to ~1.5k chars of nav text, so this sits above that; a legitimately
+	// short page just falls back to its direct text when the archive is no
+	// richer.
+	minUsableChars = 2000
 )
 
-func (tb *Toolbelt) httpFetch(url string) (string, error) {
+// httpFetch reads a source: direct fetch first, then the newest Internet
+// Archive snapshot of the same URL when the direct fetch fails or returns a
+// page too thin to quote from (JS-only shells, Cloudflare blocks). The
+// citation still points at the original URL; Via records the fallback so the
+// agent and the human reviewer can see how the text was obtained.
+func (tb *Toolbelt) httpFetch(url string) (fetched, error) {
+	text, err := tb.fetchDirect(url)
+	if err == nil && !tooThin(text) {
+		return fetched{Text: text}, nil
+	}
+	atext, aerr := tb.fetchDirect(tb.archiveBase + url)
+	if aerr == nil && !tooThin(atext) {
+		return fetched{Text: atext, Via: "web.archive.org snapshot"}, nil
+	}
+	if err == nil {
+		return fetched{Text: text}, nil // direct was thin, but the archive was no better
+	}
+	return fetched{}, err
+}
+
+// fetchDirect performs one GET and extracts readable text: PDF extraction for
+// PDF responses, HTML stripping otherwise. Non-2xx statuses are errors.
+func (tb *Toolbelt) fetchDirect(url string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
@@ -102,15 +144,28 @@ func (tb *Toolbelt) httpFetch(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return "", fmt.Errorf("status %d", resp.StatusCode)
+	}
+	if isPDF(resp.Header.Get("Content-Type"), body) {
+		return pdfExtract(body)
+	}
 	return tb.extract.extract(string(body)), nil
 }
 
+// tooThin reports whether extracted text is too short to quote from — the
+// signature of a JS-only shell or a block page.
+func tooThin(text string) bool {
+	return len(normalizeForMatch(text)) < minUsableChars
+}
+
 // FetchExtract fetches a URL and returns its extracted readable text using the
-// same HTTP fetch + HTML→text pipeline as the drafting tools. The source-change
-// checker hashes this text, so the extraction matches what the agent reads.
+// same direct HTTP fetch + extraction pipeline as the drafting tools. It never
+// falls back to the Internet Archive: the source-change checker hashes this
+// text to detect upstream drift, so it must reflect the live page only.
 func FetchExtract(url string) (string, error) {
 	tb := &Toolbelt{extract: htmlStripper{}}
-	return tb.httpFetch(url)
+	return tb.fetchDirect(url)
 }
 
 // textExtractor turns a fetched document body into readable text. Kept behind an
@@ -148,6 +203,15 @@ func (htmlStripper) extract(body string) string {
 // the fetched text and the agent's quote while still requiring the exact words.
 func normalizeForMatch(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// stripAllWS removes all whitespace. Some PDFs encode word spacing purely via
+// glyph positioning, so their extracted text arrives with words fused together
+// ("THELANDLORDANDTENANTACT"). Comparing with whitespace removed lets a
+// normally-spaced quote match such text while still requiring every character
+// in order — the verbatim invariant is unchanged.
+func stripAllWS(s string) string {
+	return strings.Join(strings.Fields(s), "")
 }
 
 func truncate(s string, n int) string {

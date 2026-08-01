@@ -48,12 +48,12 @@ func (f *fakeStore) IngestPlaybook(_ context.Context, p store.IngestPlaybookPara
 
 func newTestToolbelt(fs *fakeStore, pages map[string]string) *Toolbelt {
 	tb := &Toolbelt{db: fs, cache: newFetchCache(), extract: htmlStripper{}}
-	tb.fetch = func(u string) (string, error) {
+	tb.fetch = func(u string) (fetched, error) {
 		body, ok := pages[u]
 		if !ok {
-			return "", fmt.Errorf("no such page")
+			return fetched{}, fmt.Errorf("no such page")
 		}
-		return tb.extract.extract(body), nil
+		return fetched{Text: tb.extract.extract(body)}, nil
 	}
 	return tb
 }
