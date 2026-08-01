@@ -7,11 +7,17 @@ description: Writing style for all renter-facing content. Use when writing or ed
 
 Everything renters read on this site follows these rules. They also apply to prompts that tell an AI agent how to write content.
 
+## Who we write for
+
+Our reader may not have strong reading skills. They are stressed, short on time, and often reading on a phone in the middle of the problem: an eviction notice on the door, no heat, a deposit that never came back. English may not be their first language.
+
+Write so this reader gets the point on the first read. If a word would send anyone to a dictionary, replace it. This includes formal legal words that feel normal to lawyers: "void", "unenforceable", "pursuant to", "remedy", "waive", "provision". Say what happens instead: "the court will not enforce it", "you keep this right even if the lease says otherwise".
+
 ## Rules
 
 1. **No em dashes.** Never use the — character. Use a period, a comma, or a colon instead.
 2. **Short sentences. One fact per sentence.** If a sentence has two claims, split it.
-3. **Plain words.** Write for a stressed reader with no legal training. Prefer the common word: "use" not "utilize", "ask for" not "request", "before" not "prior to".
+3. **Plain words.** Prefer the common word: "use" not "utilize", "ask for" not "request", "before" not "prior to". Formal legal words count too: not "void" or "unenforceable" but "the court will not enforce it"; not "waive" but "give up"; not "remedy" but "what you can do about it".
 4. **Easy to translate.** Avoid idioms, metaphors, and figures of speech. They break in translation. Banned examples: "mental model", "navigate the process", "landscape", "leverage", "empower", "journey", "keep in mind", "rule of thumb".
 5. **Active voice. Talk to the reader as "you".** Name the actor: your landlord, the court, the city. Not "it is required that".
 6. **Concrete and factual.** State what the law says, who must do what, and by when. No filler, no reassurance padding, no fear language, no exclamation marks.
@@ -29,4 +35,4 @@ Everything renters read on this site follows these rules. They also apply to pro
 
 ## Checking existing text
 
-When reviewing content, flag any line that breaks a rule and rewrite it. A quick scan: search the text for "—", sentences over 25 words, and the banned words in rule 4.
+When reviewing content, flag any line that breaks a rule and rewrite it. A quick scan: search the text for "—", sentences over 25 words, the banned words in rule 4, and legal words like "void", "unenforceable", "waive", "remedy", "pursuant", "provision".
