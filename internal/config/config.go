@@ -11,6 +11,10 @@ type Config struct {
 	LogLevel    string
 	Env         string
 	SiteURL     string
+	// CanonicalRedirect enables 301s from non-canonical hosts (e.g. *.fly.dev)
+	// to SiteURL. Opt-in via CANONICAL_REDIRECT=1 — turn it on only after DNS
+	// for SiteURL is live, or the old host redirects into a dead domain.
+	CanonicalRedirect bool
 }
 
 func Load() Config {
@@ -25,6 +29,10 @@ func Load() Config {
 		LogLevel:    env("LOG_LEVEL", "info"),
 		Env:         e,
 		SiteURL:     env("SITE_URL", "https://renterlaw.org"),
+		CanonicalRedirect: func() bool {
+			v := env("CANONICAL_REDIRECT", "")
+			return v == "1" || v == "true"
+		}(),
 	}
 }
 

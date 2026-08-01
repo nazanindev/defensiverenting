@@ -12,7 +12,9 @@
   <meta property="og:url" content="{{.Canonical}}" />
   <meta property="og:title" content="{{.Playbook.Title}} — RenterLaw" />
   <meta property="og:description" content="{{.Description}}" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:title" content="{{.Playbook.Title}} — RenterLaw" />
   <meta name="twitter:description" content="{{.Description}}" />
   {{if .StructuredData}}<script type="application/ld+json">{{.StructuredData}}</script>{{end}}
