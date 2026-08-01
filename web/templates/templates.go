@@ -73,6 +73,7 @@ type PlaybookPage struct {
 	IntroHTML      template.HTML
 	Statements     []RenderedStatement
 	StructuredData template.JS // JSON-LD Article schema, pre-marshaled
+	Preview        bool        // authoring-tool draft preview: shows a banner, never set on the live site
 }
 
 // RenderedStatement is a statement whose body has been converted to HTML.

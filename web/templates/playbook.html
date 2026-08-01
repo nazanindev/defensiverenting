@@ -21,6 +21,9 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body>
+  {{if .Preview}}
+  <div role="status" style="background:#92400e;color:#fef3c7;text-align:center;font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.45rem 1rem">Draft preview — not published. Navigation links lead to the real site.</div>
+  {{end}}
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/"><img src="/static/favicon.png" alt="Defensive Renting" class="site-logo-img" /><span>Defensive Renting</span></a>

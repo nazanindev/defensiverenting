@@ -27,10 +27,13 @@ import (
 
 	dbpkg "github.com/nazanindev/defensiverenting/db"
 	"github.com/nazanindev/defensiverenting/internal/discover"
+	sitehandlers "github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/draftagent"
 	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
 	"github.com/nazanindev/defensiverenting/internal/store"
+	webstatic "github.com/nazanindev/defensiverenting/web/static"
+	sitetmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
 //go:embed templates/*.html
@@ -142,6 +145,8 @@ func main() {
 	mux.HandleFunc("GET /edit/{id}", s.showEditForm)
 	mux.HandleFunc("POST /edit/{id}", s.submitEditForm)
 	mux.HandleFunc("GET /view/{id}", s.viewPlaybook)
+	mux.HandleFunc("GET /preview/{id}", s.previewPlaybook)
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(webstatic.Files))))
 	mux.HandleFunc("POST /generate", s.generateDraft)
 	mux.HandleFunc("POST /check-sources", s.checkSources)
 	mux.HandleFunc("POST /sources/{id}/dismiss-flag", s.dismissSourceFlag)
@@ -626,6 +631,27 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		"Sources":  sources,
 		"Stmts":    stmts,
 	})
+}
+
+// previewPlaybook renders a playbook (draft or published) through the live
+// site's own template, so the author sees exactly what publishing would produce.
+func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	pw, err := s.pg.AuthorGetPlaybook(r.Context(), id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, s.log)
+	page.Preview = true
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := sitetmpl.Render(w, page); err != nil {
+		s.log.Error("render preview", slog.Any("err", err))
+	}
 }
 
 func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {

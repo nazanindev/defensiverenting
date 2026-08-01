@@ -1,1 +1,4 @@
 /authoring
+/bin/
+/draft
+.claude/settings.local.json

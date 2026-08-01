@@ -79,42 +79,49 @@ func playbook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// Render markdown intro to HTML
-		introHTML := content.RenderMarkdown(pb.IntroMD)
+		render(w, r, http.StatusOK, BuildPlaybookPage(r.Context(), pb, logger))
+	}
+}
 
-		// Render each statement's body markdown and validate citation invariant
-		statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
-		for _, s := range pb.Statements {
-			if len(s.Citations) == 0 {
-				// Log the violation and skip rather than panic in production.
-				// Development builds should catch this via tests.
-				logger.ErrorContext(r.Context(), "statement missing citations — invariant violated",
-					slog.Int64("statement_id", s.ID))
-				continue
-			}
-			chips := make([]tmpl.CitationChip, 0, len(s.Citations))
-			for _, c := range s.Citations {
-				chips = append(chips, tmpl.CitationChip{
-					URL:       c.SourceURL + anchorFragment(c.Locator),
-					Label:     c.Publisher,
-					Locator:   c.Locator,
-					SourceKind: c.SourceKind,
-				})
-			}
-			statements = append(statements, tmpl.RenderedStatement{
-				BodyHTML:  content.RenderMarkdown(s.BodyMD),
-				Citations: chips,
+// BuildPlaybookPage converts a stored playbook into the public page model,
+// rendering markdown and enforcing the citation invariant. Shared with the
+// authoring tool's draft preview so previews match the live site exactly.
+func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, logger *slog.Logger) tmpl.PlaybookPage {
+	// Render markdown intro to HTML
+	introHTML := content.RenderMarkdown(pb.IntroMD)
+
+	// Render each statement's body markdown and validate citation invariant
+	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
+	for _, s := range pb.Statements {
+		if len(s.Citations) == 0 {
+			// Log the violation and skip rather than panic in production.
+			// Development builds should catch this via tests.
+			logger.ErrorContext(ctx, "statement missing citations — invariant violated",
+				slog.Int64("statement_id", s.ID))
+			continue
+		}
+		chips := make([]tmpl.CitationChip, 0, len(s.Citations))
+		for _, c := range s.Citations {
+			chips = append(chips, tmpl.CitationChip{
+				URL:       c.SourceURL + anchorFragment(c.Locator),
+				Label:     c.Publisher,
+				Locator:   c.Locator,
+				SourceKind: c.SourceKind,
 			})
 		}
-
-		render(w, r, http.StatusOK, tmpl.PlaybookPage{
-			Playbook:       pb.Playbook,
-			Jurisdiction:   pb.Jurisdiction,
-			Topic:          pb.Topic,
-			IntroHTML:      introHTML,
-			Statements:     statements,
-			StructuredData: articleSchema(pb.Playbook.Title, pb.Jurisdiction.Name),
+		statements = append(statements, tmpl.RenderedStatement{
+			BodyHTML:  content.RenderMarkdown(s.BodyMD),
+			Citations: chips,
 		})
+	}
+
+	return tmpl.PlaybookPage{
+		Playbook:       pb.Playbook,
+		Jurisdiction:   pb.Jurisdiction,
+		Topic:          pb.Topic,
+		IntroHTML:      introHTML,
+		Statements:     statements,
+		StructuredData: articleSchema(pb.Playbook.Title, pb.Jurisdiction.Name),
 	}
 }
 

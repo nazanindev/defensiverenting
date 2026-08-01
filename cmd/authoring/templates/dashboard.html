@@ -178,6 +178,7 @@
           <td>
             <div class="actions">
               <a href="/view/{{.ID}}" class="btn btn-view">View</a>
+              <a href="/preview/{{.ID}}" target="_blank" rel="noopener" class="btn btn-view">Preview</a>
               {{if eq .Status "draft"}}
               <form method="post" action="/publish/{{.ID}}">
                 <button class="btn btn-success" onclick="return confirm('Publish this playbook to the live site?')">Publish</button>
