@@ -78,3 +78,13 @@ func TestLintAll_labelsAndCap(t *testing.T) {
 		t.Errorf("LintAll cap = %d messages, want 11", len(got))
 	}
 }
+
+func TestLint_allowedTerms(t *testing.T) {
+	ok := `Ask the court to let you skip the fees. The court form for this is called a "fee waiver".`
+	if got := Lint(ok); len(got) != 0 {
+		t.Errorf("Lint(fee waiver form name) = %v, want none", got)
+	}
+	if got := Lint("You waive this right."); len(got) == 0 {
+		t.Error("plain 'waive' must still be banned")
+	}
+}

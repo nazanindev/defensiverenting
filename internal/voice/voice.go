@@ -52,11 +52,17 @@ var (
 	wordRe       = regexp.MustCompile(`\S+`)
 )
 
+// allowedTerms are official names a renter will meet in real life (court
+// forms, program names). They are stripped before the banned-word scan so
+// naming them, with a plain-words explanation, stays legal.
+var allowedTerms = regexp.MustCompile(`(?i)\bfee waivers?\b`)
+
 // Lint checks one piece of renter-facing text (a title, intro, or statement
 // body) against the voice rules. It returns one message per violation; empty
 // means the text passes. Never call it on citation quotes.
 func Lint(text string) []string {
 	var out []string
+	text = allowedTerms.ReplaceAllString(text, " ")
 
 	if dashRe.MatchString(text) {
 		out = append(out, `contains an em or en dash: use a period, a comma, a colon, or "to" for ranges`)
