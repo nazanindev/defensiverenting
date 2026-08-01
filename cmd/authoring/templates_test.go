@@ -12,7 +12,7 @@ import (
 // syntax errors and undefined functions/fields without needing a database.
 func parseTemplates(t *testing.T) *template.Template {
 	t.Helper()
-	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
+	tmpl, err := template.New("").Funcs(template.FuncMap{"date": fmtDate}).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		t.Fatalf("parse templates: %v", err)
 	}

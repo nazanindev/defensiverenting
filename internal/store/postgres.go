@@ -180,7 +180,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 				SELECT j.id, j.parent_id FROM jurisdictions j
 				JOIN ancestors a ON j.id = a.parent_id
 			),
-			q AS (SELECT plainto_tsquery('english', $2) AS tsq)
+			q AS (SELECT plainto_tsquery(lang_regconfig($3), $2) AS tsq)
 			SELECT
 				s.id,
 				s.body_md,
@@ -201,7 +201,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			*jurisdictionID, query, language)
 	} else {
 		stmtRows, err = pg.pool.Query(ctx, `
-			WITH q AS (SELECT plainto_tsquery('english', $1) AS tsq)
+			WITH q AS (SELECT plainto_tsquery(lang_regconfig($2), $1) AS tsq)
 			SELECT
 				s.id,
 				s.body_md,
@@ -245,7 +245,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 	}
 
 	pbRows, err := pg.pool.Query(ctx, `
-		WITH q AS (SELECT plainto_tsquery('english', $1) AS tsq)
+		WITH q AS (SELECT plainto_tsquery(lang_regconfig($3), $1) AS tsq)
 		SELECT
 			pb.slug, pb.title, pb.intro_md,
 			ts_rank_cd(pb.body_tsv, q.tsq) AS rank,

@@ -3,11 +3,13 @@ package drafting
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/nazanindev/defensiverenting/internal/discover"
 	"github.com/nazanindev/defensiverenting/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 )
 
 // ---- find_sources ----------------------------------------------------------
@@ -141,6 +143,16 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		return SaveDraftOutput{}, reject("a PUBLISHED playbook already exists for %s/%s — refusing to overwrite it. Choose a different topic, or a human must unpublish it first.", in.CitySlug, in.TopicSlug)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return SaveDraftOutput{}, err
+	}
+
+	// Guardrail: renter-facing text must pass the editorial-voice lint.
+	// Citation quotes are exempt: they must stay verbatim source text.
+	texts := map[string]string{"title": in.Title, "intro_md": in.IntroMD}
+	for si, st := range in.Statements {
+		texts[fmt.Sprintf("statement %d body_md", si+1)] = st.BodyMD
+	}
+	if violations := voice.LintAll(texts); len(violations) > 0 {
+		return SaveDraftOutput{}, reject("draft rejected by the editorial-voice lint. Rewrite the flagged text in plain language and save again (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 	}
 
 	// Guardrail: every citation quote must be verbatim in the cached fetched text.
