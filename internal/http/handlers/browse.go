@@ -7,6 +7,9 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nazanindev/defensiverenting/internal/content"
@@ -36,7 +39,10 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		render(w, r, http.StatusOK, tmpl.IndexPage{Jurisdictions: jurisdictions})
+		render(w, r, http.StatusOK, tmpl.IndexPage{
+			Jurisdictions:  jurisdictions,
+			StructuredData: siteSchema(),
+		})
 	}
 }
 
@@ -92,6 +98,8 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 
 	// Render each statement's body markdown and validate citation invariant
 	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
+	var sourceURLs []string
+	seenSources := make(map[string]bool)
 	for _, s := range pb.Statements {
 		if len(s.Citations) == 0 {
 			// Log the violation and skip rather than panic in production.
@@ -103,11 +111,15 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 		chips := make([]tmpl.CitationChip, 0, len(s.Citations))
 		for _, c := range s.Citations {
 			chips = append(chips, tmpl.CitationChip{
-				URL:       c.SourceURL + anchorFragment(c.Locator),
-				Label:     c.Publisher,
-				Locator:   c.Locator,
+				URL:        c.SourceURL + anchorFragment(c.Locator),
+				Label:      c.Publisher,
+				Locator:    c.Locator,
 				SourceKind: c.SourceKind,
 			})
+			if !seenSources[c.SourceURL] && c.SourceKind != "editorial" {
+				seenSources[c.SourceURL] = true
+				sourceURLs = append(sourceURLs, c.SourceURL)
+			}
 		}
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:  content.RenderMarkdown(s.BodyMD),
@@ -115,13 +127,17 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 		})
 	}
 
+	canonical := tmpl.BaseURL() + "/j/" + pb.Jurisdiction.Slug + "/" + pb.Topic.Slug
+
 	return tmpl.PlaybookPage{
 		Playbook:       pb.Playbook,
 		Jurisdiction:   pb.Jurisdiction,
 		Topic:          pb.Topic,
 		IntroHTML:      introHTML,
 		Statements:     statements,
-		StructuredData: articleSchema(pb.Playbook.Title, pb.Jurisdiction.Name),
+		Description:    metaDescription(pb.IntroMD, pb.Playbook.Title, pb.Jurisdiction.Name),
+		Canonical:      canonical,
+		StructuredData: playbookSchema(pb, canonical, sourceURLs),
 	}
 }
 
@@ -133,27 +149,127 @@ func anchorFragment(locator string) string {
 	return "#" + locator
 }
 
-// articleSchema builds a Schema.org Article JSON-LD blob for a playbook page.
-func articleSchema(title, jurisdiction string) template.JS {
-	type org struct {
-		Type string `json:"@type"`
-		Name string `json:"name"`
-	}
-	schema := struct {
-		Context     string `json:"@context"`
-		Type        string `json:"@type"`
-		Headline    string `json:"headline"`
-		Description string `json:"description"`
-		Author      org    `json:"author"`
-		Publisher   org    `json:"publisher"`
+const siteName = "RenterLaw"
+
+type schemaOrg struct {
+	Type string `json:"@type"`
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
+
+type breadcrumbItem struct {
+	Type     string `json:"@type"`
+	Position int    `json:"position"`
+	Name     string `json:"name"`
+	Item     string `json:"item,omitempty"`
+}
+
+// playbookSchema builds a Schema.org @graph (Article + BreadcrumbList) for a
+// playbook page. isBasedOn lists the primary sources the playbook cites.
+func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURLs []string) template.JS {
+	article := struct {
+		Type          string    `json:"@type"`
+		Headline      string    `json:"headline"`
+		Description   string    `json:"description"`
+		URL           string    `json:"url"`
+		MainEntity    string    `json:"mainEntityOfPage"`
+		DatePublished string    `json:"datePublished,omitempty"`
+		DateModified  string    `json:"dateModified,omitempty"`
+		IsBasedOn     []string  `json:"isBasedOn,omitempty"`
+		Author        schemaOrg `json:"author"`
+		Publisher     schemaOrg `json:"publisher"`
 	}{
-		Context:     "https://schema.org",
 		Type:        "Article",
-		Headline:    title + " — " + jurisdiction + " Tenant Rights",
-		Description: "Plain-language, citation-backed guide for tenants in " + jurisdiction + ".",
-		Author:      org{"Organization", "Defensive Renting"},
-		Publisher:   org{"Organization", "Defensive Renting"},
+		Headline:    pb.Playbook.Title + " — " + pb.Jurisdiction.Name + " Tenant Rights",
+		Description: metaDescription(pb.IntroMD, pb.Playbook.Title, pb.Jurisdiction.Name),
+		URL:         canonical,
+		MainEntity:  canonical,
+		IsBasedOn:   sourceURLs,
+		Author:      schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
+		Publisher:   schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
 	}
-	data, _ := json.Marshal(schema)
+	if pb.Playbook.PublishedAt != nil {
+		article.DatePublished = pb.Playbook.PublishedAt.Format(time.DateOnly)
+	}
+	switch {
+	case pb.Playbook.LastReviewedAt != nil:
+		article.DateModified = pb.Playbook.LastReviewedAt.Format(time.DateOnly)
+	case !pb.Playbook.UpdatedAt.IsZero():
+		article.DateModified = pb.Playbook.UpdatedAt.Format(time.DateOnly)
+	}
+
+	breadcrumbs := struct {
+		Type  string           `json:"@type"`
+		Items []breadcrumbItem `json:"itemListElement"`
+	}{
+		Type: "BreadcrumbList",
+		Items: []breadcrumbItem{
+			{Type: "ListItem", Position: 1, Name: "Home", Item: tmpl.BaseURL() + "/"},
+			{Type: "ListItem", Position: 2, Name: pb.Jurisdiction.Name, Item: tmpl.BaseURL() + "/j/" + pb.Jurisdiction.Slug},
+			{Type: "ListItem", Position: 3, Name: pb.Topic.Name},
+		},
+	}
+
+	graph := struct {
+		Context string `json:"@context"`
+		Graph   []any  `json:"@graph"`
+	}{
+		Context: "https://schema.org",
+		Graph:   []any{article, breadcrumbs},
+	}
+	data, _ := json.Marshal(graph)
 	return template.JS(data) //nolint:gosec // safe: json.Marshal HTML-escapes all string fields; no raw user input reaches this value
+}
+
+// siteSchema builds WebSite + Organization JSON-LD for the homepage.
+func siteSchema() template.JS {
+	base := tmpl.BaseURL()
+	graph := struct {
+		Context string `json:"@context"`
+		Graph   []any  `json:"@graph"`
+	}{
+		Context: "https://schema.org",
+		Graph: []any{
+			struct {
+				Type        string    `json:"@type"`
+				Name        string    `json:"name"`
+				URL         string    `json:"url"`
+				Description string    `json:"description"`
+				Publisher   schemaOrg `json:"publisher"`
+			}{
+				Type:        "WebSite",
+				Name:        siteName,
+				URL:         base + "/",
+				Description: "Free tenant rights guides backed by primary legal sources, organized by city and situation.",
+				Publisher:   schemaOrg{Type: "Organization", Name: siteName, URL: base},
+			},
+			schemaOrg{Type: "Organization", Name: siteName, URL: base},
+		},
+	}
+	data, _ := json.Marshal(graph)
+	return template.JS(data) //nolint:gosec // safe: json.Marshal HTML-escapes all string fields; no raw user input reaches this value
+}
+
+var mdLinkRe = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+var mdMarkupRe = regexp.MustCompile("[#*_`>]+")
+
+// metaDescription derives a plain-text meta description from the playbook
+// intro, falling back to a templated line when there is no intro. Truncates
+// near 155 characters on a word boundary.
+func metaDescription(introMD, title, jurisdiction string) string {
+	text := mdLinkRe.ReplaceAllString(introMD, "$1")
+	text = mdMarkupRe.ReplaceAllString(text, "")
+	text = strings.Join(strings.Fields(text), " ")
+	if text == "" {
+		return title + " — free, step-by-step tenant rights guide for " + jurisdiction + ", backed by primary sources."
+	}
+	const limit = 155
+	if len(text) <= limit {
+		return text
+	}
+	cut := strings.LastIndex(text[:limit], " ")
+	if cut <= 0 {
+		cut = limit
+	}
+	return text[:cut] + "…"
 }

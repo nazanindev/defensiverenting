@@ -41,6 +41,9 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 		fmt.Fprintf(w, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
 		fmt.Fprintf(w, "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n")
 		fmt.Fprintf(w, "  <url><loc>%s/</loc><changefreq>weekly</changefreq></url>\n", siteURL)
+		for _, p := range []string{"/about", "/support", "/editorial"} {
+			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>yearly</changefreq></url>\n", siteURL, p)
+		}
 
 		for _, j := range jurisdictions {
 			fmt.Fprintf(w, "  <url><loc>%s/j/%s</loc><changefreq>weekly</changefreq></url>\n", siteURL, j.Slug)
