@@ -136,6 +136,13 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		return SaveDraftOutput{}, err
 	}
 
+	// Guardrail: topics are shared across cities; a city-prefixed topic slug
+	// fragments cross-city hubs and produces /j/{city}/{city}-{topic} URLs.
+	if strings.HasPrefix(in.TopicSlug, in.CitySlug+"-") {
+		return SaveDraftOutput{}, reject("topic_slug %q is prefixed with the city slug — topics are shared across cities. Use %q instead (call list_topics to see existing shared topics).",
+			in.TopicSlug, strings.TrimPrefix(in.TopicSlug, in.CitySlug+"-"))
+	}
+
 	// Refuse to clobber a PUBLISHED playbook. GetPlaybook returns only published
 	// rows, so a not-found here means the slot is free or holds a draft (which
 	// re-drafting may safely overwrite).
