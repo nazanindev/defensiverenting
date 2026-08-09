@@ -532,7 +532,7 @@ func (s *srv) redirectToCandidates(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
-	cities, err := s.pg.ListCityJurisdictions(r.Context())
+	jurisdictions, err := s.pg.ListAuthorableJurisdictions(r.Context())
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -543,7 +543,7 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := map[string]any{
-		"Cities": cities, "Topics": topics, "Error": "",
+		"Jurisdictions": jurisdictions, "Topics": topics, "Error": "",
 		"PreloadJSON": template.JS("null"),
 	}
 
@@ -920,8 +920,8 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"PreloadJSON": template.JS(pj),
 	}
 	if pw.Playbook.Status == "draft" {
-		cities, _ := s.pg.ListCityJurisdictions(ctx)
-		data["Cities"] = cities
+		jurisdictions, _ := s.pg.ListAuthorableJurisdictions(ctx)
+		data["Jurisdictions"] = jurisdictions
 	}
 	return data
 }
@@ -1122,12 +1122,18 @@ func (s *srv) serverError(w http.ResponseWriter, err error) {
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
 }
 
+// formError re-renders the new-playbook form with a validation message. Both
+// selects have to be repopulated: without Topics the author lands on a form
+// whose topic dropdown is empty and cannot resubmit at all.
 func (s *srv) formError(w http.ResponseWriter, msg string) {
-	cities, _ := s.pg.ListCityJurisdictions(context.Background())
+	ctx := context.Background()
+	jurisdictions, _ := s.pg.ListAuthorableJurisdictions(ctx)
+	topics, _ := s.pg.ListTopicRegistry(ctx)
 	s.render(w, "form.html", map[string]any{
-		"Cities":      cities,
-		"Error":       msg,
-		"PreloadJSON": template.JS("null"),
+		"Jurisdictions": jurisdictions,
+		"Topics":        topics,
+		"Error":         msg,
+		"PreloadJSON":   template.JS("null"),
 	})
 }
 

@@ -106,10 +106,10 @@
       <h2>Playbook</h2>
 
       {{if and .EditMode (eq .Status "published")}}
-      <!-- Published edit: city and topic are locked -->
+      <!-- Published edit: location and topic are locked -->
       <div class="g2">
         <div class="field">
-          <label>City</label>
+          <label>Location</label>
           <div style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:.875rem;background:#f8f9ff;color:#4a5568">{{.CityName}}</div>
         </div>
         <div class="field">
@@ -118,13 +118,25 @@
         </div>
       </div>
       {{else}}
-      <!-- New or draft-edit: city and topic selectors -->
+      <!-- New or draft-edit: location and topic selectors -->
       <div class="g2">
         <div class="field">
-          <label>City *</label>
+          <label>Location *</label>
+          {{/* Every level can hold a page — a national page, a statewide one, or
+               a city one. Listing only cities left any non-city page with no
+               option selected, and a required empty select silently refuses to
+               submit, so the page could be edited but never saved. */}}
           <select name="jurisdiction_select" id="city-sel" onchange="onCityChange(this)" required>
-            <option value="">— pick a city —</option>
-            {{range .Cities}}<option value="{{.Slug}}"{{if eq .Slug $.SelectedCitySlug}} selected{{end}} data-name="{{.Name}}">{{.Name}}</option>{{end}}
+            <option value="">— pick a location —</option>
+            <optgroup label="Cities">
+              {{range .Jurisdictions}}{{if eq .Kind "city"}}<option value="{{.Slug}}"{{if eq .Slug $.SelectedCitySlug}} selected{{end}} data-name="{{.Name}}" data-parent="{{.ParentSlug}}">{{.Name}}{{if .ParentName}} — {{.ParentName}}{{end}}</option>{{end}}{{end}}
+            </optgroup>
+            <optgroup label="Statewide">
+              {{range .Jurisdictions}}{{if eq .Kind "state"}}<option value="{{.Slug}}"{{if eq .Slug $.SelectedCitySlug}} selected{{end}} data-name="{{.Name}}" data-parent="">{{.Name}} — statewide</option>{{end}}{{end}}
+            </optgroup>
+            <optgroup label="National">
+              {{range .Jurisdictions}}{{if eq .Kind "country"}}<option value="{{.Slug}}"{{if eq .Slug $.SelectedCitySlug}} selected{{end}} data-name="{{.Name}}" data-parent="">{{.Name}} — national</option>{{end}}{{end}}
+            </optgroup>
             <option value="new">+ New city…</option>
           </select>
         </div>
@@ -140,16 +152,6 @@
             </optgroup>
           </select>
         </div>
-      </div>
-
-      <!-- Page kind selector -->
-      <div class="field" style="margin-top:10px">
-        <label>Page type *</label>
-        <select name="page_kind" id="page-kind-sel" onchange="onPageKindChange(this.value)">
-          <option value="playbook"{{if or (eq $.SelectedPageKind "playbook") (eq $.SelectedPageKind "")}} selected{{end}}>Playbook — step-by-step legal rights guide</option>
-          <option value="directory"{{if eq $.SelectedPageKind "directory"}} selected{{end}}>Directory — list of orgs or services</option>
-        </select>
-        <p class="hint" id="page-kind-hint">Numbered statements backed by statute or regulation citations.</p>
       </div>
 
       <!-- New-city fields (hidden until "New city…" selected) -->
@@ -180,12 +182,26 @@
       {{/* No custom-topic field: topics are a closed registry (ADR-005 D5).
            A new topic is added by migration, not invented while saving a page. */}}
 
-      <!-- Full slug preview (always shown once city+topic chosen) -->
+      <!-- Full slug preview (always shown once location+topic chosen) -->
       <div class="derived" id="full-slug-row" style="display:none; margin-bottom:14px">
         <span class="derived-label">page URL →</span>
         <span class="derived-value" id="full-slug-preview">…</span>
       </div>
       {{end}}
+
+      {{/* Page type sits outside the published/draft split on purpose. It is
+           rendering, not identity: locking it the way the URL fields are locked
+           meant the published branch posted no page_kind at all, and the empty
+           value defaulted back to "playbook" — silently turning a directory
+           page into a playbook the first time anyone edited it. */}}
+      <div class="field" style="margin-top:10px">
+        <label>Page type *</label>
+        <select name="page_kind" id="page-kind-sel" onchange="onPageKindChange(this.value)">
+          <option value="playbook"{{if or (eq $.SelectedPageKind "playbook") (eq $.SelectedPageKind "")}} selected{{end}}>Playbook — step-by-step legal rights guide</option>
+          <option value="directory"{{if eq $.SelectedPageKind "directory"}} selected{{end}}>Directory — list of orgs or services</option>
+        </select>
+        <p class="hint" id="page-kind-hint">Numbered statements backed by statute or regulation citations.</p>
+      </div>
 
       <div class="field">
         <label>Title *</label>
@@ -234,7 +250,7 @@ let sources = [], stmts = [];
 let nextSrcId = 0, nextStmtId = 0;
 let curPageKind = document.getElementById('page-kind-sel')?.value || 'playbook';
 
-let curCitySlug = '', curCityName = '';
+let curCitySlug = '', curCityName = '', curParentSlug = '';
 let curTopicKey = '';
 let lastAutoTitle = '';
 let dragSrcIdx = null;
@@ -268,6 +284,9 @@ const PAGE_KIND_LABELS = {
 };
 
 function onPageKindChange(v) {
+  // render() rebuilds both containers from JS state, so anything typed since
+  // the last sync would be thrown away without this.
+  sync();
   curPageKind = v;
   const hint = document.getElementById('page-kind-hint');
   if (hint) hint.textContent = PAGE_KIND_HINTS[v] || '';
@@ -296,6 +315,15 @@ if (PRELOAD && PRELOAD.sources) {
   render();
 }
 
+// Editing a draft arrives with both selects already set. Seed the derived state
+// from them so the URL preview is right before the author touches anything.
+(function initFromSelects() {
+  const cs = document.getElementById('city-sel');
+  if (cs && cs.value && cs.value !== 'new') { onCityChange(cs); }
+  const ts = document.getElementById('topic-sel');
+  if (ts && ts.value) { onTopicChange(ts.value); }
+})();
+
 // ── City / topic derivation ────────────────────────────────────────────────
 
 function onCityChange(sel) {
@@ -303,10 +331,13 @@ function onCityChange(sel) {
   if (sel.value === 'new') {
     curCitySlug = '';
     curCityName = '';
+    curParentSlug = '';
     show('new-city-panel');
   } else {
     curCitySlug = sel.value;
     curCityName = opt.dataset.name || opt.text;
+    // Empty for statewide and national pages, which sit at the top level.
+    curParentSlug = opt.dataset.parent || '';
     hide('new-city-panel');
   }
   updateDerived();
@@ -320,7 +351,9 @@ function onCityNameInput(v) {
 }
 
 function onStateNameInput(v) {
-  setText('state-slug-preview', slugify(v) || '…');
+  curParentSlug = slugify(v);
+  setText('state-slug-preview', curParentSlug || '…');
+  updateDerived();
 }
 
 function onTopicChange(v) {
@@ -328,9 +361,18 @@ function onTopicChange(v) {
   updateDerived();
 }
 
+// Mirrors Jurisdiction.Path in internal/store/models.go: a city sits under its
+// state, everything else sits at the top level. Previewing the flat
+// /j/{city}/{topic} shape here is what showed authors a URL that stopped
+// existing in the 2026-08-01 cleanup.
+function jurisdictionPath() {
+  if (!curCitySlug) return '';
+  return curParentSlug ? '/j/' + curParentSlug + '/' + curCitySlug : '/j/' + curCitySlug;
+}
+
 function updateDerived() {
   const topicKey = curTopicKey;
-  const fullSlug = curCitySlug && topicKey ? '/j/' + curCitySlug + '/' + topicKey : '';
+  const fullSlug = curCitySlug && topicKey ? jurisdictionPath() + '/' + topicKey : '';
   if (fullSlug) {
     setText('full-slug-preview', fullSlug);
     show('full-slug-row');

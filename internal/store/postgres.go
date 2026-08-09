@@ -60,6 +60,30 @@ func (pg *PG) ListCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	return scanJurisdictions(rows)
 }
 
+// ListAuthorableJurisdictions returns every jurisdiction a page can be scoped
+// to, not just cities. Tenant law layers — federal, then state, then local
+// ordinances — and the content model has always allowed a playbook to hang off
+// any level (Jurisdiction.Path renders all three). Only the authoring form's
+// picker was city-only, which left the national "Renting Basics" page
+// unsaveable: no option matched, so the required select submitted empty and the
+// edit was rejected as "Unknown city selected".
+//
+// Ordered country first, then states, then cities grouped under their state, so
+// the form can emit optgroups without a second pass.
+func (pg *PG) ListAuthorableJurisdictions(ctx context.Context) ([]Jurisdiction, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(p.slug, ''), COALESCE(p.name, '')
+		FROM jurisdictions j
+		LEFT JOIN jurisdictions p ON p.id = j.parent_id
+		ORDER BY CASE j.kind WHEN 'country' THEN 0 WHEN 'state' THEN 1 ELSE 2 END,
+		         COALESCE(p.name, ''), j.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJurisdictions(rows)
+}
+
 // ListPublishedCityJurisdictions returns city-level jurisdictions that have
 // at least one published playbook. Used by the public site to avoid showing
 // cities whose only playbooks have been deleted or were never published.
