@@ -304,6 +304,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 				s.body_md,
 				ts_rank_cd(s.body_tsv, q.tsq) AS rank,
 				COALESCE(j.slug, ''),
+				COALESCE(pj.slug, ''),
 				COALESCE(t.slug, ''),
 				COALESCE(pb.slug, ''),
 				COALESCE(pb.title,'')
@@ -314,6 +315,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			LEFT JOIN playbooks pb ON pb.id = ps.playbook_id
 			LEFT JOIN topics t ON t.id = pb.topic_id
 			LEFT JOIN jurisdictions j ON j.id = s.jurisdiction_id
+			LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 			WHERE s.body_tsv @@ q.tsq AND s.language = $3
 			ORDER BY rank DESC LIMIT 20`,
 			*jurisdictionID, query, language)
@@ -325,6 +327,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 				s.body_md,
 				ts_rank_cd(s.body_tsv, q.tsq) AS rank,
 				COALESCE(j.slug, ''),
+				COALESCE(pj.slug, ''),
 				COALESCE(t.slug, ''),
 				COALESCE(pb.slug, ''),
 				COALESCE(pb.title,'')
@@ -334,6 +337,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			LEFT JOIN playbooks pb ON pb.id = ps.playbook_id
 			LEFT JOIN topics t ON t.id = pb.topic_id
 			LEFT JOIN jurisdictions j ON j.id = s.jurisdiction_id
+			LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 			WHERE s.body_tsv @@ q.tsq AND s.language = $2
 			ORDER BY rank DESC LIMIT 20`,
 			query, language)
@@ -348,7 +352,8 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 		var r SearchResult
 		var sid int64
 		if err := stmtRows.Scan(&sid, &r.Snippet, &r.Rank,
-			&r.JurisdictionSlug, &r.TopicSlug, &r.PlaybookSlug, &r.PlaybookTitle); err != nil {
+			&r.JurisdictionSlug, &r.JurisdictionParentSlug, &r.TopicSlug,
+			&r.PlaybookSlug, &r.PlaybookTitle); err != nil {
 			return nil, err
 		}
 		r.Type = "statement"
@@ -367,10 +372,11 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 		SELECT
 			pb.slug, pb.title, pb.intro_md,
 			ts_rank_cd(pb.body_tsv, q.tsq) AS rank,
-			j.slug, t.slug
+			j.slug, COALESCE(pj.slug, ''), t.slug
 		FROM playbooks pb
 		CROSS JOIN q
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		JOIN topics t ON t.id = pb.topic_id
 		WHERE pb.body_tsv @@ q.tsq
 		  AND ($2::BIGINT IS NULL OR pb.jurisdiction_id = $2)
@@ -385,7 +391,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 	for pbRows.Next() {
 		var r SearchResult
 		if err := pbRows.Scan(&r.PlaybookSlug, &r.PlaybookTitle, &r.Snippet, &r.Rank,
-			&r.JurisdictionSlug, &r.TopicSlug); err != nil {
+			&r.JurisdictionSlug, &r.JurisdictionParentSlug, &r.TopicSlug); err != nil {
 			return nil, err
 		}
 		r.Type = "playbook"
@@ -402,9 +408,11 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 // ListSitemapURLs returns jurisdiction/topic slug pairs for all English playbooks.
 func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT j.slug, t.slug, COALESCE(pb.last_reviewed_at, pb.published_at, pb.updated_at)
+		SELECT j.slug, COALESCE(pj.slug, ''), j.kind, t.slug,
+		       COALESCE(pb.last_reviewed_at, pb.published_at, pb.updated_at)
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		JOIN topics        t ON t.id  = pb.topic_id
 		WHERE pb.language = 'en' AND pb.status = 'published'
 		ORDER BY j.slug, t.slug`)
@@ -415,7 +423,8 @@ func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
 	var entries []SitemapEntry
 	for rows.Next() {
 		var e SitemapEntry
-		if err := rows.Scan(&e.JurisdictionSlug, &e.TopicSlug, &e.LastMod); err != nil {
+		if err := rows.Scan(&e.JurisdictionSlug, &e.JurisdictionParentSlug,
+			&e.JurisdictionKind, &e.TopicSlug, &e.LastMod); err != nil {
 			return nil, err
 		}
 		entries = append(entries, e)

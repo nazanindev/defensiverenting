@@ -96,7 +96,7 @@ func logger() *slog.Logger {
 func TestIndexHandler_listsJurisdictions(t *testing.T) {
 	stub := &stubStore{
 		jurisdictions: []store.Jurisdiction{
-			{ID: 1, Kind: "city", Name: "Boston", Slug: "boston"},
+			{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"},
 		},
 	}
 	r := chi.NewRouter()
@@ -131,7 +131,7 @@ func TestJurisdictionHandler_notFound(t *testing.T) {
 
 func TestPlaybookHandler_citationChips(t *testing.T) {
 	stub := &stubStore{
-		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston"}},
+		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}},
 		topics:        []store.Topic{{ID: 1, Slug: "heat-not-working", Name: "Heat Not Working"}},
 		playbook: store.PlaybookWithStatements{
 			Playbook: store.Playbook{
@@ -161,7 +161,7 @@ func TestPlaybookHandler_citationChips(t *testing.T) {
 	r := chi.NewRouter()
 	handlers.Browse(r, stub, logger())
 
-	req := httptest.NewRequest(http.MethodGet, "/j/boston/heat-not-working", nil)
+	req := httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/heat-not-working", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -179,13 +179,13 @@ func TestPlaybookHandler_citationChips(t *testing.T) {
 
 func TestPlaybookHandler_playbookNotFound(t *testing.T) {
 	stub := &stubStore{
-		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston"}},
+		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}},
 		playbookErr:   store.ErrNotFound,
 	}
 	r := chi.NewRouter()
 	handlers.Browse(r, stub, logger())
 
-	req := httptest.NewRequest(http.MethodGet, "/j/boston/no-such-topic", nil)
+	req := httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/no-such-topic", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 

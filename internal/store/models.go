@@ -145,14 +145,32 @@ type SearchResult struct {
 	Snippet          string
 	Rank             float64
 	JurisdictionSlug string
-	TopicSlug        string
+	// JurisdictionParentSlug carries the state so a result can link to the
+	// hierarchical URL without a second query per row.
+	JurisdictionParentSlug string
+	TopicSlug              string
+}
+
+// Path is the URL of the page this result points at.
+func (r SearchResult) Path() string {
+	j := Jurisdiction{Kind: "city", Slug: r.JurisdictionSlug, ParentSlug: r.JurisdictionParentSlug}
+	return j.TopicPath(r.TopicSlug)
 }
 
 // SitemapEntry is a single playbook URL row used to build sitemap.xml.
 type SitemapEntry struct {
-	JurisdictionSlug string
-	TopicSlug        string
-	LastMod          *time.Time
+	JurisdictionSlug       string
+	JurisdictionParentSlug string
+	JurisdictionKind       string
+	TopicSlug              string
+	LastMod                *time.Time
+}
+
+// Path is the URL to emit for this entry. The sitemap must agree with the
+// canonical tag on the page, so both are built from Jurisdiction.TopicPath.
+func (e SitemapEntry) Path() string {
+	j := Jurisdiction{Kind: e.JurisdictionKind, Slug: e.JurisdictionSlug, ParentSlug: e.JurisdictionParentSlug}
+	return j.TopicPath(e.TopicSlug)
 }
 
 // SourceCandidate is a proposed source awaiting author triage in the discovery

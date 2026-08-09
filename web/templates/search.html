@@ -38,12 +38,12 @@
       {{range .Results}}
       <li class="search-result">
         {{if eq .Type "playbook"}}
-          <a class="result-title" href="/j/{{.JurisdictionSlug}}/{{.TopicSlug}}">{{.PlaybookTitle}}</a>
+          <a class="result-title" href="{{.Path}}">{{.PlaybookTitle}}</a>
           <span class="result-meta">Playbook · {{.JurisdictionSlug}}</span>
           {{if .Snippet}}<p class="result-snippet">{{.Snippet}}</p>{{end}}
         {{else}}
           {{if and .PlaybookSlug .JurisdictionSlug}}
-          <a class="result-title" href="/j/{{.JurisdictionSlug}}/{{.TopicSlug}}">{{.PlaybookTitle}}</a>
+          <a class="result-title" href="{{.Path}}">{{.PlaybookTitle}}</a>
           {{else}}
           <span class="result-title">Statement</span>
           {{end}}

@@ -19,7 +19,9 @@ func Robots(siteURL string) http.HandlerFunc {
 }
 
 type sitemapStore interface {
-	ListCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	// Published only: a city with nothing published has an empty hub page, and
+	// submitting it invites Google to index a page with no content on it.
+	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListSitemapURLs(ctx context.Context) ([]store.SitemapEntry, error)
 	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
 }
@@ -27,7 +29,7 @@ type sitemapStore interface {
 // Sitemap serves /sitemap.xml listing all jurisdiction and playbook pages.
 func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		jurisdictions, err := db.ListCityJurisdictions(r.Context())
+		jurisdictions, err := db.ListPublishedCityJurisdictions(r.Context())
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -56,16 +58,16 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 		}
 
 		for _, j := range jurisdictions {
-			fmt.Fprintf(w, "  <url><loc>%s/j/%s</loc><changefreq>weekly</changefreq></url>\n", siteURL, j.Slug)
+			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>weekly</changefreq></url>\n", siteURL, j.Path())
 		}
 
 		for _, e := range entries {
 			if e.LastMod != nil {
-				fmt.Fprintf(w, "  <url><loc>%s/j/%s/%s</loc><lastmod>%s</lastmod><changefreq>monthly</changefreq></url>\n",
-					siteURL, e.JurisdictionSlug, e.TopicSlug, e.LastMod.Format(time.DateOnly))
+				fmt.Fprintf(w, "  <url><loc>%s%s</loc><lastmod>%s</lastmod><changefreq>monthly</changefreq></url>\n",
+					siteURL, e.Path(), e.LastMod.Format(time.DateOnly))
 			} else {
-				fmt.Fprintf(w, "  <url><loc>%s/j/%s/%s</loc><changefreq>monthly</changefreq></url>\n",
-					siteURL, e.JurisdictionSlug, e.TopicSlug)
+				fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>monthly</changefreq></url>\n",
+					siteURL, e.Path())
 			}
 		}
 
