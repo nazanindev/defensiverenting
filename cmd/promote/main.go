@@ -28,6 +28,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -40,6 +41,7 @@ func main() {
 	status := flag.String("status", "draft", "only promote playbooks with this status")
 	exclude := flag.String("exclude", "", "comma-separated jurisdiction slugs to skip")
 	skipExisting := flag.Bool("skip-existing", false, "skip playbooks the destination already has, instead of replacing them (use to resume an interrupted run)")
+	attempts := flag.Int("attempts", 4, "attempts per playbook before giving up")
 	apply := flag.Bool("apply", false, "actually write to the destination")
 	flag.Parse()
 
@@ -85,7 +87,7 @@ func main() {
 	// the pool re-dials on the next acquire, so continuing usually recovers.
 	var failed []string
 	for _, p := range plans {
-		if err := promote(ctx, srcPG, dstPG, p); err != nil {
+		if err := promoteWithRetry(ctx, srcPG, dstPG, p, *attempts); err != nil {
 			fmt.Printf("  FAILED   %s/%s: %v\n", p.CitySlug, p.TopicSlug, err)
 			failed = append(failed, p.CitySlug+"/"+p.TopicSlug)
 			continue
@@ -223,6 +225,28 @@ func ancestry(ctx context.Context, pg *store.PG, j store.Jurisdiction) ([]store.
 		}
 		cur = parent
 	}
+}
+
+// promoteWithRetry retries a playbook with backoff before giving up.
+//
+// This normally runs across a `fly proxy` tunnel, which flaps: connections die
+// mid-run and the listener recovers seconds later. Every step of promote() is
+// idempotent — jurisdictions and topics resolve by slug, sources by URL, and
+// IngestPlaybook upserts on (jurisdiction, topic, language) — so retrying after
+// a partial failure re-does work rather than duplicating it.
+func promoteWithRetry(ctx context.Context, srcPG, dstPG *store.PG, p plan, attempts int) error {
+	var err error
+	for i := range attempts {
+		if i > 0 {
+			delay := time.Duration(1<<uint(i-1)) * 2 * time.Second
+			fmt.Printf("  retrying %s/%s in %s (%v)\n", p.CitySlug, p.TopicSlug, delay, err)
+			time.Sleep(delay)
+		}
+		if err = promote(ctx, srcPG, dstPG, p); err == nil {
+			return nil
+		}
+	}
+	return err
 }
 
 func promote(ctx context.Context, srcPG, dstPG *store.PG, p plan) error {
