@@ -1,27 +1,60 @@
-# ADR-005 — Slug identity, uniqueness, and the public URL scheme
+# ADR-005 — Jurisdiction hierarchy, slug identity, and the public URL scheme
 
 | | |
 |---|---|
 | Status | Proposed |
 | Date | 2026-08-01 |
+| Revised | 2026-08-09 — supersedes the flat-URL and USPS-suffix decisions of the first draft |
 
 ## Context
 
-Public URLs are built from two slug namespaces: jurisdictions (`/j/{slug}`, `/j/{slug}/{topic}`) and topics (`/t/{slug}`). Slugs are the only public identifiers: canonical tags, JSON-LD breadcrumbs, the sitemap, internal cross-links, the search `j` filter, and the drafting MCP toolbelt all key on them. The site is live on renterlaw.org with published playbooks for Boston, Pittsburgh, and Seattle (indexed since 2026-07-05) and 25 pilot drafts in review for five more cities.
+Public URLs are built from two slug namespaces: jurisdictions (`/j/{slug}`, `/j/{slug}/{topic}`) and topics (`/t/{slug}`). Slugs are the only public identifiers: canonical tags, JSON-LD breadcrumbs, the sitemap, internal cross-links, the search `j` filter, and the drafting MCP toolbelt all key on them. The site is live on renterlaw.org with 19 published playbooks across Boston, Pittsburgh, and Seattle (indexed since 2026-07-05), and 26 pilot drafts awaiting review for five more cities.
 
 On 2026-08-01 we shipped our first slug incident cleanup: early drafting runs created per-city topic slugs (`pittsburgh-cant-pay-rent`, `seattle-*`) instead of reusing shared topics. That fragmented topic hubs and cross-city links, and unwinding it required hand-verified production surgery (`scripts/2026-08-01-merge-city-prefixed-topics.sql`) plus a rejection guardrail in `save_draft_playbook`.
 
-A code audit prompted by that incident found the root cause is still live, and that the same class of failure is waiting in the jurisdiction namespace:
+A code audit prompted by that incident found the root cause was still live, and that the same class of failure was waiting in the jurisdiction namespace. The general lesson, restated as an invariant:
 
-1. **The authoring UI still fabricates city-prefixed topic slugs.** Both the create flow (`cmd/authoring/main.go:722`) and the draft-edit flow (`cmd/authoring/main.go:983`) derive `topicSlug := citySlug + "-" + topicKey` and invent a display name via `slugToTitle`. The 2026-08-01 guardrail only covers the MCP agent path. Every draft started in the authoring tool recreates the incident.
-2. **`UpsertJurisdiction` silently hijacks rows on slug collision** (`internal/store/postgres.go:364`, `ON CONFLICT (slug) DO UPDATE SET name, kind, parent_id`). City slugs are `toSlug(cityName)`, so creating Portland, Maine while Portland, Oregon exists does not error: it rewrites the existing row's name and parent state, silently reassigning every Portland OR playbook, statement, and source to Maine. The second Springfield does not collide; it hijacks the first.
-3. **`UpsertTopic` silently renames shared topics** (`ON CONFLICT (slug) DO UPDATE SET name`). Any draft, agent or human, that reuses an existing topic slug with a different display name renames that topic on every city page site-wide.
-4. **Bare city-name slugs guarantee future collisions.** Portland (OR/ME), Columbus (OH/GA), Kansas City (MO/KS), Springfield (IL/MA/MO/OH), Arlington (TX/VA), Charleston (SC/WV), Richmond (VA/CA), Aurora (IL/CO), Glendale (CA/AZ). At six cities we have dodged this; at a hundred we will not. Bare slugs are also ambiguous to renters and to search engines ("portland tenant rights" — which Portland?).
-5. **There is no rename mechanism.** A slug change breaks live URLs with no redirect. The topic cleanup already caused this: `/t/pittsburgh-discrimination` era URLs now 404.
-6. **`playbooks.slug` is redundant.** Routing keys on `topics.slug` (`GetPlaybook`); the playbook's own slug column is written but never read, and can silently diverge.
-7. **The discover seeds registry is keyed by bare city slugs** (`internal/discover/seeds.go`), so any slug change must be coordinated there.
+> **No string typed by an agent or a form may become a public identifier. Identifiers are either resolved against a registry or constructed by code with an enforced uniqueness rule.**
 
-The general lesson from the incident, restated as an invariant: **no string typed by an agent or a form may become a public identifier. Identifiers are either resolved against a registry or constructed by code with an enforced uniqueness rule.** The verbatim-citation guardrail already applies this philosophy to legal claims; this ADR applies it to URLs.
+The verbatim-citation guardrail already applies this philosophy to legal claims. This ADR applies it to URLs.
+
+### What has already shipped (2026-08-08)
+
+Three of the original findings were live defects independent of the URL-shape question, and are fixed:
+
+1. **Both authoring form paths fabricated city-prefixed topic slugs** (`citySlug + "-" + topicKey`). The 2026-08-01 guardrail only covered the MCP agent path, so the authoring UI — including the edit form, where a reviewer spends their time — could recreate the incident. Both paths now share `resolveTopic()`, which uses the shared topic key and rejects a city-prefixed custom slug the same way `internal/drafting` does. Covered by tests in `cmd/authoring/topic_test.go`.
+2. **`UpsertTopic` silently renamed shared topics site-wide** via `ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name`. Any save with a different display name renamed that topic on every city page. It is now a no-op update; renaming is an explicit editorial action.
+3. **Display names were invented by `slugToTitle`**, producing `"Boston Security Deposits"`. Names now come from a `knownTopics` map that mirrors the form dropdown.
+
+Still open from the original audit, and addressed below: silent-clobber `UpsertJurisdiction`, the absence of any rename mechanism, the redundant `playbooks.slug` column, and the seeds registry keyed by bare city slugs.
+
+### What the production data actually shows
+
+The URL decision was originally made against an assumed inventory. The real one:
+
+| City | Parent | Published |
+|---|---|---|
+| Boston | **none** | 6 |
+| Seattle | **none** | 6 |
+| Pittsburgh | pennsylvania | 7 |
+
+States `california`, `illinois`, `pennsylvania`, `texas` have no parent country; only `massachusetts` points at `united-states`. `washington` does not exist despite Seattle being published. `austin`, `chicago`, and `los-angeles` exist as empty rows with no playbooks.
+
+**The jurisdiction hierarchy is half-null.** Any decision that puts the parent state in the URL is blocked on repairing it first.
+
+Topic display names in production are `slugToTitle` output and are visible to renters: `"Cant Pay Rent"` (no apostrophe), `"Notice To Quit"` (capital T). They predate the fix above, which deliberately does not overwrite existing names.
+
+### The scaling problem this ADR actually has to solve
+
+Most tenant law is **state** law. Deposit limits, notice periods, the implied warranty of habitability — those are set by the state. Only a minority of cities (New York, San Francisco, Los Angeles, Chicago, Seattle, Portland, Washington DC) have ordinances that meaningfully change the answer.
+
+Scaling city-by-city with self-contained playbooks means Austin, Houston, Dallas, and San Antonio each carry a `security-deposits` page restating the same Texas statute. At 100 cities that is roughly 700 playbooks, mostly duplicated, which fails in three ways:
+
+- **Cost** — ~700 drafting runs plus 700 human reviews.
+- **Freshness** — Texas amends one statute and four-plus pages need re-verification. `sourcecheck` flags the same legal change once per duplicate.
+- **Search** — four near-identical pages competing with each other.
+
+The URL scheme is downstream of fixing this. That is the reasoning the first draft of this ADR was missing.
 
 ### Slug touchpoint inventory
 
@@ -29,29 +62,52 @@ Any change to slug rules must cover all of:
 
 | Surface | Location |
 |---|---|
-| Browse routes `/j/{j}`, `/j/{j}/{t}`, `/t/{t}` | `internal/http/handlers/browse.go` |
+| Browse routes | `internal/http/handlers/browse.go` |
 | Canonical URLs, JSON-LD Article + breadcrumbs | `browse.go` (`BuildPlaybookPage`, `playbookSchema`) |
 | Sitemap | `ListSitemapURLs`, `handlers/meta.go` |
 | Search jurisdiction filter (`?j=`) | `handlers/search.go`, hidden input in `playbook.html` |
 | MCP toolbelt (`city_slug`, `topic_slug` on every tool) | `internal/drafting/tools.go` |
 | Seeds registry keys | `internal/discover/seeds.go` |
-| Authoring UI (select by slug, new-city creation, `?j=` params) | `cmd/authoring/main.go` |
+| Authoring UI | `cmd/authoring/main.go` |
 | Ingest CLI | `cmd/ingest/main.go` |
-| Live indexed URLs (~25) | renterlaw.org sitemap |
+| Live indexed URLs (19, rising to 45 after the pilot batch publishes) | renterlaw.org sitemap |
 
 ## Decision
 
-### D1. City slugs carry the USPS state code: `{toSlug(name)}-{usps}`
+### D1. State law is written once; city pages carry the delta
 
-`chicago-il`, `boston-ma`, `portland-or`, `portland-me`. States keep full-name slugs (`illinois`, `massachusetts`); the country row stays `united-states`. A small curated override map is allowed at creation time for cases where the mechanical derivation reads badly (e.g. New York City → `new-york-ny`, not `new-york-city-ny`). Within a state, a duplicate city name is an error, not an upsert.
+The state playbook is the primary document for a topic. A city playbook exists only where a local ordinance changes the answer, and it addresses the difference rather than restating the state rule.
 
-This is uniqueness by construction, matches the dominant local-SEO convention (Zillow, Apartments.com, Yelp), and disambiguates for renters and crawlers alike.
+This is what makes 100 cities affordable: most new cities become a thin ordinance page over an existing state page, not a seven-topic drafting run. It also collapses the freshness problem — a state statute change touches one page.
 
-### D2. Routes are unchanged; a jurisdiction is always one path segment
+### D2. URLs are hierarchical: `/j/{state}/{city}/{topic}`
 
-`/j/{jurisdiction}` and `/j/{jurisdiction}/{topic}` serve cities and states identically — `/j/illinois` and `/j/illinois/rent-increase` route today with zero code changes because slugs are globally unique across the hierarchy. The truly hierarchical alternative (`/j/illinois/chicago/{topic}`) was rejected: it makes `/j/{a}/{b}` ambiguous between a state playbook and a city index, forcing a DB probe to classify segment two on every request, forever. The `/j/` prefix stays: dropping it would require reserving every current and future top-level page name as a forbidden slug, a permanent tax for a cosmetic gain.
+```
+/j/texas                              state hub
+/j/texas/security-deposits            state playbook — the substance
+/j/texas/austin                       city hub
+/j/texas/austin/security-deposits     city delta
+/t/{topic}                            cross-jurisdiction topic hub (unchanged)
+```
 
-### D3. Renames become safe via a permanent alias table
+The hierarchy is real — it is how tenant law is actually layered — and D1 makes the state segment point at primary content rather than a directory stub. A reader arriving from search sees immediately which state's law governs.
+
+`/j/{a}/{b}` is ambiguous in shape between a state playbook and a city hub, and is resolved with one indexed lookup on segment two. This is a real cost and was the first draft's reason for rejecting hierarchy. It is accepted here because the lookup happens only on two-segment paths, adds a sub-millisecond indexed query to a request that already hits the database, and buys D3.
+
+### D3. City slugs are bare and unique within their parent state
+
+`chicago`, `austin`, `portland` — no state suffix. Uniqueness is scoped to the parent, so Portland OR and Portland ME are `/j/oregon/portland` and `/j/maine/portland` with no disambiguation needed. A duplicate city name within one state is an error, not an upsert.
+
+This supersedes the first draft's `{toSlug(name)}-{usps}` scheme. That scheme solved collisions by construction, but at a maintenance cost the hierarchy removes entirely. The two options differ in what they ask a human to maintain forever:
+
+- **Suffixes** require judging "is this city name ambiguous with another US city?" for every new city, forever, using geographic knowledge, where a miss is silent until the second Springfield arrives and forces the rename of an indexed URL.
+- **Hierarchy** requires one invariant: no topic slug may equal a city slug, or `/j/{state}/{b}` becomes genuinely ambiguous. That is a curated set of ~15 topics, enforceable by a database constraint and a CI test.
+
+A constraint a test can hold beats a list a human has to remember. At ten cities the difference is invisible; at a hundred it is decisive.
+
+`new-york-city` keeps its slug: New York State is `new-york`, and under D2 the city sits at `/j/new-york/new-york-city`. Washington DC is a city whose parent is itself; it gets an explicit row rather than a special case in code.
+
+### D4. Renames become safe via a permanent alias table
 
 ```sql
 CREATE TABLE slug_aliases (
@@ -62,40 +118,67 @@ CREATE TABLE slug_aliases (
 );
 ```
 
-Every slug rename inserts the old slug as an alias. Browse handlers fall back to an alias lookup on miss and reply `301` to the canonical URL. The drafting toolbelt's `GetJurisdictionBySlug` resolves aliases too, so agent sessions in flight (and stale saved prompts) keep working instead of erroring. Code enforces that an alias never shadows a live slug. This mechanism is what makes the D5 migration cheap, and it retroactively fixes the `/t/pittsburgh-discrimination`-style 404s left by the topic cleanup.
+Every rename inserts the old slug as an alias. Browse handlers fall back to an alias lookup on miss and reply `301` to the canonical URL. `GetJurisdictionBySlug` resolves aliases too, so in-flight agent sessions and stale saved prompts keep working. Code enforces that an alias never shadows a live slug.
 
-### D4. Creation paths are hardened so collisions error instead of clobbering
+**This is the load-bearing decision in this ADR.** It is what makes D2 and D3 adoptable at all, it retroactively fixes the `/t/pittsburgh-discrimination`-era 404s left by the topic cleanup, and it is what makes any future slug mistake survivable. It should ship first and independently.
 
-- `UpsertJurisdiction` is replaced by get-or-create semantics: reuse only when kind, name, and parent match the existing row; any mismatch is an error surfaced to the caller. Blind `ON CONFLICT ... DO UPDATE` on jurisdictions is removed.
-- New-city creation (authoring UI, ingest CLI) requires a state, derives the slug with a static USPS map (50 states + DC + territories), and refuses duplicates within a state.
-- Both authoring flows drop the `citySlug + "-" + topicKey` derivation. The topic picker submits a shared topic slug directly; a custom topic goes through `toSlug` plus the same city-prefix rejection the MCP path has. `UpsertTopic` stops updating `name` on conflict; renaming a topic becomes an explicit editorial action, not a side effect of saving a draft.
-- `playbooks.slug` stops being written and is dropped in a later cleanup migration; `topics.slug` is the single source of truth for the topic URL segment.
+### D5. `topics` becomes a closed registry
 
-### D5. Migration order (each step independently deployable)
+Topics are currently defined by two hardcoded Go lists that disagree: `internal/draftagent/topics.go` (`CoreTopics`, 5 entries, used by the AI batch) and `cmd/authoring/main.go` (`knownTopics`, 13 entries, used by the form). Neither is checked against the `topics` table, and `UpsertTopic` creates whatever either one supplies. That is how two vocabularies for the same subjects came to exist.
 
-1. Ship `slug_aliases` + alias-aware lookups + 301 fallback. No visible change.
-2. Ship the USPS map and creation-path hardening (D4).
-3. Data migration, hand-verified against prod first (per the precedent set by the topics cleanup script): rename `boston→boston-ma`, `pittsburgh→pittsburgh-pa`, `seattle→seattle-wa`, `chicago→chicago-il`, `austin→austin-tx`, `los-angeles→los-angeles-ca`, `philadelphia→philadelphia-pa`, `new-york-city→new-york-ny`, writing an alias for each old slug. Verify parent states exist and are correct while in there.
-4. Re-key `internal/discover/seeds.go` to the new slugs; update the `city_slug` examples in the MCP tool schemas (`"boston"` → `"boston-ma"`).
-5. Verify: sitemap emits only new URLs; old URLs 301; topic hubs and cross-city links intact; a draft agent round-trips `list_jurisdictions → save_draft_playbook` on a new slug.
+The drift was not carelessness. `list_topics` — the tool the rejection message tells the agent to call — routes to `ListTopicsByJurisdiction`, which filters to `status = 'published'` **for that city**. Drafting a brand-new city returns an empty list, so the agent has no registry to reuse at exactly the moment it matters.
 
-Coordinate step 3 with the renterlaw.org rebrand cutover window so search engines absorb one redirect generation, not two.
+Therefore:
 
-### D6. Explicitly rejected
+- The canonical topic set is seeded by migration. `topics` gains `is_core BOOLEAN`; core topics are seeded for every new city, non-core are added where the law justifies them.
+- Save paths use `GetTopicBySlug` (which already exists) instead of `UpsertTopic`. An unknown slug is a rejection, not a creation. Creating a topic is a deliberate act, separate from saving a playbook.
+- `list_topics` returns the global registry, not the per-city published set.
+- Both Go lists are deleted.
+- The seed migration also corrects the `slugToTitle`-generated display names now live in production.
 
-- Hierarchical `/j/{state}/{city}` URLs (routing ambiguity, D2).
-- Dropping the `/j/` prefix (reserved-word bookkeeping forever).
-- "Suffix only on collision": leaves slug style inconsistent forever and forces renames at the worst time — after the colliding city is indexed.
+**Canonical set.** Core (seeded everywhere): `cant-pay-rent`, `eviction-defense`, `repairs-and-habitability`, `security-deposits`, `landlord-entry`, `rent-increase`, `resource-directory`. Non-core: `heat-not-working`, `rent-stabilization`, `discrimination`, `move-in-checklist`, `move-out-checklist`, `lease-renewal`, `noise-complaints`, `renting-fundamentals`.
+
+`heat-not-working` is deliberately kept rather than merged into `repairs-and-habitability`. It is problem-shaped, it matches how a renter actually searches, and it has three published pages whose URLs stay put as a result.
+
+### D6. Creation paths are hardened so collisions error instead of clobbering
+
+- `UpsertJurisdiction` is replaced by get-or-create: reuse only when kind, name, and parent match; any mismatch is an error. Blind `ON CONFLICT ... DO UPDATE` on jurisdictions is removed. Today, creating Portland, Maine while Portland, Oregon exists silently rewrites the existing row and reassigns every Portland OR playbook.
+- New-city creation requires a parent state. Under D2 a city without a parent has no URL at all, so this stops being advisory.
+- `playbooks.slug` is dropped. Routing keys on `topics.slug`; the playbook's own slug column is written but never read, and can silently diverge.
+
+### D7. Migration order — each step independently deployable
+
+1. **`slug_aliases` + alias-aware lookups + 301 fallback.** No visible change. Ship alone.
+2. **Repair the hierarchy.** `boston → massachusetts`, create `washington` and attach `seattle`, attach every state to `united-states`. Verified against production before and after. Prerequisite for step 4.
+3. **Topic registry (D5)** — seed migration, creation-path changes, `list_topics` fix, display-name corrections.
+4. **URL migration**, hand-verified against production first, per the precedent set by the topics cleanup. Adds the state segment and renames topics **in one pass**, writing an alias for every old URL: `security-deposit-not-returned → security-deposits`, `landlord-entry-without-notice → landlord-entry`, `uninhabitable-conditions → repairs-and-habitability`, `notice-to-quit → eviction-defense`. `cant-pay-rent`, `heat-not-working`, `rent-increase`, `discrimination` keep their topic slugs.
+5. **Re-key `internal/discover/seeds.go`** and the `city_slug` examples in the MCP tool schemas.
+6. **Verify**: sitemap emits only new URLs; every old URL 301s; topic hubs and cross-city links intact; a draft agent round-trips `list_jurisdictions → save_draft_playbook`.
+
+**Timing.** The pilot batch is reviewed but unpublished. Migrating before it publishes moves 19 URLs; after, 45. Steps 1–4 therefore run in parallel with review, and publication waits for them. Coordinate step 4 with the renterlaw.org rebrand window so search engines absorb one redirect generation, not several.
+
+**Boston and Seattle each have an `eviction-defense` draft sitting alongside a published `notice-to-quit`.** Renaming the latter collides with the former, and `UNIQUE (jurisdiction_id, topic_id, language)` permits only one. Each pair needs an editorial comparison — publish the draft and retire the old page, or discard the draft and rename the live one. This is a content judgment and belongs in the review queue, not in the migration script.
+
+### D8. Rejected
+
+- **Uniform USPS suffixes** (`chicago-il`). Solves collisions by construction, but D2+D3 solve them structurally without permanently lengthening every URL, and the maintenance asymmetry in D3 favours hierarchy.
+- **Suffix only on collision.** The first draft rejected this because it forces renames after indexing. That objection was sound when written and is now moot — D4 makes renames safe — but D2 removes the need entirely.
+- **Dropping the `/j/` prefix.** Would require reserving every current and future top-level page name as a forbidden slug, forever.
+- **Flat URLs with a curated disambiguation list.** Viable, and cheaper today. Rejected on the maintenance asymmetry argued in D3.
 
 ## Consequences
 
-- ~25 live URLs are renamed once, with permanent 301s. Short-term Search Console churn; long-term stable, self-disambiguating URLs.
-- In-review drafts are unaffected (playbooks reference `jurisdiction_id`, not slugs). In-flight agent sessions survive via alias resolution.
-- Silent-clobber upserts become loud errors; the authoring UI can no longer recreate the topic-fragmentation incident.
-- Findings 1–3 in Context (city-prefixed topics in the authoring UI, jurisdiction hijack, topic rename clobber) are live defects worth fixing even if the slug-format decision here is revised.
+- 19 live URLs move once, with permanent 301s. Short-term Search Console churn; long-term a scheme that never needs another structural change.
+- The hierarchy must be repaired before step 4 can run at all. This is a latent data-integrity problem being forced into the open, which is a benefit.
+- `/j/{a}/{b}` costs one extra indexed lookup, on two-segment paths only.
+- A new invariant to enforce: topic slugs and city slugs must be disjoint. Enforced in the database and in CI, not by convention.
+- Silent-clobber upserts become loud errors in both the jurisdiction and topic namespaces.
+- In-review drafts are unaffected — playbooks reference `jurisdiction_id`, not slugs — and in-flight agent sessions survive via alias resolution.
+- D1 changes what gets drafted, not just how it is addressed. The drafting pipeline needs a state-playbook mode, and the review queue will contain state pages as well as city pages.
 
 ## Open questions
 
-1. New York's canonical slug: `new-york-ny` (proposed) or mechanical `new-york-city-ny`.
-2. Should state USPS codes alias to the full-name slugs (`/j/il` → 301 → `/j/illinois`)? Cheap once `slug_aliases` exists.
-3. When state-level playbooks ship, does `ListPublishedCityJurisdictions`/the homepage grow a states section, or do state hubs stay reachable only via directory pages and cross-links?
+1. Does a city hub (`/j/texas/austin`) list only that city's delta pages, or does it also surface the state topics it inherits? Inheriting reads better for renters; it needs care to avoid duplicate content.
+2. When a city has no local ordinance for a topic, does `/j/texas/austin/security-deposits` 404, or 301 to the state page? A 301 is friendlier and captures long-tail city queries.
+3. Washington DC, and any future consolidated city-county, need a jurisdiction that is its own parent. Special-case row or a `kind = 'city_state'`?
+4. Does `renting-fundamentals` stay a `united-states` playbook, or become the template every state page starts from?
