@@ -108,6 +108,20 @@ func (pg *PG) ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64
 	return topics, rows.Err()
 }
 
+// GetJurisdictionByID looks up one jurisdiction by id. Used to walk the
+// parent chain when copying jurisdictions between databases, where ids are
+// not comparable and the hierarchy has to be rebuilt by slug.
+func (pg *PG) GetJurisdictionByID(ctx context.Context, id int64) (Jurisdiction, error) {
+	var j Jurisdiction
+	err := pg.pool.QueryRow(ctx, `
+		SELECT id, parent_id, kind, name, slug FROM jurisdictions WHERE id = $1`, id,
+	).Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return j, ErrNotFound
+	}
+	return j, err
+}
+
 // GetTopicBySlug looks up one topic by its URL slug.
 func (pg *PG) GetTopicBySlug(ctx context.Context, slug string) (Topic, error) {
 	var t Topic
