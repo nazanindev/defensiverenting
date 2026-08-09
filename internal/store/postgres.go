@@ -838,3 +838,8 @@ func (pg *PG) AuthorDeletePlaybook(ctx context.Context, id int64) error {
 
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("not found")
+
+// ErrAliasShadowsLiveSlug is returned when an alias would be created for a slug
+// that is still live. Lookups try live slugs first, so such an alias could never
+// be reached — it would be dead weight that misleads whoever reads the table.
+var ErrAliasShadowsLiveSlug = errors.New("alias would shadow a live slug")

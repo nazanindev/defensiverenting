@@ -25,6 +25,28 @@ type browseStore interface {
 	GetTopicBySlug(ctx context.Context, slug string) (store.Topic, error)
 	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
 	ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]store.Jurisdiction, error)
+	ResolveJurisdictionAlias(ctx context.Context, alias string) (store.Jurisdiction, error)
+	ResolveTopicAlias(ctx context.Context, alias string) (store.Topic, error)
+}
+
+// canonicalSlugs maps a requested jurisdiction/topic pair to the slugs that
+// currently address it, following slug aliases. ok is false when neither slug
+// moved, which means the miss was genuine and the caller should 404.
+//
+// Either argument may be empty to skip that lookup.
+func canonicalSlugs(ctx context.Context, db browseStore, jSlug, tSlug string) (j, t string, ok bool) {
+	j, t = jSlug, tSlug
+	if jSlug != "" {
+		if moved, err := db.ResolveJurisdictionAlias(ctx, jSlug); err == nil {
+			j, ok = moved.Slug, true
+		}
+	}
+	if tSlug != "" {
+		if moved, err := db.ResolveTopicAlias(ctx, tSlug); err == nil {
+			t, ok = moved.Slug, true
+		}
+	}
+	return j, t, ok
 }
 
 // Reviewer is the human who verifies every playbook before publishing.
@@ -71,6 +93,10 @@ func jurisdictionIndex(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		j, err := db.GetJurisdictionBySlug(r.Context(), slug)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
+				if canonical, _, moved := canonicalSlugs(r.Context(), db, slug, ""); moved {
+					http.Redirect(w, r, "/j/"+canonical, http.StatusMovedPermanently)
+					return
+				}
 				http.NotFound(w, r)
 				return
 			}
@@ -96,6 +122,12 @@ func playbook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		pb, err := db.GetPlaybook(r.Context(), jSlug, tSlug, "en")
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
+				// Either slug may have been renamed. Redirect if so; a genuine
+				// miss (no published playbook at a live pair) still 404s.
+				if cj, ct, moved := canonicalSlugs(r.Context(), db, jSlug, tSlug); moved {
+					http.Redirect(w, r, "/j/"+cj+"/"+ct, http.StatusMovedPermanently)
+					return
+				}
 				http.NotFound(w, r)
 				return
 			}
@@ -137,6 +169,12 @@ func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		t, err := db.GetTopicBySlug(r.Context(), slug)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
+				// The 2026-08-01 topic cleanup retired slugs like
+				// pittsburgh-discrimination; those URLs land here.
+				if _, canonical, moved := canonicalSlugs(r.Context(), db, "", slug); moved {
+					http.Redirect(w, r, "/t/"+canonical, http.StatusMovedPermanently)
+					return
+				}
 				http.NotFound(w, r)
 				return
 			}

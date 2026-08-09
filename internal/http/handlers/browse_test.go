@@ -20,6 +20,35 @@ type stubStore struct {
 	topics        []store.Topic
 	playbook      store.PlaybookWithStatements
 	playbookErr   error
+	// retired slug -> live slug, for the alias-driven 301s
+	jurisdictionAliases map[string]string
+	topicAliases        map[string]string
+}
+
+func (s *stubStore) ResolveJurisdictionAlias(_ context.Context, alias string) (store.Jurisdiction, error) {
+	live, ok := s.jurisdictionAliases[alias]
+	if !ok {
+		return store.Jurisdiction{}, store.ErrNotFound
+	}
+	for _, j := range s.jurisdictions {
+		if j.Slug == live {
+			return j, nil
+		}
+	}
+	return store.Jurisdiction{Slug: live}, nil
+}
+
+func (s *stubStore) ResolveTopicAlias(_ context.Context, alias string) (store.Topic, error) {
+	live, ok := s.topicAliases[alias]
+	if !ok {
+		return store.Topic{}, store.ErrNotFound
+	}
+	for _, t := range s.topics {
+		if t.Slug == live {
+			return t, nil
+		}
+	}
+	return store.Topic{Slug: live}, nil
 }
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
