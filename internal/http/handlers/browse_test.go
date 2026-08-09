@@ -55,6 +55,16 @@ func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.J
 	return s.jurisdictions, nil
 }
 
+func (s *stubStore) ListPublishedChildCities(_ context.Context, parentID int64) ([]store.Jurisdiction, error) {
+	var out []store.Jurisdiction
+	for _, j := range s.jurisdictions {
+		if j.Kind == "city" && j.ParentID != nil && *j.ParentID == parentID {
+			out = append(out, j)
+		}
+	}
+	return out, nil
+}
+
 func (s *stubStore) GetJurisdictionBySlug(_ context.Context, slug string) (store.Jurisdiction, error) {
 	for _, j := range s.jurisdictions {
 		if j.Slug == slug {
@@ -93,10 +103,13 @@ func logger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, nil))
 }
 
-func TestIndexHandler_listsJurisdictions(t *testing.T) {
+// The homepage reaches every covered city through the location scope rather
+// than a link per city. See TestIndex_citiesAreScopeOptionsNotCards for the
+// shape that assertion depends on.
+func TestIndexHandler_offersJurisdictionAsScope(t *testing.T) {
 	stub := &stubStore{
 		jurisdictions: []store.Jurisdiction{
-			{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"},
+			{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts", ParentName: "Massachusetts"},
 		},
 	}
 	r := chi.NewRouter()
@@ -110,8 +123,8 @@ func TestIndexHandler_listsJurisdictions(t *testing.T) {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Boston") {
-		t.Error("response body should contain jurisdiction name 'Boston'")
+	if !strings.Contains(body, `<option value="boston">Boston</option>`) {
+		t.Error("homepage should offer Boston as a location scope option")
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 
 type browseStore interface {
 	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	ListPublishedChildCities(ctx context.Context, parentID int64) ([]store.Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, id int64, lang string) ([]store.Topic, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (store.PlaybookWithStatements, error)
@@ -54,6 +55,7 @@ func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 	r.Get("/j/{a}/{b}", twoSegment(db, logger))
 	r.Get("/j/{a}/{b}/{c}", cityPlaybook(db, logger))
 	r.Get("/t/{topic}", topicHub(db, logger))
+	r.Get("/locations", locations(db, logger))
 	r.Get(ReviewerPath, author)
 }
 
@@ -192,9 +194,30 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 		render(w, r, http.StatusOK, tmpl.IndexPage{
-			Jurisdictions:  jurisdictions,
+			LocationGroups: tmpl.GroupByState(jurisdictions),
+			CityCount:      len(jurisdictions),
 			Topics:         topics,
 			StructuredData: siteSchema(),
+		})
+	}
+}
+
+// locations serves /locations: every covered city, grouped by state.
+//
+// The homepage used to carry this list itself, which meant it grew one card per
+// city without bound. Moving it here keeps every city one crawlable link from
+// the homepage while the homepage stays a fixed size.
+func locations(db browseStore, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cities, err := db.ListPublishedCityJurisdictions(r.Context())
+		if err != nil {
+			logger.ErrorContext(r.Context(), "list jurisdictions", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		render(w, r, http.StatusOK, tmpl.LocationsPage{
+			Groups:    tmpl.GroupByState(cities),
+			CityCount: len(cities),
 		})
 	}
 }
@@ -207,7 +230,21 @@ func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, 
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	render(w, r, http.StatusOK, tmpl.JurisdictionPage{Jurisdiction: j, Topics: topics})
+
+	// A state or country also lists the cities beneath it. Without this the
+	// middle of the URL tree was unreachable: /j/massachusetts rendered "no
+	// playbooks yet" while Boston sat directly under it. Best-effort, since a
+	// missing city list should degrade the page rather than 500 it.
+	var cities []store.Jurisdiction
+	if j.Kind != "city" {
+		if children, cerr := db.ListPublishedChildCities(r.Context(), j.ID); cerr == nil {
+			cities = children
+		} else {
+			logger.ErrorContext(r.Context(), "list child cities", slog.Any("err", cerr))
+		}
+	}
+
+	render(w, r, http.StatusOK, tmpl.JurisdictionPage{Jurisdiction: j, Topics: topics, Cities: cities})
 }
 
 // servePlaybook renders one playbook for an already-resolved jurisdiction, or
@@ -284,7 +321,42 @@ func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		render(w, r, http.StatusOK, tmpl.TopicHubPage{Topic: t, Jurisdictions: cities})
+
+		// ?j= carries the reader's chosen location. Resolving it here rather
+		// than in the browser is what lets the homepage link situations
+		// straight into a city without shipping a city×topic map to every
+		// visitor to avoid 404s. A city that lacks this topic falls through to
+		// the list instead of erroring. 302, not 301: coverage grows, so this
+		// mapping must not be cached in browsers forever.
+		if jSlug := r.URL.Query().Get("j"); jSlug != "" {
+			if city, jerr := db.GetJurisdictionBySlug(r.Context(), jSlug); jerr == nil {
+				for _, c := range cities {
+					if c.ID == city.ID {
+						http.Redirect(w, r, c.TopicPath(t.Slug), http.StatusFound)
+						return
+					}
+				}
+			}
+		}
+
+		// The query returns anywhere with this topic published, which includes
+		// state-level guides. Split them: a state grouped by its parent would
+		// file under "United States" and read as a city you could pick.
+		var inCities, statewide []store.Jurisdiction
+		for _, c := range cities {
+			if c.Kind == "city" {
+				inCities = append(inCities, c)
+			} else {
+				statewide = append(statewide, c)
+			}
+		}
+
+		render(w, r, http.StatusOK, tmpl.TopicHubPage{
+			Topic:     t,
+			Groups:    tmpl.GroupByState(inCities),
+			Statewide: statewide,
+			CityCount: len(inCities),
+		})
 	}
 }
 

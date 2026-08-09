@@ -11,6 +11,10 @@ type Jurisdiction struct {
 	// ParentSlug is the parent's slug, denormalised because every city URL
 	// contains its state (/j/{state}/{city}/{topic}). Empty for the country.
 	ParentSlug string
+	// ParentName is the parent's display name, denormalised alongside ParentSlug
+	// so a list of cities can be grouped under state headings without a lookup
+	// per row. Empty for the country.
+	ParentName string
 }
 
 // Path is the public URL for this jurisdiction. Cities sit under their state,

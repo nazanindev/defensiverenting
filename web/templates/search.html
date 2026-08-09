@@ -12,25 +12,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/site.css" />
 </head>
-<body>
+{{/* has-hero-search hides the header search: the scoped control below the
+     heading is the one search box on this page. */}}
+<body class="has-hero-search">
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" value="{{.Query}}" placeholder="Search by situation…" aria-label="Search" autofocus />
-        {{if .JurisdictionSlug}}<input type="hidden" name="j" value="{{.JurisdictionSlug}}" />{{end}}
-        <button type="submit">Search</button>
-      </form>
     </div>
   </header>
 
   <main class="wrap">
     <h1 class="search-heading">
-      {{if .Query}}Results for <em>{{.Query}}</em>{{else}}Search{{end}}
+      {{if .Query}}Results for <em>{{.Query}}</em>{{else}}Search{{end}}{{if .JurisdictionName}} <span class="scope-name">in {{.JurisdictionName}}</span>{{end}}
     </h1>
 
+    {{template "scope-search" .Scope}}
+
     {{if and .Query (not .Results)}}
-    <p class="empty-state">No results found for <strong>{{.Query}}</strong>. Try different keywords.</p>
+    <p class="empty-state">
+      No results found for <strong>{{.Query}}</strong>{{if .JurisdictionName}} in {{.JurisdictionName}}{{end}}.
+      {{if .JurisdictionName}}Try setting the location to <strong>Every location</strong>, or{{else}}Try{{end}} different keywords.
+    </p>
     {{end}}
 
     {{if .Results}}
@@ -57,5 +59,6 @@
   </main>
 
   {{template "site-footer" .}}
+  {{template "scope-script" .}}
 </body>
 </html>

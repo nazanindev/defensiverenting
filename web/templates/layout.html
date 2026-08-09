@@ -8,11 +8,99 @@
 </p>
 {{end}}
 
+{{/*
+  scope-search — the search box with a location scope attached.
+
+  The location is a <select name="j"> submitted with the query, so it costs no
+  server-side session and nothing personalises the cached HTML. Cities are
+  grouped into <optgroup> by state: optgroup labels are unselectable natively,
+  which is what we want, because scoping a search to a state searches state law
+  only and would silently exclude the city the renter lives in.
+*/}}
+{{define "scope-search"}}
+<form class="scope-search" action="/search" method="get" role="search">
+  <input class="scope-q" type="search" name="q" value="{{.Query}}"
+         placeholder="e.g. landlord entered without notice…"
+         aria-label="Search by situation" {{if .Autofocus}}autofocus{{end}} />
+  <span class="scope-where">
+    <label class="scope-in" for="scope-j">in</label>
+    <select class="scope-select" id="scope-j" name="j" aria-label="Location">
+      <option value="">Every location</option>
+      {{$sel := .Selected}}
+      {{range .Groups}}
+        {{if .Name}}
+        <optgroup label="{{.Name}}">
+          {{range .Cities}}<option value="{{.Slug}}"{{if eq .Slug $sel}} selected{{end}}>{{.Name}}</option>{{end}}
+        </optgroup>
+        {{else}}
+          {{range .Cities}}<option value="{{.Slug}}"{{if eq .Slug $sel}} selected{{end}}>{{.Name}}</option>{{end}}
+        {{end}}
+      {{end}}
+    </select>
+  </span>
+  <button type="submit">Search</button>
+</form>
+{{end}}
+
+{{/*
+  scope-script — progressive enhancement, and only that.
+
+  It remembers the chosen location and points the situation cards at it. With
+  JS off the select still submits with the search and the cards still link to
+  the topic hub, so nothing here is load-bearing. It runs client-side on
+  purpose: browse routes are served with a shared `public` cache, so
+  personalising the HTML server-side would leak one renter's city to the next.
+*/}}
+{{define "scope-script"}}
+<script>
+(function () {
+  var KEY = 'renterlaw.location';
+  var sel = document.querySelector('.scope-select');
+  if (!sel) return;
+
+  // Never override a location the server already resolved — a scoped result
+  // page knows better than the remembered value.
+  if (!sel.value) {
+    try {
+      var saved = localStorage.getItem(KEY);
+      for (var i = 0; saved && i < sel.options.length; i++) {
+        if (sel.options[i].value === saved) { sel.value = saved; break; }
+      }
+    } catch (e) {}
+  }
+
+  function apply() {
+    var slug = sel.value;
+    var name = slug ? sel.options[sel.selectedIndex].text : '';
+    try { slug ? localStorage.setItem(KEY, slug) : localStorage.removeItem(KEY); } catch (e) {}
+
+    // Send each situation to the chosen city. The topic hub resolves ?j=
+    // server-side, so a city that lacks this topic still lands on a real page
+    // instead of a 404 we'd have to predict here.
+    var cards = document.querySelectorAll('[data-topic-path]');
+    for (var i = 0; i < cards.length; i++) {
+      var base = cards[i].getAttribute('data-topic-path');
+      cards[i].setAttribute('href', slug ? base + '?j=' + encodeURIComponent(slug) : base);
+    }
+    var labels = document.querySelectorAll('[data-scope-name]');
+    for (var j = 0; j < labels.length; j++) {
+      labels[j].textContent = name ? ' in ' + name : '';
+      labels[j].hidden = !name;
+    }
+  }
+
+  sel.addEventListener('change', apply);
+  apply();
+})();
+</script>
+{{end}}
+
 {{define "site-footer"}}
 <footer class="site-footer">
   <div class="wrap">
     <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer. Every claim links to its primary source so you can verify it yourself.</p>
     <p class="footer-links">
+      <a href="/locations">All locations</a> ·
       <a href="/about">About</a> ·
       <a href="/support">Support this project</a> ·
       <a href="/editorial">Editorial guidance</a>

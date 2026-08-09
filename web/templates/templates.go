@@ -69,26 +69,113 @@ func funcMap() template.FuncMap {
 
 // Page types ----------------------------------------------------------------
 
-// IndexPage is the landing page listing all city jurisdictions.
+// StateGroup is one state with the covered cities beneath it.
+//
+// Every city list on the site is grouped through this type. Listing cities flat
+// meant the page grew one box per city forever; grouped, it grows one heading
+// per state, and a state count is bounded at 51 no matter how many cities ship.
+type StateGroup struct {
+	Name   string // display name, e.g. "Massachusetts"
+	Slug   string // URL slug, e.g. "massachusetts"
+	Cities []store.Jurisdiction
+}
+
+// Path is the state hub URL, or empty when the city has no parent state.
+func (g StateGroup) Path() string {
+	if g.Slug == "" {
+		return ""
+	}
+	return "/j/" + g.Slug
+}
+
+// GroupByState buckets cities under their parent state, preserving the order
+// the store returned them in (state name, then city name).
+//
+// A city with no parent lands in a trailing group with an empty name. The
+// templates render that group without a heading rather than dropping the city,
+// so a data problem costs a heading instead of hiding a page.
+func GroupByState(cities []store.Jurisdiction) []StateGroup {
+	var out []StateGroup
+	idx := make(map[string]int, len(cities))
+	for _, c := range cities {
+		i, ok := idx[c.ParentSlug]
+		if !ok {
+			i = len(out)
+			idx[c.ParentSlug] = i
+			out = append(out, StateGroup{Name: c.ParentName, Slug: c.ParentSlug})
+		}
+		out[i].Cities = append(out[i].Cities, c)
+	}
+	return out
+}
+
+// IndexPage is the landing page: search, situations, and a location scope.
+//
+// It deliberately does not carry a flat city list. Cities reach the page only
+// through LocationGroups, which feeds the scope picker; the full crawlable
+// directory lives at /locations.
 type IndexPage struct {
-	Jurisdictions  []store.Jurisdiction
-	Topics         []store.Topic // topics with >=1 published playbook, for the browse-by-topic section
+	LocationGroups []StateGroup
+	CityCount      int
+	Topics         []store.Topic // topics with >=1 published playbook, shown as situations
 	StructuredData template.JS   // JSON-LD WebSite + Organization schema, pre-marshaled
 }
 
-// TopicHubPage lists every city that has a published playbook for one topic.
+// ScopeSearch is the model for the shared search-with-location control.
+//
+// Location is a scope on the search, not a browse axis: it rides along as the
+// `j` query param the search handler already understood, so choosing a city
+// never needs the page to list every city as a link.
+type ScopeSearch struct {
+	Query     string
+	Selected  string // selected city slug; empty means every location
+	Groups    []StateGroup
+	Autofocus bool
+}
+
+// Scope renders the homepage's search control, unscoped and focused.
+func (p IndexPage) Scope() ScopeSearch {
+	return ScopeSearch{Groups: p.LocationGroups, Autofocus: true}
+}
+
+// Scope renders the results page's search control, preserving the query and the
+// location the search ran under.
+func (p SearchPage) Scope() ScopeSearch {
+	return ScopeSearch{Query: p.Query, Selected: p.JurisdictionSlug, Groups: p.LocationGroups}
+}
+
+// LocationsPage is the crawlable directory of every covered city, grouped by
+// state. It exists so the homepage does not have to enumerate cities to keep
+// them linked for search engines.
+type LocationsPage struct {
+	Groups    []StateGroup
+	CityCount int
+}
+
+// TopicHubPage lists every place that has a published playbook for one topic.
+//
+// Statewide is kept apart from Groups because a state-level guide is not a
+// city: grouped by parent it would file itself under a "United States" heading
+// and read as if the country were a city you could pick.
 type TopicHubPage struct {
-	Topic         store.Topic
-	Jurisdictions []store.Jurisdiction
+	Topic     store.Topic
+	Groups    []StateGroup
+	Statewide []store.Jurisdiction
+	CityCount int
 }
 
 // AuthorPage is a reviewer bio page.
 type AuthorPage struct{}
 
-// JurisdictionPage lists topics available for a city.
+// JurisdictionPage lists topics available for a city, state, or country.
+//
+// Cities is populated only for a parent jurisdiction (a state), listing the
+// covered cities beneath it. Without it a state hub rendered as a dead end:
+// /j/massachusetts said "no playbooks yet" and never linked to Boston.
 type JurisdictionPage struct {
 	Jurisdiction store.Jurisdiction
 	Topics       []store.Topic
+	Cities       []store.Jurisdiction
 }
 
 // PlaybookPage is a single topic playbook with cited statements.
@@ -123,9 +210,15 @@ type CitationChip struct {
 }
 
 // SearchPage holds search results.
+//
+// LocationGroups feeds the same scope picker the homepage uses, so the location
+// a search was run under can be changed from the results rather than only from
+// the page the search started on.
 type SearchPage struct {
 	Query            string
 	JurisdictionSlug string
+	JurisdictionName string
+	LocationGroups   []StateGroup
 	Results          []store.SearchResult
 }
 
@@ -157,6 +250,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "support.html", p)
 	case TopicHubPage:
 		return tmpl.ExecuteTemplate(w, "topichub.html", p)
+	case LocationsPage:
+		return tmpl.ExecuteTemplate(w, "locations.html", p)
 	case AuthorPage:
 		return tmpl.ExecuteTemplate(w, "author.html", p)
 	default:

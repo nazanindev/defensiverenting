@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>All locations — RenterLaw</title>
+  <meta name="description" content="Every city with a free, citation-backed tenant rights guide on RenterLaw, listed by state." />
+  <link rel="canonical" href="{{absURL "/locations"}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:url" content="{{absURL "/locations"}}" />
+  <meta property="og:title" content="All locations — RenterLaw" />
+  <meta property="og:description" content="Every city with a free, citation-backed tenant rights guide on RenterLaw, listed by state." />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="All locations — RenterLaw" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="halo" aria-hidden="true"></div>
+
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <span aria-current="page">All locations</span>
+    </nav>
+
+    <section class="hero">
+      <h1>All locations</h1>
+      <p class="lede">
+        {{if .CityCount}}Tenant rights guides for {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}}, grouped by state. Pick yours to see every guide we have for it.{{else}}No city guides are published yet.{{end}}
+      </p>
+    </section>
+
+    {{if .Groups}}
+    <div class="filter-row">
+      <label class="visually-hidden" for="loc-filter">Filter locations</label>
+      <input class="filter-input" id="loc-filter" type="search" placeholder="Filter by city or state…" autocomplete="off" />
+      <p class="filter-empty" hidden>No location matches that.</p>
+    </div>
+
+    <div class="state-index">
+      {{range .Groups}}
+      <section class="state-group" data-state="{{.Name}}">
+        <h2 class="state-name">
+          {{if .Path}}<a href="{{.Path}}">{{.Name}}</a>{{else}}Other{{end}}
+        </h2>
+        <ul class="city-list">
+          {{range .Cities}}
+          <li data-city="{{.Name}}"><a href="{{.Path}}">{{.Name}}</a></li>
+          {{end}}
+        </ul>
+      </section>
+      {{end}}
+    </div>
+    {{end}}
+  </main>
+
+  {{template "site-footer" .}}
+
+  <script>
+  // Filtering is an enhancement over a list that is already complete and
+  // crawlable. With JS off every city above is still a plain link.
+  (function () {
+    var input = document.getElementById('loc-filter');
+    if (!input) return;
+    var groups = document.querySelectorAll('.state-group');
+    var empty = document.querySelector('.filter-empty');
+
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase();
+      var anyVisible = false;
+
+      for (var g = 0; g < groups.length; g++) {
+        var group = groups[g];
+        var stateMatch = group.getAttribute('data-state').toLowerCase().indexOf(q) !== -1;
+        var cities = group.querySelectorAll('.city-list li');
+        var shown = 0;
+
+        for (var c = 0; c < cities.length; c++) {
+          // A state match reveals all of its cities, so typing "mass" shows
+          // Boston rather than an empty Massachusetts heading.
+          var hit = !q || stateMatch ||
+            cities[c].getAttribute('data-city').toLowerCase().indexOf(q) !== -1;
+          cities[c].hidden = !hit;
+          if (hit) shown++;
+        }
+
+        group.hidden = shown === 0;
+        if (shown > 0) anyVisible = true;
+      }
+
+      if (empty) empty.hidden = anyVisible;
+    });
+  })();
+  </script>
+</body>
+</html>

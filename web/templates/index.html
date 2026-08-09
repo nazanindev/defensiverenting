@@ -41,50 +41,42 @@
     <section class="hero">
       <h1>Tenant law, in plain language.</h1>
       <p class="lede">Search your situation. Every answer cites the law it comes from.</p>
-      <form class="hero-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="e.g. landlord entered without notice…" aria-label="Search by situation" autofocus />
-        <button type="submit">Search</button>
-      </form>
-    </section>
-
-    <div class="support-banner">
-      This site is free, ad-free, and every claim cites its source — so you can check the law yourself. <a href="/support">Support our work →</a>
-    </div>
-
-    <section class="city-section" aria-labelledby="cities-heading">
-      <h2 id="cities-heading" class="section-title">Or browse by city</h2>
-      {{if .Jurisdictions}}
-      <ul class="card-grid">
-        {{range .Jurisdictions}}
-        <li>
-          <a class="card card--link" href="{{.Path}}">
-            <span class="card-title">{{.Name}}</span>
-            <span class="card-arrow" aria-hidden="true">→</span>
-          </a>
-        </li>
-        {{end}}
-      </ul>
-      {{else}}
-      <p class="empty-state">No city guides yet — check back soon.</p>
+      {{template "scope-search" .Scope}}
+      {{if .CityCount}}
+      <p class="scope-hint">
+        Set your location once and it follows you.
+        Covering {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}} —
+        <a href="/locations">see all locations →</a>
+      </p>
       {{end}}
     </section>
 
     {{if .Topics}}
-    <section class="city-section" aria-labelledby="topics-heading">
-      <h2 id="topics-heading" class="section-title">Or browse by topic</h2>
-      <ul class="card-grid">
+    <section class="situations" aria-labelledby="situations-heading">
+      <h2 id="situations-heading" class="section-title">
+        Common situations<span class="scope-name" data-scope-name hidden></span>
+      </h2>
+      <ul class="situation-list">
         {{range .Topics}}
         <li>
-          <a class="card card--link" href="/t/{{.Slug}}">
-            <span class="card-title">{{.Name}}</span>
-            <span class="card-arrow" aria-hidden="true">→</span>
+          <a href="/t/{{.Slug}}" data-topic-path="/t/{{.Slug}}">
+            <span class="situation-name">{{.Name}}</span>
+            <span class="situation-arrow" aria-hidden="true">→</span>
           </a>
         </li>
         {{end}}
       </ul>
     </section>
+    {{else}}
+    <p class="empty-state">No guides published yet — check back soon.</p>
     {{end}}
+
+    <div class="support-banner">
+      This site is free, ad-free, and every claim cites its source — so you can check the law yourself. <a href="/support">Support our work →</a>
+    </div>
   </main>
+
+  {{template "scope-script" .}}
 
   {{template "site-footer" .}}
 </body>

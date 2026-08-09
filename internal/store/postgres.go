@@ -48,7 +48,7 @@ func (pg *PG) Pool() *pgxpool.Pool {
 // ListCityJurisdictions returns all city-level jurisdictions.
 func (pg *PG) ListCityJurisdictions(ctx context.Context) ([]Jurisdiction, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(p.slug, '')
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(p.slug, ''), COALESCE(p.name, '')
 		FROM jurisdictions j
 		LEFT JOIN jurisdictions p ON p.id = j.parent_id
 		WHERE j.kind = 'city'
@@ -65,12 +65,31 @@ func (pg *PG) ListCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 // cities whose only playbooks have been deleted or were never published.
 func (pg *PG) ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdiction, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, '')
+		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
 		FROM jurisdictions j
 		JOIN playbooks p ON p.jurisdiction_id = j.id
 		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		WHERE j.kind = 'city' AND p.status = 'published'
-		ORDER BY j.name`)
+		ORDER BY COALESCE(pj.name, ''), j.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJurisdictions(rows)
+}
+
+// ListPublishedChildCities returns the cities under one parent (a state) that
+// have at least one published playbook. A state hub had no way to list the
+// cities beneath it, so /j/massachusetts rendered as a dead end even though
+// Boston sat directly under it in the tree.
+func (pg *PG) ListPublishedChildCities(ctx context.Context, parentID int64) ([]Jurisdiction, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
+		FROM jurisdictions j
+		JOIN playbooks p ON p.jurisdiction_id = j.id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
+		WHERE j.parent_id = $1 AND j.kind = 'city' AND p.status = 'published'
+		ORDER BY j.name`, parentID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +100,7 @@ func (pg *PG) ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdictio
 // GetJurisdictionBySlug looks up one jurisdiction by its URL slug.
 func (pg *PG) GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdiction, error) {
 	row := pg.pool.QueryRow(ctx, `
-		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(p.slug, '')
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(p.slug, ''), COALESCE(p.name, '')
 		FROM jurisdictions j
 		LEFT JOIN jurisdictions p ON p.id = j.parent_id
 		WHERE j.slug = $1`, slug)
@@ -212,12 +231,12 @@ func (pg *PG) ListPublishedTopics(ctx context.Context, language string) ([]Topic
 // for the given topic + language.
 func (pg *PG) ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]Jurisdiction, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, '')
+		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
 		FROM jurisdictions j
 		JOIN playbooks p ON p.jurisdiction_id = j.id
 		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		WHERE p.topic_id = $1 AND p.language = $2 AND p.status = 'published'
-		ORDER BY j.name`, topicID, language)
+		ORDER BY COALESCE(pj.name, ''), j.name`, topicID, language)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +465,8 @@ func (pg *PG) UpsertJurisdiction(ctx context.Context, params UpsertJurisdictionP
 		ON CONFLICT (slug) DO UPDATE
 		    SET name = EXCLUDED.name, kind = EXCLUDED.kind, parent_id = EXCLUDED.parent_id
 		RETURNING id, parent_id, kind, name, slug,
-		    COALESCE((SELECT p.slug FROM jurisdictions p WHERE p.id = jurisdictions.parent_id), '')`,
+		    COALESCE((SELECT p.slug FROM jurisdictions p WHERE p.id = jurisdictions.parent_id), ''),
+		    COALESCE((SELECT p.name FROM jurisdictions p WHERE p.id = jurisdictions.parent_id), '')`,
 		params.ParentID, params.Kind, params.Name, params.Slug)
 	return scanJurisdiction(row)
 }
@@ -709,7 +729,7 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 
 func scanJurisdiction(row pgx.Row) (Jurisdiction, error) {
 	var j Jurisdiction
-	err := row.Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug, &j.ParentSlug)
+	err := row.Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug, &j.ParentSlug, &j.ParentName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, ErrNotFound
 	}
@@ -720,7 +740,7 @@ func scanJurisdictions(rows pgx.Rows) ([]Jurisdiction, error) {
 	var out []Jurisdiction
 	for rows.Next() {
 		var j Jurisdiction
-		if err := rows.Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug, &j.ParentSlug); err != nil {
+		if err := rows.Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug, &j.ParentSlug, &j.ParentName); err != nil {
 			return nil, err
 		}
 		out = append(out, j)
