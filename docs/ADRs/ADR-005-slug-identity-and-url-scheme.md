@@ -111,12 +111,23 @@ A constraint a test can hold beats a list a human has to remember. At ten cities
 
 ```sql
 CREATE TABLE slug_aliases (
-    alias     TEXT NOT NULL,
-    namespace TEXT NOT NULL CHECK (namespace IN ('jurisdiction', 'topic')),
-    target_id BIGINT NOT NULL,
-    PRIMARY KEY (namespace, alias)
+    alias           TEXT   NOT NULL,
+    namespace       TEXT   NOT NULL CHECK (namespace IN ('jurisdiction', 'topic')),
+    jurisdiction_id BIGINT REFERENCES jurisdictions(id) ON DELETE CASCADE,
+    topic_id        BIGINT REFERENCES topics(id)        ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (namespace, alias),
+    CHECK ((namespace = 'jurisdiction' AND jurisdiction_id IS NOT NULL AND topic_id IS NULL)
+        OR (namespace = 'topic'        AND topic_id IS NOT NULL AND jurisdiction_id IS NULL))
 );
 ```
+
+Two nullable foreign keys rather than one polymorphic `target_id`, so the
+database guarantees an alias never outlives what it points at — a dangling
+alias would redirect to a 404, which is worse than the 404 it prevents.
+
+Aliases store the target's **id**, not its slug, so repeated renames need no
+extra bookkeeping and every lookup stays a single hop.
 
 Every rename inserts the old slug as an alias. Browse handlers fall back to an alias lookup on miss and reply `301` to the canonical URL. `GetJurisdictionBySlug` resolves aliases too, so in-flight agent sessions and stale saved prompts keep working. Code enforces that an alias never shadows a live slug.
 
