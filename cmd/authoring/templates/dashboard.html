@@ -54,6 +54,10 @@
   .gen-pill { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .15rem .6rem; font-size: .78rem; font-weight: 600; margin-left: 6px; }
   .gen-note { font-size: .78rem; color: #9a7878; margin-top: 12px; line-height: 1.5; }
   .panel-ai { border-left: 4px solid #9b2335; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
+  .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
+  .tab b { font-weight: 600; }
   .badge-cost { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
   .badge-free { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
   .review-links { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f5eded; font-size: .82rem; color: #7a5c5c; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
@@ -83,52 +87,18 @@
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
 
-  <div class="panel panel-ai">
-    <h2>Generate a draft with AI <span class="badge-cost">💳 costs money per generation</span></h2>
-    <form method="post" action="/generate" class="discover-form">
-      <div>
-        <label>Existing city</label>
-        <select name="jurisdiction_select">
-          <option value="">— select —</option>
-          {{range .Cities}}<option value="{{.Slug}}">{{.Name}}</option>{{end}}
-        </select>
-      </div>
-      <span class="or">or new city</span>
-      <div><label>City name</label><input name="new_city_name" placeholder="Chicago"></div>
-      <div><label>State</label><input name="new_state_name" placeholder="Illinois"></div>
-      <div><label>Topic slug</label><input name="topic_slug" placeholder="eviction-defense"></div>
-      <div><label>Topic name (optional)</label><input name="topic_name" placeholder="Eviction Defense"></div>
-      <button class="btn btn-primary" type="submit">Generate draft</button>
-    </form>
-    {{if .Generating}}
-    <div class="review-links"><span>Generating now:</span>{{range .Generating}}<span class="gen-pill">⏳ {{.}}</span>{{end}}</div>
-    {{end}}
-    <p class="gen-note"><strong>Each run calls the Claude API and costs money — roughly $0.60–$1 per draft.</strong> Claude researches primary sources, verifies every citation quote verbatim, and saves a draft for you to review. Nothing is published automatically.</p>
-  </div>
+  {{/*
+    Hidden from the UI, not deleted from the codebase:
 
-  <div class="panel">
-    <h2>Discover sources <span class="badge-free">free · no AI</span></h2>
-    <form method="post" action="/discover" class="discover-form">
-      <div>
-        <label>Existing city</label>
-        <select name="jurisdiction_select">
-          <option value="">— select —</option>
-          {{range .Cities}}<option value="{{.Slug}}">{{.Name}}</option>{{end}}
-        </select>
-      </div>
-      <span class="or">or new city</span>
-      <div><label>City name</label><input name="new_city_name" placeholder="Chicago"></div>
-      <div><label>State</label><input name="new_state_name" placeholder="Illinois"></div>
-      <button class="btn btn-primary" type="submit">Discover</button>
-    </form>
-    {{if .ReviewCounts}}
-    <div class="review-links">
-      <span>Sources to review:</span>
-      {{range .ReviewCounts}}<a href="/candidates?j={{.JurisdictionSlug}}">{{.JurisdictionName}} <b>{{.PendingCount}}</b></a>{{end}}
-    </div>
-    {{end}}
-    <p class="gen-note">Instant lookup of known, hand-curated source URLs for a city — <strong>no AI, no cost</strong>. It just fills your research shelf; it never writes statements.</p>
-  </div>
+    - "Generate a draft with AI" — every click spends real money on the Claude
+      API. Drafting runs from cmd/draft instead, where the cost is deliberate.
+    - "Discover sources" — the discovery pass does not work well enough to put
+      in front of an author.
+
+    POST /generate, POST /discover, and the /candidates triage pages are all
+    still routed and working (see routes in main.go). Restoring either feature
+    is a matter of putting its panel back here.
+  */}}
 
   <div class="panel">
     <h2>Source monitoring <span class="badge-free">free · no AI</span></h2>
@@ -146,6 +116,12 @@
     {{else}}
     <p class="gen-note">Re-fetches every cited source and flags any where the exact text we quoted no longer appears — the precise signal that a statute was amended. Dynamic page content (dates, banners) won't trigger it.</p>
     {{end}}
+  </div>
+
+  <div class="tabs">
+    <a class="tab {{if eq .Status "all"}}active{{end}}" href="/">All <b>{{.TotalCount}}</b></a>
+    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft">Drafts to review <b>{{.DraftCount}}</b></a>
+    <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published">Published <b>{{.PublishedCount}}</b></a>
   </div>
 
 <div class="card">
@@ -195,7 +171,9 @@
     </table>
     {{else}}
     <div class="empty">
-      No playbooks yet. <a href="/new">Create the first one.</a>
+      {{if eq .Status "draft"}}No drafts waiting for review.
+      {{else if eq .Status "published"}}Nothing published yet.
+      {{else}}No playbooks yet. <a href="/new">Create the first one.</a>{{end}}
     </div>
     {{end}}
   </div>

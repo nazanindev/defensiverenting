@@ -512,9 +512,14 @@ func scanCandidateRow(row pgx.Row) (SourceCandidate, error) {
 }
 
 func (pg *PG) UpsertTopic(ctx context.Context, params UpsertTopicParams) (Topic, error) {
+	// Topics are shared across every city, so the name is set once at creation
+	// and never overwritten here: a draft saved with a different display name
+	// would otherwise rename the topic on every city page site-wide. Renaming a
+	// topic is an explicit editorial action, not a side effect of saving.
+	// The no-op SET keeps RETURNING working on conflict. See docs/ADRs/ADR-005.
 	row := pg.pool.QueryRow(ctx, `
 		INSERT INTO topics (slug, name) VALUES ($1, $2)
-		ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+		ON CONFLICT (slug) DO UPDATE SET name = topics.name
 		RETURNING id, slug, name`, params.Slug, params.Name)
 	var t Topic
 	err := row.Scan(&t.ID, &t.Slug, &t.Name)

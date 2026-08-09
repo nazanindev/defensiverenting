@@ -29,9 +29,21 @@ func TestDashboardTemplateRenders(t *testing.T) {
 		"ReviewCounts": []store.CandidateCountRow{
 			{JurisdictionName: "Chicago", JurisdictionSlug: "chicago", PendingCount: 7},
 		},
+		"Status": "all", "TotalCount": 1, "DraftCount": 1, "PublishedCount": 0,
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "dashboard.html", data); err != nil {
 		t.Fatalf("execute dashboard.html: %v", err)
+	}
+
+	// Empty state differs per tab, so each one has to render.
+	for _, status := range []string{"all", "draft", "published"} {
+		empty := map[string]any{
+			"Playbooks": []store.AuthorPlaybookRow{}, "Cities": []store.Jurisdiction{},
+			"Status": status, "TotalCount": 0, "DraftCount": 0, "PublishedCount": 0,
+		}
+		if err := tmpl.ExecuteTemplate(io.Discard, "dashboard.html", empty); err != nil {
+			t.Fatalf("execute dashboard.html (empty, status=%s): %v", status, err)
+		}
 	}
 }
 
