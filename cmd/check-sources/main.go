@@ -39,4 +39,10 @@ func main() {
 		log.Fatalf("check-sources: %v", err)
 	}
 	fmt.Printf("checked %d sources — %d flagged (cited quote missing), %d failed\n", res.Sources, res.Flagged, res.Failed)
+	if res.Skipped > 0 {
+		// Reported on its own line, and last, because it is the number that
+		// silently made previous runs look clean: these citations were never
+		// examined at all. Backfilling their quotes is what brings them in.
+		fmt.Printf("NOT CHECKED: %d citation(s) have no verbatim quote — nothing about them was verified\n", res.Skipped)
+	}
 }

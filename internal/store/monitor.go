@@ -9,12 +9,20 @@ import (
 // ListCitationsForCheck returns every (source, verbatim quote) pair cited from a
 // non-editorial source, for the checker to confirm each quote still appears at
 // the URL. Rows are ordered by source id so callers can group by source.
+//
+// Only citations reachable from a playbook count. Saving a playbook replaces its
+// rows in playbook_statements but never deletes the statements themselves, so
+// every re-save leaves its previous statements — and their citations — behind in
+// the tables. Without the EXISTS filter the checker re-fetches sources that no
+// page cites any more, and can flag a source on the strength of a quote that
+// nothing published depends on.
 func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT s.id, s.url, s.publisher, c.quote
 		FROM citations c
 		JOIN sources s ON s.id = c.source_id
 		WHERE s.kind <> 'editorial' AND btrim(c.quote) <> ''
+		  AND EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = c.statement_id)
 		ORDER BY s.id`)
 	if err != nil {
 		return nil, err
@@ -29,6 +37,35 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// CountUncheckableCitations returns how many citations ListCitationsForCheck
+// silently drops because they carry no verbatim quote.
+//
+// Citations written before the quote column existed (migration 000008) default
+// to the empty string, and a check for the empty string matches any page, so
+// the filter in ListCitationsForCheck excludes them rather than passing them
+// falsely. The exclusion is correct; being quiet about it was not. A run that
+// examined nothing reported the same "0 flagged" as a run that examined
+// everything, which is how 17 of 19 published pages went a month without ever
+// being checked.
+//
+// Editorial sources are excluded here as they are there: they cite no external
+// text by design (ADR-003), so they are out of scope rather than missing.
+//
+// The EXISTS filter matches ListCitationsForCheck for the reason given there:
+// orphaned statements accumulate on every save, and a count that included them
+// would overstate the gap on live pages — reporting a number that does not mean
+// what it says, which is the failure this count exists to end.
+func (pg *PG) CountUncheckableCitations(ctx context.Context) (int, error) {
+	var n int
+	err := pg.pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM citations c
+		JOIN sources s ON s.id = c.source_id
+		WHERE s.kind <> 'editorial' AND btrim(c.quote) = ''
+		  AND EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = c.statement_id)`).Scan(&n)
+	return n, err
 }
 
 // MarkSourceReviewed stamps retrieved_at and, when a cited quote went missing,
