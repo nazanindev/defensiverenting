@@ -18,7 +18,13 @@ primary_region = 'ewr'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  # Keep one machine warm. With 0, the only machine stops when idle and every
+  # Googlebot crawl of a quiet site pays a cold start (~1.5s). Crawl rate
+  # depends partly on how fast the server answers, and Search Console is
+  # already reporting pages as "Discovered - currently not indexed", so slow
+  # first bytes push in exactly the wrong direction. Machines above this
+  # minimum still auto-stop.
+  min_machines_running = 1
 
   [http_service.concurrency]
     type = 'requests'
