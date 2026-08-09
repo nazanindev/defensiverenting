@@ -33,7 +33,9 @@ import (
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-const localDSN = "postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable"
+// localDSN is the development default for the source database. Promoting to a
+// real destination requires PROMOTE_DST_DSN, which has no default.
+const localDSN = "postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable" // #nosec G101
 
 func main() {
 	src := flag.String("src", envOr("PROMOTE_SRC_DSN", localDSN), "source Postgres DSN")

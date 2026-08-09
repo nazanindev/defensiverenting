@@ -22,7 +22,11 @@ func CanonicalHost(siteURL string, enabled bool) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Host != canonicalHost &&
 				r.URL.Path != "/healthz" && r.URL.Path != "/readyz" {
-				http.Redirect(w, r, base+r.URL.RequestURI(), http.StatusMovedPermanently)
+				// Not an open redirect: base is the configured absolute site
+				// URL, already parsed and checked for a host, so the target is
+				// always on canonicalHost. The request contributes only the
+				// path and query that follow it.
+				http.Redirect(w, r, base+r.URL.RequestURI(), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			next.ServeHTTP(w, r)

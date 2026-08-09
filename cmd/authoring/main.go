@@ -24,7 +24,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unicode"
 
 	dbpkg "github.com/nazanindev/defensiverenting/db"
 	"github.com/nazanindev/defensiverenting/internal/discover"
@@ -315,7 +314,10 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 		redirect("msg", "already generating "+key)
 		return
 	}
-	go func() {
+	// A drafting run outlives the request that started it, so binding it to the
+	// request context would cancel the job the moment the browser got its
+	// redirect. context.Background is deliberate here.
+	go func() { // #nosec G118
 		defer s.jobs.done(key)
 		err := draftagent.Run(context.Background(), drafting.New(s.pg), draftagent.Options{
 			CitySlug:  city,
@@ -743,7 +745,6 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			s.formError(w, r, "Unknown city selected")
 			return
 		}
-		citySlug = jSlug
 	}
 
 	topic, msg := s.resolveTopic(ctx, r)
@@ -1029,7 +1030,6 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 				editErr("Unknown city selected")
 				return
 			}
-			citySlug = jSlug
 		}
 		topic, msg := s.resolveTopic(ctx, r)
 		if msg != "" {
@@ -1348,17 +1348,4 @@ func toSlug(s string) string {
 		}
 	}
 	return strings.Trim(sb.String(), "-")
-}
-
-func slugToTitle(slug string) string {
-	parts := strings.Split(slug, "-")
-	for i, p := range parts {
-		if len(p) == 0 {
-			continue
-		}
-		r := []rune(p)
-		r[0] = unicode.ToUpper(r[0])
-		parts[i] = string(r)
-	}
-	return strings.Join(parts, " ")
 }

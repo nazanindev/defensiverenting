@@ -68,7 +68,10 @@ func oneSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				if moved, aerr := db.ResolveJurisdictionAlias(r.Context(), slug); aerr == nil {
-					http.Redirect(w, r, moved.Path(), http.StatusMovedPermanently)
+					// Not an open redirect: the destination is built by Path()
+					// from a slug the database returned. The request supplies
+					// only the lookup key, never the target.
+					http.Redirect(w, r, moved.Path(), http.StatusMovedPermanently) // #nosec G710
 					return
 				}
 				http.NotFound(w, r)
@@ -79,7 +82,8 @@ func oneSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 		if j.Kind == "city" && j.ParentSlug != "" {
-			http.Redirect(w, r, j.Path(), http.StatusMovedPermanently)
+			// Not an open redirect: j came from the database.
+			http.Redirect(w, r, j.Path(), http.StatusMovedPermanently) // #nosec G710
 			return
 		}
 		renderJurisdiction(w, r, db, logger, j)
@@ -100,7 +104,10 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 				return
 			}
 			if moved, aerr := db.ResolveJurisdictionAlias(r.Context(), a); aerr == nil {
-				http.Redirect(w, r, moved.TopicPath(canonicalTopic(r.Context(), db, b)), http.StatusMovedPermanently)
+				// Not an open redirect: both halves of the target are
+				// database-resolved, moved from the alias table and the topic
+				// from canonicalTopic.
+				http.Redirect(w, r, moved.TopicPath(canonicalTopic(r.Context(), db, b)), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
@@ -111,7 +118,9 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		// canonicalising the topic on the way so one hop is always enough.
 		if parent.Kind == "city" {
 			if target := parent.TopicPath(canonicalTopic(r.Context(), db, b)); target != r.URL.Path {
-				http.Redirect(w, r, target, http.StatusMovedPermanently)
+				// Not an open redirect: parent and the canonical topic are both
+				// database-resolved.
+				http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			// Already canonical. A city with no parent addresses itself flatly,
@@ -123,8 +132,9 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		// /j/{state}/{city}: a city hub.
 		if child, cerr := db.GetJurisdictionBySlug(r.Context(), b); cerr == nil && child.Kind == "city" {
 			if child.ParentSlug != parent.Slug {
-				// Right city, wrong state in the URL.
-				http.Redirect(w, r, child.Path(), http.StatusMovedPermanently)
+				// Right city, wrong state in the URL. Not an open redirect:
+				// child came from the database.
+				http.Redirect(w, r, child.Path(), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			renderJurisdiction(w, r, db, logger, child)
@@ -149,7 +159,9 @@ func cityPlaybook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 				return
 			}
 			if moved, aerr := db.ResolveJurisdictionAlias(r.Context(), citySlug); aerr == nil {
-				http.Redirect(w, r, moved.TopicPath(canonicalTopic(r.Context(), db, topicSlug)), http.StatusMovedPermanently)
+				// Not an open redirect: alias target and canonical topic both
+				// come from the database.
+				http.Redirect(w, r, moved.TopicPath(canonicalTopic(r.Context(), db, topicSlug)), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
@@ -157,7 +169,9 @@ func cityPlaybook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		}
 		if city.ParentSlug != stateSlug {
 			if target := city.TopicPath(canonicalTopic(r.Context(), db, topicSlug)); target != r.URL.Path {
-				http.Redirect(w, r, target, http.StatusMovedPermanently)
+				// Not an open redirect: city and the canonical topic are both
+				// database-resolved.
+				http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
@@ -254,7 +268,9 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			if moved, aerr := db.ResolveTopicAlias(r.Context(), topicSlug); aerr == nil {
-				http.Redirect(w, r, j.TopicPath(moved.Slug), http.StatusMovedPermanently)
+				// Not an open redirect: j is the resolved jurisdiction and
+				// moved.Slug comes from the topic alias table.
+				http.Redirect(w, r, j.TopicPath(moved.Slug), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
