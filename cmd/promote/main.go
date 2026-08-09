@@ -39,6 +39,7 @@ func main() {
 	dst := flag.String("dst", os.Getenv("PROMOTE_DST_DSN"), "destination Postgres DSN")
 	status := flag.String("status", "draft", "only promote playbooks with this status")
 	exclude := flag.String("exclude", "", "comma-separated jurisdiction slugs to skip")
+	skipExisting := flag.Bool("skip-existing", false, "skip playbooks the destination already has, instead of replacing them (use to resume an interrupted run)")
 	apply := flag.Bool("apply", false, "actually write to the destination")
 	flag.Parse()
 
@@ -65,7 +66,7 @@ func main() {
 		}
 	}
 
-	plans, err := build(ctx, srcPG, dstPG, *status, skip)
+	plans, err := build(ctx, srcPG, dstPG, *status, skip, *skipExisting)
 	if err != nil {
 		fatal("%v", err)
 	}
@@ -79,13 +80,25 @@ func main() {
 		fmt.Println("\nDry run — nothing was written. Re-run with -apply to promote.")
 		return
 	}
+	// One playbook's failure must not abandon the other 25. A dropped
+	// connection is the likely cause (this runs over a `fly proxy` tunnel) and
+	// the pool re-dials on the next acquire, so continuing usually recovers.
+	var failed []string
 	for _, p := range plans {
 		if err := promote(ctx, srcPG, dstPG, p); err != nil {
-			fatal("promote %s/%s: %v", p.CitySlug, p.TopicSlug, err)
+			fmt.Printf("  FAILED   %s/%s: %v\n", p.CitySlug, p.TopicSlug, err)
+			failed = append(failed, p.CitySlug+"/"+p.TopicSlug)
+			continue
 		}
 		fmt.Printf("  promoted %s/%s\n", p.CitySlug, p.TopicSlug)
 	}
-	fmt.Printf("\nDone. %d playbooks promoted.\n", len(plans))
+
+	fmt.Printf("\n%d of %d promoted.\n", len(plans)-len(failed), len(plans))
+	if len(failed) > 0 {
+		fmt.Printf("%d failed:\n  %s\n", len(failed), strings.Join(failed, "\n  "))
+		fmt.Println("\nRe-run with -skip-existing -apply to retry only what is missing.")
+		os.Exit(1)
+	}
 }
 
 // plan is one playbook's promotion, with everything the report needs to
@@ -104,7 +117,7 @@ type plan struct {
 	Overwrites         string // existing destination status, or "" when the slot is free
 }
 
-func build(ctx context.Context, srcPG, dstPG *store.PG, status string, skip map[string]bool) ([]plan, error) {
+func build(ctx context.Context, srcPG, dstPG *store.PG, status string, skip map[string]bool, skipExisting bool) ([]plan, error) {
 	rows, err := srcPG.AuthorListPlaybooks(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list source playbooks: %w", err)
@@ -133,6 +146,9 @@ func build(ctx context.Context, srcPG, dstPG *store.PG, status string, skip map[
 		full, err := srcPG.AuthorGetPlaybook(ctx, r.ID)
 		if err != nil {
 			return nil, fmt.Errorf("read source playbook %d: %w", r.ID, err)
+		}
+		if skipExisting && occupied[key(full.Jurisdiction.Slug, full.Topic.Slug, full.Playbook.Language)] != "" {
+			continue
 		}
 
 		p := plan{
@@ -341,8 +357,8 @@ func report(plans []plan, skip map[string]bool, apply bool) {
 	}
 	if overwrites > 0 {
 		fmt.Printf("\n  WARNING: %d playbook(s) already exist in the destination and would be\n"+
-			"  replaced, including their statements. Exclude the jurisdiction, or\n"+
-			"  reconcile by hand, unless that is what you want.\n", overwrites)
+			"  replaced, including their statements. Pass -skip-existing to leave them\n"+
+			"  alone, or exclude the jurisdiction, unless replacing is what you want.\n", overwrites)
 	}
 }
 
