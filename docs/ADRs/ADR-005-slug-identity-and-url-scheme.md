@@ -168,7 +168,16 @@ Therefore:
 
 **Timing.** The pilot batch is reviewed but unpublished. Migrating before it publishes moves 19 URLs; after, 45. Steps 1–4 therefore run in parallel with review, and publication waits for them. Coordinate step 4 with the renterlaw.org rebrand window so search engines absorb one redirect generation, not several.
 
-**Boston and Seattle each have an `eviction-defense` draft sitting alongside a published `notice-to-quit`.** Renaming the latter collides with the former, and `UNIQUE (jurisdiction_id, topic_id, language)` permits only one. Each pair needs an editorial comparison — publish the draft and retire the old page, or discard the draft and rename the live one. This is a content judgment and belongs in the review queue, not in the migration script.
+**Boston and Seattle each have an `eviction-defense` draft sitting alongside a published `notice-to-quit`.** Renaming the latter collides with the former, and `UNIQUE (jurisdiction_id, topic_id, language)` permits only one.
+
+Resolved 2026-08-09: the drafts win for both cities. So this is a merge, not a rename — `eviction-defense` already exists as a topic, so `notice-to-quit` cannot simply be renamed onto it. Step 4 must, in order:
+
+1. Delete the Boston and Seattle `notice-to-quit` playbooks.
+2. Publish their `eviction-defense` drafts.
+3. Delete the now-unused `notice-to-quit` topic. This has to precede step 4, because `AddTopicAlias` refuses an alias that shadows a live slug.
+4. Alias `notice-to-quit` → the `eviction-defense` topic, so `/j/{city}/notice-to-quit` 301s.
+
+Pittsburgh never had `notice-to-quit`, so it is unaffected.
 
 ### D8. Rejected
 
