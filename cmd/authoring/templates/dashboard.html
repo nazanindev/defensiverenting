@@ -36,6 +36,8 @@
   .badge { display: inline-block; padding: .2rem .55rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
   .badge-draft { background: #fef3c7; color: #92400e; }
   .badge-published { background: #d1fae5; color: #065f46; }
+  .badge-superseded { background: #ede9fe; color: #5b21b6; }
+  .badge-revision { background: #fef3c7; color: #92400e; }
   .badge-playbook { background: #fde8eb; color: #7a1c2a; }
   .badge-directory { background: #e8f4fd; color: #2c5282; }
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -122,6 +124,7 @@
     <a class="tab {{if eq .Status "all"}}active{{end}}" href="/">All <b>{{.TotalCount}}</b></a>
     <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft">Drafts to review <b>{{.DraftCount}}</b></a>
     <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published">Published <b>{{.PublishedCount}}</b></a>
+    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="/?status=superseded" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
   </div>
 
 <div class="card">
@@ -145,7 +148,7 @@
           <td>{{.Title}}</td>
           <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           <td>{{.Language}}</td>
-          <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">revision</span>{{end}}</td>
           <td class="meta-cell">
             <div><strong>{{.StatementCount}}</strong> stmts · <strong>{{.SourceCount}}</strong> src</div>
             <div>Created {{date .CreatedAt}} · Updated {{date .UpdatedAt}}</div>
@@ -157,7 +160,11 @@
               <a href="/preview/{{.ID}}" target="_blank" rel="noopener" class="btn btn-view">Preview</a>
               {{if eq .Status "draft"}}
               <form method="post" action="/publish/{{.ID}}">
+                {{if .RevisesPublished}}
+                <button class="btn btn-success" onclick="return confirm('Publish this revision? It REPLACES the page currently live at this URL. The old version is retired, not deleted.')">Publish revision</button>
+                {{else}}
                 <button class="btn btn-success" onclick="return confirm('Publish this playbook to the live site?')">Publish</button>
+                {{end}}
               </form>
               {{end}}
               <form method="post" action="/delete/{{.ID}}">
@@ -173,6 +180,7 @@
     <div class="empty">
       {{if eq .Status "draft"}}No drafts waiting for review.
       {{else if eq .Status "published"}}Nothing published yet.
+      {{else if eq .Status "superseded"}}No pages have been replaced yet.
       {{else}}No playbooks yet. <a href="/new">Create the first one.</a>{{end}}
     </div>
     {{end}}

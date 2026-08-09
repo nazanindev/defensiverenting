@@ -215,4 +215,8 @@ type AuthorPlaybookRow struct {
 	PublishedAt      *time.Time
 	StatementCount   int
 	SourceCount      int
+	// RevisesPublished marks a draft whose slot already holds a live page.
+	// Publishing it replaces that page and retires the old version, which is a
+	// different act from publishing a new one.
+	RevisesPublished bool
 }

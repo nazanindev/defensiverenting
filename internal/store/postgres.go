@@ -317,6 +317,9 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			LEFT JOIN jurisdictions j ON j.id = s.jurisdiction_id
 			LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 			WHERE s.body_tsv @@ q.tsq AND s.language = $3
+			  -- Only statements on a published page are public. Without this,
+			  -- search leaks the text of drafts no human has reviewed yet.
+			  AND pb.status = 'published'
 			ORDER BY rank DESC LIMIT 20`,
 			*jurisdictionID, query, language)
 	} else {
@@ -339,6 +342,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			LEFT JOIN jurisdictions j ON j.id = s.jurisdiction_id
 			LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 			WHERE s.body_tsv @@ q.tsq AND s.language = $2
+			  AND pb.status = 'published'
 			ORDER BY rank DESC LIMIT 20`,
 			query, language)
 	}
@@ -381,6 +385,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 		WHERE pb.body_tsv @@ q.tsq
 		  AND ($2::BIGINT IS NULL OR pb.jurisdiction_id = $2)
 		  AND pb.language = $3
+		  AND pb.status = 'published'
 		ORDER BY rank DESC LIMIT 10`,
 		query, jurisdictionID, language)
 	if err != nil {
@@ -624,20 +629,38 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		pageKind = "playbook"
 	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		// A slot now holds at most one row per status, so the row to replace is
+		// the one with the SAME status. Re-drafting a page that is already
+		// published updates the draft beside it and leaves the live page alone.
+		// (ON CONFLICT cannot express this: the uniqueness is enforced by two
+		// partial indexes, and the applicable one depends on status.)
 		var playbookID int64
 		err := tx.QueryRow(ctx, `
-			INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind, updated_at, published_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), CASE WHEN $7 = 'published' THEN NOW() ELSE NULL END)
-			ON CONFLICT (jurisdiction_id, topic_id, language) DO UPDATE
-			    SET slug = EXCLUDED.slug, title = EXCLUDED.title, intro_md = EXCLUDED.intro_md,
-			        status = EXCLUDED.status, page_kind = EXCLUDED.page_kind, updated_at = NOW(),
-			        published_at = CASE WHEN EXCLUDED.status = 'published'
-			                            THEN COALESCE(playbooks.published_at, NOW())
-			                            ELSE playbooks.published_at END
-			RETURNING id`,
-			params.JurisdictionID, params.TopicID, params.Language,
-			params.Slug, params.Title, params.IntroMD, status, pageKind,
+			SELECT id FROM playbooks
+			 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3 AND status = $4`,
+			params.JurisdictionID, params.TopicID, params.Language, status,
 		).Scan(&playbookID)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			err = tx.QueryRow(ctx, `
+				INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind, updated_at, published_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(),
+				        CASE WHEN $7 = 'published' THEN NOW() ELSE NULL END)
+				RETURNING id`,
+				params.JurisdictionID, params.TopicID, params.Language,
+				params.Slug, params.Title, params.IntroMD, status, pageKind,
+			).Scan(&playbookID)
+		case err != nil:
+			return fmt.Errorf("find playbook slot: %w", err)
+		default:
+			_, err = tx.Exec(ctx, `
+				UPDATE playbooks
+				   SET slug = $2, title = $3, intro_md = $4, page_kind = $5, updated_at = NOW(),
+				       published_at = CASE WHEN status = 'published'
+				                           THEN COALESCE(published_at, NOW()) ELSE published_at END
+				 WHERE id = $1`,
+				playbookID, params.Slug, params.Title, params.IntroMD, pageKind)
+		}
 		if err != nil {
 			return fmt.Errorf("upsert playbook: %w", err)
 		}
@@ -855,7 +878,15 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 		       (SELECT count(*) FROM playbook_statements ps WHERE ps.playbook_id = pb.id),
 		       (SELECT count(DISTINCT c.source_id)
 		          FROM playbook_statements ps JOIN citations c ON c.statement_id = ps.statement_id
-		         WHERE ps.playbook_id = pb.id)
+		         WHERE ps.playbook_id = pb.id),
+		       -- A draft sitting in a slot that already has a live page is a
+		       -- proposed revision: publishing it replaces that page rather
+		       -- than adding one, so the dashboard has to say so.
+		       EXISTS (SELECT 1 FROM playbooks live
+		                WHERE live.jurisdiction_id = pb.jurisdiction_id
+		                  AND live.topic_id = pb.topic_id
+		                  AND live.language = pb.language
+		                  AND live.status = 'published' AND live.id <> pb.id)
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id
@@ -869,7 +900,7 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 		var r AuthorPlaybookRow
 		if err := rows.Scan(&r.ID, &r.Title, &r.JurisdictionName, &r.JurisdictionSlug,
 			&r.TopicSlug, &r.Language, &r.Status, &r.PageKind, &r.CreatedAt, &r.UpdatedAt,
-			&r.PublishedAt, &r.StatementCount, &r.SourceCount); err != nil {
+			&r.PublishedAt, &r.StatementCount, &r.SourceCount, &r.RevisesPublished); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -884,11 +915,40 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
 	// backs the reviewedBy claim the page emits in its JSON-LD, and what the
 	// sitemap reports as lastmod. Re-publishing an edited page re-stamps it,
 	// which is correct — the human looked at it again.
-	_, err := pg.pool.Exec(ctx,
-		`UPDATE playbooks SET status = 'published', updated_at = NOW(),
-		     published_at = COALESCE(published_at, NOW()), last_reviewed_at = NOW()
-		 WHERE id = $1`, id)
-	return err
+	//
+	// When this playbook is a revision of a live page, publishing swaps them:
+	// the page being replaced is retired to 'superseded', not deleted, so what
+	// it used to say survives. Retiring must happen first or the one-published-
+	// per-slot index rejects the swap.
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var jurisdictionID, topicID int64
+		var language string
+		err := tx.QueryRow(ctx,
+			`SELECT jurisdiction_id, topic_id, language FROM playbooks WHERE id = $1`, id,
+		).Scan(&jurisdictionID, &topicID, &language)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read playbook %d: %w", id, err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			UPDATE playbooks SET status = 'superseded', updated_at = NOW()
+			 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3
+			   AND status = 'published' AND id <> $4`,
+			jurisdictionID, topicID, language, id); err != nil {
+			return fmt.Errorf("retire the page being replaced: %w", err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			UPDATE playbooks SET status = 'published', updated_at = NOW(),
+			     published_at = COALESCE(published_at, NOW()), last_reviewed_at = NOW()
+			 WHERE id = $1`, id); err != nil {
+			return fmt.Errorf("publish playbook %d: %w", id, err)
+		}
+		return nil
+	})
 }
 
 // AuthorDeletePlaybook deletes a playbook, its orphaned statements, and any

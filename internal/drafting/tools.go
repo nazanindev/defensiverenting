@@ -101,7 +101,7 @@ type StatementInput struct {
 }
 
 type SaveDraftInput struct {
-	CitySlug   string           `json:"city_slug"`
+	CitySlug string `json:"city_slug"`
 	// No topic_name: topics are a closed registry, so the display name comes
 	// from the topics table and is never supplied by the caller.
 	TopicSlug  string           `json:"topic_slug" jsonschema:"a slug from list_topics, e.g. \"security-deposits\""`
@@ -145,11 +145,17 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			in.TopicSlug, strings.TrimPrefix(in.TopicSlug, in.CitySlug+"-"))
 	}
 
-	// Refuse to clobber a PUBLISHED playbook. GetPlaybook returns only published
-	// rows, so a not-found here means the slot is free or holds a draft (which
-	// re-drafting may safely overwrite).
+	// A published page in this slot is not an error: the draft becomes a
+	// proposed revision that sits beside it. The live page is untouched and
+	// stays live, and nothing reaches the public until a human publishes the
+	// revision, which retires the old page rather than deleting it.
+	//
+	// This used to be refused outright, back when one row could exist per slot
+	// and writing a draft would have overwritten live legal content. See
+	// migration 000015.
+	revises := false
 	if _, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, draftLanguage); err == nil {
-		return SaveDraftOutput{}, reject("a PUBLISHED playbook already exists for %s/%s — refusing to overwrite it. Choose a different topic, or a human must unpublish it first.", in.CitySlug, in.TopicSlug)
+		revises = true
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return SaveDraftOutput{}, err
 	}
@@ -259,7 +265,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		StatementCount: len(in.Statements),
 		CitationCount:  citationCount,
 		Status:         "draft",
-		Message:        "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published.",
+		Message:        savedMessage(revises),
 	}, nil
 }
 
@@ -379,4 +385,15 @@ func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPl
 		out.Statements = append(out.Statements, so)
 	}
 	return out, nil
+}
+
+// savedMessage tells the caller whether this draft stands alone or proposes a
+// replacement for a page that is currently live, since the consequence of
+// publishing it differs.
+func savedMessage(revises bool) string {
+	if revises {
+		return "Draft saved as a proposed revision of the page that is currently live. " +
+			"The live page is unchanged. Publishing this revision replaces it and retires the old version; nothing was published."
+	}
+	return "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published."
 }

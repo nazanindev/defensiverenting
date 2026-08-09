@@ -226,16 +226,19 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	// Drafts and published pages share one table, so a review pass through a
 	// batch of drafts otherwise means scrolling past every live page.
-	var draftCount, publishedCount int
+	var draftCount, publishedCount, supersededCount int
 	for _, p := range playbooks {
-		if p.Status == "draft" {
+		switch p.Status {
+		case "draft":
 			draftCount++
-		} else {
+		case "superseded":
+			supersededCount++
+		default:
 			publishedCount++
 		}
 	}
 	status := r.URL.Query().Get("status")
-	if status == "draft" || status == "published" {
+	if status == "draft" || status == "published" || status == "superseded" {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
 		for _, p := range playbooks {
 			if p.Status == status {
@@ -248,17 +251,18 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "dashboard.html", map[string]any{
-		"Playbooks":      playbooks,
-		"Cities":         cities,
-		"ReviewCounts":   counts,
-		"Generating":     s.jobs.list(),
-		"Flagged":        flagged,
-		"Status":         status,
-		"DraftCount":     draftCount,
-		"PublishedCount": publishedCount,
-		"TotalCount":     draftCount + publishedCount,
-		"Msg":            r.URL.Query().Get("msg"),
-		"Err":            r.URL.Query().Get("err"),
+		"Playbooks":       playbooks,
+		"Cities":          cities,
+		"ReviewCounts":    counts,
+		"Generating":      s.jobs.list(),
+		"Flagged":         flagged,
+		"Status":          status,
+		"DraftCount":      draftCount,
+		"PublishedCount":  publishedCount,
+		"TotalCount":      draftCount + publishedCount + supersededCount,
+		"SupersededCount": supersededCount,
+		"Msg":             r.URL.Query().Get("msg"),
+		"Err":             r.URL.Query().Get("err"),
 	})
 }
 

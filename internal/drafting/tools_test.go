@@ -182,20 +182,32 @@ func TestSaveDraft_WhitespaceTolerantMatch(t *testing.T) {
 	}
 }
 
-func TestSaveDraft_RefusesToOverwritePublished(t *testing.T) {
+// A research pass over a live page saves a proposed revision beside it. This
+// used to be refused outright, because one row per slot meant writing a draft
+// would have overwritten live legal content. Since migration 000015 a draft and
+// a published page coexist, so the pass is allowed — but it must still write a
+// DRAFT, leaving the live page untouched until a human publishes.
+func TestSaveDraft_RevisesPublishedWithoutTouchingIt(t *testing.T) {
 	fs := &fakeStore{publishedTopic: true}
 	tb := newTestToolbelt(fs, map[string]string{depositURL: "within thirty days"})
 	mustFetch(t, tb, depositURL)
 
-	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days")},
 	})
-	if !isRejection(err) {
-		t.Fatalf("expected refusal to overwrite a published playbook, got err=%v", err)
+	if err != nil {
+		t.Fatalf("revising a published page should be allowed, got err=%v", err)
 	}
-	if fs.ingested != nil {
-		t.Fatal("IngestPlaybook must not be called when a published playbook exists")
+	if fs.ingested == nil {
+		t.Fatal("the revision was not written")
+	}
+	if fs.ingested.Status != "draft" {
+		t.Errorf("wrote status %q; a revision must be a draft or it would replace the live page",
+			fs.ingested.Status)
+	}
+	if !strings.Contains(out.Message, "revision") {
+		t.Errorf("the caller should be told this replaces a live page, got: %s", out.Message)
 	}
 }
 
