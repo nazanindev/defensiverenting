@@ -1,4 +1,6 @@
 /authoring
 /bin/
 /draft
+/server
 .claude/settings.local.json
+.claude/worktrees/

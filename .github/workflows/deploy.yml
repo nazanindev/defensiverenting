@@ -3,6 +3,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+  # Redeploy on demand without a dummy commit — useful for flushing a bad
+  # config off an app without changing any code.
+  workflow_dispatch: {}
 
 jobs:
   deploy-main:
