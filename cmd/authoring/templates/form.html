@@ -48,8 +48,6 @@
   #new-city-panel { margin-top: 12px; padding: 14px 16px; background: #fdf8f8; border-radius: 8px; border: 1px solid #f0d8db; }
   #new-city-panel .panel-label { font-size: .75rem; font-weight: 700; color: #9b2335; margin-bottom: 10px; }
 
-  /* custom topic */
-  #custom-topic-panel { margin-top: 10px; }
 
   /* source + statement cards */
   .card { border: 1px solid #e8dede; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; background: #fffafa; }
@@ -134,26 +132,12 @@
           <label>Topic *</label>
           <select name="topic_key" id="topic-sel" onchange="onTopicChange(this.value)" required>
             <option value="">— pick a topic —</option>
-            <optgroup label="Legal rights">
-              <option value="heat-not-working"{{if eq .SelectedTopicKey "heat-not-working"}} selected{{end}}>Heat Not Working</option>
-              <option value="cant-pay-rent"{{if eq .SelectedTopicKey "cant-pay-rent"}} selected{{end}}>Can't Pay Rent</option>
-              <option value="notice-to-quit"{{if eq .SelectedTopicKey "notice-to-quit"}} selected{{end}}>Notice to Quit</option>
-              <option value="security-deposit-not-returned"{{if eq .SelectedTopicKey "security-deposit-not-returned"}} selected{{end}}>Security Deposit Not Returned</option>
-              <option value="landlord-entry-without-notice"{{if eq .SelectedTopicKey "landlord-entry-without-notice"}} selected{{end}}>Landlord Entry Without Notice</option>
-              <option value="uninhabitable-conditions"{{if eq .SelectedTopicKey "uninhabitable-conditions"}} selected{{end}}>Uninhabitable Conditions</option>
-              <option value="rent-increase"{{if eq .SelectedTopicKey "rent-increase"}} selected{{end}}>Rent Increase</option>
-              <option value="discrimination"{{if eq .SelectedTopicKey "discrimination"}} selected{{end}}>Housing Discrimination</option>
-              <option value="lease-renewal"{{if eq .SelectedTopicKey "lease-renewal"}} selected{{end}}>Lease Renewal</option>
-              <option value="noise-complaints"{{if eq .SelectedTopicKey "noise-complaints"}} selected{{end}}>Noise Complaints</option>
+            <optgroup label="Core topics">
+              {{range .Topics}}{{if .IsCore}}<option value="{{.Slug}}"{{if eq $.SelectedTopicKey .Slug}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
             </optgroup>
-            <optgroup label="Guides &amp; checklists">
-              <option value="move-in-checklist"{{if eq .SelectedTopicKey "move-in-checklist"}} selected{{end}}>Move-In Checklist</option>
-              <option value="move-out-checklist"{{if eq .SelectedTopicKey "move-out-checklist"}} selected{{end}}>Move-Out Checklist</option>
+            <optgroup label="Added where the local law calls for it">
+              {{range .Topics}}{{if not .IsCore}}<option value="{{.Slug}}"{{if eq $.SelectedTopicKey .Slug}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
             </optgroup>
-            <optgroup label="Resources">
-              <option value="resource-directory"{{if eq .SelectedTopicKey "resource-directory"}} selected{{end}}>Resource Directory</option>
-            </optgroup>
-            <option value="custom"{{if .IsCustomTopic}} selected{{end}}>Custom…</option>
           </select>
         </div>
       </div>
@@ -193,22 +177,12 @@
         </div>
       </div>
 
-      <!-- Custom topic field (hidden until "Custom…" selected, or pre-shown for custom topics) -->
-      <div id="custom-topic-panel" style="display:{{if .IsCustomTopic}}block{{else}}none{{end}}" class="field">
-        <label>Custom topic name</label>
-        <input type="text" name="custom_topic_name" id="custom-topic-name"
-               oninput="onCustomTopicInput(this.value)"
-               value="{{if .IsCustomTopic}}{{.SelectedTopicKey}}{{end}}"
-               placeholder="Mold in Apartment">
-        <div class="derived">
-          <span class="derived-label">topic id →</span>
-          <span class="derived-value" id="topic-key-preview">{{if .IsCustomTopic}}{{.SelectedTopicKey}}{{else}}…{{end}}</span>
-        </div>
-      </div>
+      {{/* No custom-topic field: topics are a closed registry (ADR-005 D5).
+           A new topic is added by migration, not invented while saving a page. */}}
 
       <!-- Full slug preview (always shown once city+topic chosen) -->
       <div class="derived" id="full-slug-row" style="display:none; margin-bottom:14px">
-        <span class="derived-label">playbook id →</span>
+        <span class="derived-label">page URL →</span>
         <span class="derived-value" id="full-slug-preview">…</span>
       </div>
       {{end}}
@@ -351,22 +325,12 @@ function onStateNameInput(v) {
 
 function onTopicChange(v) {
   curTopicKey = v;
-  v === 'custom' ? show('custom-topic-panel') : hide('custom-topic-panel');
-  updateDerived();
-}
-
-function onCustomTopicInput(v) {
-  curTopicKey = slugify(v);
-  setText('topic-key-preview', curTopicKey || '…');
   updateDerived();
 }
 
 function updateDerived() {
-  const topicKey = curTopicKey === 'custom'
-    ? slugify(document.getElementById('custom-topic-name')?.value || '')
-    : curTopicKey;
-
-  const fullSlug = curCitySlug && topicKey ? curCitySlug + '-' + topicKey : '';
+  const topicKey = curTopicKey;
+  const fullSlug = curCitySlug && topicKey ? '/j/' + curCitySlug + '/' + topicKey : '';
   if (fullSlug) {
     setText('full-slug-preview', fullSlug);
     show('full-slug-row');

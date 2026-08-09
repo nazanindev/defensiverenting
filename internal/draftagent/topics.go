@@ -1,18 +1,12 @@
 package draftagent
 
 // Topic is a playbook topic to draft: its URL slug and display name.
+//
+// The canonical set of topics lives in the database, not here. A hardcoded list
+// in this package used to disagree with the one in cmd/authoring, which is how
+// two vocabularies for the same subjects came to exist. Callers resolve topics
+// against store.ListTopicRegistry. See docs/ADRs/ADR-005 D5.
 type Topic struct {
 	Slug string
 	Name string
-}
-
-// CoreTopics is the predetermined set every city is seeded with — the most
-// common situations a renter needs help with. Editing this list changes what
-// `draft -topics core` generates.
-var CoreTopics = []Topic{
-	{"security-deposits", "Security Deposits"},
-	{"eviction-defense", "Eviction & Notice to Quit"},
-	{"repairs-and-habitability", "Repairs & Habitability"},
-	{"cant-pay-rent", "Can't Pay Rent"},
-	{"landlord-entry", "Landlord Entry & Privacy"},
 }

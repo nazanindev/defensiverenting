@@ -14,6 +14,11 @@ type Store interface {
 	ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error)
+	GetTopicBySlug(ctx context.Context, slug string) (Topic, error)
+	// ListTopicRegistry returns the whole canonical topic set, not just topics
+	// already published somewhere. Drafting a new city must see the vocabulary
+	// it is expected to reuse.
+	ListTopicRegistry(ctx context.Context) ([]Topic, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (PlaybookWithStatements, error)
 
 	// Search

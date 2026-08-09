@@ -108,6 +108,47 @@ func (pg *PG) ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64
 	return topics, rows.Err()
 }
 
+// ListTopicRegistry returns every topic that exists, ordered core-first then by
+// name. This is the registry: the authoring dropdown and the drafting agent's
+// list_topics both read it, so there is one vocabulary rather than a hardcoded
+// list per caller. See docs/ADRs/ADR-005 D5.
+func (pg *PG) ListTopicRegistry(ctx context.Context) ([]Topic, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT id, slug, name, is_core FROM topics ORDER BY is_core DESC, name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Topic
+	for rows.Next() {
+		var t Topic
+		if err := rows.Scan(&t.ID, &t.Slug, &t.Name, &t.IsCore); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// ListCoreTopics returns the topics every new city is seeded with.
+func (pg *PG) ListCoreTopics(ctx context.Context) ([]Topic, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT id, slug, name, is_core FROM topics WHERE is_core ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Topic
+	for rows.Next() {
+		var t Topic
+		if err := rows.Scan(&t.ID, &t.Slug, &t.Name, &t.IsCore); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // GetJurisdictionByID looks up one jurisdiction by id. Used to walk the
 // parent chain when copying jurisdictions between databases, where ids are
 // not comparable and the hierarchy has to be rebuilt by slug.

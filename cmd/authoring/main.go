@@ -9,6 +9,7 @@ import (
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -270,7 +271,6 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	topic := toSlug(strings.TrimSpace(r.FormValue("topic_slug")))
-	topicName := strings.TrimSpace(r.FormValue("topic_name"))
 
 	redirect := func(param, msg string) {
 		http.Redirect(w, r, "/?"+param+"="+url.QueryEscape(msg), http.StatusSeeOther)
@@ -279,6 +279,17 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 		redirect("err", "enter a topic slug")
 		return
 	}
+	// Topics are a closed registry; drafting may not invent one.
+	registryTopic, err := s.pg.GetTopicBySlug(r.Context(), topic)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			redirect("err", "unknown topic "+topic+" — pick one that already exists")
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	topicName := registryTopic.Name
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		redirect("err", "ANTHROPIC_API_KEY is not set on the authoring server — cannot generate")
 		return
@@ -522,7 +533,15 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	data := map[string]any{"Cities": cities, "Error": "", "PreloadJSON": template.JS("null")}
+	topics, err := s.pg.ListTopicRegistry(r.Context())
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	data := map[string]any{
+		"Cities": cities, "Topics": topics, "Error": "",
+		"PreloadJSON": template.JS("null"),
+	}
 
 	// ?from=<id> pre-fills the form from an existing playbook as a reference
 	if fromID := r.URL.Query().Get("from"); fromID != "" {
@@ -723,11 +742,12 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		citySlug = jSlug
 	}
 
-	topicSlug, topicName, msg := resolveTopic(r, citySlug)
+	topic, msg := s.resolveTopic(ctx, r)
 	if msg != "" {
 		s.formError(w, msg)
 		return
 	}
+	topicSlug := topic.Slug
 
 	// Parse sources
 	srcIndices := parseIndices(r.FormValue("active_sources"))
@@ -801,13 +821,6 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		s.formError(w, "Title is required")
 		return
 	}
-	topic, err := s.pg.UpsertTopic(ctx, store.UpsertTopicParams{
-		Slug: topicSlug, Name: topicName,
-	})
-	if err != nil {
-		s.formError(w, "Failed to save topic: "+err.Error())
-		return
-	}
 
 	if err := s.pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: j.ID,
@@ -853,53 +866,28 @@ func (s *srv) delete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// knownTopics maps the standard topic keys in the form dropdown to their
-// display names. The names must match the <option> labels in form.html —
-// they become topics.name the first time a topic is created.
-var knownTopics = map[string]string{
-	"heat-not-working":              "Heat Not Working",
-	"cant-pay-rent":                 "Can't Pay Rent",
-	"notice-to-quit":                "Notice to Quit",
-	"security-deposit-not-returned": "Security Deposit Not Returned",
-	"landlord-entry-without-notice": "Landlord Entry Without Notice",
-	"uninhabitable-conditions":      "Uninhabitable Conditions",
-	"rent-increase":                 "Rent Increase",
-	"discrimination":                "Housing Discrimination",
-	"lease-renewal":                 "Lease Renewal",
-	"noise-complaints":              "Noise Complaints",
-	"move-in-checklist":             "Move-In Checklist",
-	"move-out-checklist":            "Move-Out Checklist",
-	"resource-directory":            "Resource Directory",
-}
-
-// resolveTopic reads the topic selection off the form and returns the topic
-// slug and its display name, or a message to show the author.
+// resolveTopic reads the topic selection off the form and resolves it against
+// the topic registry, returning the row or a message to show the author.
 //
-// Topics are shared across cities, so the slug is the topic key itself and is
-// never prefixed with the city. Prefixing fragments the topic hub pages and the
-// cross-city links, and produces /j/{city}/{city}-{topic} URLs — the incident
-// cleaned up on 2026-08-01 (see docs/ADRs/ADR-005). internal/drafting rejects
-// city-prefixed slugs on the agent path; this is the same guardrail for the
-// two form paths, which is how the incident happened in the first place.
-func resolveTopic(r *http.Request, citySlug string) (slug, name, msg string) {
-	slug = r.FormValue("topic_key")
-	if slug == "custom" {
-		custom := strings.TrimSpace(r.FormValue("custom_topic_name"))
-		slug, name = toSlug(custom), custom
-	} else {
-		name = knownTopics[slug]
-	}
+// Topics are a closed set: the form picks one, it never creates one. Adding a
+// topic is an editorial decision made in a migration. Both form paths used to
+// build the slug as citySlug + "-" + topicKey and upsert it, which fragmented
+// topic hubs and cross-city links and produced /j/{city}/{city}-{topic} URLs —
+// the incident cleaned up on 2026-08-01. Resolving against the registry makes
+// that unrepresentable rather than merely discouraged. See ADR-005 D5.
+func (s *srv) resolveTopic(ctx context.Context, r *http.Request) (store.Topic, string) {
+	slug := strings.TrimSpace(r.FormValue("topic_key"))
 	if slug == "" {
-		return "", "", "Please select a topic"
+		return store.Topic{}, "Please select a topic"
 	}
-	if citySlug != "" && strings.HasPrefix(slug, citySlug+"-") {
-		return "", "", fmt.Sprintf("Topic %q starts with the city name. Topics are shared across cities — use %q instead.",
-			slug, strings.TrimPrefix(slug, citySlug+"-"))
+	t, err := s.pg.GetTopicBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return store.Topic{}, fmt.Sprintf("Topic %q is not in the topic list. Pick an existing topic.", slug)
+		}
+		return store.Topic{}, "Could not read the topic list: " + err.Error()
 	}
-	if name == "" {
-		name = slugToTitle(slug)
-	}
-	return slug, name, ""
+	return t, ""
 }
 
 // editFormData builds the template data map for the edit form.
@@ -908,8 +896,8 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 	pj, _ := json.Marshal(buildPreload(pw, editorial.ID))
 
 	citySlug := pw.Jurisdiction.Slug
-	topicKey := strings.TrimPrefix(pw.Topic.Slug, citySlug+"-")
-	isCustom := knownTopics[topicKey] == ""
+	topicKey := pw.Topic.Slug
+	topics, _ := s.pg.ListTopicRegistry(ctx)
 
 	data := map[string]any{
 		"EditMode":         true,
@@ -919,7 +907,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"TopicSlug":        pw.Topic.Slug,
 		"SelectedCitySlug": citySlug,
 		"SelectedTopicKey": topicKey,
-		"IsCustomTopic":    isCustom,
+		"Topics":           topics,
 		"SelectedPageKind": pw.Playbook.PageKind,
 		"Title":            pw.Playbook.Title,
 		"Intro":            pw.Playbook.IntroMD,
@@ -1018,22 +1006,15 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 			}
 			citySlug = jSlug
 		}
-		topicSlug, topicName, msg := resolveTopic(r, citySlug)
+		topic, msg := s.resolveTopic(ctx, r)
 		if msg != "" {
 			editErr(msg)
-			return
-		}
-		topic, err := s.pg.UpsertTopic(ctx, store.UpsertTopicParams{
-			Slug: topicSlug, Name: topicName,
-		})
-		if err != nil {
-			editErr("Failed to save topic: " + err.Error())
 			return
 		}
 		jurisdictionID = j.ID
 		topicID = topic.ID
 		lang = "en"
-		slug = topicSlug
+		slug = topic.Slug
 	} else {
 		jurisdictionID = existing.Playbook.JurisdictionID
 		topicID = existing.Playbook.TopicID

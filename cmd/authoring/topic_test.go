@@ -1,88 +1,140 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
+
+	dbpkg "github.com/nazanindev/defensiverenting/db"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// resolveFromForm drives resolveTopic through a real form POST, the way both
-// authoring form handlers reach it.
-func resolveFromForm(t *testing.T, topicKey, customName, citySlug string) (slug, name, msg string) {
+// Topic selection is no longer string manipulation over a hardcoded list; it is
+// a lookup against the topics registry, so these run against a real database.
+func testSrv(t *testing.T) *srv {
+	t.Helper()
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		t.Skip("DATABASE_URL not set — skipping integration test")
+	}
+	ctx := context.Background()
+	pg, err := store.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pg.Close)
+	if err := dbpkg.Migrate(ctx, pg.Pool()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return &srv{pg: pg, log: slog.New(slog.NewTextHandler(os.Stderr, nil))}
+}
+
+func resolveFromForm(t *testing.T, s *srv, topicKey string) (store.Topic, string) {
 	t.Helper()
 	form := url.Values{}
 	form.Set("topic_key", topicKey)
-	form.Set("custom_topic_name", customName)
 	r := httptest.NewRequest("POST", "/new", strings.NewReader(form.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return resolveTopic(r, citySlug)
+	return s.resolveTopic(context.Background(), r)
 }
 
-func TestResolveTopic_sharedSlugIsNotCityPrefixed(t *testing.T) {
-	// The 2026-08-01 incident: both form paths used to build the slug as
-	// citySlug + "-" + topicKey, fragmenting topic hubs across cities.
-	slug, name, msg := resolveFromForm(t, "cant-pay-rent", "", "boston")
+func TestResolveTopic_registrySlugResolves(t *testing.T) {
+	s := testSrv(t)
+	topic, msg := resolveFromForm(t, s, "security-deposits")
 	if msg != "" {
 		t.Fatalf("unexpected rejection: %s", msg)
 	}
-	if slug != "cant-pay-rent" {
-		t.Errorf("slug = %q, want cant-pay-rent (no city prefix)", slug)
+	if topic.Slug != "security-deposits" {
+		t.Errorf("slug = %q, want security-deposits", topic.Slug)
 	}
-	if name != "Can't Pay Rent" {
-		t.Errorf("name = %q, want the dropdown label", name)
-	}
-}
-
-func TestResolveTopic_rejectsCityPrefixedCustomTopic(t *testing.T) {
-	slug, _, msg := resolveFromForm(t, "custom", "Boston Security Deposits", "boston")
-	if msg == "" {
-		t.Fatalf("expected rejection, got slug %q", slug)
-	}
-	if !strings.Contains(msg, "security-deposits") {
-		t.Errorf("message should suggest the unprefixed slug, got: %s", msg)
+	if topic.Name != "Security Deposits" {
+		t.Errorf("name = %q, want the registry's name", topic.Name)
 	}
 }
 
-func TestResolveTopic_customTopicKeepsTypedName(t *testing.T) {
-	slug, name, msg := resolveFromForm(t, "custom", "Bed Bugs", "boston")
-	if msg != "" {
-		t.Fatalf("unexpected rejection: %s", msg)
+// The 2026-08-01 incident: both form paths built the slug as
+// citySlug + "-" + topicKey. A city-prefixed slug is not in the registry, so
+// the shape is now unrepresentable rather than merely discouraged.
+//
+// This asserts the invariant over the canonical set rather than over whatever
+// rows happen to exist. A database that still holds pre-cleanup topics (the
+// dev copy does; prod was cleaned on 2026-08-01, and D7 step 4 retires the
+// rest) would otherwise fail here for reasons that are not this code's doing.
+func TestResolveTopic_cityPrefixedSlugIsNotInTheRegistry(t *testing.T) {
+	s := testSrv(t)
+	if topic, msg := resolveFromForm(t, s, "boston-security-deposits"); msg == "" {
+		t.Errorf("city-prefixed slug was accepted as topic %d", topic.ID)
 	}
-	if slug != "bed-bugs" {
-		t.Errorf("slug = %q, want bed-bugs", slug)
+
+	cities, err := s.pg.ListCityJurisdictions(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if name != "Bed Bugs" {
-		t.Errorf("name = %q, want the name the author typed", name)
+	topics, err := s.pg.ListTopicRegistry(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tp := range topics {
+		if !tp.IsCore {
+			continue // legacy rows are non-core and retired by the URL migration
+		}
+		for _, c := range cities {
+			if strings.HasPrefix(tp.Slug, c.Slug+"-") {
+				t.Errorf("core topic %q is prefixed with city %q", tp.Slug, c.Slug)
+			}
+		}
 	}
 }
 
-func TestResolveTopic_requiresATopic(t *testing.T) {
-	if _, _, msg := resolveFromForm(t, "", "", "boston"); msg == "" {
+func TestResolveTopic_unknownSlugRejected(t *testing.T) {
+	s := testSrv(t)
+	if _, msg := resolveFromForm(t, s, "not-a-real-topic"); msg == "" {
+		t.Error("expected a rejection for a slug that is not in the registry")
+	}
+}
+
+func TestResolveTopic_requiresASelection(t *testing.T) {
+	s := testSrv(t)
+	if _, msg := resolveFromForm(t, s, ""); msg == "" {
 		t.Error("expected a message when no topic is selected")
 	}
 }
 
-// A city named so that a legitimate topic slug shares its prefix must still be
-// allowed: only an exact "{city}-" prefix is a fragmenting slug.
-func TestResolveTopic_allowsUnrelatedSlugSharingCityPrefix(t *testing.T) {
-	if _, _, msg := resolveFromForm(t, "renting-fundamentals", "", "rent"); msg != "" {
-		t.Errorf("unexpected rejection: %s", msg)
+// The registry is the vocabulary the drafting agent and the form share, so the
+// canonical set has to actually be there after migration.
+func TestTopicRegistry_seededWithCanonicalSet(t *testing.T) {
+	s := testSrv(t)
+	topics, err := s.pg.ListTopicRegistry(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestKnownTopicsCoverDropdown(t *testing.T) {
-	// Every key offered in form.html must resolve to a display name, or saving
-	// that option would fall back to slugToTitle and invent a name.
-	for _, key := range []string{
-		"heat-not-working", "cant-pay-rent", "notice-to-quit",
-		"security-deposit-not-returned", "landlord-entry-without-notice",
-		"uninhabitable-conditions", "rent-increase", "discrimination",
-		"lease-renewal", "noise-complaints", "move-in-checklist",
-		"move-out-checklist", "resource-directory",
-	} {
-		if knownTopics[key] == "" {
-			t.Errorf("dropdown key %q has no display name in knownTopics", key)
+	byslug := map[string]store.Topic{}
+	for _, tp := range topics {
+		byslug[tp.Slug] = tp
+	}
+	core := []string{
+		"cant-pay-rent", "eviction-defense", "repairs-and-habitability",
+		"security-deposits", "landlord-entry", "rent-increase", "resource-directory",
+	}
+	for _, slug := range core {
+		tp, ok := byslug[slug]
+		if !ok {
+			t.Errorf("core topic %q missing from the registry", slug)
+			continue
 		}
+		if !tp.IsCore {
+			t.Errorf("topic %q should be flagged is_core", slug)
+		}
+	}
+	// heat-not-working is deliberately kept out of the core set: it stays as a
+	// non-core topic so cold-weather cities keep the page and its URL.
+	if tp, ok := byslug["heat-not-working"]; !ok {
+		t.Error("heat-not-working missing from the registry")
+	} else if tp.IsCore {
+		t.Error("heat-not-working should be non-core")
 	}
 }

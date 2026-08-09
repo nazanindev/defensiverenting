@@ -59,6 +59,10 @@ type Topic struct {
 	ID   int64
 	Slug string
 	Name string
+	// IsCore marks a topic every new city is seeded with. Non-core topics are
+	// added to a city only where its law justifies one. Populated by the
+	// registry queries; zero elsewhere.
+	IsCore bool
 }
 
 type Playbook struct {

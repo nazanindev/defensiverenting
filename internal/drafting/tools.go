@@ -102,8 +102,9 @@ type StatementInput struct {
 
 type SaveDraftInput struct {
 	CitySlug   string           `json:"city_slug"`
-	TopicSlug  string           `json:"topic_slug" jsonschema:"e.g. \"security-deposits\""`
-	TopicName  string           `json:"topic_name" jsonschema:"display name, e.g. \"Security Deposits\""`
+	// No topic_name: topics are a closed registry, so the display name comes
+	// from the topics table and is never supplied by the caller.
+	TopicSlug  string           `json:"topic_slug" jsonschema:"a slug from list_topics, e.g. \"security-deposits\""`
 	Title      string           `json:"title"`
 	IntroMD    string           `json:"intro_md" jsonschema:"short Markdown intro for the playbook"`
 	Statements []StatementInput `json:"statements"`
@@ -210,12 +211,14 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		}
 	}
 
-	topicName := strings.TrimSpace(in.TopicName)
-	if topicName == "" {
-		topicName = in.TopicSlug
-	}
-	topic, err := tb.db.UpsertTopic(ctx, store.UpsertTopicParams{Slug: in.TopicSlug, Name: topicName})
+	// Topics are a closed registry: a draft may reuse one, never invent one.
+	// Adding a topic is an editorial decision made in a migration, not a side
+	// effect of an agent saving a page. See docs/ADRs/ADR-005 D5.
+	topic, err := tb.db.GetTopicBySlug(ctx, in.TopicSlug)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return SaveDraftOutput{}, reject("no topic with slug %q. Call list_topics for the full set and pick the closest match. Topics are shared across every city and are not created by drafting.", in.TopicSlug)
+		}
 		return SaveDraftOutput{}, err
 	}
 
@@ -292,10 +295,19 @@ type ListTopicsOutput struct {
 }
 
 type TopicOut struct {
-	Slug string `json:"slug"`
-	Name string `json:"name"`
+	Slug    string `json:"slug"`
+	Name    string `json:"name"`
+	IsCore  bool   `json:"is_core" jsonschema:"true for the topics every city should cover"`
+	HasPage bool   `json:"has_page" jsonschema:"true when this city already has a published playbook for the topic"`
 }
 
+// ListTopics returns the whole topic registry, marking which ones this city
+// already covers.
+//
+// It used to return only topics already published in the given city, which is
+// empty for every new city — exactly when the agent needs the vocabulary most.
+// With nothing to reuse, drafting runs invented slugs, which is how a second
+// topic vocabulary came to exist alongside the first. See docs/ADRs/ADR-005 D5.
 func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTopicsOutput, error) {
 	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.CitySlug)
 	if err != nil {
@@ -304,13 +316,23 @@ func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTop
 		}
 		return ListTopicsOutput{}, err
 	}
-	ts, err := tb.db.ListTopicsByJurisdiction(ctx, jur.ID, draftLanguage)
+	registry, err := tb.db.ListTopicRegistry(ctx)
 	if err != nil {
 		return ListTopicsOutput{}, err
 	}
-	out := ListTopicsOutput{Topics: make([]TopicOut, 0, len(ts))}
-	for _, t := range ts {
-		out.Topics = append(out.Topics, TopicOut{Slug: t.Slug, Name: t.Name})
+	covered, err := tb.db.ListTopicsByJurisdiction(ctx, jur.ID, draftLanguage)
+	if err != nil {
+		return ListTopicsOutput{}, err
+	}
+	hasPage := make(map[int64]bool, len(covered))
+	for _, t := range covered {
+		hasPage[t.ID] = true
+	}
+	out := ListTopicsOutput{Topics: make([]TopicOut, 0, len(registry))}
+	for _, t := range registry {
+		out.Topics = append(out.Topics, TopicOut{
+			Slug: t.Slug, Name: t.Name, IsCore: t.IsCore, HasPage: hasPage[t.ID],
+		})
 	}
 	return out, nil
 }

@@ -40,9 +40,11 @@ func userPrompt(citySlug, topicSlug, topicName string) string {
 	}
 	return fmt.Sprintf(
 		"Draft a tenant-rights playbook for city_slug=%q, topic_slug=%q (topic: %s). "+
-			"Use exactly these slugs when you call save_draft_playbook, and set topic_name to %q. "+
+			"Use exactly these slugs when you call save_draft_playbook. The topic must "+
+			"already exist: call list_topics if %q is rejected, and pick the closest slug "+
+			"from the registry rather than inventing one. "+
 			"Research the authoritative sources, read each via fetch_source, and save one draft.",
-		citySlug, topicSlug, name, name)
+		citySlug, topicSlug, name, topicSlug)
 }
 
 func titleize(slug string) string {
@@ -111,8 +113,7 @@ func toolDefs() []anthropic.ToolUnionParam {
 			"Save a DRAFT playbook. Every citation quote must be verbatim in a fetched source, or the save is rejected. Never publishes.",
 			map[string]any{
 				"city_slug":  strProp("city slug (use the one from the task)"),
-				"topic_slug": strProp("topic slug (use the one from the task)"),
-				"topic_name": strProp("topic display name"),
+				"topic_slug": strProp("topic slug from list_topics; topics are a fixed set and cannot be created here"),
 				"title":      strProp("playbook title"),
 				"intro_md":   strProp("short Markdown intro for the playbook"),
 				"statements": map[string]any{"type": "array", "items": statementItems},

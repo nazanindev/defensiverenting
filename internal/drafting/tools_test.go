@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -16,6 +17,7 @@ type fakeStore struct {
 	ingested       *store.IngestPlaybookParams
 	nextSrcID      int64
 	publishedTopic bool // when true, GetPlaybook reports an existing published playbook
+	unknownTopic   bool // when true, GetTopicBySlug reports the slug is not in the registry
 }
 
 func (f *fakeStore) GetPlaybook(_ context.Context, _, _, _ string) (store.PlaybookWithStatements, error) {
@@ -37,8 +39,13 @@ func (f *fakeStore) UpsertSource(_ context.Context, p store.UpsertSourceParams) 
 	return store.Source{ID: f.nextSrcID, URL: p.URL, Publisher: p.Publisher, Kind: p.Kind}, nil
 }
 
-func (f *fakeStore) UpsertTopic(_ context.Context, p store.UpsertTopicParams) (store.Topic, error) {
-	return store.Topic{ID: 7, Slug: p.Slug, Name: p.Name}, nil
+// Topics are a closed registry: SaveDraft looks one up, it never creates one.
+// unknownTopic makes the lookup miss, so the rejection path can be tested.
+func (f *fakeStore) GetTopicBySlug(_ context.Context, slug string) (store.Topic, error) {
+	if f.unknownTopic {
+		return store.Topic{}, store.ErrNotFound
+	}
+	return store.Topic{ID: 7, Slug: slug, Name: "Security Deposits"}, nil
 }
 
 func (f *fakeStore) IngestPlaybook(_ context.Context, p store.IngestPlaybookParams) error {
@@ -89,7 +96,6 @@ func TestSaveDraft_HappyPath(t *testing.T) {
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		CitySlug:  "boston",
 		TopicSlug: "security-deposits",
-		TopicName: "Security Deposits",
 		Title:     "Boston Security Deposits",
 		IntroMD:   "What Boston renters should know.",
 		Statements: []StatementInput{
@@ -202,5 +208,38 @@ func TestSaveDraft_RejectsUnknownCity(t *testing.T) {
 	})
 	if !isRejection(err) {
 		t.Fatalf("expected rejection for unknown city slug, got err=%v", err)
+	}
+}
+
+// Topics are a closed registry, so a draft may reuse one but never invent one.
+// A drafting run against a brand-new city used to get an empty list_topics and
+// mint its own slug, which is how a second vocabulary for the same subjects
+// came to exist. See docs/ADRs/ADR-005 D5.
+func TestSaveDraft_RejectsTopicNotInRegistry(t *testing.T) {
+	fs := &fakeStore{unknownTopic: true}
+	tb := newTestToolbelt(fs, map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	})
+	mustFetch(t, tb, depositURL)
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug:  "boston",
+		TopicSlug: "deposit-return-rules",
+		Title:     "Boston Deposit Rules",
+		IntroMD:   "What Boston renters should know.",
+		Statements: []StatementInput{
+			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
+		},
+	})
+	var rej *RejectionError
+	if !errors.As(err, &rej) {
+		t.Fatalf("err = %v, want a RejectionError", err)
+	}
+	if !strings.Contains(rej.Error(), "list_topics") {
+		t.Errorf("rejection should point the agent at list_topics, got: %s", rej.Error())
+	}
+	if fs.ingested != nil {
+		t.Error("nothing should have been written")
 	}
 }

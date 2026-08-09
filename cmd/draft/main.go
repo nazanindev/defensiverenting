@@ -43,17 +43,22 @@ func main() {
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		log.Fatal("draft: ANTHROPIC_API_KEY is required")
 	}
-	topics := resolveTopics(*topicsSpec)
-	if len(topics) == 0 {
-		log.Fatal("draft: no topics to draft")
-	}
-
 	ctx := context.Background()
 	pg, err := store.New(ctx, *dsn)
 	if err != nil {
 		log.Fatalf("draft: connect db: %v", err)
 	}
 	defer pg.Close()
+
+	// Resolved against the registry, so an unknown topic fails now rather than
+	// after minutes of paid API calls.
+	topics, err := resolveTopics(ctx, pg, *topicsSpec)
+	if err != nil {
+		log.Fatalf("draft: %v", err)
+	}
+	if len(topics) == 0 {
+		log.Fatal("draft: no topics to draft")
+	}
 	tb := drafting.New(pg) // shared toolbelt (fetch cache is concurrency-safe)
 
 	fmt.Fprintf(os.Stderr, "drafting %d topic(s) for %s on %s (parallel %d)…\n\n", len(topics), *city, *model, *parallel)
@@ -104,19 +109,57 @@ func main() {
 	}
 }
 
-// resolveTopics turns the -topics spec into a topic list: "core" (the
-// predetermined set) or a comma-separated list of slugs.
-func resolveTopics(spec string) []draftagent.Topic {
+// resolveTopics turns the -topics spec into a topic list: "core" (the topics
+// flagged is_core in the registry) or a comma-separated list of slugs.
+//
+// Both forms resolve against the topics table rather than a list compiled into
+// this binary. A slug that is not in the registry is refused here, so the run
+// fails in a second instead of after minutes of API calls that save_draft would
+// then reject. See docs/ADRs/ADR-005 D5.
+func resolveTopics(ctx context.Context, pg *store.PG, spec string) ([]draftagent.Topic, error) {
+	registry, err := pg.ListTopicRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read topic registry: %w", err)
+	}
+	bySlug := make(map[string]store.Topic, len(registry))
+	for _, t := range registry {
+		bySlug[t.Slug] = t
+	}
+
 	spec = strings.TrimSpace(spec)
 	if spec == "" || spec == "core" {
-		return draftagent.CoreTopics
+		var out []draftagent.Topic
+		for _, t := range registry {
+			if t.IsCore {
+				out = append(out, draftagent.Topic{Slug: t.Slug, Name: t.Name})
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("no core topics in the registry — has migration 000014 run?")
+		}
+		return out, nil
 	}
+
 	var out []draftagent.Topic
 	for _, s := range strings.Split(spec, ",") {
 		slug := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), " ", "-")
-		if slug != "" {
-			out = append(out, draftagent.Topic{Slug: slug}) // Name empty → draftagent title-cases it
+		if slug == "" {
+			continue
 		}
+		t, ok := bySlug[slug]
+		if !ok {
+			return nil, fmt.Errorf("unknown topic %q — topics are a fixed registry; known slugs: %s",
+				slug, strings.Join(slugsOf(registry), ", "))
+		}
+		out = append(out, draftagent.Topic{Slug: t.Slug, Name: t.Name})
+	}
+	return out, nil
+}
+
+func slugsOf(ts []store.Topic) []string {
+	out := make([]string, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, t.Slug)
 	}
 	return out
 }
