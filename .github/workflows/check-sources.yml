@@ -21,12 +21,14 @@ permissions:
 jobs:
   trigger:
     runs-on: ubuntu-latest
+    env:
+      AUTHORING_URL: https://defensiverenting-production.up.railway.app
     steps:
       - name: Trigger source re-check
         run: |
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -u "${{ secrets.AUTHORING_USER }}:${{ secrets.AUTHORING_PASSWORD }}" \
-            https://defensiverenting-authoring.fly.dev/check-sources)
+            "$AUTHORING_URL/check-sources")
           echo "POST /check-sources -> $code"
           case "$code" in
             2*|3*) echo "Source re-check triggered; flagged sources will appear in the dashboard." ;;

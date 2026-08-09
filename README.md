@@ -32,7 +32,7 @@ Pick a city and topic, and a research agent finds authoritative primary sources,
 - **Go** — single binary per service, ~12MB images, ~1.5s cold starts on Fly.io
 - **PostgreSQL** — full-text search via `tsvector` (no external search service), `content_hash` on sources for change detection
 - **Server-rendered HTML** — no JS framework; the authoring tool uses vanilla JS for its dynamic form
-- **Fly.io** — two apps: public site (`fly.toml`) and internal authoring service (`fly.authoring.toml`), auto-deployed via GitHub Actions
+- **Fly.io + Railway** — public site on Fly.io (`fly.toml`), internal authoring service on Railway (`railway.json` + `Dockerfile.authoring`); both deployed from GitHub Actions
 - **AI drafting** — an Anthropic-API tool-use agent (`cmd/draft`, `internal/draftagent`) researches sources and writes citation-verified drafts
 - **MCP** — the same drafting toolbelt is exposed as an MCP server (`cmd/mcp`), so the research→draft loop can be driven from an editor like Claude Code
 

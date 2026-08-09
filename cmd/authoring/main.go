@@ -105,7 +105,12 @@ func basicAuth(user, pass string, next http.Handler) http.Handler {
 }
 
 func main() {
-	addr := flag.String("addr", ":8081", "listen address")
+	// Railway injects $PORT and routes traffic to it; :8081 is the local default.
+	listenAddr := ":8081"
+	if p := os.Getenv("PORT"); p != "" {
+		listenAddr = ":" + p
+	}
+	addr := flag.String("addr", listenAddr, "listen address")
 	dsn := flag.String("db", os.Getenv("DATABASE_URL"), "Postgres DSN")
 	flag.Parse()
 
@@ -165,7 +170,7 @@ func main() {
 	mux.HandleFunc("POST /candidates/{id}/reject", s.rejectCandidate)
 	mux.HandleFunc("POST /candidates/{id}/snooze", s.snoozeCandidate)
 
-	// /healthz is outside the auth wrapper so Fly's health check can reach it.
+	// /healthz is outside the auth wrapper so the platform health check can reach it.
 	outer := http.NewServeMux()
 	outer.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -186,20 +191,6 @@ func main() {
 		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(shutCtx)
-	}()
-
-	// Satisfy the legacy port-8080 health check that Fly wrote into this app's
-	// config when the wrong image ran here. Without this the 8080 check fires,
-	// fails, and Fly rolls back to the old bad release. Once the authoring
-	// binary passes both checks it becomes the stable rollback target too.
-	go func() {
-		hm := http.NewServeMux()
-		hm.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-		hm.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-		legacy := &http.Server{Addr: ":8080", Handler: hm, ReadHeaderTimeout: 5 * time.Second}
-		if err := legacy.ListenAndServe(); err != nil {
-			log.Warn("legacy health-check server on :8080 stopped", slog.Any("err", err))
-		}
 	}()
 
 	log.Info("authoring started", slog.String("addr", *addr))

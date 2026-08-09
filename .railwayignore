@@ -1,0 +1,6 @@
+# Keep `railway up` uploads small: locally built binaries are not needed for
+# the Railway Docker build (it compiles from source).
+authoring
+draft
+server
+bin/
