@@ -818,9 +818,15 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 
 // AuthorPublishPlaybook sets a playbook's status to "published".
 func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
+	// Publishing is the review sign-off: nothing reaches the public site
+	// without a human clicking this. Stamping last_reviewed_at here is what
+	// backs the reviewedBy claim the page emits in its JSON-LD, and what the
+	// sitemap reports as lastmod. Re-publishing an edited page re-stamps it,
+	// which is correct — the human looked at it again.
 	_, err := pg.pool.Exec(ctx,
 		`UPDATE playbooks SET status = 'published', updated_at = NOW(),
-		     published_at = COALESCE(published_at, NOW()) WHERE id = $1`, id)
+		     published_at = COALESCE(published_at, NOW()), last_reviewed_at = NOW()
+		 WHERE id = $1`, id)
 	return err
 }
 
