@@ -318,3 +318,5 @@ The app machine is configured with `auto_stop_machines = "stop"` and `min_machin
 - **ADR-002:** Why server-rendered Go templates over a separate SPA (delivery speed, no JS build, accessible by default).
 - **ADR-003:** Citations as a first-class data primitive, enforced at schema + render + author layers.
 - **ADR-004:** How orgs slot in later without schema rewrite (additive `org_id` columns, optional join tables).
+- **ADR-005:** Jurisdiction hierarchy, slug identity, and the public URL scheme (`/j/{state}/{city}/{topic}`, permanent alias table, closed topic registry).
+- **ADR-006:** Accessibility and the browse UI (location as a search scope rather than a browse axis, lists over card grids, AAA contrast, 15px type floor).
