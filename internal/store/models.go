@@ -8,6 +8,33 @@ type Jurisdiction struct {
 	Kind     string // country|state|city
 	Name     string
 	Slug     string
+	// ParentSlug is the parent's slug, denormalised because every city URL
+	// contains its state (/j/{state}/{city}/{topic}). Empty for the country.
+	ParentSlug string
+}
+
+// Path is the public URL for this jurisdiction. Cities sit under their state,
+// which is how tenant law is actually layered: state law with local ordinances
+// on top. See docs/ADRs/ADR-005 D2.
+//
+// Every URL on the site is built from this and TopicPath, so the shape lives in
+// exactly one place. It used to be spelled out at seventeen call sites across
+// handlers and templates, which is how the authoring form ended up previewing a
+// slug format that had not existed since the 2026-08-01 cleanup.
+//
+// A city with no parent falls back to a flat path rather than emitting "/j//x".
+// The hierarchy repair means that should not happen; this keeps a data problem
+// from becoming a broken link.
+func (j Jurisdiction) Path() string {
+	if j.Kind == "city" && j.ParentSlug != "" {
+		return "/j/" + j.ParentSlug + "/" + j.Slug
+	}
+	return "/j/" + j.Slug
+}
+
+// TopicPath is the public URL for one topic within this jurisdiction.
+func (j Jurisdiction) TopicPath(topicSlug string) string {
+	return j.Path() + "/" + topicSlug
 }
 
 type Source struct {

@@ -23,11 +23,12 @@ import (
 func (pg *PG) ResolveJurisdictionAlias(ctx context.Context, alias string) (Jurisdiction, error) {
 	var j Jurisdiction
 	err := pg.pool.QueryRow(ctx, `
-		SELECT j.id, j.parent_id, j.kind, j.name, j.slug
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, '')
 		FROM slug_aliases a
 		JOIN jurisdictions j ON j.id = a.jurisdiction_id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		WHERE a.namespace = 'jurisdiction' AND a.alias = $1`, alias,
-	).Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug)
+	).Scan(&j.ID, &j.ParentID, &j.Kind, &j.Name, &j.Slug, &j.ParentSlug)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, ErrNotFound
 	}
