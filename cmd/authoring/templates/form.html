@@ -62,6 +62,10 @@
   .cite-sub { font-size: .72rem; color: #b08080; }
   .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
 
+  .cite-quote { font-size: .74rem; color: #6b5555; background: #fbf6f6; border-left: 2px solid #e0c8c8;
+                margin: -2px 0 8px 22px; padding: 5px 9px; border-radius: 0 4px 4px 0; line-height: 1.45; }
+  .cite-quote-missing { color: #9b2335; background: #fdf0f2; border-left-color: #f0b0ba; font-style: italic; }
+
   .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
   /* kind tags */
@@ -137,7 +141,7 @@
             <optgroup label="National">
               {{range .Jurisdictions}}{{if eq .Kind "country"}}<option value="{{.Slug}}"{{if eq .Slug $.SelectedCitySlug}} selected{{end}} data-name="{{.Name}}" data-parent="">{{.Name}} — national</option>{{end}}{{end}}
             </optgroup>
-            <option value="new">+ New city…</option>
+            <option value="new"{{if eq "new" .SelectedCitySlug}} selected{{end}}>+ New city…</option>
           </select>
         </div>
         <div class="field">
@@ -160,7 +164,7 @@
         <div class="g2">
           <div class="field">
             <label>City name</label>
-            <input type="text" name="new_city_name" id="new-city-name"
+            <input type="text" name="new_city_name" id="new-city-name" value="{{.NewCityName}}"
                    oninput="onCityNameInput(this.value)" placeholder="Chicago">
             <div class="derived">
               <span class="derived-label">slug →</span>
@@ -169,7 +173,7 @@
           </div>
           <div class="field">
             <label>State name</label>
-            <input type="text" name="new_state_name" id="new-state-name"
+            <input type="text" name="new_state_name" id="new-state-name" value="{{.NewStateName}}"
                    oninput="onStateNameInput(this.value)" placeholder="Illinois">
             <div class="derived">
               <span class="derived-label">slug →</span>
@@ -307,19 +311,25 @@ if (PRELOAD && PRELOAD.sources) {
     sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
   });
   PRELOAD.stmts.forEach(s => {
-    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, cites: {}, locators: {} };
+    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, cites: {}, locators: {}, quotes: {} };
     (s.cites || []).forEach(i => { st.cites[i] = true; });
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
+    Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
     stmts.push(st);
   });
   render();
 }
 
-// Editing a draft arrives with both selects already set. Seed the derived state
-// from them so the URL preview is right before the author touches anything.
+// Editing a draft — and re-rendering after a validation error — arrives with the
+// selects already set. Seed the derived state from them so the URL preview is
+// right, and reopen the new-city panel if that is where the author was.
 (function initFromSelects() {
   const cs = document.getElementById('city-sel');
-  if (cs && cs.value && cs.value !== 'new') { onCityChange(cs); }
+  if (cs && cs.value) { onCityChange(cs); }
+  const cn = document.getElementById('new-city-name');
+  if (cn && cn.value) { onCityNameInput(cn.value); }
+  const sn = document.getElementById('new-state-name');
+  if (sn && sn.value) { onStateNameInput(sn.value); }
   const ts = document.getElementById('topic-sel');
   if (ts && ts.value) { onTopicChange(ts.value); }
 })();
@@ -404,7 +414,7 @@ function addSource() {
 function rmSource(id) {
   sync();
   sources = sources.filter(s => s.id !== id);
-  stmts.forEach(st => { delete st.cites[id]; delete st.locators[id]; });
+  stmts.forEach(st => { delete st.cites[id]; delete st.locators[id]; delete st.quotes[id]; });
   render();
 }
 
@@ -412,7 +422,7 @@ function rmSource(id) {
 
 function addStmt() {
   sync();
-  stmts.push({ id: nextStmtId++, body: '', editorial: false, cites: {}, locators: {} });
+  stmts.push({ id: nextStmtId++, body: '', editorial: false, cites: {}, locators: {}, quotes: {} });
   render();
 }
 
@@ -437,6 +447,7 @@ function sync() {
     sources.forEach(function(src) {
       st.cites[src.id]    = c('cite_' + st.id + '_' + src.id);
       st.locators[src.id] = v('loc_' + st.id + '_' + src.id);
+      st.quotes[src.id]   = v('quote_' + st.id + '_' + src.id);
     });
   });
 }
@@ -523,6 +534,15 @@ function renderStmts() {
         '<input type="text" name="loc_' + st.id + '_' + src.id + '"' +
           ' value="' + esc(st.locators[src.id] || '') + '"' +
           ' placeholder="' + esc(src.locator || 'section override') + '">';
+      // The verbatim quote is what makes the citation checkable, so it rides
+      // along in a hidden field and is shown to the reviewer rather than being
+      // invisible. Anything not carried here is written back as "".
+      const quote = st.quotes[src.id] || '';
+      const quoteField = '<input type="hidden" name="quote_' + st.id + '_' + src.id + '" value="' + esc(quote) + '">';
+      const quoteRow = (isDir || !st.cites[src.id]) ? '' :
+        (quote
+          ? '<div class="cite-quote">“' + esc(quote) + '”</div>'
+          : '<div class="cite-quote cite-quote-missing">No verbatim quote on file — the source checker cannot verify this citation.</div>');
       return '<div class="cite-row">' +
         '<input type="checkbox" name="cite_' + st.id + '_' + src.id + '" id="cb_' + st.id + '_' + src.id + '"' +
           (st.cites[src.id] ? ' checked' : '') + '>' +
@@ -532,7 +552,8 @@ function renderStmts() {
           (!isDir && src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
         '</label>' +
         locInput +
-      '</div>';
+        quoteField +
+      '</div>' + quoteRow;
     }).join('');
 
     const editorialRow = isDir ? '' :

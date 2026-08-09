@@ -705,7 +705,7 @@ func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
 func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
-		s.formError(w, "Invalid form data: "+err.Error())
+		s.formError(w, r, "Invalid form data: "+err.Error())
 		return
 	}
 
@@ -718,7 +718,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		cityName := strings.TrimSpace(r.FormValue("new_city_name"))
 		stateName := strings.TrimSpace(r.FormValue("new_state_name"))
 		if cityName == "" || stateName == "" {
-			s.formError(w, "City name and state name are required for a new city")
+			s.formError(w, r, "City name and state name are required for a new city")
 			return
 		}
 		citySlug = toSlug(cityName)
@@ -727,20 +727,20 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			Kind: "state", Name: stateName, Slug: stateSlug,
 		})
 		if err != nil {
-			s.formError(w, "Failed to create state: "+err.Error())
+			s.formError(w, r, "Failed to create state: "+err.Error())
 			return
 		}
 		j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
 			ParentID: &state.ID, Kind: "city", Name: cityName, Slug: citySlug,
 		})
 		if err != nil {
-			s.formError(w, "Failed to create city: "+err.Error())
+			s.formError(w, r, "Failed to create city: "+err.Error())
 			return
 		}
 	} else {
 		j, err = s.pg.GetJurisdictionBySlug(ctx, jSlug)
 		if err != nil {
-			s.formError(w, "Unknown city selected")
+			s.formError(w, r, "Unknown city selected")
 			return
 		}
 		citySlug = jSlug
@@ -748,7 +748,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 
 	topic, msg := s.resolveTopic(ctx, r)
 	if msg != "" {
-		s.formError(w, msg)
+		s.formError(w, r, msg)
 		return
 	}
 	topicSlug := topic.Slug
@@ -763,14 +763,14 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		knd := r.FormValue(fmt.Sprintf("src_kind_%d", i))
 		loc := r.FormValue(fmt.Sprintf("src_loc_%d", i))
 		if u == "" || pub == "" {
-			s.formError(w, fmt.Sprintf("Source %d is missing a URL or publisher", i+1))
+			s.formError(w, r, fmt.Sprintf("Source %d is missing a URL or publisher", i+1))
 			return
 		}
 		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
 			URL: u, Publisher: pub, Kind: knd,
 		})
 		if err != nil {
-			s.formError(w, "Failed to save source: "+err.Error())
+			s.formError(w, r, "Failed to save source: "+err.Error())
 			return
 		}
 		sourceByIdx[i] = src
@@ -779,7 +779,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 
 	editorialSrc, err := s.pg.GetEditorialSource(ctx)
 	if err != nil {
-		s.formError(w, "Editorial source not found — run migrations first")
+		s.formError(w, r, "Editorial source not found — run migrations first")
 		return
 	}
 
@@ -798,9 +798,12 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 				if loc == "" {
 					loc = srcLocatorByIdx[i]
 				}
+				// Quote is carried through the form read-only. Omitting it here
+				// is what rewrote every citation's quote to "" on save.
 				cites = append(cites, store.IngestCitationParams{
 					SourceID: sourceByIdx[i].ID,
 					Locator:  loc,
+					Quote:    r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i)),
 				})
 			}
 		}
@@ -808,7 +811,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			cites = append(cites, store.IngestCitationParams{SourceID: editorialSrc.ID})
 		}
 		if len(cites) == 0 {
-			s.formError(w, fmt.Sprintf("Statement %d needs at least one citation", ji+1))
+			s.formError(w, r, fmt.Sprintf("Statement %d needs at least one citation", ji+1))
 			return
 		}
 		statements = append(statements, store.IngestStatementParams{
@@ -816,13 +819,13 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if len(statements) == 0 {
-		s.formError(w, "At least one statement is required")
+		s.formError(w, r, "At least one statement is required")
 		return
 	}
 
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		s.formError(w, "Title is required")
+		s.formError(w, r, "Title is required")
 		return
 	}
 
@@ -837,7 +840,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		Statements:     statements,
 		Status:         "draft",
 	}); err != nil {
-		s.formError(w, "Failed to save playbook: "+err.Error())
+		s.formError(w, r, "Failed to save playbook: "+err.Error())
 		return
 	}
 
@@ -954,18 +957,36 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// editErr re-renders the edit form with a validation message, showing what
+	// was submitted rather than what is stored. Re-reading the playbook here
+	// silently reverted the whole session: on a page with a dozen statements,
+	// one missing citation discarded every other edit the author had made.
+	//
+	// The stored copy is still the fallback. A request that failed to parse has
+	// no usable form values, and handing back an empty form would be a second
+	// way to lose the same work.
 	editErr := func(msg string) {
-		// Preserve what the user typed for title/intro on re-render
 		pw := existing
-		pw.Playbook.Title = r.FormValue("title")
-		if pw.Playbook.Title == "" {
-			pw.Playbook.Title = existing.Playbook.Title
+		if v := r.FormValue("title"); v != "" {
+			pw.Playbook.Title = v
 		}
-		pw.Playbook.IntroMD = r.FormValue("intro")
-		if pw.Playbook.IntroMD == "" {
-			pw.Playbook.IntroMD = existing.Playbook.IntroMD
+		if v := r.FormValue("intro"); v != "" {
+			pw.Playbook.IntroMD = v
 		}
-		s.render(w, "form.html", s.editFormData(context.Background(), pw, msg))
+		data := s.editFormData(context.Background(), pw, msg)
+		if submitted := preloadFromForm(r); len(submitted.Stmts) > 0 || len(submitted.Sources) > 0 {
+			pj, _ := json.Marshal(submitted)
+			//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
+			data["PreloadJSON"] = template.JS(pj)
+			if existing.Playbook.Status == "draft" {
+				data["SelectedCitySlug"] = r.FormValue("jurisdiction_select")
+				data["SelectedTopicKey"] = r.FormValue("topic_key")
+				data["NewCityName"] = r.FormValue("new_city_name")
+				data["NewStateName"] = r.FormValue("new_state_name")
+			}
+			data["SelectedPageKind"] = r.FormValue("page_kind")
+		}
+		s.render(w, "form.html", data)
 	}
 
 	if err := r.ParseForm(); err != nil {
@@ -1067,7 +1088,13 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 				if loc == "" {
 					loc = srcLocatorByIdx[i]
 				}
-				cites = append(cites, store.IngestCitationParams{SourceID: sourceByIdx[i].ID, Locator: loc})
+				// See submitForm: the quote round-trips read-only through the
+				// form, and dropping it here silently wiped the evidence.
+				cites = append(cites, store.IngestCitationParams{
+					SourceID: sourceByIdx[i].ID,
+					Locator:  loc,
+					Quote:    r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i)),
+				})
 			}
 		}
 		if r.FormValue(fmt.Sprintf("edit_%d", ji)) == "on" {
@@ -1122,18 +1149,31 @@ func (s *srv) serverError(w http.ResponseWriter, err error) {
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
 }
 
-// formError re-renders the new-playbook form with a validation message. Both
-// selects have to be repopulated: without Topics the author lands on a form
-// whose topic dropdown is empty and cannot resubmit at all.
-func (s *srv) formError(w http.ResponseWriter, msg string) {
+// formError re-renders the new-playbook form with a validation message, handing
+// back everything that was submitted.
+//
+// Both selects have to be repopulated: without Topics the author lands on a
+// form whose topic dropdown is empty and cannot resubmit at all. The statements
+// and sources come from the POST, not the database — there is no stored copy of
+// a page that has never saved.
+func (s *srv) formError(w http.ResponseWriter, r *http.Request, msg string) {
 	ctx := context.Background()
 	jurisdictions, _ := s.pg.ListAuthorableJurisdictions(ctx)
 	topics, _ := s.pg.ListTopicRegistry(ctx)
+	pj, _ := json.Marshal(preloadFromForm(r))
 	s.render(w, "form.html", map[string]any{
-		"Jurisdictions": jurisdictions,
-		"Topics":        topics,
-		"Error":         msg,
-		"PreloadJSON":   template.JS("null"),
+		"Jurisdictions":    jurisdictions,
+		"Topics":           topics,
+		"SelectedCitySlug": r.FormValue("jurisdiction_select"),
+		"SelectedTopicKey": r.FormValue("topic_key"),
+		"SelectedPageKind": r.FormValue("page_kind"),
+		"NewCityName":      r.FormValue("new_city_name"),
+		"NewStateName":     r.FormValue("new_state_name"),
+		"Title":            r.FormValue("title"),
+		"Intro":            r.FormValue("intro"),
+		"Error":            msg,
+		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
+		"PreloadJSON": template.JS(pj),
 	})
 }
 
@@ -1158,6 +1198,64 @@ type preloadStmt struct {
 	Editorial bool              `json:"editorial"`
 	Cites     []int             `json:"cites"`    // indices into sources slice
 	Locators  map[string]string `json:"locators"` // "srcIdx" -> locator override
+	// Quotes carries the verbatim source text backing each citation, keyed the
+	// same way as Locators. The form never captured it, so every save rewrote
+	// citations.quote to "" — a human review pass silently destroyed the
+	// evidence the drafting agent had verified. It round-trips read-only.
+	Quotes map[string]string `json:"quotes"`
+}
+
+// preloadFromForm rebuilds the preload structure from a submitted form rather
+// than from the database.
+//
+// A validation error used to re-render from stored state, which threw away
+// every statement and source the author had in the browser — on a page with a
+// dozen statements, one missing citation cost the whole session. The form's own
+// ids are arbitrary (the JS hands them out as cards are added and removed), so
+// they are renumbered to the sequential positions the re-rendered form expects.
+//
+// Empty statements are deliberately kept: an empty body is often exactly what
+// the author has to come back and fill in.
+func preloadFromForm(r *http.Request) preloadData {
+	srcIDs := parseIndices(r.FormValue("active_sources"))
+	position := make(map[int]int, len(srcIDs))
+	out := preloadData{Sources: make([]preloadSrc, 0, len(srcIDs))}
+
+	for i, id := range srcIDs {
+		position[id] = i
+		out.Sources = append(out.Sources, preloadSrc{
+			ID:        i,
+			URL:       strings.TrimSpace(r.FormValue(fmt.Sprintf("src_url_%d", id))),
+			Publisher: strings.TrimSpace(r.FormValue(fmt.Sprintf("src_pub_%d", id))),
+			Kind:      r.FormValue(fmt.Sprintf("src_kind_%d", id)),
+			Locator:   r.FormValue(fmt.Sprintf("src_loc_%d", id)),
+		})
+	}
+
+	stmtIDs := parseIndices(r.FormValue("active_stmts"))
+	out.Stmts = make([]preloadStmt, 0, len(stmtIDs))
+	for i, id := range stmtIDs {
+		ps := preloadStmt{
+			ID:        i,
+			Body:      r.FormValue(fmt.Sprintf("stmt_%d", id)),
+			Editorial: r.FormValue(fmt.Sprintf("edit_%d", id)) == "on",
+			Locators:  map[string]string{},
+			Quotes:    map[string]string{},
+		}
+		for _, srcID := range srcIDs {
+			if r.FormValue(fmt.Sprintf("cite_%d_%d", id, srcID)) == "on" {
+				ps.Cites = append(ps.Cites, position[srcID])
+			}
+			if loc := r.FormValue(fmt.Sprintf("loc_%d_%d", id, srcID)); loc != "" {
+				ps.Locators[strconv.Itoa(position[srcID])] = loc
+			}
+			if q := r.FormValue(fmt.Sprintf("quote_%d_%d", id, srcID)); q != "" {
+				ps.Quotes[strconv.Itoa(position[srcID])] = q
+			}
+		}
+		out.Stmts = append(out.Stmts, ps)
+	}
+	return out
 }
 
 // buildPreload converts a stored playbook into the JS-ready preload structure
@@ -1197,7 +1295,7 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 
 	stmts := make([]preloadStmt, 0, len(pw.Statements))
 	for i, stmt := range pw.Statements {
-		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Locators: map[string]string{}}
+		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Locators: map[string]string{}, Quotes: map[string]string{}}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true
@@ -1205,6 +1303,9 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 				ps.Cites = append(ps.Cites, m.idx)
 				if c.Locator != "" {
 					ps.Locators[strconv.Itoa(m.idx)] = c.Locator
+				}
+				if c.Quote != "" {
+					ps.Quotes[strconv.Itoa(m.idx)] = c.Quote
 				}
 			}
 		}

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"html/template"
 	"io"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -180,5 +182,203 @@ func TestFormTemplateErrorStateKeepsTopics(t *testing.T) {
 	}
 	if !strings.Contains(html, "Statement 2 needs at least one citation") {
 		t.Error("validation message not shown")
+	}
+}
+
+// A validation error must hand back what was submitted. Re-rendering from
+// stored state discarded every statement and source the author had in the
+// browser, which on a 16-statement page meant one missing citation cost the
+// whole session.
+func TestPreloadFromFormRoundTripsASubmission(t *testing.T) {
+	form := url.Values{}
+	// Card ids are whatever the JS handed out; 4 and 9 survive after the author
+	// added and removed cards, and the reconstruction has to renumber them.
+	form.Set("active_sources", "4,9")
+	form.Set("src_url_4", " https://malegislature.gov/Laws/GeneralLaws/PartII/TitleI/Chapter186/Section15B ")
+	form.Set("src_pub_4", " Massachusetts Legislature ")
+	form.Set("src_kind_4", "statute")
+	form.Set("src_loc_4", "§ 15B(4)")
+	form.Set("src_url_9", "https://www.mass.gov/info-details/security-deposits")
+	form.Set("src_pub_9", "Mass.gov")
+	form.Set("src_kind_9", "gov_guidance")
+
+	form.Set("active_stmts", "2,7")
+	form.Set("stmt_2", "Your landlord must return the deposit within 30 days of the end of the tenancy.")
+	form.Set("cite_2_4", "on")
+	form.Set("loc_2_4", "§ 15B(4)(iii)")
+	form.Set("stmt_7", "Keep a copy of every letter you send.")
+	form.Set("edit_7", "on")
+
+	r := httptest.NewRequest("POST", "/new", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	got := preloadFromForm(r)
+
+	if len(got.Sources) != 2 || len(got.Stmts) != 2 {
+		t.Fatalf("lost cards: %d sources, %d statements", len(got.Sources), len(got.Stmts))
+	}
+	// Renumbered to sequential positions, since that is what the form re-renders.
+	if got.Sources[0].ID != 0 || got.Sources[1].ID != 1 {
+		t.Errorf("sources not renumbered: %d, %d", got.Sources[0].ID, got.Sources[1].ID)
+	}
+	if got.Sources[0].URL != "https://malegislature.gov/Laws/GeneralLaws/PartII/TitleI/Chapter186/Section15B" {
+		t.Errorf("source URL not trimmed or lost: %q", got.Sources[0].URL)
+	}
+	if got.Sources[0].Publisher != "Massachusetts Legislature" {
+		t.Errorf("publisher not trimmed or lost: %q", got.Sources[0].Publisher)
+	}
+	if got.Sources[0].Locator != "§ 15B(4)" {
+		t.Errorf("source locator lost: %q", got.Sources[0].Locator)
+	}
+
+	// Citation checkboxes point at renumbered source positions, not card ids.
+	if len(got.Stmts[0].Cites) != 1 || got.Stmts[0].Cites[0] != 0 {
+		t.Errorf("citation lost or misaddressed: %v", got.Stmts[0].Cites)
+	}
+	if got.Stmts[0].Locators["0"] != "§ 15B(4)(iii)" {
+		t.Errorf("per-statement locator override lost: %v", got.Stmts[0].Locators)
+	}
+	if !strings.HasPrefix(got.Stmts[0].Body, "Your landlord must return") {
+		t.Errorf("statement body lost: %q", got.Stmts[0].Body)
+	}
+	if !got.Stmts[1].Editorial {
+		t.Error("editorial flag lost")
+	}
+	if len(got.Stmts[1].Cites) != 0 {
+		t.Errorf("editorial statement gained citations: %v", got.Stmts[1].Cites)
+	}
+}
+
+// An empty statement is usually the one the author has to come back and fill
+// in, so it has to survive the round trip rather than being dropped.
+func TestPreloadFromFormKeepsEmptyStatements(t *testing.T) {
+	form := url.Values{}
+	form.Set("active_sources", "0")
+	form.Set("src_url_0", "https://example.gov")
+	form.Set("src_pub_0", "Example")
+	form.Set("active_stmts", "0,1")
+	form.Set("stmt_0", "Written down.")
+	form.Set("cite_0_0", "on")
+	form.Set("stmt_1", "")
+
+	r := httptest.NewRequest("POST", "/new", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if got := preloadFromForm(r); len(got.Stmts) != 2 {
+		t.Fatalf("empty statement dropped: got %d statements", len(got.Stmts))
+	}
+}
+
+// Nothing submitted must not look like a submission, or editErr would replace
+// the stored playbook with an empty form.
+func TestPreloadFromFormEmptyRequest(t *testing.T) {
+	r := httptest.NewRequest("POST", "/new", strings.NewReader(""))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	got := preloadFromForm(r)
+	if len(got.Sources) != 0 || len(got.Stmts) != 0 {
+		t.Errorf("expected an empty reconstruction, got %d sources / %d statements",
+			len(got.Sources), len(got.Stmts))
+	}
+}
+
+// The verbatim quote is the site's central guarantee, and the form never
+// carried it: every save wrote citations.quote back as "". A reviewer opening a
+// draft, changing nothing and clicking save destroyed the evidence the drafting
+// agent had verified — and since the source checker skips unquoted citations
+// (internal/store/monitor.go), the page then published into a blind spot.
+func TestPreloadFromFormPreservesQuotes(t *testing.T) {
+	quote := "The lessor shall, within thirty days after the termination of occupancy, return to the tenant the security deposit"
+
+	form := url.Values{}
+	form.Set("active_sources", "0")
+	form.Set("src_url_0", "https://malegislature.gov/Laws/GeneralLaws/PartII/TitleI/Chapter186/Section15B")
+	form.Set("src_pub_0", "Massachusetts Legislature")
+	form.Set("src_kind_0", "statute")
+	form.Set("active_stmts", "0")
+	form.Set("stmt_0", "Your landlord must return the deposit within 30 days.")
+	form.Set("cite_0_0", "on")
+	form.Set("loc_0_0", "§ 15B(4)")
+	form.Set("quote_0_0", quote)
+
+	r := httptest.NewRequest("POST", "/edit/1", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	got := preloadFromForm(r)
+	if got.Stmts[0].Quotes["0"] != quote {
+		t.Errorf("quote lost on round trip: %q", got.Stmts[0].Quotes["0"])
+	}
+}
+
+// buildPreload is the other half: a quote in the database has to reach the form
+// or the next save has nothing to hand back.
+func TestBuildPreloadCarriesQuotes(t *testing.T) {
+	const editorialID int64 = 99
+	quote := "Heat shall be provided from September 15th to June 15th"
+
+	pw := store.PlaybookWithStatements{
+		Statements: []store.CitedStatement{{
+			BodyMD: "Your landlord must heat the apartment.",
+			Citations: []store.CitationWithSource{
+				{SourceID: 7, SourceURL: "https://example.gov/heat", Publisher: "City", SourceKind: "regulation",
+					Locator: "§ 410.201", Quote: quote},
+				{SourceID: editorialID},
+			},
+		}},
+	}
+
+	got := buildPreload(pw, editorialID)
+	if len(got.Stmts) != 1 {
+		t.Fatalf("expected 1 statement, got %d", len(got.Stmts))
+	}
+	if got.Stmts[0].Quotes["0"] != quote {
+		t.Errorf("quote did not reach the form: %q", got.Stmts[0].Quotes["0"])
+	}
+	if !got.Stmts[0].Editorial {
+		t.Error("editorial flag lost")
+	}
+}
+
+// A full loop: database -> form -> submitted form -> database. This is the save
+// that used to strip the quote.
+func TestQuoteSurvivesAnUnchangedSave(t *testing.T) {
+	const editorialID int64 = 99
+	quote := "no landlord shall increase rent without thirty days written notice"
+
+	pw := store.PlaybookWithStatements{
+		Statements: []store.CitedStatement{{
+			BodyMD: "Your landlord owes you 30 days notice.",
+			Citations: []store.CitationWithSource{{
+				SourceID: 3, SourceURL: "https://example.gov/rent", Publisher: "State",
+				SourceKind: "statute", Locator: "§ 12", Quote: quote,
+			}},
+		}},
+	}
+
+	// Database -> form.
+	loaded := buildPreload(pw, editorialID)
+
+	// Form -> POST, exactly as the rendered fields would serialise it.
+	form := url.Values{}
+	form.Set("active_sources", "0")
+	form.Set("src_url_0", loaded.Sources[0].URL)
+	form.Set("src_pub_0", loaded.Sources[0].Publisher)
+	form.Set("src_kind_0", loaded.Sources[0].Kind)
+	form.Set("active_stmts", "0")
+	form.Set("stmt_0", loaded.Stmts[0].Body)
+	form.Set("cite_0_0", "on")
+	form.Set("loc_0_0", loaded.Stmts[0].Locators["0"])
+	form.Set("quote_0_0", loaded.Stmts[0].Quotes["0"])
+
+	r := httptest.NewRequest("POST", "/edit/1", strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	_ = r.ParseForm()
+
+	// POST -> what the handler would write to citations.quote.
+	if written := r.FormValue("quote_0_0"); written != quote {
+		t.Fatalf("an unchanged save would write quote=%q, want %q", written, quote)
+	}
+	if r.FormValue("loc_0_0") != "§ 12" {
+		t.Errorf("locator lost: %q", r.FormValue("loc_0_0"))
 	}
 }
