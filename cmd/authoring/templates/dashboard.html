@@ -11,11 +11,11 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
   .site-header { background: #4a1223; padding: 0 24px; }
-  .site-header .wrap { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-header .wrap { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
   .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
   .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
   .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
-  .page { max-width: 960px; margin: 0 auto; padding: 36px 24px; }
+  .page { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
   h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; }
   .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .875rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
@@ -28,19 +28,27 @@
   .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
   .btn-danger:hover { background: #fff5f5; }
   .card { background: #fff; border-radius: 10px; border: 1px solid #e8dede; overflow-x: auto; }
-  .meta-cell { font-size: .76rem; color: #7a5c5c; line-height: 1.5; white-space: nowrap; }
+  .meta-cell { font-size: .74rem; color: #7a5c5c; white-space: nowrap; }
+  .num { font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 10px 16px; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #9a7878; border-bottom: 1px solid #e8dede; background: #fdf8f8; }
-  td { padding: 13px 16px; border-bottom: 1px solid #f5eded; font-size: .875rem; vertical-align: middle; }
+  th { text-align: left; padding: 7px 10px; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; border-bottom: 1px solid #e8dede; background: #fdf8f8; position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+  th a { color: inherit; text-decoration: none; }
+  th a:hover { color: #4a1223; }
+  th.is-sorted a { color: #4a1223; }
+  th .arrow { font-size: .6rem; margin-left: 2px; }
+  td { padding: 4px 10px; border-bottom: 1px solid #f5eded; font-size: .82rem; vertical-align: middle; line-height: 1.35; white-space: nowrap; }
+  td.title-cell { white-space: normal; min-width: 240px; }
+  tbody tr:hover { background: #fffafa; }
   tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: .2rem .55rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+  .badge { display: inline-block; padding: .05rem .4rem; border-radius: 8px; font-size: .68rem; font-weight: 600; }
   .badge-draft { background: #fef3c7; color: #92400e; }
   .badge-published { background: #d1fae5; color: #065f46; }
   .badge-superseded { background: #ede9fe; color: #5b21b6; }
   .badge-revision { background: #fef3c7; color: #92400e; }
   .badge-playbook { background: #fde8eb; color: #7a1c2a; }
   .badge-directory { background: #e8f4fd; color: #2c5282; }
-  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .actions { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
+  .btn-xs { padding: .15rem .45rem; font-size: .72rem; border-radius: 4px; }
   .actions form { margin: 0; }
   .empty { text-align: center; padding: 60px 24px; color: #b08080; }
   .empty a { color: #9b2335; }
@@ -65,6 +73,25 @@
   .review-links { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f5eded; font-size: .82rem; color: #7a5c5c; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   .review-links a { color: #9b2335; text-decoration: none; }
   .review-links a b { background: #fde8eb; color: #7a1c2a; border-radius: 8px; padding: 0 .4rem; margin-left: 2px; }
+  /* Coverage matrix: cities down, core topics across. Dense on purpose —
+     the question it answers ("who is missing what") is only answerable at a
+     glance if the whole grid fits on one screen. */
+  .metrics { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: .84rem; }
+  .metric { background: #fdf8f8; border: 1px solid #e8dede; border-radius: 7px; padding: .3rem .7rem; }
+  .metric b { font-size: 1rem; font-family: 'Fraunces', serif; }
+  .metric-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  .metric-bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+  .cov { width: auto; margin-top: 12px; border-collapse: collapse; }
+  .cov th { position: static; padding: 4px 6px; font-size: .62rem; text-align: center; background: transparent; border: none; }
+  .cov th.city-col { text-align: left; }
+  .cov td { padding: 2px 6px; text-align: center; border-bottom: 1px solid #f5eded; font-size: .82rem; }
+  .cov td.city-col { text-align: left; white-space: nowrap; padding-right: 14px; }
+  .cov a { color: inherit; text-decoration: none; }
+  .dot-published { color: #2f855a; }
+  .dot-draft { color: #b45309; }
+  .dot-missing { color: #d9c2c2; }
+  .cov-legend { font-size: .74rem; color: #9a7878; margin-top: 10px; }
+  details.coverage summary { cursor: pointer; font-size: .84rem; color: #7a5c5c; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -120,11 +147,59 @@
     {{end}}
   </div>
 
+  <div class="panel">
+    <h2>Coverage</h2>
+    <div class="metrics">
+      <span class="metric"><b>{{len .Coverage}}</b> cities</span>
+      <span class="metric {{if .MissingDirectory}}metric-warn{{end}}"><b>{{len .MissingDirectory}}</b> with no directory</span>
+      <span class="metric {{if .DraftCount}}metric-warn{{end}}"><b>{{.DraftCount}}</b> drafts to review</span>
+      <span class="metric {{if .Flagged}}metric-bad{{end}}"><b>{{len .Flagged}}</b> flagged sources</span>
+    </div>
+
+    {{if .MissingDirectory}}
+    <p class="cov-legend" style="margin-top:12px">
+      No <code>resource-directory</code> page yet:
+      {{range $i, $c := .MissingDirectory}}{{if $i}}, {{end}}<strong>{{$c.JurisdictionName}}</strong>{{end}}
+    </p>
+    {{end}}
+
+    <details class="coverage">
+      <summary>Core topic coverage by city</summary>
+      <table class="cov">
+        <thead>
+          <tr>
+            <th class="city-col">City</th>
+            {{range .CoreTopics}}<th title="{{.Slug}}">{{.Name}}</th>{{end}}
+            <th title="Core topics with no page at all">Gaps</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range $row := .Coverage}}
+          <tr>
+            <td class="city-col">{{$row.JurisdictionName}}</td>
+            {{range $t := $.CoreTopics}}
+              {{$state := index $row.Status $t.Slug}}
+              <td>
+                {{if eq $state "published"}}<span class="dot-published" title="{{$t.Name}}: published">●</span>
+                {{else if eq $state "draft"}}<span class="dot-draft" title="{{$t.Name}}: draft awaiting review">◐</span>
+                {{else}}<span class="dot-missing" title="{{$t.Name}}: nothing yet">·</span>{{end}}
+              </td>
+            {{end}}
+            <td class="num">{{if $row.Missing}}<strong>{{$row.Missing}}</strong>{{else}}—{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      <p class="cov-legend"><span class="dot-published">●</span> published · <span class="dot-draft">◐</span> draft · <span class="dot-missing">·</span> nothing yet. Core topics are the set every city is expected to carry, so a gap here is a gap, not a choice.</p>
+    </details>
+  </div>
+
+  {{$v := .View}}
   <div class="tabs">
-    <a class="tab {{if eq .Status "all"}}active{{end}}" href="/">All <b>{{.TotalCount}}</b></a>
-    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft">Drafts to review <b>{{.DraftCount}}</b></a>
-    <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published">Published <b>{{.PublishedCount}}</b></a>
-    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="/?status=superseded" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
+    <a class="tab {{if eq .Status "all"}}active{{end}}" href="/?status=all&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}">All <b>{{.TotalCount}}</b></a>
+    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}">Drafts to review <b>{{.DraftCount}}</b></a>
+    <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}">Published <b>{{.PublishedCount}}</b></a>
+    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="/?status=superseded&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
   </div>
 
 <div class="card">
@@ -132,12 +207,14 @@
     <table>
       <thead>
         <tr>
-          <th>City</th>
-          <th>Title</th>
-          <th>Type</th>
-          <th>Lang</th>
-          <th>Status</th>
-          <th>Details</th>
+          <th class="{{if eq $v.Sort "city"}}is-sorted{{end}}"><a href="{{$v.SortLink "city"}}">City<span class="arrow">{{$v.Arrow "city"}}</span></a></th>
+          <th class="{{if eq $v.Sort "topic"}}is-sorted{{end}}"><a href="{{$v.SortLink "topic"}}">Topic<span class="arrow">{{$v.Arrow "topic"}}</span></a></th>
+          <th class="{{if eq $v.Sort "title"}}is-sorted{{end}}"><a href="{{$v.SortLink "title"}}">Title<span class="arrow">{{$v.Arrow "title"}}</span></a></th>
+          <th class="{{if eq $v.Sort "kind"}}is-sorted{{end}}"><a href="{{$v.SortLink "kind"}}">Type<span class="arrow">{{$v.Arrow "kind"}}</span></a></th>
+          {{if .ShowLanguage}}<th>Lang</th>{{end}}
+          <th class="{{if eq $v.Sort "status"}}is-sorted{{end}}"><a href="{{$v.SortLink "status"}}" title="Ascending puts drafts first — this is a review queue, not an alphabet">Status<span class="arrow">{{$v.Arrow "status"}}</span></a></th>
+          <th class="{{if eq $v.Sort "size"}}is-sorted{{end}}"><a href="{{$v.SortLink "size"}}">Size<span class="arrow">{{$v.Arrow "size"}}</span></a></th>
+          <th class="{{if eq $v.Sort "updated"}}is-sorted{{end}}"><a href="{{$v.SortLink "updated"}}">Updated<span class="arrow">{{$v.Arrow "updated"}}</span></a></th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -145,30 +222,28 @@
         {{range .Playbooks}}
         <tr>
           <td>{{.JurisdictionName}}</td>
-          <td>{{.Title}}</td>
+          <td class="meta-cell">{{.TopicSlug}}</td>
+          <td class="title-cell">{{.Title}}</td>
           <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
-          <td>{{.Language}}</td>
-          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">revision</span>{{end}}</td>
-          <td class="meta-cell">
-            <div><strong>{{.StatementCount}}</strong> stmts · <strong>{{.SourceCount}}</strong> src</div>
-            <div>Created {{date .CreatedAt}} · Updated {{date .UpdatedAt}}</div>
-            {{if .PublishedAt}}<div>Published {{date .PublishedAt}}</div>{{end}}
-          </td>
+          {{if $.ShowLanguage}}<td class="meta-cell">{{.Language}}</td>{{end}}
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}</td>
+          <td class="meta-cell num" title="{{.StatementCount}} statements, {{.SourceCount}} sources">{{.StatementCount}}/{{.SourceCount}}</td>
+          <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}</td>
           <td>
             <div class="actions">
-              <a href="/view/{{.ID}}" class="btn btn-view">View</a>
-              <a href="/preview/{{.ID}}" target="_blank" rel="noopener" class="btn btn-view">Preview</a>
+              <a href="/view/{{.ID}}" class="btn btn-view btn-xs">View</a>
+              <a href="/preview/{{.ID}}" target="_blank" rel="noopener" class="btn btn-view btn-xs">Preview</a>
               {{if eq .Status "draft"}}
               <form method="post" action="/publish/{{.ID}}">
                 {{if .RevisesPublished}}
-                <button class="btn btn-success" onclick="return confirm('Publish this revision? It REPLACES the page currently live at this URL. The old version is retired, not deleted.')">Publish revision</button>
+                <button class="btn btn-success btn-xs" onclick="return confirm('Publish this revision? It REPLACES the page currently live at this URL. The old version is retired, not deleted.')">Publish rev</button>
                 {{else}}
-                <button class="btn btn-success" onclick="return confirm('Publish this playbook to the live site?')">Publish</button>
+                <button class="btn btn-success btn-xs" onclick="return confirm('Publish this playbook to the live site?')">Publish</button>
                 {{end}}
               </form>
               {{end}}
               <form method="post" action="/delete/{{.ID}}">
-                <button class="btn btn-danger" onclick="return confirm('Delete this playbook permanently?')">Delete</button>
+                <button class="btn btn-danger btn-xs" onclick="return confirm('Delete this playbook permanently?')">Delete</button>
               </form>
             </div>
           </td>

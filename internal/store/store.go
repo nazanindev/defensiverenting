@@ -54,6 +54,7 @@ type Store interface {
 
 	// Authoring
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
+	AuthorCoverage(ctx context.Context) ([]CoverageRow, error)
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
 	AuthorUpdatePlaybook(ctx context.Context, p AuthorUpdatePlaybookParams) error
 	AuthorPublishPlaybook(ctx context.Context, id int64) error
