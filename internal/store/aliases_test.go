@@ -14,11 +14,23 @@ import (
 // slug_aliases rows go with their target via ON DELETE CASCADE.
 func freshSlugs(t *testing.T, pg *store.PG, prefixes ...string) {
 	t.Helper()
+	// Content first, then the rows it points at. Deleting a jurisdiction that
+	// still has playbooks fails on the foreign key, and because these deletes
+	// are best-effort the failure was silent: the fixture survived, the next
+	// run's UpsertJurisdiction returned the same row, and the test inherited
+	// the previous run's playbooks. That is invisible until a test cares what
+	// else is in the slot — one draft per slot, for instance.
 	purge := func() {
 		ctx := context.Background()
 		for _, p := range prefixes {
-			_, _ = pg.Pool().Exec(ctx, `DELETE FROM jurisdictions WHERE slug LIKE $1`, p+"%")
-			_, _ = pg.Pool().Exec(ctx, `DELETE FROM topics WHERE slug LIKE $1`, p+"%")
+			like := p + "%"
+			_, _ = pg.Pool().Exec(ctx, `
+				DELETE FROM playbooks WHERE jurisdiction_id IN (SELECT id FROM jurisdictions WHERE slug LIKE $1)
+				   OR topic_id IN (SELECT id FROM topics WHERE slug LIKE $1)`, like)
+			_, _ = pg.Pool().Exec(ctx, `
+				DELETE FROM statements WHERE jurisdiction_id IN (SELECT id FROM jurisdictions WHERE slug LIKE $1)`, like)
+			_, _ = pg.Pool().Exec(ctx, `DELETE FROM jurisdictions WHERE slug LIKE $1`, like)
+			_, _ = pg.Pool().Exec(ctx, `DELETE FROM topics WHERE slug LIKE $1`, like)
 		}
 	}
 	purge()

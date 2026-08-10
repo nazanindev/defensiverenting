@@ -62,6 +62,9 @@
   .cite-sub { font-size: .72rem; color: #b08080; }
   .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
 
+  .import-src { display: inline-flex; align-items: center; gap: 7px; margin-left: 12px; font-size: .8rem; color: #7a5555; }
+  .import-src select { font-size: .8rem; padding: 5px 7px; max-width: 260px; }
+  .import-msg { color: #9b2335; font-size: .76rem; }
   .quote-edit { margin: -2px 0 9px 22px; }
   .quote-edit-off { display: none; }
   .quote-box { width: 100%; font-size: .74rem; color: #6b5555; background: #fbf6f6;
@@ -247,6 +250,20 @@
       <h2 id="sources-heading">Sources</h2>
       <div id="sources-container"><p class="no-items">Add sources you'll cite in the statements below.</p></div>
       <button type="button" class="btn btn-add" id="add-source-btn" onclick="addSource()">+ Add source</button>
+      {{if .ImportablePages}}
+      <!-- A city reuses the same authorities across every topic, so a new page
+           for a city that already has pages is mostly re-entry. Retyping a URL
+           slightly differently creates a second source row for one document. -->
+      <span class="import-src">
+        <label for="import-src-sel">or copy sources from</label>
+        <select id="import-src-sel">
+          <option value="">choose a page…</option>
+          {{range .ImportablePages}}<option value="{{.ID}}">{{.Label}} ({{.Sources}})</option>{{end}}
+        </select>
+        <button type="button" class="btn btn-add" onclick="importSources()">Copy</button>
+        <span id="import-src-msg" class="import-msg"></span>
+      </span>
+      {{end}}
       <input type="hidden" name="active_sources" id="active_sources" value="">
     </section>
 
@@ -689,6 +706,38 @@ function toggleCites(stmtId, btn) {
   btn.textContent = open
     ? '– hide sources not cited'
     : '+ cite another source (' + card.querySelectorAll('.cite-row-off').length + ')';
+}
+
+// importSources appends another page's sources to this one, skipping any URL
+// already present so copying twice is harmless. Statements are untouched: they
+// are the part that differs between topics.
+function importSources() {
+  const sel = document.getElementById('import-src-sel');
+  const msg = document.getElementById('import-src-msg');
+  const id  = sel.value;
+  if (!id) { msg.textContent = 'Pick a page first.'; return; }
+  msg.textContent = 'Copying…';
+  fetch('/api/sources/' + encodeURIComponent(id))
+    .then(function(r) { if (!r.ok) throw new Error('could not read that page'); return r.json(); })
+    .then(function(list) {
+      sync(); // keep anything typed before the re-render
+      const have = {};
+      sources.forEach(function(s) { have[(s.url || '').trim()] = true; });
+      let added = 0;
+      list.forEach(function(s) {
+        const u = (s.url || '').trim();
+        if (!u || have[u]) return;
+        have[u] = true;
+        added++;
+        sources.push({ id: nextSrcId++, url: u, publisher: s.publisher || '',
+                       kind: s.kind || 'statute', locator: s.locator || '' });
+      });
+      render();
+      msg.textContent = added === 0
+        ? 'Already had all of those.'
+        : 'Added ' + added + ' source' + (added === 1 ? '' : 's') + '.';
+    })
+    .catch(function(e) { msg.textContent = e.message; });
 }
 
 function hostOf(url) {

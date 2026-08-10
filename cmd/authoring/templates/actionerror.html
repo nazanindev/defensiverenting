@@ -1,0 +1,41 @@
+{{define "actionerror.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Check this first · Authoring</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #fdf8f8;
+           color: #1e1215; margin: 0; padding: 48px 20px; }
+    .box { max-width: 640px; margin: 0 auto; background: #fff; border: 1px solid #f0c0c8;
+           border-radius: 12px; padding: 28px 30px; }
+    h1 { font-size: 1.15rem; margin: 0 0 12px; color: #9b2335; }
+    p { line-height: 1.65; margin: 0 0 22px; }
+    .keep { background: #fdf0f2; border-left: 3px solid #9b2335; padding: 10px 14px;
+            border-radius: 0 6px 6px 0; font-size: .86rem; margin: 0 0 22px; }
+    .btn { display: inline-block; padding: 10px 16px; border-radius: 8px; text-decoration: none;
+           font-size: .85rem; font-weight: 600; margin-right: 8px; border: 0; cursor: pointer;
+           font-family: inherit; }
+    .btn-danger { background: #9b2335; color: #fff; }
+    .btn-secondary { background: #fdf0f2; color: #9b2335; border: 1px solid #f0c0c8; }
+    form { display: inline; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Nothing has changed yet</h1>
+    <p>{{.C.Message}}</p>
+
+    {{if .C.ConfirmLabel}}
+    <p class="keep"><strong>Nothing is deleted.</strong> A retired draft moves to the
+      <strong>Replaced</strong> tab on the dashboard and keeps every statement, citation and
+      verbatim quote. You can read it there, or copy its sources into another page.</p>
+    <form method="post" action="{{.C.ConfirmPath}}">
+      <input type="hidden" name="{{.C.ConfirmField}}" value="1">
+      <button type="submit" class="btn btn-danger">{{.C.ConfirmLabel}}</button>
+    </form>
+    {{end}}
+    <a class="btn btn-secondary" href="/view/{{.ID}}">Back to the page</a>
+  </div>
+</body>
+</html>{{end}}

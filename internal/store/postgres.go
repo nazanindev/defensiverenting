@@ -1019,6 +1019,93 @@ func (pg *PG) AuthorDeletePlaybook(ctx context.Context, id int64) error {
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("not found")
 
+// ErrDraftExists reports that the slot already holds a draft, so taking this
+// page down needs a decision first. Only one draft may exist per (jurisdiction,
+// topic, language) — see migration 000015 — so the waiting draft has to be
+// retired for the live page to become the draft.
+//
+// It is a question, not a refusal. Call AuthorUnpublishPlaybook again with
+// retireExistingDraft once the reviewer has been shown what will happen.
+var ErrDraftExists = errors.New("a draft already exists for this page")
+
+// ErrNotPublished is returned when unpublishing something that is not live.
+var ErrNotPublished = errors.New("playbook is not published")
+
+// AuthorUnpublishPlaybook takes a live page down and keeps its content as the
+// slot's draft, so it can be corrected and published again.
+//
+// Nothing is deleted and nothing is overwritten. A page that is wrong in front
+// of renters needs to come down faster than a correction can be researched, and
+// until now the only ways off the live site were deleting the page — which
+// destroys the text and 404s a URL with search traffic — or publishing a
+// replacement, which requires having one ready.
+//
+// When the slot already holds a draft, the first call returns ErrDraftExists so
+// the caller can show what is about to happen. Calling again with
+// retireExistingDraft moves that draft to 'superseded' and proceeds: the draft
+// leaves the slot but keeps its statements, citations and quotes, and can be
+// read back from the Replaced tab. Nothing is deleted, and the reviewer chose.
+//
+// The alternative — a hard refusal — was worse: correcting a live page is a
+// normal act, and a stale draft in the way should not stop it.
+//
+// published_at is deliberately left set. It records that this page was live
+// once, which is what the sitemap's lastmod and the "Published" line in the
+// dashboard read; clearing it would erase that history to no benefit.
+func (pg *PG) AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool) error {
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var jurisdictionID, topicID int64
+		var language, status string
+		err := tx.QueryRow(ctx,
+			`SELECT jurisdiction_id, topic_id, language, status FROM playbooks WHERE id = $1`, id,
+		).Scan(&jurisdictionID, &topicID, &language, &status)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read playbook %d: %w", id, err)
+		}
+		if status != "published" {
+			return ErrNotPublished
+		}
+
+		// Checked inside the transaction so a draft created concurrently cannot
+		// slip in between the check and the update. The partial index would
+		// reject that write anyway; this turns it into an explainable answer
+		// rather than a constraint-violation error.
+		var otherDraft bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM playbooks
+				 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3
+				   AND status = 'draft' AND id <> $4
+			)`, jurisdictionID, topicID, language, id).Scan(&otherDraft); err != nil {
+			return fmt.Errorf("check for an existing draft: %w", err)
+		}
+		if otherDraft {
+			if !retireExistingDraft {
+				return ErrDraftExists
+			}
+			// Retired, not deleted: the draft keeps its statements, citations
+			// and quotes and stays readable under Replaced. Superseded rows
+			// carry no unique index, so several may accumulate in a slot.
+			if _, err := tx.Exec(ctx, `
+				UPDATE playbooks SET status = 'superseded', updated_at = NOW()
+				 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3
+				   AND status = 'draft' AND id <> $4`,
+				jurisdictionID, topicID, language, id); err != nil {
+				return fmt.Errorf("retire the waiting draft: %w", err)
+			}
+		}
+
+		if _, err := tx.Exec(ctx, `
+			UPDATE playbooks SET status = 'draft', updated_at = NOW() WHERE id = $1`, id); err != nil {
+			return fmt.Errorf("unpublish playbook %d: %w", id, err)
+		}
+		return nil
+	})
+}
+
 // ErrAliasShadowsLiveSlug is returned when an alias would be created for a slug
 // that is still live. Lookups try live slugs first, so such an alias could never
 // be reached — it would be dead weight that misleads whoever reads the table.

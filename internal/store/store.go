@@ -59,6 +59,7 @@ type Store interface {
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
 	AuthorUpdatePlaybook(ctx context.Context, p AuthorUpdatePlaybookParams) error
 	AuthorPublishPlaybook(ctx context.Context, id int64) error
+	AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool) error
 	AuthorDeletePlaybook(ctx context.Context, id int64) error
 }
 
