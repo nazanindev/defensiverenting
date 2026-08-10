@@ -51,6 +51,7 @@ func funcMap() template.FuncMap {
 		"absURL": func(path string) string {
 			return baseURL + path
 		},
+		"groupByOrg": groupByOrg,
 	}
 }
 
@@ -243,6 +244,51 @@ type CitationChip struct {
 	Label      string
 	Locator    string
 	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial|court_ruling
+}
+
+// OrgGroup is a run of consecutive directory statements that all cite the same
+// source, presented as one entry.
+//
+// A directory page lists organisations, and one organisation usually needs
+// several statements: the phone number, the hours, who qualifies, what the
+// organisation will not do. Rendered one statement per card, a single
+// organisation became four cards carrying four identical chips, and a reader
+// scanning for a phone number had to work out which cards belonged together.
+//
+// Grouping is by source rather than by any stored field because on a directory
+// page the source IS the organisation: each entry cites that organisation's own
+// site (see the drafting rules for resource-directory). Runs are consecutive,
+// so a page that returns to an organisation later still gets a second entry
+// rather than silently reordering what the author wrote.
+type OrgGroup struct {
+	Chip       CitationChip
+	Statements []RenderedStatement
+}
+
+// groupByOrg collapses consecutive statements sharing a first citation into one
+// OrgGroup. Statements are guaranteed to have at least one citation, so the
+// first is always present.
+//
+// The group chip drops the per-statement locator: it spans several statements
+// whose locators differ, and on a directory page a locator names a section of
+// the organisation's site rather than a provision being relied on. The locator
+// is still stored on every citation, so nothing the source checker uses is lost.
+func groupByOrg(stmts []RenderedStatement) []OrgGroup {
+	var groups []OrgGroup
+	for _, s := range stmts {
+		if len(s.Citations) == 0 {
+			continue
+		}
+		key := s.Citations[0].URL
+		if n := len(groups); n > 0 && groups[n-1].Chip.URL == key {
+			groups[n-1].Statements = append(groups[n-1].Statements, s)
+			continue
+		}
+		chip := s.Citations[0]
+		chip.Locator = ""
+		groups = append(groups, OrgGroup{Chip: chip, Statements: []RenderedStatement{s}})
+	}
+	return groups
 }
 
 // SearchPage holds search results.

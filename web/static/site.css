@@ -510,27 +510,37 @@ h1 {
 
 /* ── Directory (resource listing) ──────────────────────── */
 
-.directory-grid {
+/* A directory is read as a list, not scanned as a wall of boxes. Entries are
+   ordered — mediation before filing, legal services after, 211 last — and a
+   multi-column grid reflows that order into columns, which loses it. A trimmed
+   directory also runs to two or three entries, where a card wall renders as one
+   or two stranded boxes. */
+
+.directory-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
-.directory-card {
-  background: white;
-  border-radius: var(--radius);
-  padding: 20px 22px;
-  box-shadow: var(--shadow);
+.directory-entry {
+  padding: 20px 0;
+  border-top: 1px solid #f0c0c8;
 }
+
+.directory-entry:first-child { border-top: 0; padding-top: 4px; }
+.directory-entry:last-child { padding-bottom: 4px; }
+
+/* The organisation's chip labels the entry, so it leads rather than trailing
+   the way a per-statement citation does. */
+.directory-entry .citation-chips { margin: 0 0 10px; }
 
 .directory-body {
   font-size: 1rem;
   line-height: 1.6;
   margin-bottom: 12px;
 }
+
+.directory-body:last-child { margin-bottom: 0; }
 
 .directory-body p { margin: 0 0 6px; }
 .directory-body p:last-child { margin: 0; }

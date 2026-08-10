@@ -79,21 +79,25 @@
           {{if .Statements}}
 
           {{if eq .Playbook.PageKind "directory"}}
-          <ul class="directory-grid">
-            {{range .Statements}}
-            <li class="directory-card">
-              <div class="directory-body">{{.BodyHTML}}</div>
-              <div class="citation-chips" aria-label="Sources">
-                {{range .Citations}}
-                <a class="{{chipClass .SourceKind}}"
-                   href="{{.URL}}"
+          {{/* One card per organisation, not per statement: an organisation
+               needs several statements (number, hours, who qualifies, what it
+               will not do) and splitting them left a reader guessing which
+               cards belonged together. See groupByOrg. */}}
+          <ul class="directory-list">
+            {{range groupByOrg .Statements}}
+            <li class="directory-entry">
+              <div class="citation-chips" aria-label="Source">
+                <a class="{{chipClass .Chip.SourceKind}}"
+                   href="{{.Chip.URL}}"
                    target="_blank"
                    rel="noopener noreferrer"
-                   title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
-                  {{chipLabel .Label .Locator}}
+                   title="{{.Chip.Label}}">
+                  {{.Chip.Label}}
                 </a>
-                {{end}}
               </div>
+              {{range .Statements}}
+              <div class="directory-body">{{.BodyHTML}}</div>
+              {{end}}
             </li>
             {{end}}
           </ul>
