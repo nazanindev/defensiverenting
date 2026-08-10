@@ -58,125 +58,100 @@
 <div class="page">
   <a href="/" class="back">← Back to dashboard</a>
   <h1>Content Guidelines</h1>
-  <p class="subtitle">How to write for Defensive Renting. Read this before authoring your first page.</p>
+  <p class="subtitle">Read once before your first page.</p>
 
   <!-- ── Topic vs page type ───────────────────────────── -->
-  <h2>Topic and page type are two different things</h2>
-  <p>Every page has both, and you choose them separately. Confusing them is the most common structural mistake.</p>
+  <h2>Topic and page type</h2>
+  <p>Every page has both, and you choose them separately.</p>
   <ul>
-    <li><strong>Topic</strong> is <em>what the page is about</em> — Security Deposits, Eviction, Local Help. Topics are a fixed list. You pick one; you cannot invent one.</li>
-    <li><strong>Page type</strong> is <em>how the page is laid out</em> — Playbook or Directory.</li>
+    <li><strong>Topic</strong> — what the page is about. A fixed list: pick one, you can't invent one.</li>
+    <li><strong>Page type</strong> — how it's laid out. Playbook or Directory.</li>
   </ul>
-  <p>They are independent. A directory layout can serve almost any topic: if the honest answer to "I can't pay rent" is a list of places to go, a Directory page on the Can't Pay Rent topic is correct. Pittsburgh already has one.</p>
+  <p>They're independent. A Directory page on the Can't Pay Rent topic is correct if the honest answer is a list of places to go. Pittsburgh has one.</p>
 
   <div class="callout">
-    <strong>The one rule the tools enforce</strong>
-    A page on the <strong>Local Help</strong> topic (slug <code>resource-directory</code>) must use the <strong>Directory</strong> page type. That topic is a list of organizations, and the Playbook layout would render them as a numbered legal argument. Saving it any other way is rejected.
+    <strong>Enforced</strong>
+    The <strong>Local Help</strong> topic must use the <strong>Directory</strong> type. Saving it as a Playbook is rejected: that layout renders organizations as a numbered legal argument.
   </div>
-
-  <!-- ── Page types ───────────────────────────────────── -->
-  <h2>Page types</h2>
 
   <div class="type-card">
     <div class="type-name">Playbook</div>
-    <div class="type-desc">Step-by-step legal rights guide. Each statement is one citable fact backed by a statute, regulation, or government document. This is the core format of the site — use it for anything that explains what the law says or what a renter's rights are.</div>
-    <div class="type-example">Examples: Notice to Quit in Pittsburgh, Heat Not Working in Boston, Security Deposit Not Returned in Chicago</div>
+    <div class="type-desc">Explains what the law says. Each statement is one citable fact.</div>
+    <div class="type-example">Heat Not Working in Boston · Security Deposits in Chicago</div>
   </div>
 
   <div class="type-card">
     <div class="type-name">Directory</div>
-    <div class="type-desc">A listing of organizations or services that can help renters with a specific problem. Each statement is one org — what they do, how to reach them, and a link to their official website. Do not use an aggregator site as the source; find the org's own URL.</div>
-    <div class="type-example">Examples: Rental Assistance Resources in Pittsburgh, Legal Aid Organizations in Boston</div>
+    <div class="type-desc">Lists organizations that help. Each statement is one org: what it does, how to reach it, its own URL.</div>
+    <div class="type-example">Local Help in Pittsburgh</div>
   </div>
 
   <div class="callout">
-    <strong>Local help belongs on its own page, once per city</strong>
-    Do not add a "where to get help" section to the bottom of a playbook. Put the organizations on that city's Local Help page instead. A city with seven topics that each carry the same referral list means the same disconnected phone number has to be found and fixed in seven places, and every copy has its own citations to re-verify.
+    <strong>Local help goes on one page per city</strong>
+    Never add a "where to get help" section to a playbook. Seven topics carrying the same referral list means one dead phone number is seven fixes.
   </div>
 
-  <!-- ── Writing a playbook ───────────────────────────── -->
-  <h2>Writing a playbook</h2>
-
-  <h3>Statements</h3>
-  <p>Each statement is one citable fact. Keep it focused — if you need more than 3 sentences, split it into two statements.</p>
+  <!-- ── Statements ───────────────────────────────────── -->
+  <h2>Statements</h2>
   <ul>
-    <li class="do">Write in plain English for someone in a stressful situation, not a lawyer</li>
-    <li class="do">One fact per statement — what the law says, what the renter is entitled to, what the landlord must do</li>
-    <li class="do">Use concrete language: "Your landlord must respond within 14 days" not "Your landlord should respond promptly"</li>
-    <li class="dont">Don't write summaries or topic introductions as statements — those go in the intro field</li>
-    <li class="dont">Don't repeat general facts that apply everywhere — check if the statement already exists for a parent jurisdiction</li>
+    <li class="do">One fact per statement. Past 3 sentences, split it</li>
+    <li class="do">Plain English, for someone in a stressful situation</li>
+    <li class="do">Concrete: "must respond within 14 days", not "should respond promptly"</li>
+    <li class="dont">No summaries or introductions — those go in the intro field</li>
+    <li class="dont">No facts that apply everywhere — check the parent jurisdiction first</li>
   </ul>
 
-  <h3>Citations</h3>
-  <p>Every statement must cite at least one primary source. Here's what counts:</p>
+  <!-- ── Citations ────────────────────────────────────── -->
+  <h2>Citations</h2>
+  <p>Every statement cites at least one source.</p>
   <ul>
-    <li><strong>Statute</strong> — the actual section of law (e.g. <code>Mass. Gen. Laws c. 239, § 8A</code>)</li>
-    <li><strong>Regulation</strong> — an administrative rule (e.g. <code>105 CMR 410.200</code>)</li>
-    <li><strong>Gov guidance</strong> — a government-published tenant guide, court self-help page, or official FAQ</li>
-    <li><strong>Nonprofit</strong> — a legal aid organization's published guide. Use sparingly — prefer statutes when you can find them</li>
-    <li><strong>Editorial</strong> — practical advice that can't be traced to a specific law. Use rarely and only for genuinely universal advice</li>
+    <li><strong>Statute</strong> — the section of law (<code>Mass. Gen. Laws c. 239, § 8A</code>)</li>
+    <li><strong>Regulation</strong> — an administrative rule (<code>105 CMR 410.200</code>)</li>
+    <li><strong>Gov guidance</strong> — a government guide, court self-help page, or official FAQ</li>
+    <li><strong>Nonprofit</strong> — a legal aid organization's guide. Prefer a statute where one exists</li>
+    <li><strong>Editorial</strong> — advice with no traceable law. Rare, and only when genuinely universal</li>
   </ul>
 
-  <div class="callout">
-    <strong>What not to cite</strong>
-    Aggregator sites (e.g. needhelppayingbills.com), general HUD landing pages, Wikipedia, or any site that is itself summarizing other sources. Go to the original.
-  </div>
-
-  <h3>The verbatim quote</h3>
-  <p>Every citation to a non-editorial source carries the exact line from that source that backs the statement. This is not paperwork. It is the only thing that lets the source checker tell you when a law changes: it re-fetches each source and reports when the words you quoted are no longer there.</p>
+  <h3>The quote</h3>
+  <p>Paste the exact line from the source, unedited. It is what lets the source checker tell you a law changed: it re-fetches each source and reports when your quoted words are gone.</p>
   <ul>
-    <li class="do">Paste the sentence from the source, unedited. It must appear in the source character for character</li>
-    <li class="dont">Don't paraphrase the quote to match your statement — the statement is your words, the quote is theirs</li>
-    <li class="dont">Don't leave it blank. <strong>A page with a quote-less citation cannot be published at all</strong> — the publish button will refuse it, because a citation nobody can verify is exactly what the site promises not to have</li>
+    <li class="dont">Don't paraphrase it to fit your statement — the statement is your words, the quote is theirs</li>
+    <li class="dont">Don't leave it blank. <strong>A page with a quote-less citation cannot be published</strong></li>
   </ul>
 
   <h3>The locator</h3>
-  <p>For a <strong>statute</strong>, the locator must name the provision you are relying on: <code>§ 15B</code>, <code>RCW 59.18.060</code>, <code>Mass. Gen. Laws ch. 186, § 15B</code>. A save is rejected if it does not.</p>
-  <p>This exists because a county press release announcing a new bill was once stored as a statute and became the only support for a live claim. A press release has no section number. If the thing you are citing has no provision to point at, it is not a statute — change the kind, or find the law it is describing.</p>
-  <p>The rule catches a locator that names <em>no</em> provision. It cannot catch one that names the <em>wrong</em> provision. That part is still on you.</p>
-
-  <h3>Title and intro</h3>
-  <ul>
-    <li class="do">Title: written as a question a renter would search — the form auto-suggests one, edit freely</li>
-    <li class="do">Intro: 1–2 sentences that orient the reader. "No heat in winter is an emergency. Here are your rights." Not a summary of what follows</li>
-    <li class="dont">Don't include "Not legal advice" in your text — it's added automatically</li>
-  </ul>
-
-  <!-- ── Writing a directory ──────────────────────────── -->
-  <h2>Writing a directory</h2>
-
-  <h3>Each entry (statement) should include</h3>
-  <ul>
-    <li>Organization name — bold it in the statement body</li>
-    <li>What they do in 1–2 sentences</li>
-    <li>How to reach them: phone number, address, or website</li>
-    <li>Citation: the organization's own official website — not a third-party directory</li>
-  </ul>
+  <p>A <strong>statute</strong> must name its provision: <code>§ 15B</code>, <code>RCW 59.18.060</code>. A save without one is rejected. If there's no provision to point at, it isn't a statute — change the kind.</p>
+  <p>This catches a locator naming <em>no</em> provision. It cannot catch one naming the <em>wrong</em> provision. That part is still on you.</p>
 
   <div class="callout">
-    <strong>The most common mistake</strong>
-    Citing one aggregator site (like needhelppayingbills.com) as the source for every entry. Each organization must cite its own URL. If you can't find an org's official site, leave it out.
+    <strong>Never cite an aggregator</strong>
+    needhelppayingbills.com, general HUD landing pages, Wikipedia, or anything else summarizing other sources. Go to the original. In a directory, every organization cites its own URL — if you can't find it, leave the org out.
   </div>
 
-  <h3>Before you publish a directory</h3>
+  <!-- ── Titles and intros ────────────────────────────── -->
+  <h2>Titles and intros</h2>
   <ul>
-    <li class="do">Verify each org still operates and serves the jurisdiction</li>
-    <li class="do">Check that phone numbers and addresses are current</li>
-    <li class="dont">Don't list national organizations unless you've confirmed they have a local presence</li>
-    <li class="dont">Don't duplicate entries — check for the same org listed under a different name</li>
+    <li class="do">Title: how a renter would search for it. The form suggests one; edit freely</li>
+    <li class="do">Intro: 1–2 sentences that orient, not a summary. "No heat in winter is an emergency. Here are your rights."</li>
+    <li class="dont">Don't write "Not legal advice" — it's added automatically</li>
   </ul>
 
-  <!-- ── General ──────────────────────────────────────── -->
-  <h2>General</h2>
+  <!-- ── Before publishing a directory ─────────────────── -->
+  <h2>Before publishing a directory</h2>
+  <ul>
+    <li class="do">Confirm each org still operates and serves this jurisdiction</li>
+    <li class="do">Check phone numbers and addresses are current</li>
+    <li class="dont">No national orgs without a confirmed local presence</li>
+    <li class="dont">No duplicates — the same org listed under a different name</li>
+  </ul>
 
-  <h3>Draft vs published</h3>
-  <p>Every new page saves as a draft and won't appear on the public site until you click Publish. Use drafts to get feedback before going live. Once published, the city will appear on the homepage.</p>
-
-  <h3>Editing published pages</h3>
-  <p>You can edit a published page at any time. Changes go live immediately on save — there's no re-publish step. Be careful with published pages; treat edits like they're already live.</p>
-
-  <h3>When in doubt</h3>
-  <p>If you're unsure whether a source is good enough, default to leaving it out rather than publishing something you can't verify. A shorter, accurate page is better than a longer one with a shaky citation.</p>
+  <!-- ── Publishing ───────────────────────────────────── -->
+  <h2>Publishing</h2>
+  <ul>
+    <li>New pages save as drafts and stay off the public site until you publish</li>
+    <li>Editing a published page goes live on save — there is no second confirmation</li>
+    <li>Unsure about a source? Leave it out. A shorter accurate page beats a longer shaky one</li>
+  </ul>
 </div>
 </body>
 </html>
