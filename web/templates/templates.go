@@ -275,20 +275,37 @@ type OrgGroup struct {
 // is still stored on every citation, so nothing the source checker uses is lost.
 func groupByOrg(stmts []RenderedStatement) []OrgGroup {
 	var groups []OrgGroup
+	lastKey := ""
 	for _, s := range stmts {
 		if len(s.Citations) == 0 {
 			continue
 		}
-		key := s.Citations[0].URL
-		if n := len(groups); n > 0 && groups[n-1].Chip.URL == key {
+		key := sourceKey(s.Citations[0].URL)
+		if n := len(groups); n > 0 && key == lastKey {
 			groups[n-1].Statements = append(groups[n-1].Statements, s)
 			continue
 		}
+		lastKey = key
 		chip := s.Citations[0]
 		chip.Locator = ""
+		chip.URL = key // the group links to the source, not to one statement's anchor
 		groups = append(groups, OrgGroup{Chip: chip, Statements: []RenderedStatement{s}})
 	}
 	return groups
+}
+
+// sourceKey strips the "#locator" anchor a chip URL carries so two citations of
+// the same document compare equal.
+//
+// The chip URL is built as SourceURL + anchorFragment(Locator), which points a
+// reader at the right part of a long statute. It also means every statement
+// citing one source has a different chip URL, so grouping on it grouped
+// nothing: a directory of three organisations rendered as seven entries.
+func sourceKey(chipURL string) string {
+	if i := strings.IndexByte(chipURL, '#'); i >= 0 {
+		return chipURL[:i]
+	}
+	return chipURL
 }
 
 // SearchPage holds search results.
