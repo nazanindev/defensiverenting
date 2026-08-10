@@ -65,8 +65,15 @@
         </header>
 
         <main aria-label="Playbook content">
+          {{if .LocalHelpPath}}
+          <a class="help-bar" href="{{.LocalHelpPath}}">
+            <span class="help-bar-lead">Need help now?</span>
+            <span class="help-bar-text">{{.LocalHelpName}} in {{.Jurisdiction.Name}} &mdash; legal aid, rent assistance, and who to call</span>
+          </a>
+          {{end}}
+
           <div class="disclaimer-box" role="note">
-            <strong>Not legal advice.</strong> Every statement below links to its primary source. Read the source before relying on this information. If you need legal help, contact your local legal aid organization.
+            <strong>Not legal advice.</strong> Every statement below links to its primary source. Read the source before relying on this information.{{if not .LocalHelpPath}} If you need legal help, contact your local legal aid organization.{{end}}
           </div>
 
           {{if .Statements}}

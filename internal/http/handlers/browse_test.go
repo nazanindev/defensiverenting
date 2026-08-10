@@ -206,3 +206,88 @@ func TestPlaybookHandler_playbookNotFound(t *testing.T) {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}
 }
+
+// localHelpStub serves a Boston playbook whose city publishes the topics given.
+func localHelpStub(publishedTopics []store.Topic, viewing store.Topic) *stubStore {
+	return &stubStore{
+		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}},
+		topics:        publishedTopics,
+		playbook: store.PlaybookWithStatements{
+			Playbook: store.Playbook{ID: 1, Title: viewing.Name, Slug: viewing.Slug, Language: "en"},
+			// Kind matters: Path() emits the state segment only for a city, so a
+			// fixture without it silently produces the pre-hierarchy flat URL.
+			Jurisdiction: store.Jurisdiction{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"},
+			Topic:        viewing,
+			Statements: []store.CitedStatement{{
+				ID: 1, BodyMD: "A claim.",
+				Citations: []store.CitationWithSource{{
+					SourceID: 1, SourceURL: "https://example.gov/law",
+					Publisher: "Example", SourceKind: "statute", Locator: "§ 1",
+				}},
+			}},
+		},
+	}
+}
+
+func getPlaybookBody(t *testing.T, stub *stubStore, path string) string {
+	t.Helper()
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	return rec.Body.String()
+}
+
+var (
+	evictionTopic  = store.Topic{ID: 1, Slug: "eviction-defense", Name: "Eviction"}
+	localHelpTopic = store.Topic{ID: 2, Slug: "resource-directory", Name: "Local Help"}
+)
+
+// Someone reading about eviction may need a phone number more than the next
+// paragraph of law, so the link sits above the guide rather than among the
+// sibling-topic links at the foot.
+func TestPlaybookHandler_linksToLocalHelpWhenTheCityHasOne(t *testing.T) {
+	body := getPlaybookBody(t,
+		localHelpStub([]store.Topic{evictionTopic, localHelpTopic}, evictionTopic),
+		"/j/massachusetts/boston/eviction-defense")
+
+	if !strings.Contains(body, `href="/j/massachusetts/boston/resource-directory"`) {
+		t.Error("no link to the city's Local Help page")
+	}
+	if !strings.Contains(body, "help-bar") {
+		t.Error("the Local Help link should render as the help bar above the guide")
+	}
+	// The generic dead-end sentence is replaced by the real link, not doubled up.
+	if strings.Contains(body, "contact your local legal aid organization") {
+		t.Error("the generic 'contact your local legal aid organization' should give way to the link")
+	}
+}
+
+// A link to a page that does not exist is worse than no link, so the bar only
+// renders off the city's own published-topic list.
+func TestPlaybookHandler_noLocalHelpLinkWhenTheCityHasNone(t *testing.T) {
+	body := getPlaybookBody(t,
+		localHelpStub([]store.Topic{evictionTopic}, evictionTopic),
+		"/j/massachusetts/boston/eviction-defense")
+
+	if strings.Contains(body, "help-bar") {
+		t.Error("a city with no Local Help page must not get a help bar")
+	}
+	if !strings.Contains(body, "contact your local legal aid organization") {
+		t.Error("without a link, the generic fallback sentence should remain")
+	}
+}
+
+func TestPlaybookHandler_localHelpPageDoesNotLinkToItself(t *testing.T) {
+	body := getPlaybookBody(t,
+		localHelpStub([]store.Topic{evictionTopic, localHelpTopic}, localHelpTopic),
+		"/j/massachusetts/boston/resource-directory")
+
+	if strings.Contains(body, "help-bar") {
+		t.Error("the Local Help page must not link to itself")
+	}
+}

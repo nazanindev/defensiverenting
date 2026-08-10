@@ -149,6 +149,9 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	if err != nil {
 		return SaveDraftOutput{}, err
 	}
+	if err := checkTopicLayout(in.TopicSlug, pageKind); err != nil {
+		return SaveDraftOutput{}, err
+	}
 
 	// Guardrail: topics are shared across cities; a city-prefixed topic slug
 	// fragments cross-city hubs and produces /j/{city}/{city}-{topic} URLs.

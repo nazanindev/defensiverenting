@@ -245,6 +245,35 @@ var validPageKinds = map[string]bool{
 	"playbook": true, "directory": true, "faq": true, "checklist": true,
 }
 
+// localHelpTopic is the topic whose subject is "where to get help": a list of
+// organisations rather than an argument about the law. Its display name is
+// "Local Help"; the slug is historical.
+const localHelpTopic = "resource-directory"
+
+// checkTopicLayout enforces the one pairing the two axes actually constrain.
+//
+// A topic and a page_kind are independent: the topic is what a page is about,
+// the page_kind is how it is laid out, and most combinations are legitimate.
+// Migration 000005 put the directory layout on a cant-pay-rent page precisely
+// because a list of organisations can answer any subject, so the reverse
+// direction is deliberately left open.
+//
+// The one combination that is always wrong is Local Help laid out as a
+// playbook. The playbook layout renders statements as a numbered argument, so
+// a list of organisations comes out as a sequence of legal steps. Nothing
+// downstream detects it: the save succeeds, the draft queue shows a normal
+// row, and the mistake is only visible as the wrong shape on the live page.
+func checkTopicLayout(topicSlug, pageKind string) error {
+	if topicSlug == localHelpTopic && pageKind != "directory" {
+		return reject("topic %q is the Local Help page, which lists organisations rather than "+
+			"explaining law, so it must be saved with page_kind=\"directory\". You sent page_kind=%q, "+
+			"which renders the organisations as a numbered legal argument. Note these are separate "+
+			"things: the topic is the subject, the page_kind is the layout.",
+			topicSlug, pageKind)
+	}
+	return nil
+}
+
 // resolvePageKind defaults to "playbook" and rejects any other unknown value.
 //
 // Deliberately stricter than defaultKind: a mistyped source kind still cites the

@@ -289,6 +289,16 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		for _, t := range topics {
 			if t.ID != pb.Topic.ID {
 				page.SiblingTopics = append(page.SiblingTopics, t)
+				// Local Help is not just another sibling. Someone reading about
+				// eviction at 11pm may need a phone number more than the next
+				// paragraph of law, and until now the only way to offer one was
+				// to restate the whole referral list on every page. The link is
+				// drawn from the same already-loaded list, so it costs no query
+				// and cannot point at a page that is not published.
+				if t.Slug == tmpl.LocalHelpTopic {
+					page.LocalHelpPath = pb.Jurisdiction.TopicPath(t.Slug)
+					page.LocalHelpName = t.Name
+				}
 			}
 		}
 	} else {
