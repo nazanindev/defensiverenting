@@ -255,3 +255,134 @@ func TestSaveDraft_RejectsTopicNotInRegistry(t *testing.T) {
 		t.Error("nothing should have been written")
 	}
 }
+
+// ---- page kinds ------------------------------------------------------------
+
+const helpOrgURL = "https://example.org/legal-aid"
+
+func orgStmt(body, quote string) StatementInput {
+	return StatementInput{
+		BodyMD: body,
+		Citations: []CitationInput{{
+			URL: helpOrgURL, Publisher: "Example Legal Aid", Kind: "nonprofit", Quote: quote,
+		}},
+	}
+}
+
+func directoryToolbelt(t *testing.T, fs *fakeStore) *Toolbelt {
+	t.Helper()
+	tb := newTestToolbelt(fs, map[string]string{
+		helpOrgURL: `<p>We provide free legal help to tenants in Allegheny County.</p>`,
+	})
+	mustFetch(t, tb, helpOrgURL)
+	return tb
+}
+
+// A directory page is the whole point of page_kind: "where to get help" belongs
+// on one page per city rather than repeated at the foot of every playbook.
+func TestSaveDraft_SavesADirectoryPage(t *testing.T) {
+	fs := &fakeStore{}
+	tb := directoryToolbelt(t, fs)
+
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug:  "boston",
+		TopicSlug: "resource-directory",
+		Title:     "Where to get help in Boston",
+		IntroMD:   "Local organisations that help renters.",
+		PageKind:  "directory",
+		Statements: []StatementInput{
+			orgStmt("Example Legal Aid gives free legal help to renters.",
+				"We provide free legal help to tenants in Allegheny County"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fs.ingested == nil {
+		t.Fatal("IngestPlaybook was not called")
+	}
+	if fs.ingested.PageKind != "directory" {
+		t.Errorf("ingested page_kind = %q, want directory", fs.ingested.PageKind)
+	}
+	if out.PageKind != "directory" {
+		t.Errorf("output page_kind = %q, want directory — the agent needs to see what it saved", out.PageKind)
+	}
+	if fs.ingested.Status != "draft" {
+		t.Errorf("status = %q, want draft: a directory is still reviewed before publication", fs.ingested.Status)
+	}
+}
+
+func TestSaveDraft_DefaultsToPlaybookWhenPageKindOmitted(t *testing.T) {
+	fs := &fakeStore{}
+	tb := directoryToolbelt(t, fs)
+
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug:  "boston",
+		TopicSlug: "security-deposits",
+		Title:     "Boston Security Deposits",
+		IntroMD:   "What Boston renters should know.",
+		Statements: []StatementInput{
+			orgStmt("Example Legal Aid gives free legal help to renters.",
+				"We provide free legal help to tenants in Allegheny County"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fs.ingested.PageKind != "playbook" || out.PageKind != "playbook" {
+		t.Errorf("ingested=%q output=%q, want playbook for an omitted page_kind",
+			fs.ingested.PageKind, out.PageKind)
+	}
+}
+
+// A mistyped page_kind must not quietly fall back to playbook. The wrong layout
+// is invisible to the agent and to the draft queue, and only shows up in front
+// of a reader.
+func TestSaveDraft_RejectsUnknownPageKind(t *testing.T) {
+	fs := &fakeStore{}
+	tb := directoryToolbelt(t, fs)
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug:  "boston",
+		TopicSlug: "resource-directory",
+		Title:     "Where to get help in Boston",
+		IntroMD:   "Local organisations that help renters.",
+		PageKind:  "Directory", // right word, wrong case
+		Statements: []StatementInput{
+			orgStmt("Example Legal Aid gives free legal help to renters.",
+				"We provide free legal help to tenants in Allegheny County"),
+		},
+	})
+	if !isRejection(err) {
+		t.Fatalf("expected a rejection for an unknown page_kind, got err=%v", err)
+	}
+	if fs.ingested != nil {
+		t.Error("a rejected page_kind must not write anything")
+	}
+}
+
+// The verbatim-quote guardrail is not relaxed for directory pages. It is the
+// reason a directory drafted here can be published at all: the publish path
+// refuses any page carrying a citation with no quote.
+func TestSaveDraft_DirectoryStillRequiresVerbatimQuotes(t *testing.T) {
+	fs := &fakeStore{}
+	tb := directoryToolbelt(t, fs)
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug:  "boston",
+		TopicSlug: "resource-directory",
+		Title:     "Where to get help in Boston",
+		IntroMD:   "Local organisations that help renters.",
+		PageKind:  "directory",
+		Statements: []StatementInput{
+			orgStmt("Example Legal Aid runs a 24-hour hotline.",
+				"We run a 24-hour hotline for renters"), // never appears in the source
+		},
+	})
+	if !isRejection(err) {
+		t.Fatalf("expected a rejection for a fabricated quote on a directory page, got err=%v", err)
+	}
+	if fs.ingested != nil {
+		t.Error("a rejected directory draft must not write anything")
+	}
+}

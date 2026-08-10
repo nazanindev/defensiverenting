@@ -37,9 +37,15 @@ func New(db store.Store) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "save_draft_playbook",
-		Description: "Save a DRAFT tenant-rights playbook (statements + citations) for the author " +
-			"to verify and publish. Every citation's quote must be a verbatim line from a source " +
-			"you fetched via fetch_source, or the save is rejected. This never publishes anything.",
+		Description: "Save a DRAFT page (statements + citations) for the author to verify and " +
+			"publish. Every citation's quote must be a verbatim line from a source you fetched " +
+			"via fetch_source, or the save is rejected. This never publishes anything.\n\n" +
+			"Set page_kind to choose the layout. Omit it for a normal playbook. Use " +
+			"page_kind=\"directory\" with topic_slug=\"resource-directory\" to save a page of " +
+			"local help: one organisation per statement, each citing that organisation's own " +
+			"page (kind \"nonprofit\") or its government program page (kind \"gov_guidance\"). " +
+			"A directory is where \"where to get help\" belongs, so a city needs it once instead " +
+			"of repeated at the foot of every playbook.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.SaveDraftInput) (*mcp.CallToolResult, drafting.SaveDraftOutput, error) {
 		return result(tb.SaveDraft(ctx, in))
 	})
