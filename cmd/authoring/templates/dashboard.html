@@ -81,11 +81,12 @@
   .metric b { font-size: 1rem; font-family: 'Fraunces', serif; }
   .metric-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
   .metric-bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-  .cov { width: auto; margin-top: 12px; border-collapse: collapse; }
-  .cov th { position: static; padding: 4px 6px; font-size: .62rem; text-align: center; background: transparent; border: none; }
+  .cov { width: auto; margin-top: 14px; border-collapse: collapse; }
+  .cov th { position: static; padding: 6px 14px; font-size: .72rem; text-align: center; background: transparent; border: none; border-bottom: 1px solid #e8dede; color: #7a5c5c; letter-spacing: .02em; }
   .cov th.city-col { text-align: left; }
-  .cov td { padding: 2px 6px; text-align: center; border-bottom: 1px solid #f5eded; font-size: .82rem; }
-  .cov td.city-col { text-align: left; white-space: nowrap; padding-right: 14px; }
+  .cov td { padding: 7px 14px; text-align: center; border-bottom: 1px solid #f5eded; font-size: 1.15rem; line-height: 1; }
+  .cov td.city-col { text-align: left; white-space: nowrap; font-size: .9rem; padding-right: 22px; }
+  .cov tbody tr:hover { background: #fffafa; }
   .cov a { color: inherit; text-decoration: none; }
   .dot-published { color: #2f855a; }
   .dot-draft { color: #b45309; }
@@ -151,26 +152,17 @@
     <h2>Coverage</h2>
     <div class="metrics">
       <span class="metric"><b>{{len .Coverage}}</b> cities</span>
-      <span class="metric {{if .MissingDirectory}}metric-warn{{end}}"><b>{{len .MissingDirectory}}</b> with no directory</span>
       <span class="metric {{if .DraftCount}}metric-warn{{end}}"><b>{{.DraftCount}}</b> drafts to review</span>
       <span class="metric {{if .Flagged}}metric-bad{{end}}"><b>{{len .Flagged}}</b> flagged sources</span>
     </div>
 
-    {{if .MissingDirectory}}
-    <p class="cov-legend" style="margin-top:12px">
-      No <code>resource-directory</code> page yet:
-      {{range $i, $c := .MissingDirectory}}{{if $i}}, {{end}}<strong>{{$c.JurisdictionName}}</strong>{{end}}
-    </p>
-    {{end}}
-
-    <details class="coverage">
+    <details class="coverage" open>
       <summary>Core topic coverage by city</summary>
       <table class="cov">
         <thead>
           <tr>
             <th class="city-col">City</th>
-            {{range .CoreTopics}}<th title="{{.Slug}}">{{.Name}}</th>{{end}}
-            <th title="Core topics with no page at all">Gaps</th>
+            {{range .CoreTopics}}<th title="topic: {{.Slug}}">{{.Name}}</th>{{end}}
           </tr>
         </thead>
         <tbody>
@@ -180,17 +172,22 @@
             {{range $t := $.CoreTopics}}
               {{$state := index $row.Status $t.Slug}}
               <td>
-                {{if eq $state "published"}}<span class="dot-published" title="{{$t.Name}}: published">●</span>
-                {{else if eq $state "draft"}}<span class="dot-draft" title="{{$t.Name}}: draft awaiting review">◐</span>
-                {{else}}<span class="dot-missing" title="{{$t.Name}}: nothing yet">·</span>{{end}}
+                {{if eq $state "published"}}<span class="dot-published" title="{{$t.Name}} — published">●</span>
+                {{else if eq $state "draft"}}<span class="dot-draft" title="{{$t.Name}} — draft awaiting review">◐</span>
+                {{else}}<span class="dot-missing" title="{{$t.Name}} — nothing yet">·</span>{{end}}
               </td>
             {{end}}
-            <td class="num">{{if $row.Missing}}<strong>{{$row.Missing}}</strong>{{else}}—{{end}}</td>
           </tr>
           {{end}}
         </tbody>
       </table>
-      <p class="cov-legend"><span class="dot-published">●</span> published · <span class="dot-draft">◐</span> draft · <span class="dot-missing">·</span> nothing yet. Core topics are the set every city is expected to carry, so a gap here is a gap, not a choice.</p>
+      <p class="cov-legend">
+        <span class="dot-published">●</span> published · <span class="dot-draft">◐</span> draft · <span class="dot-missing">·</span> nothing yet.
+        Columns are <strong>topics</strong>, the subjects every city is expected to cover. "Local Help" is the
+        <code>resource-directory</code> topic, which is a different thing from the <code>directory</code> page
+        layout: a Local Help page is normally laid out as a directory, but any topic can use that layout and
+        this chart does not track it.
+      </p>
     </details>
   </div>
 

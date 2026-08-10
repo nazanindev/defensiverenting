@@ -377,16 +377,6 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Cities with no directory at all. Called out on its own because it is the
-	// gap that has no other symptom: nothing in the page list can show a page
-	// that was never drafted.
-	missingDirectory := make([]store.CoverageRow, 0)
-	for _, c := range coverage {
-		if c.Status["resource-directory"] == "" {
-			missingDirectory = append(missingDirectory, c)
-		}
-	}
-
 	view := readView(r)
 	if view.Status != "all" {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
@@ -410,23 +400,22 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	})
 
 	s.render(w, "dashboard.html", map[string]any{
-		"Playbooks":        playbooks,
-		"Cities":           cities,
-		"ReviewCounts":     counts,
-		"Generating":       s.jobs.list(),
-		"Flagged":          flagged,
-		"View":             view,
-		"Status":           view.Status,
-		"ShowLanguage":     len(langs) > 1,
-		"Coverage":         coverage,
-		"CoreTopics":       coreTopics,
-		"MissingDirectory": missingDirectory,
-		"DraftCount":       draftCount,
-		"PublishedCount":   publishedCount,
-		"TotalCount":       draftCount + publishedCount + supersededCount,
-		"SupersededCount":  supersededCount,
-		"Msg":              r.URL.Query().Get("msg"),
-		"Err":              r.URL.Query().Get("err"),
+		"Playbooks":       playbooks,
+		"Cities":          cities,
+		"ReviewCounts":    counts,
+		"Generating":      s.jobs.list(),
+		"Flagged":         flagged,
+		"View":            view,
+		"Status":          view.Status,
+		"ShowLanguage":    len(langs) > 1,
+		"Coverage":        coverage,
+		"CoreTopics":      coreTopics,
+		"DraftCount":      draftCount,
+		"PublishedCount":  publishedCount,
+		"TotalCount":      draftCount + publishedCount + supersededCount,
+		"SupersededCount": supersededCount,
+		"Msg":             r.URL.Query().Get("msg"),
+		"Err":             r.URL.Query().Get("err"),
 	})
 }
 

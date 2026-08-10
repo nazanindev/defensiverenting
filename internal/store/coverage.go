@@ -11,17 +11,19 @@ type CoverageRow struct {
 	JurisdictionName string
 	JurisdictionSlug string
 	Status           map[string]string
-	Published        int
-	Draft            int
-	Missing          int
 }
 
 // AuthorCoverage reports which core topics each city has and does not have.
 //
 // Core topics are the set every city is expected to carry (ADR-005 D5), so a
-// missing one is a gap rather than a choice. resource-directory is among them,
-// which makes "which cities still have no directory" a read of one column here
-// rather than a question needing its own query.
+// missing one is a gap rather than a choice.
+//
+// This reports topics, not layouts. resource-directory is a topic — the subject
+// "where to get help", shown as "Local Help" — and is not the same thing as the
+// 'directory' page_kind, which is a layout any topic may use. Migration 000005
+// put the directory layout on a cant-pay-rent page, so the two genuinely come
+// apart, and a column here saying a city has Local Help says nothing about how
+// that page is laid out.
 //
 // A draft is deliberately distinguished from a published page. A city with a
 // directory sitting in review is not missing one, and counting it as missing
@@ -69,13 +71,10 @@ func (pg *PG) AuthorCoverage(ctx context.Context) ([]CoverageRow, error) {
 		switch state {
 		case 2:
 			out[i].Status[topicSlug] = "published"
-			out[i].Published++
 		case 1:
 			out[i].Status[topicSlug] = "draft"
-			out[i].Draft++
 		default:
 			out[i].Status[topicSlug] = ""
-			out[i].Missing++
 		}
 	}
 	return out, rows.Err()

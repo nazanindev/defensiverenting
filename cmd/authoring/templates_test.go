@@ -29,8 +29,7 @@ func parseTemplates(t *testing.T) *template.Template {
 func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[string]any {
 	coverage := []store.CoverageRow{{
 		JurisdictionName: "Chicago", JurisdictionSlug: "chicago",
-		Status:  map[string]string{"security-deposits": "published", "resource-directory": ""},
-		Missing: 1,
+		Status: map[string]string{"security-deposits": "published", "resource-directory": ""},
 	}}
 	return map[string]any{
 		"Playbooks": playbooks,
@@ -45,12 +44,11 @@ func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[strin
 			{Slug: "security-deposits", Name: "Security Deposits", IsCore: true},
 			{Slug: "resource-directory", Name: "Local Help", IsCore: true},
 		},
-		"Coverage":         coverage,
-		"MissingDirectory": coverage,
-		"ShowLanguage":     false,
-		"TotalCount":       len(playbooks),
-		"DraftCount":       len(playbooks),
-		"PublishedCount":   0,
+		"Coverage":       coverage,
+		"ShowLanguage":   false,
+		"TotalCount":     len(playbooks),
+		"DraftCount":     len(playbooks),
+		"PublishedCount": 0,
 	}
 }
 
