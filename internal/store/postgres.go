@@ -971,6 +971,9 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
 	// it used to say survives. Retiring must happen first or the one-published-
 	// per-slot index rejects the swap.
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := validatePublishableQuotes(ctx, tx, id); err != nil {
+			return err
+		}
 		var jurisdictionID, topicID int64
 		var language string
 		err := tx.QueryRow(ctx,
