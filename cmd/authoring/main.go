@@ -749,7 +749,7 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Jurisdictions": jurisdictions, "Topics": topics, "Error": "",
 		"PreloadJSON":     template.JS("null"),
-		"ImportablePages": s.importablePages(r.Context(), 0),
+		"ImportGroups":    s.importablePages(r.Context(), 0, ""),
 	}
 
 	// ?from=<id> pre-fills the form from an existing playbook as a reference
@@ -837,26 +837,6 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	type viewSource struct {
-		Num       int
-		URL       string
-		Publisher string
-		Kind      string
-	}
-	type viewCite struct {
-		Num     int
-		Locator string
-		Quote   string
-		URL     string
-		Domain  string
-	}
-	type viewStmt struct {
-		Num       int
-		Body      string
-		Cites     []viewCite
-		Editorial bool
-	}
-
 	var sources []viewSource
 	for _, id := range srcOrder {
 		m := srcByID[id]
@@ -879,11 +859,85 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		stmts = append(stmts, vs)
 	}
 
+	// A directory lists organisations, and one organisation takes several
+	// statements: the number, the hours, who qualifies, what it will not do.
+	// Numbered one per row they read as fragments — "Ask early, the wait can
+	// exceed 21 days" means nothing without the organisation above it — so the
+	// verify view groups them the way the live page does. Grouping is by
+	// consecutive shared source because on a directory the source is the
+	// organisation. See web/templates.groupByOrg.
+	publisherOf := make(map[string]string, len(sources))
+	for _, src := range sources {
+		publisherOf[src.URL] = src.Publisher
+	}
+	groups := groupViewStmts(stmts, pw.Playbook.PageKind == "directory", publisherOf)
+
 	s.render(w, "view.html", map[string]any{
 		"Playbook": pw,
 		"Sources":  sources,
 		"Stmts":    stmts,
+		"Groups":   groups,
+		"Grouped":  pw.Playbook.PageKind == "directory",
 	})
+}
+
+// The verify view's shapes. Package level rather than inside the handler so
+// grouping can be a plain function over them.
+type viewSource struct {
+	Num       int
+	URL       string
+	Publisher string
+	Kind      string
+}
+
+type viewCite struct {
+	Num     int
+	Locator string
+	Quote   string
+	URL     string
+	Domain  string
+}
+
+type viewStmt struct {
+	Num       int
+	Body      string
+	Cites     []viewCite
+	Editorial bool
+}
+
+// viewGroup is a run of statements shown together under one heading.
+type viewGroup struct {
+	Heading string // the organisation, empty when not grouping
+	Stmts   []viewStmt
+}
+
+// groupViewStmts collapses consecutive statements that cite the same source,
+// heading each run with that source's publisher. When grouping is off every
+// statement is its own group, so the template renders one shape either way.
+func groupViewStmts(stmts []viewStmt, grouped bool, publisherOf map[string]string) []viewGroup {
+	out := make([]viewGroup, 0, len(stmts))
+	lastKey := ""
+	for _, st := range stmts {
+		key := ""
+		if len(st.Cites) > 0 {
+			key = st.Cites[0].URL
+		}
+		if grouped && key != "" && key == lastKey && len(out) > 0 {
+			out[len(out)-1].Stmts = append(out[len(out)-1].Stmts, st)
+			continue
+		}
+		lastKey = key
+		g := viewGroup{Stmts: []viewStmt{st}}
+		if grouped {
+			if p := publisherOf[key]; p != "" {
+				g.Heading = p
+			} else {
+				g.Heading = hostOf(key)
+			}
+		}
+		out = append(out, g)
+	}
+	return out
 }
 
 // previewPlaybook renders a playbook (draft or published) through the live
@@ -1138,39 +1192,48 @@ func (s *srv) placeOptions(ctx context.Context, rows []store.AuthorPlaybookRow) 
 // importPage is one option in the "copy sources from" picker.
 type importPage struct {
 	ID      int64
-	Label   string
-	City    string
+	Topic   string
 	Sources int
 }
 
-// importablePages lists pages worth copying sources from, nearest first.
+// importGroup is the pages for one jurisdiction. The picker is grouped because
+// the sources worth copying are nearly always another page for the same city:
+// a Pittsburgh page needs PALawHelp and Allegheny County, not Seattle's.
+type importGroup struct {
+	City  string
+	Pages []importPage
+}
+
+// importablePages lists pages worth copying sources from, grouped by
+// jurisdiction and with the current page's own jurisdiction first.
 //
-// Ordered by city rather than by date because the sources a page needs are
-// almost always the ones another page in the same city already cites: the state
-// code, the local agency, the legal aid provider. A page with no sources is
-// left out — offering it would only waste a click.
-func (s *srv) importablePages(ctx context.Context, excludeID int64) []importPage {
+// A page with no sources is left out; offering it would only waste a click.
+func (s *srv) importablePages(ctx context.Context, excludeID int64, nearCity string) []importGroup {
 	rows, err := s.pg.AuthorListPlaybooks(ctx)
 	if err != nil {
 		return nil
 	}
-	out := make([]importPage, 0, len(rows))
+	byCity := map[string][]importPage{}
 	for _, r := range rows {
 		if r.ID == excludeID || r.SourceCount == 0 {
 			continue
 		}
-		out = append(out, importPage{
-			ID:      r.ID,
-			Label:   r.JurisdictionName + " · " + r.TopicSlug,
-			City:    r.JurisdictionName,
-			Sources: r.SourceCount,
-		})
+		byCity[r.JurisdictionName] = append(byCity[r.JurisdictionName],
+			importPage{ID: r.ID, Topic: r.TopicSlug, Sources: r.SourceCount})
 	}
+	out := make([]importGroup, 0, len(byCity))
+	for city, pages := range byCity {
+		sort.SliceStable(pages, func(i, j int) bool { return pages[i].Topic < pages[j].Topic })
+		out = append(out, importGroup{City: city, Pages: pages})
+	}
+	// The city being edited leads: copying from a sibling page is the common
+	// case, and scrolling past every other city to reach it is the friction
+	// this picker exists to remove.
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].City != out[j].City {
-			return out[i].City < out[j].City
+		if (out[i].City == nearCity) != (out[j].City == nearCity) {
+			return out[i].City == nearCity
 		}
-		return out[i].Label < out[j].Label
+		return out[i].City < out[j].City
 	})
 	return out
 }
@@ -1337,7 +1400,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"Title":            pw.Playbook.Title,
 		"Intro":            pw.Playbook.IntroMD,
 		"Error":            errMsg,
-		"ImportablePages":  s.importablePages(ctx, pw.Playbook.ID),
+		"ImportGroups":     s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
 		"PreloadJSON": template.JS(pj),
 	}

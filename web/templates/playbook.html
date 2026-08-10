@@ -98,13 +98,11 @@
               {{range .Statements}}
               <div class="directory-body">{{.BodyHTML}}</div>
               {{end}}
-              {{/* Organisations close, move, and change their phone numbers,
-                   and the reader looking at the entry is the first person to
-                   find out. The link carries the page and the organisation so
-                   they only have to say what changed. */}}
-              <p class="directory-report">
-                <a href="/report?url={{$.Jurisdiction.TopicPath $.Topic.Slug}}&amp;org={{.Chip.Label}}">Tell us if this is wrong or closed</a>
-              </p>
+              {{/* No per-entry report link. Repeated under every organisation it
+                   read as part of each entry rather than as a page action, and
+                   on a directory trimmed to three entries it was three
+                   near-identical prompts. The one at the foot of the page
+                   covers it; a reader says which organisation there. */}}
             </li>
             {{end}}
           </ul>

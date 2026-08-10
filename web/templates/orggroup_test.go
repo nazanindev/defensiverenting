@@ -72,6 +72,27 @@ func TestGroupByOrg_skipsStatementsWithNoCitation(t *testing.T) {
 	}
 }
 
+func TestGroupByOrg_ignoresTheLocatorAnchorOnTheChipURL(t *testing.T) {
+	// A chip URL is SourceURL + "#locator" so a reader lands on the right part
+	// of a long statute. That made every statement citing one source carry a
+	// different URL, and grouping on it grouped nothing: a directory of three
+	// organizations rendered as seven entries.
+	got := groupByOrg([]RenderedStatement{
+		stmt("https://a.org/#one", "A Org", "one"),
+		stmt("https://a.org/#two", "A Org", "two"),
+		stmt("https://a.org/#three", "A Org", "three"),
+	})
+	if len(got) != 1 {
+		t.Fatalf("want 1 organization, got %d", len(got))
+	}
+	if n := len(got[0].Statements); n != 3 {
+		t.Errorf("want all 3 statements in it, got %d", n)
+	}
+	if got[0].Chip.URL != "https://a.org/" {
+		t.Errorf("the group chip should link to the source, not one statement's anchor: %q", got[0].Chip.URL)
+	}
+}
+
 func TestGroupByOrg_handlesNoStatements(t *testing.T) {
 	if got := groupByOrg(nil); len(got) != 0 {
 		t.Errorf("want no groups, got %d", len(got))

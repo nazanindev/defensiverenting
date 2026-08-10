@@ -61,28 +61,19 @@ func reportLinks(t *testing.T, body string) []url.Values {
 	return out
 }
 
-// An organization that has closed is the report we most want, and the reader
-// looking at its entry is the first to know. The link carries both the page
-// and the organization so they only have to say what changed.
-func TestDirectoryPage_reportLinkCarriesTheOrganisation(t *testing.T) {
-	var found int
+// A directory carries one report link, at the foot of the page, not one under
+// every organization.
+//
+// The per-entry link was well meant — an organization that has closed is the
+// report we most want — but repeated under each entry it read as part of the
+// entry rather than as a page action, and on a directory trimmed to the two or
+// three organizations worth calling it was three near-identical prompts. The
+// reader says which organization in the form.
+func TestDirectoryPage_hasNoPerOrganisationReportLink(t *testing.T) {
 	for _, q := range reportLinks(t, renderPlaybook(t, "directory")) {
-		if q.Get("org") == "" {
-			continue
+		if org := q.Get("org"); org != "" {
+			t.Errorf("directory entries must not carry their own report link, found one for %q", org)
 		}
-		found++
-		if got := q.Get("org"); got != "City Life Vida Urbana" {
-			t.Errorf("org = %q, want the organization name", got)
-		}
-		if got := q.Get("url"); got != "/j/boston/resource-directory" {
-			t.Errorf("url = %q, want the page path", got)
-		}
-	}
-
-	// One link per organization, not one per statement. Both statements above
-	// cite the same source, so groupByOrg collapses them into one entry.
-	if found != 1 {
-		t.Errorf("per-organization report links = %d, want 1", found)
 	}
 }
 

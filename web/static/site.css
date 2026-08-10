@@ -1168,6 +1168,3 @@ input:focus-visible,
 
 .report-link a { color: var(--accent); }
 
-.directory-report { margin: .75rem 0 0; font-size: .88rem; }
-.directory-report a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; }
-.directory-report a:hover { color: var(--accent); }

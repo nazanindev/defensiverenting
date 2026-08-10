@@ -65,6 +65,12 @@
   .import-src { display: inline-flex; align-items: center; gap: 7px; margin-left: 12px; font-size: .8rem; color: #7a5555; }
   .import-src select { font-size: .8rem; padding: 5px 7px; max-width: 260px; }
   .import-msg { color: #9b2335; font-size: .76rem; }
+  .import-pick { margin-top: 10px; border: 1px solid #f0c0c8; border-radius: 8px; padding: 12px 14px; background: #fffafa; }
+  .import-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: .8rem; cursor: pointer; }
+  .import-row-dup { opacity: .55; cursor: default; }
+  .import-pub { font-weight: 600; color: #4a1223; flex-shrink: 0; }
+  .import-url { color: #a08080; font-size: .74rem; overflow-wrap: anywhere; }
+  .import-dup { color: #9b2335; font-size: .7rem; font-style: italic; flex-shrink: 0; }
   .quote-edit { margin: -2px 0 9px 22px; }
   .quote-edit-off { display: none; }
   .quote-box { width: 100%; font-size: .74rem; color: #6b5555; background: #fbf6f6;
@@ -250,19 +256,32 @@
       <h2 id="sources-heading">Sources</h2>
       <div id="sources-container"><p class="no-items">Add sources you'll cite in the statements below.</p></div>
       <button type="button" class="btn btn-add" id="add-source-btn" onclick="addSource()">+ Add source</button>
-      {{if .ImportablePages}}
+      {{if .ImportGroups}}
       <!-- A city reuses the same authorities across every topic, so a new page
            for a city that already has pages is mostly re-entry. Retyping a URL
            slightly differently creates a second source row for one document. -->
       <span class="import-src">
         <label for="import-src-sel">or copy sources from</label>
-        <select id="import-src-sel">
+        {{/* Grouped by jurisdiction: the sources worth copying are almost
+             always another page for the same city, so the list is browsed by
+             place rather than scanned as one flat run of every page. */}}
+        <select id="import-src-sel" onchange="loadImportSources()">
           <option value="">choose a page…</option>
-          {{range .ImportablePages}}<option value="{{.ID}}">{{.Label}} ({{.Sources}})</option>{{end}}
+          {{range .ImportGroups}}
+          <optgroup label="{{.City}}">
+            {{range .Pages}}<option value="{{.ID}}">{{.Topic}} ({{.Sources}})</option>{{end}}
+          </optgroup>
+          {{end}}
         </select>
-        <button type="button" class="btn btn-add" onclick="importSources()">Copy</button>
         <span id="import-src-msg" class="import-msg"></span>
       </span>
+      <!-- Filled once a page is chosen: tick the sources you want. Copying all
+           of them drags in authorities the new page has no reason to cite. -->
+      <div id="import-pick" class="import-pick" hidden>
+        <div id="import-pick-list"></div>
+        <button type="button" class="btn btn-add" onclick="addPickedSources()">Add selected</button>
+        <button type="button" class="btn btn-rm" onclick="closeImportPick()">Cancel</button>
+      </div>
       {{end}}
       <input type="hidden" name="active_sources" id="active_sources" value="">
     </section>
@@ -708,36 +727,68 @@ function toggleCites(stmtId, btn) {
     : '+ cite another source (' + card.querySelectorAll('.cite-row-off').length + ')';
 }
 
-// importSources appends another page's sources to this one, skipping any URL
-// already present so copying twice is harmless. Statements are untouched: they
-// are the part that differs between topics.
-function importSources() {
-  const sel = document.getElementById('import-src-sel');
+// loadImportSources shows the chosen page's sources as a checklist. Copying a
+// whole page's sources drags in authorities the new page has no reason to
+// cite, so the reviewer picks. Sources already on this page are shown ticked
+// and disabled rather than hidden, so it is clear nothing was missed.
+let importCandidates = [];
+
+function loadImportSources() {
+  const id  = document.getElementById('import-src-sel').value;
   const msg = document.getElementById('import-src-msg');
-  const id  = sel.value;
-  if (!id) { msg.textContent = 'Pick a page first.'; return; }
-  msg.textContent = 'Copying…';
+  const box = document.getElementById('import-pick');
+  if (!id) { closeImportPick(); return; }
+  msg.textContent = 'Loading…';
   fetch('/api/sources/' + encodeURIComponent(id))
     .then(function(r) { if (!r.ok) throw new Error('could not read that page'); return r.json(); })
     .then(function(list) {
-      sync(); // keep anything typed before the re-render
+      sync();
       const have = {};
       sources.forEach(function(s) { have[(s.url || '').trim()] = true; });
-      let added = 0;
-      list.forEach(function(s) {
-        const u = (s.url || '').trim();
-        if (!u || have[u]) return;
-        have[u] = true;
-        added++;
-        sources.push({ id: nextSrcId++, url: u, publisher: s.publisher || '',
-                       kind: s.kind || 'statute', locator: s.locator || '' });
-      });
-      render();
-      msg.textContent = added === 0
-        ? 'Already had all of those.'
-        : 'Added ' + added + ' source' + (added === 1 ? '' : 's') + '.';
+      importCandidates = list;
+      document.getElementById('import-pick-list').innerHTML = list.map(function(s, i) {
+        const dup = have[(s.url || '').trim()];
+        return '<label class="import-row' + (dup ? ' import-row-dup' : '') + '">' +
+          '<input type="checkbox" value="' + i + '"' + (dup ? ' checked disabled' : '') + '>' +
+          '<span class="import-pub">' + esc(s.publisher || hostOf(s.url)) + '</span>' +
+          '<span class="import-url">' + esc(s.url) + '</span>' +
+          (dup ? '<span class="import-dup">already here</span>' : '') +
+        '</label>';
+      }).join('') || '<p class="no-items">That page has no sources.</p>';
+      box.hidden = false;
+      msg.textContent = '';
     })
     .catch(function(e) { msg.textContent = e.message; });
+}
+
+function closeImportPick() {
+  document.getElementById('import-pick').hidden = true;
+  document.getElementById('import-src-sel').value = '';
+  importCandidates = [];
+}
+
+// addPickedSources adds only the ticked sources, skipping any URL already
+// present so a double click is harmless.
+function addPickedSources() {
+  const msg = document.getElementById('import-src-msg');
+  sync();
+  const have = {};
+  sources.forEach(function(s) { have[(s.url || '').trim()] = true; });
+  let added = 0;
+  document.querySelectorAll('#import-pick-list input[type=checkbox]:checked:not(:disabled)').forEach(function(cb) {
+    const s = importCandidates[+cb.value];
+    const u = (s.url || '').trim();
+    if (!u || have[u]) return;
+    have[u] = true;
+    added++;
+    sources.push({ id: nextSrcId++, url: u, publisher: s.publisher || '',
+                   kind: s.kind || 'statute', locator: s.locator || '' });
+  });
+  closeImportPick();
+  render();
+  msg.textContent = added === 0
+    ? 'Nothing selected.'
+    : 'Added ' + added + ' source' + (added === 1 ? '' : 's') + '.';
 }
 
 function hostOf(url) {

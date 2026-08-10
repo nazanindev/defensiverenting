@@ -51,6 +51,11 @@
 
   /* Statements */
   .stmt-item { padding: 14px 0; border-bottom: 1px solid #f5eded; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+  /* On a directory the statements under one organisation are one entry, so the
+     rule between them would read as a separator between unrelated things. */
+  .org-heading { font-size: .95rem; margin: 22px 0 2px; color: #4a1223; border-top: 1px solid #f0c0c8; padding-top: 16px; }
+  .org-heading:first-of-type { border-top: 0; padding-top: 0; margin-top: 8px; }
+  .stmt-item-grouped { border-bottom: 0; padding: 6px 0; }
   .stmt-item:last-child { border-bottom: none; padding-bottom: 0; }
   .stmt-num { width: 24px; height: 24px; background: #f0e8e8; color: #7a1c2a; border-radius: 50%; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
   .stmt-body { font-size: .9rem; line-height: 1.6; color: #2d1f1f; margin-bottom: 8px; }
@@ -157,8 +162,10 @@
   <section>
     <h2>Statements ({{len .Stmts}})</h2>
     {{if .Stmts}}<p class="verify-hint">Each quote below is <strong>verbatim from its source</strong> — the draft could not be saved otherwise. Confirm the quote supports the statement and the source is authoritative, then use <strong>Verify &amp; publish</strong> above.</p>{{end}}
+    {{range .Groups}}
+    {{if .Heading}}<h3 class="org-heading">{{.Heading}}</h3>{{end}}
     {{range .Stmts}}
-    <div class="stmt-item">
+    <div class="stmt-item{{if $.Grouped}} stmt-item-grouped{{end}}">
       <div class="stmt-num">{{.Num}}</div>
       <div>
         <p class="stmt-body">{{.Body}}</p>
@@ -182,6 +189,7 @@
         {{end}}{{end}}
       </div>
     </div>
+    {{end}}
     {{end}}
   </section>
 
