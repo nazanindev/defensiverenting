@@ -114,10 +114,13 @@
       <form method="post" action="/publish/{{.Playbook.Playbook.ID}}" style="display:inline" onsubmit="return confirm('Publish this playbook to the live site?')">
         <button type="submit" class="btn btn-publish">✓ Verify &amp; publish</button>
       </form>
-      {{else}}
+      {{end}}
       {{/* Taking a page down keeps its text as the slot's draft: a page that is
            wrong in front of renters has to come down before a correction can be
-           researched, and deleting it destroys the text and 404s a live URL. */}}
+           researched, and deleting it destroys the text and 404s a live URL.
+           Tested against "published" rather than "not draft", so a superseded
+           page does not offer an action that would then be refused. */}}
+      {{if eq .Playbook.Playbook.Status "published"}}
       <form method="post" action="/unpublish/{{.Playbook.Playbook.ID}}" style="display:inline"
             onsubmit="return confirm('Take this page off the live site? It becomes a draft you can edit and publish again. Nothing is deleted.')">
         <button type="submit" class="btn btn-secondary">↩ Take down &amp; revert to draft</button>

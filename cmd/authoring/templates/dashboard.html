@@ -255,6 +255,15 @@
                 {{end}}
               </form>
               {{end}}
+              {{/* Only a live page can be taken down. Superseded rows are
+                   already off the site, and offering the action there would
+                   fail on a page that looks like it should accept it. */}}
+              {{if eq .Status "published"}}
+              <form method="post" action="/unpublish/{{.ID}}">
+                <button class="btn btn-xs btn-view" title="Take off the live site and keep the text as this page's draft"
+                        onclick="return confirm('Take this page off the live site? It becomes a draft you can edit and publish again. Nothing is deleted.')">Take down</button>
+              </form>
+              {{end}}
               <form method="post" action="/delete/{{.ID}}">
                 <button class="btn btn-danger btn-xs" onclick="return confirm('Delete this playbook permanently?')">Delete</button>
               </form>
