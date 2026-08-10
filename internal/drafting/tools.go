@@ -104,15 +104,22 @@ type SaveDraftInput struct {
 	CitySlug string `json:"city_slug"`
 	// No topic_name: topics are a closed registry, so the display name comes
 	// from the topics table and is never supplied by the caller.
-	TopicSlug  string           `json:"topic_slug" jsonschema:"a slug from list_topics, e.g. \"security-deposits\""`
-	Title      string           `json:"title"`
-	IntroMD    string           `json:"intro_md" jsonschema:"short Markdown intro for the playbook"`
+	TopicSlug string `json:"topic_slug" jsonschema:"a slug from list_topics, e.g. \"security-deposits\""`
+	Title     string `json:"title"`
+	IntroMD   string `json:"intro_md" jsonschema:"short Markdown intro for the playbook"`
+	// PageKind selects the layout. A directory renders each statement as an
+	// entry in a list of local help rather than as a step in an argument, so
+	// "where to get help" belongs on its own directory page under the
+	// resource-directory topic instead of repeated at the foot of every
+	// playbook.
+	PageKind   string           `json:"page_kind,omitempty" jsonschema:"playbook|directory|faq|checklist. Omit for playbook. Use \"directory\" for a page listing local organisations and services, where each statement is one organisation and its citation is that organisation's own page."`
 	Statements []StatementInput `json:"statements"`
 }
 
 type SaveDraftOutput struct {
 	CitySlug       string `json:"city_slug"`
 	TopicSlug      string `json:"topic_slug"`
+	PageKind       string `json:"page_kind" jsonschema:"the layout the draft was saved with; check it matches what you intended"`
 	StatementCount int    `json:"statement_count"`
 	CitationCount  int    `json:"citation_count"`
 	Status         string `json:"status"`
@@ -135,6 +142,11 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		if errors.Is(err, store.ErrNotFound) {
 			return SaveDraftOutput{}, reject("no jurisdiction with slug %q — call list_jurisdictions to see valid cities", in.CitySlug)
 		}
+		return SaveDraftOutput{}, err
+	}
+
+	pageKind, err := resolvePageKind(in.PageKind)
+	if err != nil {
 		return SaveDraftOutput{}, err
 	}
 
@@ -252,7 +264,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		Slug:           in.TopicSlug,
 		Title:          in.Title,
 		IntroMD:        in.IntroMD,
-		PageKind:       "playbook",
+		PageKind:       pageKind,
 		Status:         "draft",
 		Statements:     stmts,
 	}); err != nil {
@@ -262,6 +274,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	return SaveDraftOutput{
 		CitySlug:       in.CitySlug,
 		TopicSlug:      in.TopicSlug,
+		PageKind:       pageKind,
 		StatementCount: len(in.Statements),
 		CitationCount:  citationCount,
 		Status:         "draft",

@@ -109,13 +109,17 @@ func toolDefs() []anthropic.ToolUnionParam {
 			map[string]any{"url": strProp("http(s) URL of the primary source")},
 			[]string{"url"}),
 
+		// Kept in step with drafting.SaveDraftInput by hand: the MCP front-end
+		// derives its schema from that struct, this one is written out. A field
+		// added there and not here is simply invisible to the batch worker.
 		customTool("save_draft_playbook",
-			"Save a DRAFT playbook. Every citation quote must be verbatim in a fetched source, or the save is rejected. Never publishes.",
+			"Save a DRAFT page. Every citation quote must be verbatim in a fetched source, or the save is rejected. Never publishes.",
 			map[string]any{
 				"city_slug":  strProp("city slug (use the one from the task)"),
 				"topic_slug": strProp("topic slug from list_topics; topics are a fixed set and cannot be created here"),
-				"title":      strProp("playbook title"),
-				"intro_md":   strProp("short Markdown intro for the playbook"),
+				"title":      strProp("page title"),
+				"intro_md":   strProp("short Markdown intro for the page"),
+				"page_kind":  strProp("playbook|directory|faq|checklist — omit for playbook. Use 'directory' with topic_slug 'resource-directory' for a list of local organisations, one per statement."),
 				"statements": map[string]any{"type": "array", "items": statementItems},
 			},
 			[]string{"city_slug", "topic_slug", "title", "statements"}),

@@ -239,3 +239,25 @@ func defaultKind(k string) string {
 	}
 	return "gov_guidance"
 }
+
+// validPageKinds mirrors the CHECK constraint on playbooks.page_kind.
+var validPageKinds = map[string]bool{
+	"playbook": true, "directory": true, "faq": true, "checklist": true,
+}
+
+// resolvePageKind defaults to "playbook" and rejects any other unknown value.
+//
+// Deliberately stricter than defaultKind: a mistyped source kind still cites the
+// right document, but a mistyped page_kind silently produces a playbook where a
+// directory was meant. That is invisible to the agent, invisible in the draft
+// queue, and only shows up as the wrong layout in front of a reader.
+func resolvePageKind(k string) (string, error) {
+	k = strings.TrimSpace(k)
+	if k == "" {
+		return "playbook", nil
+	}
+	if !validPageKinds[k] {
+		return "", reject("page_kind %q is not valid. Use \"playbook\" (or omit it), \"directory\" for a list of local organisations and services, \"faq\", or \"checklist\".", k)
+	}
+	return k, nil
+}
