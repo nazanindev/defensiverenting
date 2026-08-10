@@ -67,6 +67,8 @@
   .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
   .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
   .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
+  .place-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: .8rem; color: #7a5c5c; }
+  .place-filter select { font-size: .8rem; padding: .28rem .5rem; border-radius: 6px; border: 1px solid #e8dede; background: #fff; }
   .tab b { font-weight: 600; }
   .badge-cost { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
   .badge-free { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
@@ -192,11 +194,25 @@
   </div>
 
   {{$v := .View}}
+  {{/* place rides along on every status tab: narrowing to a city and then
+       switching to Drafts must not silently widen back to every city. */}}
   <div class="tabs">
-    <a class="tab {{if eq .Status "all"}}active{{end}}" href="/?status=all&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}">All <b>{{.TotalCount}}</b></a>
-    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}">Drafts to review <b>{{.DraftCount}}</b></a>
-    <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}">Published <b>{{.PublishedCount}}</b></a>
-    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="/?status=superseded&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
+    <a class="tab {{if eq .Status "all"}}active{{end}}" href="/?status=all&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}">All <b>{{.TotalCount}}</b></a>
+    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}">Drafts to review <b>{{.DraftCount}}</b></a>
+    <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}">Published <b>{{.PublishedCount}}</b></a>
+    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="/?status=superseded&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
+
+    {{if .Places}}
+    <span class="place-filter">
+      <label for="place-sel">Location</label>
+      <select id="place-sel" onchange="location.href = this.value">
+        <option value="{{$v.PlaceLink ""}}"{{if not $v.Place}} selected{{end}}>Everywhere</option>
+        {{range .Places}}
+        <option value="{{$v.PlaceLink .Slug}}"{{if eq $v.Place .Slug}} selected{{end}}>{{if eq .Kind "city"}}&nbsp;&nbsp;&nbsp;{{else if eq .Kind "state"}}&nbsp;{{end}}{{.Name}} ({{.Count}})</option>
+        {{end}}
+      </select>
+    </span>
+    {{end}}
   </div>
 
 <div class="card">

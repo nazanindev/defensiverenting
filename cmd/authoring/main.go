@@ -158,6 +158,8 @@ func main() {
 	mux.HandleFunc("POST /check-sources", s.checkSources)
 	mux.HandleFunc("POST /sources/{id}/dismiss-flag", s.dismissSourceFlag)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
+	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
+	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 	mux.HandleFunc("POST /discover", s.discover)
 	mux.HandleFunc("GET /candidates", s.candidates)
@@ -212,6 +214,10 @@ type dashboardView struct {
 	Status string
 	Sort   string
 	Dir    string
+	// Place is a jurisdiction slug at any level. Selecting a state shows the
+	// cities under it, not just pages scoped to the state itself, because
+	// "show me Massachusetts" means the work for Massachusetts.
+	Place string
 }
 
 const viewCookie = "authoring_view"
@@ -243,7 +249,19 @@ func (v dashboardView) normalize() dashboardView {
 }
 
 func (v dashboardView) query() string {
-	return url.Values{"status": {v.Status}, "sort": {v.Sort}, "dir": {v.Dir}}.Encode()
+	q := url.Values{"status": {v.Status}, "sort": {v.Sort}, "dir": {v.Dir}}
+	if v.Place != "" {
+		q.Set("place", v.Place)
+	}
+	return q.Encode()
+}
+
+// PlaceLink returns the href for filtering to one location, keeping the current
+// status and sort. An empty slug clears the filter.
+func (v dashboardView) PlaceLink(slug string) template.URL {
+	next := v
+	next.Place = slug
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
 }
 
 // SortLink returns the full href for sorting by col: the same column reversed,
@@ -252,10 +270,15 @@ func (v dashboardView) query() string {
 // It returns template.URL rather than a string because html/template treats a
 // bare value after "/?" as a single query parameter and escapes the "=" and "&"
 // inside it, which silently turns every sort link into one meaningless
-// parameter. Marking it trusted is safe precisely because normalize() has
-// already forced all three fields to values from fixed allowlists.
+// parameter. Marking it trusted is safe because status, sort and dir come from
+// fixed allowlists in normalize(), and place — which is a slug, so no allowlist
+// can be written here — is percent-encoded by url.Values.Encode before it
+// reaches the URL. The dashboard also drops a place it does not recognise.
+//
+// Place is carried through: sorting a filtered list must not silently widen it
+// back to every city.
 func (v dashboardView) SortLink(col string) template.URL {
-	next := dashboardView{Status: v.Status, Sort: col}
+	next := dashboardView{Status: v.Status, Sort: col, Place: v.Place}
 	if v.Sort == col {
 		next.Dir = "asc"
 		if v.Dir == "asc" {
@@ -278,14 +301,15 @@ func (v dashboardView) Arrow(col string) string {
 
 func readView(r *http.Request) dashboardView {
 	q := r.URL.Query()
-	v := dashboardView{Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir")}
-	if v.Status == "" && v.Sort == "" && v.Dir == "" {
+	v := dashboardView{Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir"), Place: q.Get("place")}
+	if v.Status == "" && v.Sort == "" && v.Dir == "" && q.Get("place") == "" {
 		if c, err := r.Cookie(viewCookie); err == nil {
 			if remembered, err := url.ParseQuery(c.Value); err == nil {
 				v = dashboardView{
 					Status: remembered.Get("status"),
 					Sort:   remembered.Get("sort"),
 					Dir:    remembered.Get("dir"),
+					Place:  remembered.Get("place"),
 				}
 			}
 		}
@@ -378,6 +402,29 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := readView(r)
+
+	// Location filter. A page belongs to a place if that place is anywhere in
+	// its jurisdiction's ancestry, so Massachusetts shows Boston's pages and
+	// the United States shows everything under it. Filtering on the slug alone
+	// would make a state select only pages scoped to the state itself, which is
+	// almost never what someone means by "show me Massachusetts".
+	places, parentOf := s.placeOptions(ctx, playbooks)
+	if view.Place != "" && !places.known[view.Place] {
+		view.Place = "" // a stale cookie or a hand-edited URL must not hide everything
+	}
+	if view.Place != "" {
+		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
+		for _, p := range playbooks {
+			for slug := p.JurisdictionSlug; slug != ""; slug = parentOf[slug] {
+				if slug == view.Place {
+					kept = append(kept, p)
+					break
+				}
+			}
+		}
+		playbooks = kept
+	}
+
 	if view.Status != "all" {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
 		for _, p := range playbooks {
@@ -406,6 +453,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Generating":      s.jobs.list(),
 		"Flagged":         flagged,
 		"View":            view,
+		"Places":          places.Opts(),
 		"Status":          view.Status,
 		"ShowLanguage":    len(langs) > 1,
 		"Coverage":        coverage,
@@ -700,7 +748,8 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Jurisdictions": jurisdictions, "Topics": topics, "Error": "",
-		"PreloadJSON": template.JS("null"),
+		"PreloadJSON":     template.JS("null"),
+		"ImportablePages": s.importablePages(r.Context(), 0),
 	}
 
 	// ?from=<id> pre-fills the form from an existing playbook as a reference
@@ -1021,6 +1070,214 @@ func (s *srv) publish(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+// placeOption is one entry in the location filter.
+type placeOption struct {
+	Slug  string
+	Name  string
+	Kind  string // country|state|city, used to indent the list
+	Count int    // pages at or under this place
+}
+
+type placeList struct {
+	Options []placeOption
+	known   map[string]bool
+}
+
+// Opts exposes the options to the template; known is for validation only.
+func (p placeList) Opts() []placeOption { return p.Options }
+
+// placeOptions builds the location filter from the jurisdictions that actually
+// have pages, plus their ancestors, ordered country → state → city.
+//
+// Only places with pages are offered. The jurisdictions table carries rows
+// created for hierarchy repair and for cities seeded but never written, and a
+// filter listing options that select nothing is worse than no filter.
+func (s *srv) placeOptions(ctx context.Context, rows []store.AuthorPlaybookRow) (placeList, map[string]string) {
+	all, err := s.pg.ListAuthorableJurisdictions(ctx)
+	if err != nil {
+		return placeList{known: map[string]bool{}}, map[string]string{}
+	}
+	parentOf := make(map[string]string, len(all))
+	meta := make(map[string]store.Jurisdiction, len(all))
+	for _, j := range all {
+		parentOf[j.Slug] = j.ParentSlug
+		meta[j.Slug] = j
+	}
+
+	// Count each page against its own jurisdiction and every ancestor, so a
+	// state's number is the work in that state rather than the handful of pages
+	// scoped to the state itself.
+	count := map[string]int{}
+	for _, p := range rows {
+		seen := map[string]bool{}
+		for slug := p.JurisdictionSlug; slug != "" && !seen[slug]; slug = parentOf[slug] {
+			seen[slug] = true
+			count[slug]++
+		}
+	}
+
+	out := placeList{known: map[string]bool{}}
+	for slug, n := range count {
+		j, ok := meta[slug]
+		if !ok {
+			continue
+		}
+		out.known[slug] = true
+		out.Options = append(out.Options, placeOption{Slug: slug, Name: j.Name, Kind: j.Kind, Count: n})
+	}
+	rank := map[string]int{"country": 0, "state": 1, "city": 2}
+	sort.SliceStable(out.Options, func(i, j int) bool {
+		if rank[out.Options[i].Kind] != rank[out.Options[j].Kind] {
+			return rank[out.Options[i].Kind] < rank[out.Options[j].Kind]
+		}
+		return out.Options[i].Name < out.Options[j].Name
+	})
+	return out, parentOf
+}
+
+// importPage is one option in the "copy sources from" picker.
+type importPage struct {
+	ID      int64
+	Label   string
+	City    string
+	Sources int
+}
+
+// importablePages lists pages worth copying sources from, nearest first.
+//
+// Ordered by city rather than by date because the sources a page needs are
+// almost always the ones another page in the same city already cites: the state
+// code, the local agency, the legal aid provider. A page with no sources is
+// left out — offering it would only waste a click.
+func (s *srv) importablePages(ctx context.Context, excludeID int64) []importPage {
+	rows, err := s.pg.AuthorListPlaybooks(ctx)
+	if err != nil {
+		return nil
+	}
+	out := make([]importPage, 0, len(rows))
+	for _, r := range rows {
+		if r.ID == excludeID || r.SourceCount == 0 {
+			continue
+		}
+		out = append(out, importPage{
+			ID:      r.ID,
+			Label:   r.JurisdictionName + " · " + r.TopicSlug,
+			City:    r.JurisdictionName,
+			Sources: r.SourceCount,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].City != out[j].City {
+			return out[i].City < out[j].City
+		}
+		return out[i].Label < out[j].Label
+	})
+	return out
+}
+
+// sourcesJSON returns one page's sources so the form can copy them into
+// another page without the reviewer retyping a URL, publisher and kind that
+// already exist.
+//
+// Cities reuse the same handful of authorities across every topic — one state
+// code, one legal aid site, one city agency — so a new page for a city that
+// already has pages is mostly a re-entry exercise. Getting a URL subtly wrong
+// creates a second source row for the same document, which splits the source
+// checker's view of it and shows a reader two chips for one authority.
+//
+// Sources only. Statements are the part that differs between topics, and
+// copying those is what ?from= already does when starting a page from another.
+func (s *srv) sourcesJSON(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	pw, err := s.pg.AuthorGetPlaybook(r.Context(), id)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	editorial, _ := s.pg.GetEditorialSource(r.Context())
+
+	type srcOut struct {
+		URL       string `json:"url"`
+		Publisher string `json:"publisher"`
+		Kind      string `json:"kind"`
+		Locator   string `json:"locator"`
+	}
+	out := []srcOut{}
+	seen := map[string]bool{}
+	for _, st := range pw.Statements {
+		for _, c := range st.Citations {
+			// The editorial source is a site-wide singleton the form adds with
+			// its own checkbox, so copying it would produce a duplicate entry
+			// for something that is not really a source.
+			if c.SourceID == editorial.ID || seen[c.SourceURL] {
+				continue
+			}
+			seen[c.SourceURL] = true
+			out = append(out, srcOut{URL: c.SourceURL, Publisher: c.Publisher, Kind: c.SourceKind, Locator: c.Locator})
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		s.log.Error("encode sources", slog.Any("err", err))
+	}
+}
+
+// unpublish takes a live page down and leaves its content as the slot's draft.
+//
+// The collision — a draft already waiting in the same slot — is reported to the
+// reviewer rather than resolved here, because both ways of resolving it lose
+// someone's work and only a person can weigh that.
+func (s *srv) unpublish(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	retire := r.FormValue("retire_draft") == "1"
+	switch err := s.pg.AuthorUnpublishPlaybook(r.Context(), id, retire); {
+	case err == nil:
+		http.Redirect(w, r, fmt.Sprintf("/view/%d", id), http.StatusSeeOther)
+	case errors.Is(err, store.ErrDraftExists):
+		// Not a dead end: show what will happen and offer to go ahead. A page
+		// can only hold one draft, so the waiting one has to move aside — but
+		// it is retired, not deleted, and stays readable under Replaced.
+		s.actionError(w, id, actionChoice{
+			Message: "This page already has a draft revision waiting, and a page can only hold one draft. " +
+				"Taking this page down will move that draft to Replaced, where it keeps its statements, " +
+				"citations and quotes and can still be read. Nothing is deleted.",
+			ConfirmLabel: "Retire that draft and take this page down",
+			ConfirmPath:  fmt.Sprintf("/unpublish/%d", id),
+			ConfirmField: "retire_draft",
+		})
+	case errors.Is(err, store.ErrNotPublished):
+		s.actionError(w, id, actionChoice{Message: "This page is not live, so there is nothing to take down."})
+	case errors.Is(err, store.ErrNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	default:
+		s.serverError(w, err)
+	}
+}
+
+// actionChoice is a blocked action explained to the reviewer, optionally with
+// the button that goes ahead anyway.
+type actionChoice struct {
+	Message      string
+	ConfirmLabel string // empty when there is nothing to confirm
+	ConfirmPath  string
+	ConfirmField string // hidden field set to "1" when confirming
+}
+
+// actionError shows a blocked action as a page the reviewer can read and act
+// on, rather than a 500 that loses which page they were working with.
+func (s *srv) actionError(w http.ResponseWriter, id int64, c actionChoice) {
+	w.WriteHeader(http.StatusConflict)
+	s.render(w, "actionerror.html", map[string]any{"C": c, "ID": id})
+}
+
 func (s *srv) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -1080,6 +1337,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"Title":            pw.Playbook.Title,
 		"Intro":            pw.Playbook.IntroMD,
 		"Error":            errMsg,
+		"ImportablePages":  s.importablePages(ctx, pw.Playbook.ID),
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
 		"PreloadJSON": template.JS(pj),
 	}

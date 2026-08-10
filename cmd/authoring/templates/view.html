@@ -114,6 +114,14 @@
       <form method="post" action="/publish/{{.Playbook.Playbook.ID}}" style="display:inline" onsubmit="return confirm('Publish this playbook to the live site?')">
         <button type="submit" class="btn btn-publish">✓ Verify &amp; publish</button>
       </form>
+      {{else}}
+      {{/* Taking a page down keeps its text as the slot's draft: a page that is
+           wrong in front of renters has to come down before a correction can be
+           researched, and deleting it destroys the text and 404s a live URL. */}}
+      <form method="post" action="/unpublish/{{.Playbook.Playbook.ID}}" style="display:inline"
+            onsubmit="return confirm('Take this page off the live site? It becomes a draft you can edit and publish again. Nothing is deleted.')">
+        <button type="submit" class="btn btn-secondary">↩ Take down &amp; revert to draft</button>
+      </form>
       {{end}}
       <a href="/edit/{{.Playbook.Playbook.ID}}" class="btn btn-primary">Edit playbook</a>
       <a href="/preview/{{.Playbook.Playbook.ID}}" target="_blank" rel="noopener" class="btn btn-secondary">Preview as live site ↗</a>
