@@ -23,31 +23,67 @@ func parseTemplates(t *testing.T) *template.Template {
 	return tmpl
 }
 
-func TestDashboardTemplateRenders(t *testing.T) {
-	tmpl := parseTemplates(t)
-	data := map[string]any{
-		"Playbooks": []store.AuthorPlaybookRow{
-			{ID: 1, Title: "Heat Not Working", JurisdictionName: "Chicago", Status: "draft", PageKind: "playbook", Language: "en"},
-		},
-		"Cities": []store.Jurisdiction{{Name: "Chicago", Slug: "chicago"}},
+// dashboardData mirrors every key s.dashboard puts in the render map. Keeping
+// it in one place means a template that starts reading a new field fails here
+// once, with the field named, rather than in each fixture separately.
+func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[string]any {
+	coverage := []store.CoverageRow{{
+		JurisdictionName: "Chicago", JurisdictionSlug: "chicago",
+		Status: map[string]string{"security-deposits": "published", "resource-directory": ""},
+	}}
+	return map[string]any{
+		"Playbooks": playbooks,
+		"Cities":    []store.Jurisdiction{{Name: "Chicago", Slug: "chicago"}},
 		"ReviewCounts": []store.CandidateCountRow{
 			{JurisdictionName: "Chicago", JurisdictionSlug: "chicago", PendingCount: 7},
 		},
-		"Status": "all", "TotalCount": 1, "DraftCount": 1, "PublishedCount": 0,
+		"Flagged": []store.Source{},
+		"View":    dashboardView{Status: status}.normalize(),
+		"Status":  status,
+		"CoreTopics": []store.Topic{
+			{Slug: "security-deposits", Name: "Security Deposits", IsCore: true},
+			{Slug: "resource-directory", Name: "Local Help", IsCore: true},
+		},
+		"Coverage":       coverage,
+		"ShowLanguage":   false,
+		"TotalCount":     len(playbooks),
+		"DraftCount":     len(playbooks),
+		"PublishedCount": 0,
 	}
+}
+
+func TestDashboardTemplateRenders(t *testing.T) {
+	tmpl := parseTemplates(t)
+	data := dashboardData("all", []store.AuthorPlaybookRow{
+		{ID: 1, Title: "Heat Not Working", JurisdictionName: "Chicago", Status: "draft", PageKind: "playbook", Language: "en"},
+	})
 	if err := tmpl.ExecuteTemplate(io.Discard, "dashboard.html", data); err != nil {
 		t.Fatalf("execute dashboard.html: %v", err)
 	}
 
 	// Empty state differs per tab, so each one has to render.
 	for _, status := range []string{"all", "draft", "published"} {
-		empty := map[string]any{
-			"Playbooks": []store.AuthorPlaybookRow{}, "Cities": []store.Jurisdiction{},
-			"Status": status, "TotalCount": 0, "DraftCount": 0, "PublishedCount": 0,
-		}
+		empty := dashboardData(status, []store.AuthorPlaybookRow{})
 		if err := tmpl.ExecuteTemplate(io.Discard, "dashboard.html", empty); err != nil {
 			t.Fatalf("execute dashboard.html (empty, status=%s): %v", status, err)
 		}
+	}
+}
+
+// The sort headers are links built in Go and marked trusted, so a regression
+// there ships as a page full of dead links that still look right.
+func TestDashboardTemplate_sortHeadersAreUsableLinks(t *testing.T) {
+	var buf bytes.Buffer
+	if err := parseTemplates(t).ExecuteTemplate(&buf, "dashboard.html",
+		dashboardData("all", []store.AuthorPlaybookRow{{ID: 1, Title: "T", JurisdictionName: "Chicago", Status: "draft", PageKind: "playbook"}})); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, `href="/?dir=`) {
+		t.Error("no unescaped sort link in the rendered header row")
+	}
+	if strings.Contains(html, "%3d") || strings.Contains(html, "%26") {
+		t.Error("a sort link is percent-encoded, so clicking the header would not sort")
 	}
 }
 

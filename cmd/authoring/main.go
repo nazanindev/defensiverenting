@@ -201,6 +201,133 @@ func (s *srv) guidelines(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "guidelines.html", nil)
 }
 
+// dashboardView is the sort and filter state of the page list.
+//
+// It is remembered in a cookie because the review loop constantly leaves and
+// comes back: publishing, deleting and saving all redirect to "/", and losing
+// the sort on every action makes working steadily through one slice of the
+// queue impossible. An explicit query parameter always beats the remembered
+// value, so a link still means exactly what it says.
+type dashboardView struct {
+	Status string
+	Sort   string
+	Dir    string
+}
+
+const viewCookie = "authoring_view"
+
+// sortableColumns is the allowlist. The sort key reaches a switch rather than
+// any query, but it also round-trips through a cookie, so it is bounded here
+// instead of trusted.
+var sortableColumns = map[string]bool{
+	"city": true, "title": true, "topic": true, "kind": true,
+	"status": true, "updated": true, "created": true, "size": true,
+}
+
+func (v dashboardView) normalize() dashboardView {
+	if v.Status != "draft" && v.Status != "published" && v.Status != "superseded" {
+		v.Status = "all"
+	}
+	if !sortableColumns[v.Sort] {
+		v.Sort = "updated"
+	}
+	if v.Dir != "asc" && v.Dir != "desc" {
+		// Dates default newest-first, which is what "what moved lately" means.
+		// Everything else defaults A to Z.
+		v.Dir = "asc"
+		if v.Sort == "updated" || v.Sort == "created" {
+			v.Dir = "desc"
+		}
+	}
+	return v
+}
+
+func (v dashboardView) query() string {
+	return url.Values{"status": {v.Status}, "sort": {v.Sort}, "dir": {v.Dir}}.Encode()
+}
+
+// SortLink returns the full href for sorting by col: the same column reversed,
+// or a fresh column at its natural direction.
+//
+// It returns template.URL rather than a string because html/template treats a
+// bare value after "/?" as a single query parameter and escapes the "=" and "&"
+// inside it, which silently turns every sort link into one meaningless
+// parameter. Marking it trusted is safe precisely because normalize() has
+// already forced all three fields to values from fixed allowlists.
+func (v dashboardView) SortLink(col string) template.URL {
+	next := dashboardView{Status: v.Status, Sort: col}
+	if v.Sort == col {
+		next.Dir = "asc"
+		if v.Dir == "asc" {
+			next.Dir = "desc"
+		}
+	}
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
+}
+
+// Arrow marks the sorted column in the header.
+func (v dashboardView) Arrow(col string) string {
+	if v.Sort != col {
+		return ""
+	}
+	if v.Dir == "asc" {
+		return "▲"
+	}
+	return "▼"
+}
+
+func readView(r *http.Request) dashboardView {
+	q := r.URL.Query()
+	v := dashboardView{Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir")}
+	if v.Status == "" && v.Sort == "" && v.Dir == "" {
+		if c, err := r.Cookie(viewCookie); err == nil {
+			if remembered, err := url.ParseQuery(c.Value); err == nil {
+				v = dashboardView{
+					Status: remembered.Get("status"),
+					Sort:   remembered.Get("sort"),
+					Dir:    remembered.Get("dir"),
+				}
+			}
+		}
+	}
+	return v.normalize()
+}
+
+// sortPlaybooks orders rows in place. SliceStable so that re-sorting on a
+// column with many equal values (status, kind) keeps the previous order inside
+// each group rather than reshuffling rows the author was reading.
+func sortPlaybooks(rows []store.AuthorPlaybookRow, key, dir string) {
+	// Drafts first: the list is a review queue, so "status ascending" should
+	// mean most-needing-attention rather than alphabetical.
+	rank := map[string]int{"draft": 0, "published": 1, "superseded": 2}
+	less := func(a, b store.AuthorPlaybookRow) bool {
+		switch key {
+		case "city":
+			return strings.ToLower(a.JurisdictionName) < strings.ToLower(b.JurisdictionName)
+		case "title":
+			return strings.ToLower(a.Title) < strings.ToLower(b.Title)
+		case "topic":
+			return a.TopicSlug < b.TopicSlug
+		case "kind":
+			return a.PageKind < b.PageKind
+		case "status":
+			return rank[a.Status] < rank[b.Status]
+		case "created":
+			return a.CreatedAt.Before(b.CreatedAt)
+		case "size":
+			return a.StatementCount < b.StatementCount
+		default:
+			return a.UpdatedAt.Before(b.UpdatedAt)
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if dir == "desc" {
+			return less(rows[j], rows[i])
+		}
+		return less(rows[i], rows[j])
+	})
+}
+
 func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	playbooks, err := s.pg.AuthorListPlaybooks(ctx)
@@ -223,10 +350,23 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	coverage, err := s.pg.AuthorCoverage(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	coreTopics, err := s.pg.ListCoreTopics(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+
 	// Drafts and published pages share one table, so a review pass through a
 	// batch of drafts otherwise means scrolling past every live page.
 	var draftCount, publishedCount, supersededCount int
+	langs := map[string]bool{}
 	for _, p := range playbooks {
+		langs[p.Language] = true
 		switch p.Status {
 		case "draft":
 			draftCount++
@@ -236,18 +376,28 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 			publishedCount++
 		}
 	}
-	status := r.URL.Query().Get("status")
-	if status == "draft" || status == "published" || status == "superseded" {
+
+	view := readView(r)
+	if view.Status != "all" {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
 		for _, p := range playbooks {
-			if p.Status == status {
+			if p.Status == view.Status {
 				kept = append(kept, p)
 			}
 		}
 		playbooks = kept
-	} else {
-		status = "all"
 	}
+	sortPlaybooks(playbooks, view.Sort, view.Dir)
+
+	// Secure is set unconditionally rather than sniffed from the request: Fly
+	// terminates TLS upstream, so r.TLS is nil in production and any check
+	// based on it would disable the flag exactly where it matters. Browsers
+	// treat http://localhost as a secure context, so local development still
+	// stores it.
+	http.SetCookie(w, &http.Cookie{
+		Name: viewCookie, Value: view.query(), Path: "/",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: 30 * 24 * 3600,
+	})
 
 	s.render(w, "dashboard.html", map[string]any{
 		"Playbooks":       playbooks,
@@ -255,7 +405,11 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"ReviewCounts":    counts,
 		"Generating":      s.jobs.list(),
 		"Flagged":         flagged,
-		"Status":          status,
+		"View":            view,
+		"Status":          view.Status,
+		"ShowLanguage":    len(langs) > 1,
+		"Coverage":        coverage,
+		"CoreTopics":      coreTopics,
 		"DraftCount":      draftCount,
 		"PublishedCount":  publishedCount,
 		"TotalCount":      draftCount + publishedCount + supersededCount,
