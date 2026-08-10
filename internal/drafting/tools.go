@@ -202,8 +202,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			if !ok {
 				return SaveDraftOutput{}, reject("statement %d citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", si+1, ci+1, c.URL, c.URL)
 			}
-			if !strings.Contains(normalizeForMatch(cached), normalizeForMatch(c.Quote)) &&
-				!strings.Contains(stripAllWS(cached), stripAllWS(c.Quote)) {
+			if !QuoteAppearsIn(cached, c.Quote) {
 				return SaveDraftOutput{}, reject("statement %d citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", si+1, ci+1, c.URL, truncate(c.Quote, 120))
 			}
 			citationCount++

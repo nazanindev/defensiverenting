@@ -1,0 +1,142 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+)
+
+// A reviewer can now type a quote into the form. These tests cover the check
+// that stands between what they typed and what a renter is told the law says.
+
+// fakeQuoteStore reports which (url, quote) pairs are already stored.
+type fakeQuoteStore struct {
+	known map[string]bool
+	calls int
+}
+
+func (f *fakeQuoteStore) CitationQuoteExists(_ context.Context, url, quote string) (bool, error) {
+	f.calls++
+	return f.known[url+"|"+quote], nil
+}
+
+func newTestVerifier(known map[string]bool, fetch func(string) (string, error)) (*quoteVerifier, *fakeQuoteStore) {
+	fs := &fakeQuoteStore{known: known}
+	qv := &quoteVerifier{fetch: fetch, text: map[string]string{}, fail: map[string]error{}}
+	qv.quotes = fs
+	return qv, fs
+}
+
+func TestQuoteVerifier_acceptsAQuotePresentInTheSource(t *testing.T) {
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		return "The lessor shall, within thirty days after the termination of occupancy, return the deposit.", nil
+	})
+	if msg := qv.check(context.Background(), 1, "https://law.example/15b",
+		"within thirty days after the termination of occupancy"); msg != "" {
+		t.Fatalf("want accepted, got %q", msg)
+	}
+}
+
+func TestQuoteVerifier_rejectsAQuoteNotInTheSource(t *testing.T) {
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		return "The lessor shall return the deposit within thirty days.", nil
+	})
+	msg := qv.check(context.Background(), 3, "https://law.example/15b", "within fourteen days")
+	if msg == "" {
+		t.Fatal("a quote absent from the source must be refused")
+	}
+	if !strings.Contains(msg, "Statement 3") {
+		t.Errorf("message should name the statement so it can be found, got %q", msg)
+	}
+}
+
+func TestQuoteVerifier_toleratesDifferentWhitespace(t *testing.T) {
+	// Source text arrives wrapped and indented; a quote pasted from a browser
+	// does not match it character for character, but the words are the same.
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		return "The lessor shall,\n   within thirty days\nafter the termination, return it.", nil
+	})
+	if msg := qv.check(context.Background(), 1, "https://law.example/15b",
+		"within thirty days after the termination"); msg != "" {
+		t.Fatalf("whitespace differences must not fail the check, got %q", msg)
+	}
+}
+
+func TestQuoteVerifier_skipsAQuoteAlreadyStored(t *testing.T) {
+	// An unchanged quote was verified when it was written. Re-fetching every
+	// source on every save would be slow, and would block edits whenever a
+	// source is unreachable.
+	fetched := false
+	qv, _ := newTestVerifier(
+		map[string]bool{"https://law.example/15b|already verified": true},
+		func(string) (string, error) { fetched = true; return "", nil },
+	)
+	if msg := qv.check(context.Background(), 1, "https://law.example/15b", "already verified"); msg != "" {
+		t.Fatalf("want accepted, got %q", msg)
+	}
+	if fetched {
+		t.Error("a quote already on file must not trigger a fetch")
+	}
+}
+
+func TestQuoteVerifier_refusesWhenTheSourceCannotBeRead(t *testing.T) {
+	// Some sources block the fetcher outright, such as the Massachusetts
+	// sanitary code PDF. We cannot confirm the quote, so we do not accept it.
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		return "", errors.New("status 403")
+	})
+	msg := qv.check(context.Background(), 2, "https://mass.example/pdf", "68 degrees")
+	if msg == "" {
+		t.Fatal("an unverifiable quote must be refused, not saved on trust")
+	}
+	if !strings.Contains(msg, "403") {
+		t.Errorf("message should say why it could not be checked, got %q", msg)
+	}
+}
+
+func TestQuoteVerifier_fetchesEachSourceOnce(t *testing.T) {
+	n := 0
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		n++
+		return "alpha beta gamma delta", nil
+	})
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		if msg := qv.check(ctx, i+1, "https://law.example/x", "beta gamma"); msg != "" {
+			t.Fatalf("statement %d: %s", i+1, msg)
+		}
+	}
+	if n != 1 {
+		t.Errorf("a page citing one source many times should fetch it once, got %d fetches", n)
+	}
+}
+
+func TestQuoteVerifier_reportsAFailedFetchWithoutRetrying(t *testing.T) {
+	n := 0
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		n++
+		return "", errors.New("timeout")
+	})
+	ctx := context.Background()
+	for i := 0; i < 4; i++ {
+		if msg := qv.check(ctx, i+1, "https://dead.example/x", "anything"); msg == "" {
+			t.Fatal("want refusal")
+		}
+	}
+	if n != 1 {
+		t.Errorf("a dead source should be tried once per save, got %d attempts", n)
+	}
+}
+
+func TestQuoteVerifier_ignoresAnEmptyQuote(t *testing.T) {
+	// A draft may be part-finished. Absence is caught at publish, where it
+	// matters, rather than blocking a save mid-edit.
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		t.Fatal("an empty quote must not trigger a fetch")
+		return "", nil
+	})
+	if msg := qv.check(context.Background(), 1, "https://law.example/x", "   "); msg != "" {
+		t.Fatalf("want accepted, got %q", msg)
+	}
+}

@@ -62,9 +62,16 @@
   .cite-sub { font-size: .72rem; color: #b08080; }
   .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
 
-  .cite-quote { font-size: .74rem; color: #6b5555; background: #fbf6f6; border-left: 2px solid #e0c8c8;
-                margin: -2px 0 8px 22px; padding: 5px 9px; border-radius: 0 4px 4px 0; line-height: 1.45; }
-  .cite-quote-missing { color: #9b2335; background: #fdf0f2; border-left-color: #f0b0ba; font-style: italic; }
+  .quote-edit { margin: -2px 0 9px 22px; }
+  .quote-edit-off { display: none; }
+  .quote-box { width: 100%; font-size: .74rem; color: #6b5555; background: #fbf6f6;
+               border: 1px solid #e0c8c8; border-left: 2px solid #c8a8a8;
+               padding: 6px 9px; border-radius: 0 4px 4px 0; line-height: 1.45;
+               font-family: inherit; resize: vertical; }
+  .quote-box:focus { outline: 2px solid #9b2335; outline-offset: -1px; background: #fff; }
+  .quote-box-empty { border-left-color: #f0b0ba; background: #fdf0f2; }
+  .quote-hint { font-size: .68rem; color: #b08080; margin-top: 2px; }
+  .quote-box-empty + .quote-hint { color: #9b2335; }
 
   .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
@@ -77,6 +84,19 @@
   .btn-add:hover { background: #fae0e4; }
   .btn-rm { background: transparent; color: #dc2626; border: 1px solid #fecaca; padding: .22rem .55rem; font-size: .75rem; }
   .btn-rm:hover { background: #fef2f2; }
+  /* Verifying a batch of drafts is a reading task, so the citation rows carry
+     what tells two sources apart, and rows that are not cited stay out of the
+     way until asked for. */
+  .cite-loc  { color: #6b2030; font-weight: 600; margin-left: 6px; }
+  .cite-host { color: #b08080; font-weight: 400; font-size: .78rem; margin-left: 6px; }
+  .cite-row-off { display: none; }
+  .card.show-all-cites .cite-row-off { display: flex; opacity: .75; }
+  .btn-more { background: none; border: 0; color: #9b2335; font-size: .8rem; font-weight: 600;
+              cursor: pointer; padding: 4px 0 0 22px; }
+  .btn-more:hover { text-decoration: underline; }
+  .btn-move { background: #fdf0f2; border: 1px solid #f0c0c8; color: #9b2335; border-radius: 6px;
+              cursor: pointer; font-size: .8rem; line-height: 1; padding: 4px 7px; margin-left: 4px; }
+  .btn-move:disabled { opacity: .35; cursor: default; }
   .drag-handle { cursor: grab; color: #c8a8a8; font-size: 1.1rem; line-height: 1; padding: 0 6px 0 0; user-select: none; flex-shrink: 0; }
   .drag-handle:active { cursor: grabbing; }
   .card.drag-over { outline: 2px solid #9b2335; background: #fdf0f2; }
@@ -529,32 +549,68 @@ function renderStmts() {
     : 'One citable fact in plain English, 1–3 sentences…';
   el.innerHTML = stmts.map(function(st, i) {
     const citesHtml = sources.map(function(src, si) {
-      const srcLabel = isDir ? esc(src.publisher) || ('Org ' + (si + 1)) : 'Source ' + (si + 1);
+      // Verifying a page means reading one statement and deciding whether its
+      // citation holds. "Source 3" cannot answer that: three sections of the
+      // same statute all read "Massachusetts Legislature", so the reviewer had
+      // to scroll to the Sources section and back for every statement.
+      //
+      // The label carries the publisher and the host, not the locator: the
+      // locator is already in the editable field on the same row, and printing
+      // it twice reads as a duplicate rather than as identification.
+      const srcHost = hostOf(src.url);
+      const srcLabel = isDir
+        ? (esc(src.publisher) || ('Org ' + (si + 1)))
+        : (esc(src.publisher || ('Source ' + (si + 1))) +
+           (srcHost ? '<span class="cite-host">' + esc(srcHost) + '</span>' : ''));
       const locInput = isDir ? '' :
         '<input type="text" name="loc_' + st.id + '_' + src.id + '"' +
           ' value="' + esc(st.locators[src.id] || '') + '"' +
-          ' placeholder="' + esc(src.locator || 'section override') + '">';
-      // The verbatim quote is what makes the citation checkable, so it rides
-      // along in a hidden field and is shown to the reviewer rather than being
-      // invisible. Anything not carried here is written back as "".
+          ' title="Where in the source the quote is: a section for a statute, a heading otherwise"' +
+          ' placeholder="' + esc(src.locator || 'e.g. § 15B(4)') + '">';
+      // The verbatim quote is what makes a citation checkable, so it is
+      // editable: adding a source by hand was otherwise a dead end, producing a
+      // citation with no quote that the publish guard then refused. Pasted text
+      // is checked against the live source when the form is saved.
+      // The box is always rendered and hidden with CSS when the source is not
+      // cited. Rendering it only for ticked sources meant ticking a box did
+      // nothing visible — cites[] is read at render time and a checkbox does
+      // not re-render the card — so adding a citation by hand left nowhere to
+      // paste the quote.
       const quote = st.quotes[src.id] || '';
-      const quoteField = '<input type="hidden" name="quote_' + st.id + '_' + src.id + '" value="' + esc(quote) + '">';
-      const quoteRow = (isDir || !st.cites[src.id]) ? '' :
-        (quote
-          ? '<div class="cite-quote">“' + esc(quote) + '”</div>'
-          : '<div class="cite-quote cite-quote-missing">No verbatim quote on file — the source checker cannot verify this citation.</div>');
-      return '<div class="cite-row">' +
+      const quoteField = '';
+      const qid = 'q_' + st.id + '_' + src.id;
+      const quoteRow =
+        '<div class="quote-edit' + (st.cites[src.id] ? '' : ' quote-edit-off') + '" id="' + qid + '">' +
+          '<textarea name="quote_' + st.id + '_' + src.id + '" rows="2" class="quote-box' +
+            (quote ? '' : ' quote-box-empty') + '"' +
+            ' placeholder="Paste the sentence from the source, word for word">' + esc(quote) + '</textarea>' +
+          '<div class="quote-hint">' + (quote
+            ? 'Checked against the source when you save.'
+            : 'No quote yet. This citation cannot be published until one is added.') +
+          '</div>' +
+        '</div>';
+      // An unticked source is noise while verifying: a page with 6 sources and
+      // 13 statements drew 78 rows, of which about 13 mattered. Unticked rows
+      // stay in the DOM so their checkbox state still submits, but collapse
+      // behind a per-statement toggle.
+      const rowCls = 'cite-row' + (st.cites[src.id] ? '' : ' cite-row-off');
+      return '<div class="' + rowCls + '">' +
         '<input type="checkbox" name="cite_' + st.id + '_' + src.id + '" id="cb_' + st.id + '_' + src.id + '"' +
-          (st.cites[src.id] ? ' checked' : '') + '>' +
+          (st.cites[src.id] ? ' checked' : '') +
+          ' onchange="onCiteToggle(this,\'' + qid + '\')">' +
         '<label class="cite-name" for="cb_' + st.id + '_' + src.id + '">' +
           srcLabel +
-          (!isDir && src.publisher ? '<span style="color:#b08080"> — ' + esc(src.publisher) + '</span>' : '') +
           (!isDir && src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
         '</label>' +
         locInput +
         quoteField +
       '</div>' + quoteRow;
     }).join('');
+
+    const offCount = sources.filter(function(src) { return !st.cites[src.id]; }).length;
+    const moreBtn = offCount === 0 ? '' :
+      '<button type="button" class="btn-more" onclick="toggleCites(' + st.id + ',this)">' +
+        '+ cite another source (' + offCount + ')</button>';
 
     const editorialRow = isDir ? '' :
       '<div class="cite-row">' +
@@ -576,15 +632,67 @@ function renderStmts() {
         '<span class="drag-handle" title="Drag to reorder"' +
           ' onmousedown="enableDrag(event,\'card_' + st.id + '\')">⠿</span>' +
         '<span class="card-num">' + cardLabel + '</span>' +
+        // Dragging is fine for a nudge and miserable for a 13-statement page,
+        // where the drop target is off-screen and the list scrolls under the
+        // cursor. The buttons move one place per press and need no aiming.
+        '<button type="button" class="btn-move" title="Move up" aria-label="Move up"' +
+          (i === 0 ? ' disabled' : '') + ' onclick="moveStmt(' + i + ',-1)">↑</button>' +
+        '<button type="button" class="btn-move" title="Move down" aria-label="Move down"' +
+          (i === stmts.length - 1 ? ' disabled' : '') + ' onclick="moveStmt(' + i + ',1)">↓</button>' +
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
       '<textarea name="stmt_' + st.id + '" rows="3" placeholder="' + stmtPlaceholder + '" required' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
       citesHtml +
+      moreBtn +
       editorialRow +
     '</div>';
   }).join('');
+}
+
+// moveStmt shifts one statement by one position. sync() first so text typed
+// into the cards is not lost when they re-render.
+function moveStmt(i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= stmts.length) return;
+  sync();
+  const tmp = stmts[i]; stmts[i] = stmts[j]; stmts[j] = tmp;
+  renderStmts();
+  updateHidden();
+  const card = document.getElementById('card_' + tmp.id);
+  if (card) {
+    card.scrollIntoView({ block: 'nearest' });
+    const btn = card.querySelector('.btn-move:not([disabled])');
+    if (btn) btn.focus(); // keep the keyboard on the card that moved
+  }
+}
+
+// onCiteToggle shows or hides the quote box for the citation just ticked, and
+// puts the cursor in it. Re-rendering the whole card here would lose whatever
+// the reviewer is part-way through typing elsewhere on it.
+function onCiteToggle(cb, quoteId) {
+  const box = document.getElementById(quoteId);
+  if (!box) return;
+  box.classList.toggle('quote-edit-off', !cb.checked);
+  if (cb.checked) {
+    const ta = box.querySelector('textarea');
+    if (ta) ta.focus();
+  }
+}
+
+// toggleCites reveals the sources this statement does not currently cite.
+function toggleCites(stmtId, btn) {
+  const card = document.getElementById('card_' + stmtId);
+  if (!card) return;
+  const open = card.classList.toggle('show-all-cites');
+  btn.textContent = open
+    ? '– hide sources not cited'
+    : '+ cite another source (' + card.querySelectorAll('.cite-row-off').length + ')';
+}
+
+function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
 }
 
 function updateHidden() {
