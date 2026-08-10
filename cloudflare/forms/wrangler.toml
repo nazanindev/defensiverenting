@@ -18,6 +18,22 @@ send_email = [
   { name = "NOTIFY", destination_address = "nnazanin.dev@gmail.com" }
 ]
 
+# Persist console output so a failure is still readable after the fact.
+#
+# The Worker swallows a failed notification on purpose: the row is already
+# durable, and making someone retype a report because SMTP hiccuped would lose
+# the report and duplicate the row. The cost showed up during setup, when a
+# misconfigured destination address failed silently and was only noticed
+# because no mail arrived. `wrangler tail` is live-only, so by then the error
+# was gone. With this, console.error survives and is queryable.
+#
+# head_sampling_rate = 1 keeps every invocation. This Worker handles form
+# submissions, not page traffic, so the volume is small enough that sampling
+# would only lose the rare event we care about.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [[d1_databases]]
 binding = "DB"
 database_name = "renterlaw-forms"
