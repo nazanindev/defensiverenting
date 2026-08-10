@@ -4,18 +4,18 @@
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{.Playbook.Title}} — RenterLaw</title>
+  <title>{{.Playbook.Title}} · RenterLaw</title>
   <meta name="description" content="{{.Description}}" />
   <link rel="canonical" href="{{.Canonical}}"/>
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="RenterLaw" />
   <meta property="og:url" content="{{.Canonical}}" />
-  <meta property="og:title" content="{{.Playbook.Title}} — RenterLaw" />
+  <meta property="og:title" content="{{.Playbook.Title}} · RenterLaw" />
   <meta property="og:description" content="{{.Description}}" />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
-  <meta name="twitter:title" content="{{.Playbook.Title}} — RenterLaw" />
+  <meta name="twitter:title" content="{{.Playbook.Title}} · RenterLaw" />
   <meta name="twitter:description" content="{{.Description}}" />
   {{if .StructuredData}}<script type="application/ld+json">{{.StructuredData}}</script>{{end}}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,7 +25,7 @@
 </head>
 <body>
   {{if .Preview}}
-  <div role="status" style="background:#92400e;color:#fef3c7;text-align:center;font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.45rem 1rem">Draft preview — not published. Navigation links lead to the real site.</div>
+  <div role="status" style="background:#92400e;color:#fef3c7;text-align:center;font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.45rem 1rem">Draft preview. This page is not published. Links here lead to the real site.</div>
   {{end}}
   <header class="site-header">
     <div class="wrap">
@@ -68,7 +68,7 @@
           {{if .LocalHelpPath}}
           <a class="help-bar" href="{{.LocalHelpPath}}">
             <span class="help-bar-lead">Need help now?</span>
-            <span class="help-bar-text">{{.LocalHelpName}} in {{.Jurisdiction.Name}} &mdash; legal aid, rent assistance, and who to call</span>
+            <span class="help-bar-text">{{.LocalHelpName}} in {{.Jurisdiction.Name}}: legal aid, rent assistance, and who to call</span>
           </a>
           {{end}}
 

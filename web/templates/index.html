@@ -4,19 +4,19 @@
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RenterLaw — Tenant law, in plain language</title>
-  <meta name="description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides — search by situation or browse by city." />
+  <title>RenterLaw · Tenant law, in plain language</title>
+  <meta name="description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides. Search by situation or browse by city." />
   <link rel="canonical" href="{{absURL "/"}}"/>
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="RenterLaw" />
   <meta property="og:url" content="{{absURL "/"}}" />
-  <meta property="og:title" content="RenterLaw — Tenant law, in plain language" />
-  <meta property="og:description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides — search by situation or browse by city." />
+  <meta property="og:title" content="RenterLaw · Tenant law, in plain language" />
+  <meta property="og:description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides. Search by situation or browse by city." />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
-  <meta name="twitter:title" content="RenterLaw — Tenant law, in plain language" />
-  <meta name="twitter:description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides — search by situation or browse by city." />
+  <meta name="twitter:title" content="RenterLaw · Tenant law, in plain language" />
+  <meta name="twitter:description" content="Tenant law is confusing. Your rights don't have to be. Free, citation-backed tenant rights guides. Search by situation or browse by city." />
   {{if .StructuredData}}<script type="application/ld+json">{{.StructuredData}}</script>{{end}}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -44,9 +44,9 @@
       {{template "scope-search" .Scope}}
       {{if .CityCount}}
       <p class="scope-hint">
-        Set your location once and it follows you.
-        Covering {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}} —
-        <a href="/locations">see all locations →</a>
+        Select a location to search one city.
+        Covering {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}}.
+        <a href="/locations">See all locations →</a>
       </p>
       {{end}}
     </section>
@@ -68,11 +68,11 @@
       </ul>
     </section>
     {{else}}
-    <p class="empty-state">No guides published yet — check back soon.</p>
+    <p class="empty-state">No guides published yet. Check back soon.</p>
     {{end}}
 
     <div class="support-banner">
-      This site is free, ad-free, and every claim cites its source — so you can check the law yourself. <a href="/support">Support our work →</a>
+      This site is free, ad-free, and every claim cites its source, so you can check the law yourself. <a href="/support">Support our work →</a>
     </div>
   </main>
 
