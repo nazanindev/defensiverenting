@@ -940,6 +940,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 
 	// Parse statements — language is always "en" at this stage
 	stmtIndices := parseIndices(r.FormValue("active_stmts"))
+	qv := newQuoteVerifier(s.pg)
 	var statements []store.IngestStatementParams
 	for _, ji := range stmtIndices {
 		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
@@ -953,12 +954,17 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 				if loc == "" {
 					loc = srcLocatorByIdx[i]
 				}
+				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
+				if msg := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote); msg != "" {
+					s.formError(w, r, msg)
+					return
+				}
 				// Quote is carried through the form read-only. Omitting it here
 				// is what rewrote every citation's quote to "" on save.
 				cites = append(cites, store.IngestCitationParams{
 					SourceID: sourceByIdx[i].ID,
 					Locator:  loc,
-					Quote:    r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i)),
+					Quote:    quote,
 				})
 			}
 		}
@@ -1229,6 +1235,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stmtIndices := parseIndices(r.FormValue("active_stmts"))
+	qv := newQuoteVerifier(s.pg)
 	var statements []store.IngestStatementParams
 	for _, ji := range stmtIndices {
 		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
@@ -1242,12 +1249,17 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 				if loc == "" {
 					loc = srcLocatorByIdx[i]
 				}
-				// See submitForm: the quote round-trips read-only through the
-				// form, and dropping it here silently wiped the evidence.
+				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
+				if msg := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote); msg != "" {
+					editErr(msg)
+					return
+				}
+				// See submitForm: the quote round-trips through the form, and
+				// dropping it here silently wiped the evidence.
 				cites = append(cites, store.IngestCitationParams{
 					SourceID: sourceByIdx[i].ID,
 					Locator:  loc,
-					Quote:    r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i)),
+					Quote:    quote,
 				})
 			}
 		}
@@ -1301,6 +1313,68 @@ func (s *srv) render(w http.ResponseWriter, name string, data any) {
 func (s *srv) serverError(w http.ResponseWriter, err error) {
 	s.log.Error("server error", slog.Any("err", err))
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
+}
+
+// quoteVerifier checks pasted quotes against the source they claim to come
+// from, fetching each source at most once per save.
+//
+// The drafting tools verify a quote when the agent writes it. A reviewer typing
+// one into the form had no such check, and until the publish guard landed there
+// was nothing downstream either: a hand-added citation reached renters carrying
+// whatever text someone typed. This closes that path without making the form
+// slower to use than it has to be.
+// quoteLookup is the one thing the verifier needs from the database, kept
+// narrow so the check can be tested without a Postgres.
+type quoteLookup interface {
+	CitationQuoteExists(ctx context.Context, url, quote string) (bool, error)
+}
+
+type quoteVerifier struct {
+	quotes quoteLookup
+	fetch  func(string) (string, error)
+	text   map[string]string // url -> fetched text, one fetch per save
+	fail   map[string]error  // url -> fetch failure, so a dead source is reported once
+}
+
+func newQuoteVerifier(pg quoteLookup) *quoteVerifier {
+	return &quoteVerifier{quotes: pg, fetch: drafting.FetchExtract,
+		text: map[string]string{}, fail: map[string]error{}}
+}
+
+// check returns a reviewer-facing message when the quote cannot be confirmed,
+// and "" when it can.
+//
+// An unchanged quote is skipped: it is already stored, so it was verified when
+// it was written. That keeps a save fast, and keeps a source that has since
+// gone unreachable from blocking edits to text that does not depend on it.
+func (qv *quoteVerifier) check(ctx context.Context, stmtNo int, url, quote string) string {
+	quote = strings.TrimSpace(quote)
+	if quote == "" {
+		return "" // absence is caught at publish, not here: a draft may be part-finished
+	}
+	if known, err := qv.quotes.CitationQuoteExists(ctx, url, quote); err == nil && known {
+		return ""
+	}
+	text, ok := qv.text[url]
+	if !ok {
+		if err, failed := qv.fail[url]; failed {
+			return fmt.Sprintf("Statement %d: could not open %s to check the quote (%v). "+
+				"The quote has to be verified against the source before it can be saved.", stmtNo, url, err)
+		}
+		var err error
+		text, err = qv.fetch(url)
+		if err != nil {
+			qv.fail[url] = err
+			return fmt.Sprintf("Statement %d: could not open %s to check the quote (%v). "+
+				"The quote has to be verified against the source before it can be saved.", stmtNo, url, err)
+		}
+		qv.text[url] = text
+	}
+	if !drafting.QuoteAppearsIn(text, quote) {
+		return fmt.Sprintf("Statement %d: that quote does not appear in %s. "+
+			"Copy the wording from the source exactly, without editing it.", stmtNo, url)
+	}
+	return ""
 }
 
 // formError re-renders the new-playbook form with a validation message, handing

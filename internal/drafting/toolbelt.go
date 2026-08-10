@@ -204,6 +204,22 @@ func (htmlStripper) extract(body string) string {
 	return strings.TrimSpace(s)
 }
 
+// QuoteAppearsIn reports whether quote is present verbatim in text.
+//
+// This is the verbatim check itself, exported because two callers now need it:
+// save_draft_playbook, which verifies what the drafting agent produced, and the
+// authoring form, which verifies a quote a reviewer pasted by hand. A second
+// implementation would be a second thing to keep in step, and this codebase has
+// already been bitten twice by a guardrail existing in more than one place.
+//
+// Matching is whitespace-insensitive in two directions. See normalizeForMatch
+// and stripAllWS; the requirement that every character appear in order is
+// unchanged either way.
+func QuoteAppearsIn(text, quote string) bool {
+	return strings.Contains(normalizeForMatch(text), normalizeForMatch(quote)) ||
+		strings.Contains(stripAllWS(text), stripAllWS(quote))
+}
+
 // normalizeForMatch collapses all runs of whitespace (including newlines) to a
 // single space, so the verbatim check is robust to layout differences between
 // the fetched text and the agent's quote while still requiring the exact words.

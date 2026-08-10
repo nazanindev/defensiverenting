@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -66,6 +67,33 @@ func (pg *PG) CountUncheckableCitations(ctx context.Context) (int, error) {
 		WHERE s.kind <> 'editorial' AND btrim(c.quote) = ''
 		  AND EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = c.statement_id)`).Scan(&n)
 	return n, err
+}
+
+// CitationQuoteExists reports whether this exact (source URL, quote) pair is
+// already stored.
+//
+// It answers "has this quote been verified before?" for the authoring form,
+// which re-checks a pasted quote against the live source. Re-fetching every
+// source on every save would make saving slow, and would fail a save outright
+// when a source is temporarily unreachable — including sources that block the
+// fetcher permanently, such as the Massachusetts sanitary code PDF. A quote
+// that is already stored got there through a path that verified it, so an
+// unchanged quote needs no second look; only new or edited text is fetched.
+//
+// Matching on the pair rather than on a row id keeps this correct when
+// statements are reordered, added, or removed between edits.
+func (pg *PG) CitationQuoteExists(ctx context.Context, url, quote string) (bool, error) {
+	if strings.TrimSpace(quote) == "" {
+		return false, nil
+	}
+	var exists bool
+	err := pg.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM citations c
+			JOIN sources s ON s.id = c.source_id
+			WHERE s.url = $1 AND c.quote = $2
+		)`, url, quote).Scan(&exists)
+	return exists, err
 }
 
 // MarkSourceReviewed stamps retrieved_at and, when a cited quote went missing,

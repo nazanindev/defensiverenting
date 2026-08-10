@@ -48,6 +48,7 @@ type Store interface {
 	// Source monitoring
 	ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error)
 	CountUncheckableCitations(ctx context.Context) (int, error)
+	CitationQuoteExists(ctx context.Context, url, quote string) (bool, error)
 	MarkSourceReviewed(ctx context.Context, id int64, changed bool) error
 	ListFlaggedSources(ctx context.Context) ([]Source, error)
 	DismissSourceFlag(ctx context.Context, id int64) error
