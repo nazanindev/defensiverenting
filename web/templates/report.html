@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Report a problem · RenterLaw</title>
+  <meta name="description" content="Tell us if something on RenterLaw is wrong, out of date, or if an organization has closed. A person checks every report." />
+  <link rel="canonical" href="{{absURL "/report"}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:title" content="Report a problem · RenterLaw" />
+  <meta property="og:description" content="Tell us if something on RenterLaw is wrong, out of date, or if an organization has closed. A person checks every report." />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="Report a problem · RenterLaw" />
+  <meta name="twitter:description" content="Tell us if something on RenterLaw is wrong, out of date, or if an organization has closed. A person checks every report." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span> Report a problem
+    </nav>
+
+    <article class="prose form-page">
+      <h1>Report a problem</h1>
+      <p class="lede">Laws change and organizations close. If something here is wrong, tell us and we will check it.</p>
+      <p>A person reads every report. If we change a page, we check the primary source first.</p>
+
+      {{template "form-error" .ErrorMessage}}
+
+      <form class="site-form" method="post" action="{{.FormsURL}}/report" data-draft-form="report">
+        <div class="field">
+          <label for="problem">What is wrong?</label>
+          <select id="problem" name="problem">
+            <option value="out-of-date">The information is out of date</option>
+            <option value="wrong">The information is wrong</option>
+            <option value="org-gone">This organization no longer exists</option>
+            <option value="org-details">The phone number, address, or hours changed</option>
+            <option value="broken-link">A link does not work</option>
+            <option value="other">Something else</option>
+          </select>
+        </div>
+
+        {{if .PageURL}}
+        <div class="field">
+          <span class="field-label">Which page</span>
+          <p class="field-static"><a href="{{.PageURL}}">{{.PageURL}}</a></p>
+          <input type="hidden" name="page_url" value="{{.PageURL}}" />
+        </div>
+        {{else}}
+        <div class="field">
+          <label for="page_url">Which page? <span class="field-optional">Optional</span></label>
+          <input type="text" id="page_url" name="page_url" placeholder="/j/boston/repairs" />
+          <p class="field-hint">Copy the address of the page, or describe it below.</p>
+        </div>
+        {{end}}
+
+        <div class="field">
+          <label for="org_name">Which organization? <span class="field-optional">Optional</span></label>
+          <input type="text" id="org_name" name="org_name" value="{{.OrgName}}" maxlength="200" />
+          <p class="field-hint">Only if your report is about a legal aid group, tenant union, or agency we list.</p>
+        </div>
+
+        <div class="field">
+          <label for="message">What should we know?</label>
+          <textarea id="message" name="message" rows="7" required minlength="10" maxlength="5000"></textarea>
+          <p class="field-hint">If you know what the correct information is, please include it. A link to an official source helps most.</p>
+        </div>
+
+        <div class="field">
+          <label for="email">Your email <span class="field-optional">Optional</span></label>
+          <input type="email" id="email" name="email" maxlength="254" autocomplete="email" />
+          <p class="field-hint">Only if you want a reply. We do not add you to any list.</p>
+        </div>
+
+        {{/*
+          Honeypot. Hidden from readers and from screen readers, so anything
+          that fills it in is a bot. The Worker drops those submissions.
+        */}}
+        <div class="hp" aria-hidden="true">
+          <label for="company">Company</label>
+          <input type="text" id="company" name="company" tabindex="-1" autocomplete="off" />
+        </div>
+
+        {{template "turnstile" .TurnstileSiteKey}}
+
+        <button class="btn-primary" type="submit">Send report</button>
+      </form>
+
+      <p class="form-privacy">We store what you send so we can act on it. We do not store your IP address, and we do not sell or share anything you write.</p>
+      <p>For anything that is not a correction, use the <a href="/contact">contact form</a>.</p>
+    </article>
+  </main>
+
+  {{template "form-draft" .}}
+  {{template "site-footer" .}}
+</body>
+</html>

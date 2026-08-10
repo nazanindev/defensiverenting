@@ -313,6 +313,43 @@ type AboutPage struct{}
 // SupportPage is the /support page.
 type SupportPage struct{}
 
+// ReportPage is the /report form, where a reader tells us something on the
+// site is wrong or an organisation has closed.
+//
+// The form posts to a Cloudflare Worker rather than to this server, so nothing
+// here handles a submission. These fields only build the form: where to send
+// it, and what to prefill.
+type ReportPage struct {
+	FormsURL         string
+	TurnstileSiteKey string // empty hides the widget, e.g. in development
+	// ErrorMessage is renter-facing text, already resolved from the ?error=
+	// code the Worker redirects back with. Empty on a first visit.
+	ErrorMessage string
+	// PageURL is the site path being reported, carried in from the "Report a
+	// problem" link at the foot of a playbook. Empty when the reader arrived
+	// from the footer instead, and the form then asks which page they mean.
+	PageURL string
+	// OrgName prefills the organisation field when the report started from a
+	// Local Help entry.
+	OrgName string
+}
+
+// ContactPage is the /contact form for everything that is not a correction.
+type ContactPage struct {
+	FormsURL         string
+	TurnstileSiteKey string
+	ErrorMessage     string
+}
+
+// ThanksPage confirms a submission. Kind is "report" or "contact" and changes
+// only the wording.
+type ThanksPage struct {
+	Kind string
+}
+
+// Reported reports whether the thank-you page is confirming a correction.
+func (p ThanksPage) Reported() bool { return p.Kind == "report" }
+
 // Render dispatches to the correct template based on the concrete page type.
 func Render(w io.Writer, page any) error {
 	switch p := page.(type) {
@@ -330,6 +367,12 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "about.html", p)
 	case SupportPage:
 		return tmpl.ExecuteTemplate(w, "support.html", p)
+	case ReportPage:
+		return tmpl.ExecuteTemplate(w, "report.html", p)
+	case ContactPage:
+		return tmpl.ExecuteTemplate(w, "contact.html", p)
+	case ThanksPage:
+		return tmpl.ExecuteTemplate(w, "thanks.html", p)
 	case TopicHubPage:
 		return tmpl.ExecuteTemplate(w, "topichub.html", p)
 	case LocationsPage:

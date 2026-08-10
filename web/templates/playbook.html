@@ -98,6 +98,13 @@
               {{range .Statements}}
               <div class="directory-body">{{.BodyHTML}}</div>
               {{end}}
+              {{/* Organisations close, move, and change their phone numbers,
+                   and the reader looking at the entry is the first person to
+                   find out. The link carries the page and the organisation so
+                   they only have to say what changed. */}}
+              <p class="directory-report">
+                <a href="/report?url={{$.Jurisdiction.TopicPath $.Topic.Slug}}&amp;org={{.Chip.Label}}">Tell us if this is wrong or closed</a>
+              </p>
             </li>
             {{end}}
           </ul>
@@ -171,6 +178,11 @@
           {{else}}
           <p class="empty-state">No statements available for this playbook yet.</p>
           {{end}}
+
+          <p class="report-link">
+            Is something on this page wrong or out of date?
+            <a href="/report?url={{.Jurisdiction.TopicPath .Topic.Slug}}">Tell us</a>.
+          </p>
         </main>
 
         {{if .SiblingTopics}}

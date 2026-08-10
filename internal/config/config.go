@@ -15,6 +15,15 @@ type Config struct {
 	// to SiteURL. Opt-in via CANONICAL_REDIRECT=1 — turn it on only after DNS
 	// for SiteURL is live, or the old host redirects into a dead domain.
 	CanonicalRedirect bool
+	// FormsURL is the origin of the Cloudflare Worker that receives the report
+	// and contact forms (cloudflare/forms). The forms post to it directly, so
+	// spam and abuse never reach this server.
+	FormsURL string
+	// TurnstileSiteKey is the public half of the Turnstile keypair, embedded in
+	// the form pages. Empty disables the widget, which is what local
+	// development wants: the Worker is the only thing that verifies the token,
+	// and it is not in the loop when you are running against localhost.
+	TurnstileSiteKey string
 }
 
 func Load() Config {
@@ -35,6 +44,8 @@ func Load() Config {
 			v := env("CANONICAL_REDIRECT", "")
 			return v == "1" || v == "true"
 		}(),
+		FormsURL:         env("FORMS_URL", "https://forms.renterlaw.org"),
+		TurnstileSiteKey: env("TURNSTILE_SITE_KEY", ""),
 	}
 }
 

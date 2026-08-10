@@ -1,0 +1,33 @@
+name = "renterlaw-forms"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+workers_dev = false
+
+# The Worker answers on its own hostname so the public site keeps its
+# DNS-only record pointing straight at Fly. Nothing about the main site's
+# routing changes.
+routes = [
+  { pattern = "forms.renterlaw.org", custom_domain = true }
+]
+
+# Notification mail. destination_address must be a verified destination in
+# Email Routing, and Cloudflare will refuse to send anywhere else. That
+# restriction is the reason this binding is safe to expose to a public form:
+# a submission cannot be used to mail a stranger.
+send_email = [
+  { name = "NOTIFY", destination_address = "nnazanin.dev@gmail.com" }
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "renterlaw-forms"
+database_id = "6c20b432-7877-47fb-8511-fe2334c60fb1"
+
+[vars]
+SITE_ORIGIN = "https://renterlaw.org"
+MAIL_FROM = "forms@renterlaw.org"
+MAIL_TO = "nnazanin.dev@gmail.com"
+
+# Secrets are set with `wrangler secret put`, never committed:
+#   TURNSTILE_SECRET_KEY  - server-side half of the Turnstile keypair
+#   IP_SALT               - random string; salts the IP hash used for rate limiting

@@ -35,6 +35,7 @@ Pick a city and topic, and a research agent finds authoritative primary sources,
 - **Fly.io** — two apps: public site (`fly.toml`) and internal authoring service (`fly.authoring.toml`), auto-deployed via GitHub Actions
 - **AI drafting** — an Anthropic-API tool-use agent (`cmd/draft`, `internal/draftagent`) researches sources and writes citation-verified drafts
 - **MCP** — the same drafting toolbelt is exposed as an MCP server (`cmd/mcp`), so the research→draft loop can be driven from an editor like Claude Code
+- **Cloudflare Worker** — reader reports ("this org closed", "this is out of date") and general contact go to a Worker on its own hostname (`cloudflare/forms`), with Turnstile, D1, and Email Routing. Spam never reaches the origin, and unverified reader text never enters the content database
 
 ## Data model
 

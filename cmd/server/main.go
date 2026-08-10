@@ -57,8 +57,13 @@ func main() {
 	logger.Info("migrations applied")
 
 	srv := &http.Server{
-		Addr:         cfg.ListenAddr,
-		Handler:      apphttp.NewRouter(pg, logger, cfg.SiteURL, cfg.CanonicalRedirect && !cfg.IsDevelopment()),
+		Addr: cfg.ListenAddr,
+		Handler: apphttp.NewRouter(pg, logger, apphttp.RouterConfig{
+			SiteURL:           cfg.SiteURL,
+			CanonicalRedirect: cfg.CanonicalRedirect && !cfg.IsDevelopment(),
+			FormsURL:          cfg.FormsURL,
+			TurnstileSiteKey:  cfg.TurnstileSiteKey,
+		}),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,

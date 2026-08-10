@@ -4,3 +4,7 @@
 /server
 .claude/settings.local.json
 .claude/worktrees/
+
+# Wrangler / Cloudflare Worker
+cloudflare/forms/node_modules/
+cloudflare/forms/.wrangler/
