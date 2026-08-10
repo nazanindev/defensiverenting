@@ -386,3 +386,56 @@ func TestSaveDraft_DirectoryStillRequiresVerbatimQuotes(t *testing.T) {
 		t.Error("a rejected directory draft must not write anything")
 	}
 }
+
+// Topic and page_kind are independent axes and most combinations are fine. The
+// one that never is: Local Help laid out as a playbook renders a list of
+// organisations as a numbered legal argument, and nothing downstream catches
+// it — the save succeeds and the draft queue shows an ordinary row.
+func TestSaveDraft_RejectsLocalHelpLaidOutAsAPlaybook(t *testing.T) {
+	for _, kind := range []string{"", "playbook", "faq", "checklist"} {
+		fs := &fakeStore{}
+		tb := directoryToolbelt(t, fs)
+		_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+			CitySlug:  "boston",
+			TopicSlug: "resource-directory",
+			Title:     "Where to get help in Boston",
+			IntroMD:   "Local organisations that help renters.",
+			PageKind:  kind,
+			Statements: []StatementInput{
+				orgStmt("Example Legal Aid gives free legal help to renters.",
+					"We provide free legal help to tenants in Allegheny County"),
+			},
+		})
+		if !isRejection(err) {
+			t.Errorf("page_kind=%q on resource-directory: expected a rejection, got err=%v", kind, err)
+		}
+		if fs.ingested != nil {
+			t.Errorf("page_kind=%q on resource-directory: nothing should have been written", kind)
+		}
+	}
+}
+
+// The reverse pairing stays legal. Migration 000005 put the directory layout on
+// a cant-pay-rent page, and a list of places to go is a legitimate answer to
+// plenty of subjects.
+func TestSaveDraft_AllowsTheDirectoryLayoutOnOtherTopics(t *testing.T) {
+	fs := &fakeStore{}
+	tb := directoryToolbelt(t, fs)
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug:  "boston",
+		TopicSlug: "cant-pay-rent",
+		Title:     "Rent help in Boston",
+		IntroMD:   "Where to go if you cannot pay.",
+		PageKind:  "directory",
+		Statements: []StatementInput{
+			orgStmt("Example Legal Aid gives free legal help to renters.",
+				"We provide free legal help to tenants in Allegheny County"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fs.ingested.PageKind != "directory" {
+		t.Errorf("page_kind = %q, want directory", fs.ingested.PageKind)
+	}
+}

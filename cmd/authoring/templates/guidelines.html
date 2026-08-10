@@ -60,9 +60,22 @@
   <h1>Content Guidelines</h1>
   <p class="subtitle">How to write for Defensive Renting. Read this before authoring your first page.</p>
 
+  <!-- ── Topic vs page type ───────────────────────────── -->
+  <h2>Topic and page type are two different things</h2>
+  <p>Every page has both, and you choose them separately. Confusing them is the most common structural mistake.</p>
+  <ul>
+    <li><strong>Topic</strong> is <em>what the page is about</em> — Security Deposits, Eviction, Local Help. Topics are a fixed list. You pick one; you cannot invent one.</li>
+    <li><strong>Page type</strong> is <em>how the page is laid out</em> — Playbook or Directory.</li>
+  </ul>
+  <p>They are independent. A directory layout can serve almost any topic: if the honest answer to "I can't pay rent" is a list of places to go, a Directory page on the Can't Pay Rent topic is correct. Pittsburgh already has one.</p>
+
+  <div class="callout">
+    <strong>The one rule the tools enforce</strong>
+    A page on the <strong>Local Help</strong> topic (slug <code>resource-directory</code>) must use the <strong>Directory</strong> page type. That topic is a list of organizations, and the Playbook layout would render them as a numbered legal argument. Saving it any other way is rejected.
+  </div>
+
   <!-- ── Page types ───────────────────────────────────── -->
   <h2>Page types</h2>
-  <p>Every page you create is one of two types. Choose based on what the page is doing — explaining the law, or pointing to help.</p>
 
   <div class="type-card">
     <div class="type-name">Playbook</div>
@@ -74,6 +87,11 @@
     <div class="type-name">Directory</div>
     <div class="type-desc">A listing of organizations or services that can help renters with a specific problem. Each statement is one org — what they do, how to reach them, and a link to their official website. Do not use an aggregator site as the source; find the org's own URL.</div>
     <div class="type-example">Examples: Rental Assistance Resources in Pittsburgh, Legal Aid Organizations in Boston</div>
+  </div>
+
+  <div class="callout">
+    <strong>Local help belongs on its own page, once per city</strong>
+    Do not add a "where to get help" section to the bottom of a playbook. Put the organizations on that city's Local Help page instead. A city with seven topics that each carry the same referral list means the same disconnected phone number has to be found and fixed in seven places, and every copy has its own citations to re-verify.
   </div>
 
   <!-- ── Writing a playbook ───────────────────────────── -->
@@ -103,6 +121,19 @@
     <strong>What not to cite</strong>
     Aggregator sites (e.g. needhelppayingbills.com), general HUD landing pages, Wikipedia, or any site that is itself summarizing other sources. Go to the original.
   </div>
+
+  <h3>The verbatim quote</h3>
+  <p>Every citation to a non-editorial source carries the exact line from that source that backs the statement. This is not paperwork. It is the only thing that lets the source checker tell you when a law changes: it re-fetches each source and reports when the words you quoted are no longer there.</p>
+  <ul>
+    <li class="do">Paste the sentence from the source, unedited. It must appear in the source character for character</li>
+    <li class="dont">Don't paraphrase the quote to match your statement — the statement is your words, the quote is theirs</li>
+    <li class="dont">Don't leave it blank. <strong>A page with a quote-less citation cannot be published at all</strong> — the publish button will refuse it, because a citation nobody can verify is exactly what the site promises not to have</li>
+  </ul>
+
+  <h3>The locator</h3>
+  <p>For a <strong>statute</strong>, the locator must name the provision you are relying on: <code>§ 15B</code>, <code>RCW 59.18.060</code>, <code>Mass. Gen. Laws ch. 186, § 15B</code>. A save is rejected if it does not.</p>
+  <p>This exists because a county press release announcing a new bill was once stored as a statute and became the only support for a live claim. A press release has no section number. If the thing you are citing has no provision to point at, it is not a statute — change the kind, or find the law it is describing.</p>
+  <p>The rule catches a locator that names <em>no</em> provision. It cannot catch one that names the <em>wrong</em> provision. That part is still on you.</p>
 
   <h3>Title and intro</h3>
   <ul>

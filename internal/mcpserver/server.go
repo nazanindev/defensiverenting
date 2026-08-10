@@ -40,12 +40,25 @@ func New(db store.Store) *mcp.Server {
 		Description: "Save a DRAFT page (statements + citations) for the author to verify and " +
 			"publish. Every citation's quote must be a verbatim line from a source you fetched " +
 			"via fetch_source, or the save is rejected. This never publishes anything.\n\n" +
-			"Set page_kind to choose the layout. Omit it for a normal playbook. Use " +
-			"page_kind=\"directory\" with topic_slug=\"resource-directory\" to save a page of " +
-			"local help: one organisation per statement, each citing that organisation's own " +
-			"page (kind \"nonprofit\") or its government program page (kind \"gov_guidance\"). " +
-			"A directory is where \"where to get help\" belongs, so a city needs it once instead " +
-			"of repeated at the foot of every playbook.",
+			"topic_slug and page_kind are two different things and are chosen separately.\n" +
+			"  topic_slug is WHAT THE PAGE IS ABOUT. It comes from list_topics and cannot be invented.\n" +
+			"  page_kind is HOW IT IS LAID OUT: \"playbook\" renders statements as a numbered " +
+			"argument, \"directory\" renders each statement as an entry in a list of organisations. " +
+			"Omit page_kind for playbook.\n\n" +
+			"One pairing is enforced: topic_slug=\"resource-directory\" (display name \"Local Help\") " +
+			"must use page_kind=\"directory\". That topic lists organisations rather than explaining " +
+			"law, so the playbook layout would render them as legal steps. The reverse is allowed — " +
+			"any topic may use the directory layout when the honest answer to it is a list of places " +
+			"to go.\n\n" +
+			"Drafting Local Help: one organisation per statement, each citing that organisation's " +
+			"own page (kind \"nonprofit\") or its government program page (kind \"gov_guidance\"). " +
+			"Never cite an aggregator that is summarising other organisations; find the org's own " +
+			"URL or leave it out. A city needs this page once, so do not repeat local help at the " +
+			"foot of every playbook.\n\n" +
+			"Two rules that reject a save outright: a citation with kind \"statute\" must carry a " +
+			"locator naming a provision (\"§ 15B\", \"RCW 59.18.060\"), not a date or a document " +
+			"title; and every non-editorial citation needs a verbatim quote, because a page whose " +
+			"citations have no quote cannot be published at all.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.SaveDraftInput) (*mcp.CallToolResult, drafting.SaveDraftOutput, error) {
 		return result(tb.SaveDraft(ctx, in))
 	})

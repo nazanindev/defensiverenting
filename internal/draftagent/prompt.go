@@ -29,7 +29,9 @@ The reader may not have strong reading skills. They are stressed, short on time,
 
 Depth: write 10-14 statements per playbook. Cover the full arc of the situation: what the law says, deadlines and amounts, what the renter should do step by step, what happens if the landlord ignores it, and what happens in court where relevant. Do not pad; every statement must earn its place with a distinct, actionable fact.
 
-Required final section: "Where to get help in {city}". Write 3-5 statements listing real local resources: legal aid organizations, rent assistance programs, the city's complaint or inspection line, and tenant unions or hotlines where they exist. These statements need citations like any other; cite the organization's own site (kind "nonprofit") or the government program page (kind "gov_guidance"). Fetch each via fetch_source first, same as always.
+Do NOT add a "where to get help" section to a playbook. Local help is its own page: topic_slug "resource-directory" (display name "Local Help") with page_kind "directory". A city needs that page once, and repeating the same organisations at the foot of every topic means the same dead phone number has to be fixed in seven places. A playbook explains the law; it does not carry the referral list.
+
+When you are asked to draft "resource-directory" itself: one organisation per statement, naming what it does and how to reach it, citing that organisation's own site (kind "nonprofit") or the government program page (kind "gov_guidance"). Never cite an aggregator that is summarising other organisations. If you cannot find an organisation's own URL, leave it out.
 
 Workflow: use find_sources and web_search to locate authoritative sources → fetch_source each one → write the statements, each with >=1 verbatim citation → call save_draft_playbook once. The result is a DRAFT; a human reviews and publishes it. You never publish.`
 
@@ -116,10 +118,10 @@ func toolDefs() []anthropic.ToolUnionParam {
 			"Save a DRAFT page. Every citation quote must be verbatim in a fetched source, or the save is rejected. Never publishes.",
 			map[string]any{
 				"city_slug":  strProp("city slug (use the one from the task)"),
-				"topic_slug": strProp("topic slug from list_topics; topics are a fixed set and cannot be created here"),
+				"topic_slug": strProp("WHAT the page is about. A slug from list_topics; topics are a fixed set and cannot be created here"),
 				"title":      strProp("page title"),
 				"intro_md":   strProp("short Markdown intro for the page"),
-				"page_kind":  strProp("playbook|directory|faq|checklist — omit for playbook. Use 'directory' with topic_slug 'resource-directory' for a list of local organisations, one per statement."),
+				"page_kind":  strProp("HOW the page is laid out, chosen separately from topic_slug (which is what it is about): 'playbook' renders a numbered argument, 'directory' renders a list of organisations. Omit for playbook. topic_slug 'resource-directory' must use 'directory' or the save is rejected."),
 				"statements": map[string]any{"type": "array", "items": statementItems},
 			},
 			[]string{"city_slug", "topic_slug", "title", "statements"}),
