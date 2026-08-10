@@ -216,7 +216,19 @@ type PlaybookPage struct {
 	ReviewedOn     string               // human-readable last-verified date for the byline; empty hides the date
 	SiblingTopics  []store.Topic        // other published topics in this city
 	OtherCities    []store.Jurisdiction // other cities with this topic published
+	// LocalHelpPath links to this city's Local Help page when one is published,
+	// and is empty otherwise. It is shown near the top rather than among the
+	// sibling topics because a reader who needs a phone number needs it before
+	// they read the law, not after.
+	LocalHelpPath string
+	LocalHelpName string // the topic's display name, e.g. "Local Help"
 }
+
+// LocalHelpTopic is the slug of the topic whose pages list local organisations
+// rather than explain law. The slug is historical; its display name is "Local
+// Help". It is a topic, not to be confused with the "directory" page_kind,
+// which is a layout any topic may use.
+const LocalHelpTopic = "resource-directory"
 
 // RenderedStatement is a statement whose body has been converted to HTML.
 // Citations is always non-empty; the handler guarantees this before constructing the value.

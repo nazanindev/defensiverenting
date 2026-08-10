@@ -363,6 +363,35 @@ h1 {
   gap: 8px;
 }
 
+/* ── Local help bar ─────────────────────────────────────── */
+
+/* Sits above the guide, not below it. A reader who needs a phone number needs
+   it before the law, not after 14 statements. It replaces the disclaimer's
+   "contact your local legal aid organization", which named no one and linked
+   nowhere. Rendered only when that city has a published Local Help page, so it
+   can never point at a 404. */
+.help-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  min-height: 44px;
+  border: 1px solid #f0c0c8;
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: #fdf0f2;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.help-bar:hover { background: #fae0e4; }
+.help-bar:hover .help-bar-text { text-decoration: underline; }
+
+.help-bar-lead { font-weight: 700; color: var(--accent); }
+.help-bar-text { text-decoration: underline; }
+
 /* ── Citation chips ─────────────────────────────────────── */
 
 .chip {
