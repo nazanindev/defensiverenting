@@ -179,8 +179,10 @@ func TestSearch_recursive(t *testing.T) {
 		URL: "https://example.com/search-" + t.Name(), Publisher: "Test", Kind: "statute",
 	})
 
-	// Ingest a playbook under the state (not the city)
-	_ = pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
+	// Ingest a playbook under the state (not the city). The error is checked
+	// rather than discarded: a rejected ingest otherwise surfaces further down
+	// as "no search results", which points at the wrong thing entirely.
+	err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: state.ID,
 		TopicID:        topic.ID,
 		Language:       "en",
@@ -191,10 +193,13 @@ func TestSearch_recursive(t *testing.T) {
 			{
 				BodyMD:   "The searchableuniquexyz claim.",
 				Language: "en",
-				Sources:  []store.IngestCitationParams{{SourceID: src.ID}},
+				Sources:  []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1"}},
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
 
 	// Search scoped to the city — should find the state-level statement via ancestor expansion
 	results, err := pg.Search(ctx, "searchableuniquexyz", &city.ID, "en")

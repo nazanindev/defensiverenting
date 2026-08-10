@@ -673,6 +673,9 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		pageKind = "playbook"
 	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := validateStatuteLocators(ctx, tx, params.Statements); err != nil {
+			return err
+		}
 		// A slot now holds at most one row per status, so the row to replace is
 		// the one with the SAME status. Re-drafting a page that is already
 		// published updates the draft beside it and leaves the live page alone.
@@ -862,6 +865,9 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 // Unlike IngestPlaybook, it targets by ID so city/topic can be changed on drafts.
 func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlaybookParams) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := validateStatuteLocators(ctx, tx, params.Statements); err != nil {
+			return err
+		}
 		pageKind := params.PageKind
 		if pageKind == "" {
 			pageKind = "playbook"

@@ -1,18 +1,40 @@
 name: Deploy
 
 on:
-  push:
+  # Deploys are gated on CI. A push to main starts the CI workflow; this one
+  # runs only after that finishes, and only if it passed.
+  #
+  # This used to trigger on `push: [main]` directly. Because `needs:` cannot
+  # cross workflow boundaries, the two workflows raced and Deploy always won —
+  # it had no dependency on CI at all. Every push shipped to production
+  # regardless of the result, which is how twelve commits reached prod during a
+  # month when the lint step was failing and `go test` never ran.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+
   # Redeploy on demand without a dummy commit — useful for flushing a bad
-  # config off an app without changing any code.
+  # config off an app without changing any code. Deliberately left ungated: a
+  # broken config may need flushing at a moment when CI is red, and that is
+  # exactly when you least want the deploy path locked.
   workflow_dispatch: {}
 
 jobs:
   deploy-main:
     name: Deploy main site
     runs-on: ubuntu-latest
+    # workflow_run fires on failure and cancellation too, so the conclusion has
+    # to be checked explicitly. A manual dispatch carries no workflow_run
+    # context and passes through.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Deploy the commit CI actually tested, not whatever main points at by
+          # the time this runs. Without this, a push landing mid-deploy would
+          # ship untested code under a green check.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --local-only --config fly.toml --app defensiverenting --dockerfile Dockerfile
         env:
@@ -21,9 +43,12 @@ jobs:
   deploy-authoring:
     name: Deploy authoring service
     runs-on: ubuntu-latest
+    # Skipped automatically when deploy-main is skipped by the gate above.
     needs: [deploy-main]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --local-only --config fly.authoring.toml --app defensiverenting-authoring --dockerfile Dockerfile.authoring
         env:

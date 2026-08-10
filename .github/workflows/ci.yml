@@ -44,10 +44,14 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # v1.61 predates Go 1.25 and could not read its export data, so this step
+      # failed on every push with typecheck errors. Because it runs before the
+      # test step in this job, the whole suite stopped running. Keep this
+      # version in step with the go-version above.
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.61
+          version: v2.12.2
 
       - name: go test (race, real Postgres)
         run: go test ./... -race -count=1 -timeout 120s

@@ -27,7 +27,7 @@ func seedPlaybook(t *testing.T, pg *store.PG, jID, tID int64, status, title stri
 		Title: title, IntroMD: "intro", Status: status,
 		Statements: []store.IngestStatementParams{{
 			BodyMD: "A claim. " + title, Language: "en",
-			Sources: []store.IngestCitationParams{{SourceID: src.ID, Quote: "verbatim"}},
+			Sources: []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1", Quote: "verbatim"}},
 		}},
 	}); err != nil {
 		t.Fatalf("ingest %s: %v", status, err)

@@ -380,17 +380,28 @@ h1 {
 
 .chip:hover { opacity: .8; text-decoration: underline; }
 
+/* One variant per sources.kind value. A kind without its own variant would
+   inherit another kind's colour and glyph and so misstate what backs a claim;
+   templates.TestChipClass_everyKindHasItsOwnClass guards that. Ratios are
+   computed against each chip's own background, AAA per ADR-006 D6. */
 .chip--statute       { background: #fce8eb; color: #4a1223; }
 .chip--regulation    { background: #f5e8f0; color: #5a1240; }
 .chip--gov           { background: #e8f5ee; color: #0a5432; }
+.chip--nonprofit     { background: #f7efe3; color: #5a3a0a; }
 .chip--editorial     { background: #f5f0f0; color: #5a4040; }
 .chip--court-ruling  { background: #e8eef5; color: #1a3a5a; }
+.chip--other         { background: #eeeaea; color: #3a3030; }
 
+/* Text/glyph prefixes, not colour alone (ADR-006 D7). "Org." marks a source
+   that is an organisation describing its own services, which is the
+   distinction a reader needs and the one the green 🏛 chip used to erase. */
 .chip--statute::before       { content: "§"; }
 .chip--regulation::before    { content: "§"; }
 .chip--gov::before           { content: "🏛 "; }
+.chip--nonprofit::before     { content: "Org. "; }
 .chip--editorial::before     { content: "Ed. "; }
 .chip--court-ruling::before  { content: "⚖ "; }
+.chip--other::before         { content: "Source "; }
 
 /* ── Prose (about, support, editorial) ─────────────────── */
 
@@ -495,16 +506,6 @@ h1 {
 .directory-body p { margin: 0 0 6px; }
 .directory-body p:last-child { margin: 0; }
 .directory-body strong { color: var(--ink); }
-
-.directory-source {
-  display: inline-block;
-  font-size: .92rem;
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.directory-source:hover { text-decoration: underline; }
 
 /* ── FAQ ────────────────────────────────────────────────── */
 

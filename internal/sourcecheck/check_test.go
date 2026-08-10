@@ -3,6 +3,8 @@ package sourcecheck
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -10,12 +12,17 @@ import (
 
 type fakeStore struct {
 	store.Store
-	rows  []store.CitationCheckRow
-	marks map[int64]bool
+	rows        []store.CitationCheckRow
+	marks       map[int64]bool
+	uncheckable int
 }
 
 func (f *fakeStore) ListCitationsForCheck(context.Context) ([]store.CitationCheckRow, error) {
 	return f.rows, nil
+}
+
+func (f *fakeStore) CountUncheckableCitations(context.Context) (int, error) {
+	return f.uncheckable, nil
 }
 
 func (f *fakeStore) MarkSourceReviewed(_ context.Context, id int64, changed bool) error {
@@ -61,5 +68,52 @@ func TestRun_FlagsSourcesWithMissingQuotes(t *testing.T) {
 	}
 	if _, ok := fs.marks[3]; ok {
 		t.Error("source 3 (fetch failed) must not be marked reviewed")
+	}
+}
+
+// The failure this guards against is a silent one: quote-less citations are
+// excluded from the check, so before Skipped existed a run that examined
+// nothing reported exactly what a clean run reported.
+func TestRun_ReportsCitationsItCouldNotCheck(t *testing.T) {
+	fs := &fakeStore{
+		uncheckable: 93,
+		rows: []store.CitationCheckRow{
+			{SourceID: 1, URL: "http://a", Quote: "still here"},
+		},
+	}
+	var logged []string
+	res, err := Run(context.Background(), fs,
+		func(string) (string, error) { return "still here", nil },
+		func(format string, a ...any) { logged = append(logged, fmt.Sprintf(format, a...)) },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Skipped != 93 {
+		t.Errorf("Skipped = %d, want 93", res.Skipped)
+	}
+	if res.Sources != 1 || res.Flagged != 0 {
+		t.Errorf("result = %+v, want sources=1 flagged=0", res)
+	}
+	var warned bool
+	for _, line := range logged {
+		if strings.Contains(line, "93") {
+			warned = true
+		}
+	}
+	if !warned {
+		t.Error("a run that skipped 93 citations must say so, not just report what it checked")
+	}
+}
+
+func TestRun_NoSkipWhenEverythingIsQuoted(t *testing.T) {
+	fs := &fakeStore{rows: []store.CitationCheckRow{{SourceID: 1, URL: "http://a", Quote: "x"}}}
+	res, err := Run(context.Background(), fs,
+		func(string) (string, error) { return "x", nil }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Skipped != 0 {
+		t.Errorf("Skipped = %d, want 0", res.Skipped)
 	}
 }

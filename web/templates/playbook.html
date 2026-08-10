@@ -76,9 +76,17 @@
             {{range .Statements}}
             <li class="directory-card">
               <div class="directory-body">{{.BodyHTML}}</div>
-              {{range .Citations}}{{if ne .SourceKind "editorial"}}
-              <a class="directory-source" href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Label}} →</a>
-              {{end}}{{end}}
+              <div class="citation-chips" aria-label="Sources">
+                {{range .Citations}}
+                <a class="{{chipClass .SourceKind}}"
+                   href="{{.URL}}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
+                  {{chipLabel .Label .Locator}}
+                </a>
+                {{end}}
+              </div>
             </li>
             {{end}}
           </ul>

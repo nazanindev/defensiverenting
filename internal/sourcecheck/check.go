@@ -8,6 +8,7 @@ package sourcecheck
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -18,6 +19,7 @@ type Result struct {
 	Sources int // sources checked
 	Flagged int // sources with at least one cited quote no longer found
 	Failed  int // sources that could not be fetched
+	Skipped int // citations carrying no quote, so nothing could be verified
 }
 
 // FetchFunc returns the readable text of a URL (e.g. drafting.FetchExtract).
@@ -26,13 +28,25 @@ type FetchFunc func(url string) (string, error)
 // Run re-fetches every cited source once and confirms each verbatim quote cited
 // from it still appears in the current page. A source with any missing quote is
 // flagged for the author to re-verify. Fetch failures are counted and skipped.
+//
+// Result.Skipped reports the citations that carry no quote and so cannot be
+// verified at all. They are counted separately and up front, because the
+// alternative — reporting only what was examined — makes a run that checked
+// nothing indistinguishable from a clean one.
 func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string, ...any)) (Result, error) {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
+	skipped, err := db.CountUncheckableCitations(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("count uncheckable citations: %w", err)
+	}
+	if skipped > 0 {
+		logf("⚠ %d citation(s) carry no verbatim quote and cannot be checked — they are not covered by this run", skipped)
+	}
 	rows, err := db.ListCitationsForCheck(ctx)
 	if err != nil {
-		return Result{}, err
+		return Result{Skipped: skipped}, err
 	}
 
 	// Group cited quotes by source, preserving first-seen order.
@@ -52,7 +66,7 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		a.quotes = append(a.quotes, r.Quote)
 	}
 
-	var res Result
+	res := Result{Skipped: skipped}
 	for _, id := range order {
 		a := bySrc[id]
 		text, err := fetch(a.url)

@@ -41,20 +41,7 @@ func init() {
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
-		"chipClass": func(kind string) string {
-			switch kind {
-			case "statute":
-				return "chip chip--statute"
-			case "regulation":
-				return "chip chip--regulation"
-			case "editorial":
-				return "chip chip--editorial"
-			case "court_ruling":
-				return "chip chip--court-ruling"
-			default:
-				return "chip chip--gov"
-			}
-		},
+		"chipClass": ChipClass,
 		"chipLabel": func(label, locator string) string {
 			if locator != "" {
 				return label + " " + locator
@@ -64,6 +51,43 @@ func funcMap() template.FuncMap {
 		"absURL": func(path string) string {
 			return baseURL + path
 		},
+	}
+}
+
+// SourceKinds is every value the sources.kind column permits, mirroring the
+// CHECK constraint in migration 000006. ChipClass must return a distinct class
+// for each one: the chip is the only thing telling a reader what kind of
+// authority backs a statement (ADR-003, render layer), so a kind that falls
+// through to another kind's styling misrepresents that authority. A test in
+// this package fails if any kind here loses its own class.
+var SourceKinds = []string{
+	"statute", "regulation", "gov_guidance", "nonprofit", "editorial", "court_ruling",
+}
+
+// ChipClass maps a source kind to its citation-chip classes.
+//
+// Every kind is listed explicitly and the default is deliberately its own
+// neutral class rather than an alias for a real one. Until 2026-08-09 the
+// default returned chip--gov, so nonprofit and gov_guidance rendered
+// identically: every legal-aid organisation on the site displayed with the
+// green government chip and its 🏛 glyph. A source we have not styled must
+// claim no authority it does not have.
+func ChipClass(kind string) string {
+	switch kind {
+	case "statute":
+		return "chip chip--statute"
+	case "regulation":
+		return "chip chip--regulation"
+	case "gov_guidance":
+		return "chip chip--gov"
+	case "nonprofit":
+		return "chip chip--nonprofit"
+	case "editorial":
+		return "chip chip--editorial"
+	case "court_ruling":
+		return "chip chip--court-ruling"
+	default:
+		return "chip chip--other"
 	}
 }
 

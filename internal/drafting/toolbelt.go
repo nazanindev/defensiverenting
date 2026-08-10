@@ -12,6 +12,7 @@
 package drafting
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"io"
@@ -129,7 +130,12 @@ func (tb *Toolbelt) httpFetch(url string) (fetched, error) {
 // fetchDirect performs one GET and extracts readable text: PDF extraction for
 // PDF responses, HTML stripping otherwise. Non-2xx statuses are errors.
 func (tb *Toolbelt) fetchDirect(url string) (string, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	// context.Background rather than a caller's context: fetchDirect is reached
+	// through FetchExtract, whose signature carries no context, so there is no
+	// real one to thread yet. Making that explicit beats an implicit nil.
+	// Threading a context from sourcecheck.Run would let a long check be
+	// cancelled and is worth doing separately.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}

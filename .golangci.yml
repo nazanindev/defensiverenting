@@ -1,35 +1,67 @@
-run:
-  timeout: 5m
-  go: "1.22"
+# golangci-lint v2 configuration.
+#
+# No `run.go` pin here on purpose. This file used to pin go: "1.22" while the
+# toolchain moved to 1.25, and the linter pinned alongside it could no longer
+# read the newer export data. That failed the lint step, which sits before
+# `go test` in the same CI job, so the whole suite stopped running silently.
+# Left unset, the version tracks the go directive in go.mod and cannot drift.
+version: "2"
 
 linters:
+  # errcheck, govet, ineffassign, staticcheck and unused are enabled by default
+  # in v2 and are not repeated here. gosimple no longer exists as a separate
+  # linter: its checks moved into staticcheck.
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - revive
-    - gosec
     - bodyclose
-    - noctx
+    - gosec
     - misspell
+    - noctx
+    - revive
 
-linters-settings:
-  revive:
+  settings:
+    errcheck:
+      check-type-assertions: true
+    staticcheck:
+      checks:
+        - all
+        # QF1008 wants pw.Playbook.ID shortened to pw.ID. Sibling fields of the
+        # same embedded struct (Title, IntroMD) are ambiguous across the other
+        # embedded types and must keep the selector, so following it would leave
+        # one struct accessed two ways in a single literal. Explicit throughout
+        # reads better than shortest-possible.
+        - -QF1008
+    gosec:
+      excludes:
+        - G104 # Errors unhandled — handled by errcheck
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: exported
-        disabled: false
-  gosec:
-    excludes:
-      - G104  # Errors unhandled — handled by errcheck
-  errcheck:
-    check-type-assertions: true
+      # Tests may ignore errors, hardcode fixtures, and build requests without
+      # threading a context. None of that is a defect in a test.
+      - linters:
+          - errcheck
+          - gosec
+          - noctx
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - errcheck
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

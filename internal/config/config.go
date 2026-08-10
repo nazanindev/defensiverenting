@@ -21,7 +21,9 @@ func Load() Config {
 	e := env("ENV", "development")
 	dbDefault := ""
 	if e == "development" {
-		dbDefault = "postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable"
+		// Local development default, not a credential. Any real deployment sets
+		// DATABASE_URL; this branch is unreachable when ENV is not "development".
+		dbDefault = "postgres://postgres:postgres@localhost:5432/tenants?sslmode=disable" // #nosec G101
 	}
 	return Config{
 		DatabaseURL: env("DATABASE_URL", dbDefault),
