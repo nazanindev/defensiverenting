@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contact us · RenterLaw</title>
+  <meta name="description" content="Get in touch with RenterLaw. We cannot give legal advice, but we read every message." />
+  <link rel="canonical" href="{{absURL "/contact"}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:title" content="Contact us · RenterLaw" />
+  <meta property="og:description" content="Get in touch with RenterLaw. We cannot give legal advice, but we read every message." />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="Contact us · RenterLaw" />
+  <meta name="twitter:description" content="Get in touch with RenterLaw. We cannot give legal advice, but we read every message." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span> Contact
+    </nav>
+
+    <article class="prose form-page">
+      <h1>Contact us</h1>
+      <p class="lede">We read every message.</p>
+
+      <div class="callout-warn">
+        <p><strong>We cannot give legal advice.</strong> We cannot tell you what to do in your own case, and we cannot represent you. If you need advice, contact a legal aid office or a lawyer in your area. Your city's Local Help page lists organizations near you.</p>
+        <p><strong>If you are in danger, call 911.</strong></p>
+      </div>
+
+      <p>Write to us about anything else: a city or topic you want covered, a partnership, press, or a question about how the site works.</p>
+      <p>To tell us that a page is wrong or that an organization has closed, use the <a href="/report">report form</a> instead. It reaches the same place and gets handled faster.</p>
+
+      {{template "form-error" .ErrorMessage}}
+
+      <form class="site-form" method="post" action="{{.FormsURL}}/contact" data-draft-form="contact">
+        <div class="field">
+          <label for="name">Your name <span class="field-optional">Optional</span></label>
+          <input type="text" id="name" name="name" maxlength="120" autocomplete="name" />
+        </div>
+
+        <div class="field">
+          <label for="email">Your email <span class="field-optional">Optional</span></label>
+          <input type="email" id="email" name="email" maxlength="254" autocomplete="email" />
+          <p class="field-hint">We can only reply if you give us an address.</p>
+        </div>
+
+        <div class="field">
+          <label for="message">Your message</label>
+          <textarea id="message" name="message" rows="8" required minlength="10" maxlength="5000"></textarea>
+        </div>
+
+        {{/* Honeypot. See report.html. */}}
+        <div class="hp" aria-hidden="true">
+          <label for="company">Company</label>
+          <input type="text" id="company" name="company" tabindex="-1" autocomplete="off" />
+        </div>
+
+        {{template "turnstile" .TurnstileSiteKey}}
+
+        <button class="btn-primary" type="submit">Send message</button>
+      </form>
+
+      <p class="form-privacy">We store what you send so we can reply and act on it. We do not store your IP address, and we do not sell or share anything you write. Please do not send documents or details about your case.</p>
+    </article>
+  </main>
+
+  {{template "form-draft" .}}
+  {{template "site-footer" .}}
+</body>
+</html>

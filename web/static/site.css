@@ -1019,3 +1019,155 @@ input:focus-visible,
 .related-more a:hover { text-decoration: underline; }
 .empty-state-hint { margin-top: 1rem; font-size: .95rem; color: var(--ink-soft); }
 .author-photo { width: min(100%, 480px); height: auto; border-radius: var(--radius); margin: .5rem 0 1rem; box-shadow: var(--shadow); }
+
+/* ── Forms (report a problem, contact) ──────────────────── */
+
+/* Narrower than .prose: a form is filled in, not read across, and a 60ch
+   text input is harder to scan back through than a short one. */
+.form-page { max-width: 46rem; }
+
+.site-form { margin: 1.75rem 0 1.25rem; }
+
+.field { margin-bottom: 1.4rem; }
+
+.field label,
+.field-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: .35rem;
+}
+
+.field-optional {
+  font-weight: 400;
+  font-size: .85rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-left: .35rem;
+}
+
+.field input[type="text"],
+.field input[type="email"],
+.field select,
+.field textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid rgba(30,18,21,0.22);
+  border-radius: 12px;
+  /* 12px vertical on a 1rem/1.6 line box clears the 44px touch minimum the
+     rest of the site holds to. */
+  padding: 12px 14px;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 8rem;
+  line-height: 1.55;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus { border-color: var(--accent); }
+
+.field-hint {
+  margin: .4rem 0 0;
+  font-size: .9rem;
+  color: var(--ink-soft);
+}
+
+.field-static { margin: 0; }
+.field-static a { color: var(--accent); word-break: break-all; }
+
+/* Honeypot. Off-screen rather than display:none, because some bots skip
+   fields that are not rendered at all. aria-hidden plus tabindex="-1" on the
+   input keeps it away from screen readers and the tab order. */
+.hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.btn-primary {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 30px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .15s ease;
+}
+
+.btn-primary:hover { background: var(--accent-dark); }
+
+/* When the button is a link inside running prose, .prose a and .prose p a set
+   the accent colour and an underline, and both outrank a bare .btn-primary.
+   Two classes beat one class plus two elements, so this wins on the thank-you
+   page without touching how ordinary prose links look. */
+.prose a.btn-primary,
+.prose p a.btn-primary {
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Rejections come back from the Worker as a redirect, so this is the reader's
+   only explanation of what happened. It carries an icon-free text label as
+   well as colour: colour alone is not a cue everyone can perceive. */
+.form-error {
+  background: #fdecee;
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 1.25rem 0;
+  font-weight: 500;
+}
+
+.callout-warn {
+  background: var(--mint);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin: 1.5rem 0;
+}
+
+.callout-warn p { margin: 0 0 .6rem; }
+.callout-warn p:last-child { margin: 0; }
+
+.form-privacy {
+  font-size: .9rem;
+  color: var(--ink-soft);
+  margin-top: 1.5rem;
+}
+
+.thanks-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+.thanks-actions a:not(.btn-primary) { color: var(--accent); }
+
+/* The Turnstile widget is a fixed-size iframe; keep it from overflowing a
+   narrow phone screen. */
+.cf-turnstile { margin: 1.5rem 0; max-width: 100%; overflow: hidden; }
+
+/* Footer link to the report form, sitting under the page it is about. */
+.report-link {
+  margin-top: 2.5rem;
+  font-size: .92rem;
+  color: var(--ink-soft);
+}
+
+.report-link a { color: var(--accent); }
+
+.directory-report { margin: .75rem 0 0; font-size: .88rem; }
+.directory-report a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; }
+.directory-report a:hover { color: var(--accent); }

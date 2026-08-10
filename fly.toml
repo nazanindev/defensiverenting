@@ -12,6 +12,11 @@ primary_region = 'ewr'
   ENV = 'production'
   LISTEN_ADDR = ':8080'
   LOG_LEVEL = 'info'
+  # Where the report and contact forms post. See cloudflare/forms.
+  FORMS_URL = 'https://forms.renterlaw.org'
+  # Public half of the Turnstile keypair. It is embedded in the form HTML and
+  # is not a secret; the secret half lives in the Worker.
+  TURNSTILE_SITE_KEY = '0x4AAAAAAEL5Q0WFOE4B6dnD'
 
 [http_service]
   internal_port = 8080

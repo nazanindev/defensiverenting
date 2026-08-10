@@ -53,7 +53,9 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 		// stopped enumerating cities, so this is now the page that spreads
 		// link equity to them.
 		fmt.Fprintf(w, "  <url><loc>%s/locations</loc><changefreq>weekly</changefreq></url>\n", siteURL)
-		for _, p := range []string{"/about", "/support", "/editorial", ReviewerPath} {
+		// /thanks is deliberately absent: it is a confirmation, and it carries
+		// a noindex of its own.
+		for _, p := range []string{"/about", "/support", "/editorial", "/report", "/contact", ReviewerPath} {
 			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>yearly</changefreq></url>\n", siteURL, p)
 		}
 

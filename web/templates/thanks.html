@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thank you · RenterLaw</title>
+  {{/* A confirmation has nothing to offer a search result. */}}
+  <meta name="robots" content="noindex, follow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <article class="prose form-page">
+      {{if .Reported}}
+      <h1>Thank you for the report</h1>
+      <p class="lede">We got it. A person will check it against the primary source.</p>
+      <p>If you left an email address, we will write back when we have looked at it. We cannot promise a date.</p>
+      {{else}}
+      <h1>Thank you</h1>
+      <p class="lede">We got your message.</p>
+      <p>If you left an email address, we will write back. We cannot promise a date, and we cannot give legal advice.</p>
+      {{end}}
+
+      <p class="thanks-actions">
+        <a class="btn-primary" href="/">Back to the site</a>
+        <a href="/locations">Find help near you</a>
+      </p>
+    </article>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

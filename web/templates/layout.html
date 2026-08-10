@@ -95,6 +95,59 @@
 </script>
 {{end}}
 
+{{/*
+  form-error — the message the Worker bounced a submission back with.
+
+  Takes the resolved text, not the code. The handler maps codes to sentences so
+  an unknown code shows a generic line instead of leaking a query parameter
+  onto the page.
+*/}}
+{{define "form-error"}}
+{{if .}}<p class="form-error" role="alert">{{.}}</p>{{end}}
+{{end}}
+
+{{/*
+  turnstile — Cloudflare's spam check. Takes the public site key.
+
+  An empty key renders nothing, which is what local development wants: the
+  Worker verifies the token and it is not in the loop against localhost.
+*/}}
+{{define "turnstile"}}
+{{if .}}
+<div class="cf-turnstile" data-sitekey="{{.}}" data-theme="light"></div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{{end}}
+{{end}}
+
+{{/*
+  form-draft — keeps what the reader typed if the submission is rejected.
+
+  The form posts to another origin, so a rejection comes back as a redirect and
+  the browser has no earlier page state to restore. Someone who wrote four
+  paragraphs about their landlord should not lose them to a failed spam check.
+  Progressive enhancement only: with JS off the form still submits.
+*/}}
+{{define "form-draft"}}
+<script>
+(function () {
+  var form = document.querySelector('[data-draft-form]');
+  if (!form) return;
+  var box = form.querySelector('textarea[name="message"]');
+  if (!box) return;
+  var KEY = 'renterlaw.draft.' + form.getAttribute('data-draft-form');
+
+  // Only restore after a rejection. On a normal visit an old draft appearing
+  // in the box would be confusing, and on the thank-you path it is already sent.
+  if (/[?&]error=/.test(location.search) && !box.value) {
+    try { box.value = sessionStorage.getItem(KEY) || ''; } catch (e) {}
+  }
+  form.addEventListener('submit', function () {
+    try { sessionStorage.setItem(KEY, box.value); } catch (e) {}
+  });
+})();
+</script>
+{{end}}
+
 {{define "site-footer"}}
 <footer class="site-footer">
   <div class="wrap">
@@ -103,7 +156,9 @@
       <a href="/locations">All locations</a> ·
       <a href="/about">About</a> ·
       <a href="/support">Support this project</a> ·
-      <a href="/editorial">Editorial guidance</a>
+      <a href="/editorial">Editorial guidance</a> ·
+      <a href="/report">Report a problem</a> ·
+      <a href="/contact">Contact us</a>
     </p>
   </div>
 </footer>
