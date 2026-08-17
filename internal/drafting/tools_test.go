@@ -18,13 +18,35 @@ type fakeStore struct {
 	nextSrcID      int64
 	publishedTopic bool // when true, GetPlaybook reports an existing published playbook
 	unknownTopic   bool // when true, GetTopicBySlug reports the slug is not in the registry
+
+	// coveredLanguage, when set, is the only language GetPlaybook/
+	// ListTopicsByJurisdiction report as having a page — lets a test tell a
+	// published English page from a not-yet-translated Spanish one.
+	coveredLanguage string
+	lastLanguage    string // records the language GetPlaybook was last called with
 }
 
-func (f *fakeStore) GetPlaybook(_ context.Context, _, _, _ string) (store.PlaybookWithStatements, error) {
-	if f.publishedTopic {
-		return store.PlaybookWithStatements{}, nil
+func (f *fakeStore) GetPlaybook(_ context.Context, _, _, lang string) (store.PlaybookWithStatements, error) {
+	f.lastLanguage = lang
+	covered := f.coveredLanguage
+	if covered == "" && f.publishedTopic {
+		covered = "en" // legacy tests set publishedTopic without caring about language
+	}
+	if covered != "" && lang == covered {
+		return store.PlaybookWithStatements{Playbook: store.Playbook{Title: "T", Language: lang}}, nil
 	}
 	return store.PlaybookWithStatements{}, store.ErrNotFound
+}
+
+func (f *fakeStore) ListTopicRegistry(_ context.Context) ([]store.Topic, error) {
+	return []store.Topic{{ID: 7, Slug: "security-deposits", Name: "Security Deposits", IsCore: true}}, nil
+}
+
+func (f *fakeStore) ListTopicsByJurisdiction(_ context.Context, _ int64, lang string) ([]store.Topic, error) {
+	if f.coveredLanguage != "" && lang == f.coveredLanguage {
+		return []store.Topic{{ID: 7, Slug: "security-deposits", Name: "Security Deposits", IsCore: true}}, nil
+	}
+	return nil, nil
 }
 
 func (f *fakeStore) GetJurisdictionBySlug(_ context.Context, slug string) (store.Jurisdiction, error) {
@@ -208,6 +230,169 @@ func TestSaveDraft_RevisesPublishedWithoutTouchingIt(t *testing.T) {
 	}
 	if !strings.Contains(out.Message, "revision") {
 		t.Errorf("the caller should be told this replaces a live page, got: %s", out.Message)
+	}
+}
+
+// ---- language ---------------------------------------------------------
+
+// A draft that omits language must still default to English, so every
+// existing caller (before language existed as a field) keeps working.
+func TestSaveDraft_DefaultsToEnglishLanguage(t *testing.T) {
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	})
+	mustFetch(t, tb, depositURL)
+
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		Statements: []StatementInput{
+			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Language != "en" || fs.ingested.Language != "en" {
+		t.Errorf("output.Language=%q ingested.Language=%q, want en for both", out.Language, fs.ingested.Language)
+	}
+	if fs.ingested.Statements[0].Language != "en" {
+		t.Errorf("statement language = %q, want en", fs.ingested.Statements[0].Language)
+	}
+}
+
+// The citation-verbatim guardrail must not care what language body_md is
+// written in: the quote still has to match the fetched source (which stays
+// in whatever language it was actually published in, usually English).
+func TestSaveDraft_SpanishDraftKeepsVerbatimGuardrail(t *testing.T) {
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	})
+	mustFetch(t, tb, depositURL)
+
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug: "boston", TopicSlug: "security-deposits", Title: "El plazo de 30 días", Language: "es",
+		Statements: []StatementInput{
+			stmt("Su arrendador debe devolver el depósito en 30 días después de que termine el contrato.",
+				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Language != "es" || fs.ingested.Language != "es" {
+		t.Errorf("output.Language=%q ingested.Language=%q, want es for both", out.Language, fs.ingested.Language)
+	}
+	// The English citation quote must survive untouched inside a Spanish draft.
+	if got := fs.ingested.Statements[0].Sources[0].Quote; got != "within thirty days after the termination of the tenancy, return the security deposit" {
+		t.Errorf("citation quote = %q, want the verbatim English source text", got)
+	}
+
+	// Same statement, but the quote is fabricated: language must not bypass the guardrail.
+	fs2 := &fakeStore{}
+	tb2 := newTestToolbelt(fs2, map[string]string{depositURL: `<p>within thirty days</p>`})
+	mustFetch(t, tb2, depositURL)
+	_, err = tb2.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "es",
+		Statements: []StatementInput{stmt("Reclamo.", depositURL, "dentro de treinta días")},
+	})
+	if !isRejection(err) {
+		t.Fatalf("expected the fabricated (non-verbatim) quote to be rejected regardless of language, got err=%v", err)
+	}
+	if fs2.ingested != nil {
+		t.Error("nothing should have been written")
+	}
+}
+
+// A typo'd language code must fail loudly rather than silently drafting
+// under the wrong full-text-search config with no lint applied — the same
+// closed-registry discipline ADR-005 applies to slugs.
+func TestSaveDraft_RejectsUnknownLanguage(t *testing.T) {
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{depositURL: `<p>within thirty days</p>`})
+	mustFetch(t, tb, depositURL)
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "sp",
+		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days")},
+	})
+	if !isRejection(err) {
+		t.Fatalf("expected rejection for unsupported language %q, got err=%v", "sp", err)
+	}
+	if fs.ingested != nil {
+		t.Error("nothing should have been written")
+	}
+}
+
+// The Spanish voice lint is a separate ruleset from the English one, and it
+// must actually run — not be silently skipped because the draft isn't English.
+func TestSaveDraft_SpanishVoiceLintCatchesBannedWord(t *testing.T) {
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{depositURL: `<p>within thirty days</p>`})
+	mustFetch(t, tb, depositURL)
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "es",
+		Statements: []StatementInput{
+			stmt("Usted renuncia a este derecho si no responde.", depositURL, "within thirty days"),
+		},
+	})
+	var rej *RejectionError
+	if !errors.As(err, &rej) {
+		t.Fatalf("err = %v, want a RejectionError from the Spanish voice lint", err)
+	}
+	if !strings.Contains(rej.Error(), "renunci") {
+		t.Errorf("rejection should flag the banned word, got: %s", rej.Error())
+	}
+	if fs.ingested != nil {
+		t.Error("nothing should have been written")
+	}
+}
+
+// GetPlaybook and ListTopics both default to English and thread an explicit
+// language through to the store, rather than silently always reading "en" —
+// otherwise a translate workflow could never check whether a Spanish version
+// already exists.
+func TestGetPlaybook_LanguageDefaultsAndThreadsThrough(t *testing.T) {
+	fs := &fakeStore{coveredLanguage: "en"}
+	tb := newTestToolbelt(fs, nil)
+
+	if _, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{CitySlug: "boston", TopicSlug: "security-deposits"}); err != nil {
+		t.Fatalf("default language: unexpected error: %v", err)
+	}
+	if fs.lastLanguage != "en" {
+		t.Errorf("default language sent to store = %q, want en", fs.lastLanguage)
+	}
+
+	out, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{CitySlug: "boston", TopicSlug: "security-deposits", Language: "es"})
+	if !isRejection(err) {
+		t.Fatalf("Spanish version doesn't exist yet: want a not-found rejection, got out=%+v err=%v", out, err)
+	}
+	if fs.lastLanguage != "es" {
+		t.Errorf("explicit language sent to store = %q, want es", fs.lastLanguage)
+	}
+}
+
+func TestListTopics_LanguageControlsHasPage(t *testing.T) {
+	fs := &fakeStore{coveredLanguage: "en"}
+	tb := newTestToolbelt(fs, nil)
+
+	out, err := tb.ListTopics(context.Background(), ListTopicsInput{CitySlug: "boston"})
+	if err != nil {
+		t.Fatalf("default language: unexpected error: %v", err)
+	}
+	if !out.Topics[0].HasPage {
+		t.Error("security-deposits has an English page and default language is en; want has_page=true")
+	}
+
+	out, err = tb.ListTopics(context.Background(), ListTopicsInput{CitySlug: "boston", Language: "es"})
+	if err != nil {
+		t.Fatalf("es language: unexpected error: %v", err)
+	}
+	if out.Topics[0].HasPage {
+		t.Error("no Spanish page exists yet; want has_page=false when asking about es")
 	}
 }
 

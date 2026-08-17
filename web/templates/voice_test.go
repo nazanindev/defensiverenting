@@ -86,7 +86,7 @@ func TestPublicTemplatesFollowTheVoiceRules(t *testing.T) {
 				}
 			}
 
-			for _, v := range voice.LintAll(blocks) {
+			for _, v := range voice.LintAll("en", blocks) {
 				t.Errorf("%s", v)
 			}
 		})

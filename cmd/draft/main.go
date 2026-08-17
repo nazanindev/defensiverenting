@@ -6,6 +6,7 @@
 //	draft -city boston                       # seed the core 5 topics (default)
 //	draft -city boston -topics eviction-defense
 //	draft -city boston -topics a,b,c -model claude-sonnet-5
+//	draft -city boston -topics eviction-defense -language es   # translate the published English page
 //
 // Auth: ANTHROPIC_API_KEY. DB: DATABASE_URL (or -db).
 package main
@@ -28,6 +29,7 @@ func main() {
 	log.SetFlags(0)
 	city := flag.String("city", "", "city slug, e.g. boston (required)")
 	topicsSpec := flag.String("topics", "core", "'core' (the predetermined 5), or a comma-separated list of topic slugs")
+	language := flag.String("language", "en", "language to draft in: 'en' (default) or 'es' (translates the published English page; see internal/draftagent's system prompt)")
 	model := flag.String("model", "claude-haiku-4-5", "Anthropic model id")
 	parallel := flag.Int("parallel", 3, "max drafts to run concurrently")
 	maxSteps := flag.Int("max-steps", 30, "max tool-use turns per draft")
@@ -81,6 +83,7 @@ func main() {
 				CitySlug:  *city,
 				TopicSlug: t.Slug,
 				TopicName: t.Name,
+				Language:  *language,
 				Model:     *model,
 				MaxSteps:  *maxSteps,
 				Log: func(format string, a ...any) {

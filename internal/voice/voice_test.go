@@ -13,8 +13,8 @@ func TestLint_cleanTextPasses(t *testing.T) {
 		"Avoid paying cash without a receipt.", // "avoid" must not trip the \bvoid\b rule
 	}
 	for _, s := range clean {
-		if got := Lint(s); len(got) != 0 {
-			t.Errorf("Lint(%q) = %v, want none", s, got)
+		if got := Lint("en", s); len(got) != 0 {
+			t.Errorf("Lint(en, %q) = %v, want none", s, got)
 		}
 	}
 }
@@ -37,7 +37,7 @@ func TestLint_violations(t *testing.T) {
 		{"Navigate the process carefully.", "Navigate"},
 	}
 	for _, c := range cases {
-		got := Lint(c.text)
+		got := Lint("en", c.text)
 		found := false
 		for _, v := range got {
 			if strings.Contains(v, c.want) {
@@ -45,24 +45,24 @@ func TestLint_violations(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Errorf("Lint(%q) = %v, want a violation mentioning %q", c.text, got, c.want)
+			t.Errorf("Lint(en, %q) = %v, want a violation mentioning %q", c.text, got, c.want)
 		}
 	}
 }
 
 func TestLint_longSentence(t *testing.T) {
 	long := strings.Repeat("word ", 26) + "end."
-	if got := Lint(long); len(got) == 0 {
-		t.Errorf("Lint(long sentence) = none, want length violation")
+	if got := Lint("en", long); len(got) == 0 {
+		t.Errorf("Lint(en, long sentence) = none, want length violation")
 	}
 	ok := strings.Repeat("word ", 20) + "end. " + strings.Repeat("word ", 20) + "end."
-	if got := Lint(ok); len(got) != 0 {
-		t.Errorf("Lint(two short sentences) = %v, want none", got)
+	if got := Lint("en", ok); len(got) != 0 {
+		t.Errorf("Lint(en, two short sentences) = %v, want none", got)
 	}
 }
 
 func TestLintAll_labelsAndCap(t *testing.T) {
-	got := LintAll(map[string]string{"intro": "This is void.", "statement 2": "You waive it."})
+	got := LintAll("en", map[string]string{"intro": "This is void.", "statement 2": "You waive it."})
 	if len(got) != 2 {
 		t.Fatalf("LintAll = %v, want 2 violations", got)
 	}
@@ -74,17 +74,79 @@ func TestLintAll_labelsAndCap(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		many[strings.Repeat("s", i+1)] = "void — waive remedies pursuant"
 	}
-	if got := LintAll(many); len(got) != 11 { // 10 + overflow marker
+	if got := LintAll("en", many); len(got) != 11 { // 10 + overflow marker
 		t.Errorf("LintAll cap = %d messages, want 11", len(got))
 	}
 }
 
 func TestLint_allowedTerms(t *testing.T) {
 	ok := `Ask the court to let you skip the fees. The court form for this is called a "fee waiver".`
-	if got := Lint(ok); len(got) != 0 {
-		t.Errorf("Lint(fee waiver form name) = %v, want none", got)
+	if got := Lint("en", ok); len(got) != 0 {
+		t.Errorf("Lint(en, fee waiver form name) = %v, want none", got)
 	}
-	if got := Lint("You waive this right."); len(got) == 0 {
+	if got := Lint("en", "You waive this right."); len(got) == 0 {
 		t.Error("plain 'waive' must still be banned")
+	}
+}
+
+func TestLint_spanish_cleanTextPasses(t *testing.T) {
+	clean := []string{
+		"Su arrendador debe devolver el depósito en 14 días. Si no lo hace, usted puede demandar.",
+		"El cargo tardío no puede pasar del 5% de la renta. Si la renta es $1,000, eso es $50 como máximo.",
+	}
+	for _, s := range clean {
+		if got := Lint("es", s); len(got) != 0 {
+			t.Errorf("Lint(es, %q) = %v, want none", s, got)
+		}
+	}
+}
+
+func TestLint_spanish_violations(t *testing.T) {
+	cases := []struct {
+		text string
+		want string
+	}{
+		{"Esa cláusula es nulo.", "nulo"},
+		{"Usted renuncia a este derecho.", "renunci"},
+		{"El alquiler vence — páguelo.", "dash"},
+		{"Debe responder en siete días.", "digits"},
+		{"El cargo es del 10% de la renta.", "dollar example"},
+		{"No obstante, usted debe pagar.", "obstante"},
+	}
+	for _, c := range cases {
+		got := Lint("es", c.text)
+		found := false
+		for _, v := range got {
+			if strings.Contains(v, c.want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("Lint(es, %q) = %v, want a violation mentioning %q", c.text, got, c.want)
+		}
+	}
+}
+
+// English-only jargon must not fire on Spanish text (and vice versa) — the
+// rulesets are language-specific, not merged.
+func TestLint_languagesDoNotCrossContaminate(t *testing.T) {
+	if got := Lint("es", "You waive this right."); len(got) != 0 {
+		t.Errorf("Lint(es, English text) = %v, want none — English banned words shouldn't fire under the es ruleset", got)
+	}
+	if got := Lint("en", "Usted renuncia a este derecho."); len(got) != 0 {
+		t.Errorf("Lint(en, Spanish text) = %v, want none — Spanish banned words shouldn't fire under the en ruleset", got)
+	}
+}
+
+func TestSupported(t *testing.T) {
+	got := Supported()
+	want := map[string]bool{"en": true, "es": true}
+	if len(got) != len(want) {
+		t.Fatalf("Supported() = %v, want %d languages", got, len(want))
+	}
+	for _, l := range got {
+		if !want[l] {
+			t.Errorf("Supported() includes unexpected language %q", l)
+		}
 	}
 }

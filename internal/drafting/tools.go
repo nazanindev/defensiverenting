@@ -114,12 +114,21 @@ type SaveDraftInput struct {
 	// playbook.
 	PageKind   string           `json:"page_kind,omitempty" jsonschema:"playbook|directory|faq|checklist. Omit for playbook. Use \"directory\" for a page listing local organisations and services, where each statement is one organisation and its citation is that organisation's own page."`
 	Statements []StatementInput `json:"statements"`
+	// Language keys this playbook against jurisdiction+topic+language, so a
+	// translation is a separate row beside the English one rather than a
+	// replacement for it. Citation quotes still stay verbatim in whatever
+	// language the fetched source is actually written in (usually English
+	// statute text) regardless of this field: it governs title/intro_md/
+	// body_md only. See the citation-research skill and the drafting system
+	// prompt for how a translation should be produced.
+	Language string `json:"language,omitempty" jsonschema:"language code for this draft's renter-facing text: \"en\" (default) or \"es\". Use \"es\" only to translate an existing English playbook (fetch it with get_playbook first and reuse its exact citations) or to draft resource-directory content aimed at Spanish speakers — never invent Spanish legal claims independently of the English research."`
 }
 
 type SaveDraftOutput struct {
 	CitySlug       string `json:"city_slug"`
 	TopicSlug      string `json:"topic_slug"`
 	PageKind       string `json:"page_kind" jsonschema:"the layout the draft was saved with; check it matches what you intended"`
+	Language       string `json:"language" jsonschema:"the language code the draft was saved under"`
 	StatementCount int    `json:"statement_count"`
 	CitationCount  int    `json:"citation_count"`
 	Status         string `json:"status"`
@@ -152,6 +161,10 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	if err := checkTopicLayout(in.TopicSlug, pageKind); err != nil {
 		return SaveDraftOutput{}, err
 	}
+	lang, err := resolveLanguage(in.Language)
+	if err != nil {
+		return SaveDraftOutput{}, err
+	}
 
 	// Guardrail: topics are shared across cities; a city-prefixed topic slug
 	// fragments cross-city hubs and produces /j/{city}/{city}-{topic} URLs.
@@ -169,19 +182,20 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	// and writing a draft would have overwritten live legal content. See
 	// migration 000015.
 	revises := false
-	if _, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, draftLanguage); err == nil {
+	if _, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, lang); err == nil {
 		revises = true
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return SaveDraftOutput{}, err
 	}
 
-	// Guardrail: renter-facing text must pass the editorial-voice lint.
-	// Citation quotes are exempt: they must stay verbatim source text.
+	// Guardrail: renter-facing text must pass the editorial-voice lint for
+	// the language it's written in. Citation quotes are exempt: they must
+	// stay verbatim source text regardless of the draft's language.
 	texts := map[string]string{"title": in.Title, "intro_md": in.IntroMD}
 	for si, st := range in.Statements {
 		texts[fmt.Sprintf("statement %d body_md", si+1)] = st.BodyMD
 	}
-	if violations := voice.LintAll(texts); len(violations) > 0 {
+	if violations := voice.LintAll(lang, texts); len(violations) > 0 {
 		return SaveDraftOutput{}, reject("draft rejected by the editorial-voice lint. Rewrite the flagged text in plain language and save again (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 	}
 
@@ -254,7 +268,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		}
 		stmts = append(stmts, store.IngestStatementParams{
 			BodyMD:   st.BodyMD,
-			Language: draftLanguage,
+			Language: lang,
 			Sources:  cites,
 		})
 	}
@@ -262,7 +276,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	if err := tb.db.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: jID,
 		TopicID:        topic.ID,
-		Language:       draftLanguage,
+		Language:       lang,
 		Slug:           in.TopicSlug,
 		Title:          in.Title,
 		IntroMD:        in.IntroMD,
@@ -277,6 +291,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		CitySlug:       in.CitySlug,
 		TopicSlug:      in.TopicSlug,
 		PageKind:       pageKind,
+		Language:       lang,
 		StatementCount: len(in.Statements),
 		CitationCount:  citationCount,
 		Status:         "draft",
@@ -309,6 +324,7 @@ func (tb *Toolbelt) ListJurisdictions(ctx context.Context) (ListJurisdictionsOut
 
 type ListTopicsInput struct {
 	CitySlug string `json:"city_slug"`
+	Language string `json:"language,omitempty" jsonschema:"language to check coverage for: \"en\" (default) or \"es\". has_page reflects this language, not any other."`
 }
 
 type ListTopicsOutput struct {
@@ -319,7 +335,7 @@ type TopicOut struct {
 	Slug    string `json:"slug"`
 	Name    string `json:"name"`
 	IsCore  bool   `json:"is_core" jsonschema:"true for the topics every city should cover"`
-	HasPage bool   `json:"has_page" jsonschema:"true when this city already has a published playbook for the topic"`
+	HasPage bool   `json:"has_page" jsonschema:"true when this city already has a published playbook for the topic in the requested language"`
 }
 
 // ListTopics returns the whole topic registry, marking which ones this city
@@ -337,11 +353,15 @@ func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTop
 		}
 		return ListTopicsOutput{}, err
 	}
+	lang, err := resolveLanguage(in.Language)
+	if err != nil {
+		return ListTopicsOutput{}, err
+	}
 	registry, err := tb.db.ListTopicRegistry(ctx)
 	if err != nil {
 		return ListTopicsOutput{}, err
 	}
-	covered, err := tb.db.ListTopicsByJurisdiction(ctx, jur.ID, draftLanguage)
+	covered, err := tb.db.ListTopicsByJurisdiction(ctx, jur.ID, lang)
 	if err != nil {
 		return ListTopicsOutput{}, err
 	}
@@ -361,11 +381,13 @@ func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTop
 type GetPlaybookInput struct {
 	CitySlug  string `json:"city_slug"`
 	TopicSlug string `json:"topic_slug"`
+	Language  string `json:"language,omitempty" jsonschema:"language of the version to fetch: \"en\" (default) or \"es\". Fetch language=\"en\" as the source of truth before translating it into another language."`
 }
 
 type GetPlaybookOutput struct {
 	Title      string         `json:"title"`
 	IntroMD    string         `json:"intro_md"`
+	Language   string         `json:"language"`
 	Statements []StatementOut `json:"statements"`
 }
 
@@ -382,14 +404,18 @@ type CitationOut struct {
 }
 
 func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPlaybookOutput, error) {
-	pb, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, draftLanguage)
+	lang, err := resolveLanguage(in.Language)
+	if err != nil {
+		return GetPlaybookOutput{}, err
+	}
+	pb, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, lang)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return GetPlaybookOutput{}, reject("no published playbook for %s/%s yet", in.CitySlug, in.TopicSlug)
+			return GetPlaybookOutput{}, reject("no published playbook for %s/%s in language %q yet", in.CitySlug, in.TopicSlug, lang)
 		}
 		return GetPlaybookOutput{}, err
 	}
-	out := GetPlaybookOutput{Title: pb.Title, IntroMD: pb.IntroMD}
+	out := GetPlaybookOutput{Title: pb.Title, IntroMD: pb.IntroMD, Language: lang}
 	for _, st := range pb.Statements {
 		so := StatementOut{BodyMD: st.BodyMD}
 		for _, c := range st.Citations {

@@ -58,7 +58,16 @@ func New(db store.Store) *mcp.Server {
 			"Two rules that reject a save outright: a citation with kind \"statute\" must carry a " +
 			"locator naming a provision (\"§ 15B\", \"RCW 59.18.060\"), not a date or a document " +
 			"title; and every non-editorial citation needs a verbatim quote, because a page whose " +
-			"citations have no quote cannot be published at all.",
+			"citations have no quote cannot be published at all.\n\n" +
+			"language defaults to \"en\". Pass \"es\" only to translate an existing English playbook " +
+			"(fetch it with get_playbook first and reuse its exact citation URLs and verbatim quotes " +
+			"— re-fetch each via fetch_source in this session first, since the verbatim check is keyed " +
+			"per session) or to draft resource-directory content aimed at Spanish speakers, which " +
+			"should list organisations that actually serve them rather than a translation of the " +
+			"English list. Do not independently research and draft Spanish legal claims: the point of " +
+			"translating is that the English and Spanish pages assert the identical thing. The " +
+			"editorial-voice lint for Spanish is a first-pass ruleset pending editor review — treat a " +
+			"rejection as authoritative and fix the flagged text.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.SaveDraftInput) (*mcp.CallToolResult, drafting.SaveDraftOutput, error) {
 		return result(tb.SaveDraft(ctx, in))
 	})
@@ -71,15 +80,19 @@ func New(db store.Store) *mcp.Server {
 	})
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_topics",
-		Description: "List topics that already have a published playbook for a city, so you don't duplicate existing coverage.",
+		Name: "list_topics",
+		Description: "List topics that already have a published playbook for a city, so you don't duplicate " +
+			"existing coverage. language defaults to \"en\"; has_page reflects coverage in that language " +
+			"only, so pass \"es\" to see which topics still need a Spanish translation.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.ListTopicsInput) (*mcp.CallToolResult, drafting.ListTopicsOutput, error) {
 		return result(tb.ListTopics(ctx, in))
 	})
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_playbook",
-		Description: "Fetch an existing published playbook for a city+topic (to review current coverage). Returns not-found if none exists.",
+		Name: "get_playbook",
+		Description: "Fetch an existing published playbook for a city+topic (to review current coverage, " +
+			"or as the source of truth to translate). Returns not-found if none exists. language defaults " +
+			"to \"en\"; pass \"es\" to check whether a translation already exists before drafting one.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.GetPlaybookInput) (*mcp.CallToolResult, drafting.GetPlaybookOutput, error) {
 		return result(tb.GetPlaybook(ctx, in))
 	})

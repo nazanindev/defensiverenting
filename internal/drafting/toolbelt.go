@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 )
 
 const draftLanguage = "en"
@@ -315,4 +316,22 @@ func resolvePageKind(k string) (string, error) {
 		return "", reject("page_kind %q is not valid. Use \"playbook\" (or omit it), \"directory\" for a list of local organisations and services, \"faq\", or \"checklist\".", k)
 	}
 	return k, nil
+}
+
+// resolveLanguage defaults to English and rejects any code voice has no
+// ruleset for, the same closed-registry discipline ADR-005 applies to topic
+// and jurisdiction slugs: a typo like "sp" must fail loudly here, rather than
+// silently saving under the wrong full-text-search config (see migration
+// 000012, lang_regconfig) with no voice lint applied at all.
+func resolveLanguage(lang string) (string, error) {
+	lang = strings.TrimSpace(lang)
+	if lang == "" {
+		return draftLanguage, nil
+	}
+	for _, l := range voice.Supported() {
+		if l == lang {
+			return lang, nil
+		}
+	}
+	return "", reject("language %q is not supported. Use one of: %s.", lang, strings.Join(voice.Supported(), ", "))
 }

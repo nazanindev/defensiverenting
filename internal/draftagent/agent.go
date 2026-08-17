@@ -23,9 +23,13 @@ type Options struct {
 	CitySlug  string
 	TopicSlug string
 	TopicName string
-	Model     string                        // defaults to claude-opus-4-8
-	MaxSteps  int                           // defaults to 30
-	Log       func(format string, a ...any) // progress sink; nil = discard
+	// Language defaults to "en". "es" asks the agent to translate the
+	// existing English playbook (see the system prompt) rather than
+	// research independently — see voice.Supported for the full set.
+	Language string
+	Model    string                        // defaults to claude-opus-4-8
+	MaxSteps int                           // defaults to 30
+	Log      func(format string, a ...any) // progress sink; nil = discard
 }
 
 // Run drives the drafting loop to completion. It returns nil once a draft has
@@ -54,7 +58,7 @@ func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) error {
 		System:       []anthropic.TextBlockParam{{Text: systemPrompt}},
 		Tools:        toolDefs(),
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(userPrompt(opts.CitySlug, opts.TopicSlug, opts.TopicName))),
+			anthropic.NewUserMessage(anthropic.NewTextBlock(userPrompt(opts.CitySlug, opts.TopicSlug, opts.TopicName, opts.Language))),
 		},
 	}
 

@@ -33,20 +33,51 @@ Do NOT add a "where to get help" section to a playbook. Local help is its own pa
 
 When you are asked to draft "resource-directory" itself: one organisation per statement, naming what it does and how to reach it, citing that organisation's own site (kind "nonprofit") or the government program page (kind "gov_guidance"). Never cite an aggregator that is summarising other organisations. If you cannot find an organisation's own URL, leave it out.
 
+Languages: every tool defaults to language "en". The only other supported language is "es", and it is produced by TRANSLATING an existing English playbook, not by researching independently in Spanish — call get_playbook(language="en") first and reuse its exact citation URLs and verbatim English quotes (re-fetch each via fetch_source in this session, since the verbatim check is scoped to the session, not the source). Write title/intro_md/body_md as an idiomatic Spanish translation; the legal claim must stay identical to the English version, only the language changes. Exception: "resource-directory" should still get fresh research when targeting Spanish speakers, because they often need different organisations (Spanish-language hotlines and services), not a translation of the English list. The Spanish editorial-voice lint is a first-pass ruleset pending human review; treat a rejection as authoritative and fix the flagged text same as in English.
+
 Workflow: use find_sources and web_search to locate authoritative sources → fetch_source each one → write the statements, each with >=1 verbatim citation → call save_draft_playbook once. The result is a DRAFT; a human reviews and publishes it. You never publish.`
 
-func userPrompt(citySlug, topicSlug, topicName string) string {
+func userPrompt(citySlug, topicSlug, topicName, language string) string {
 	name := topicName
 	if name == "" {
 		name = titleize(topicSlug)
 	}
-	return fmt.Sprintf(
-		"Draft a tenant-rights playbook for city_slug=%q, topic_slug=%q (topic: %s). "+
+	if language == "" {
+		language = "en"
+	}
+	header := fmt.Sprintf(
+		"Draft a tenant-rights playbook for city_slug=%q, topic_slug=%q (topic: %s), language=%q. "+
 			"Use exactly these slugs when you call save_draft_playbook. The topic must "+
 			"already exist: call list_topics if %q is rejected, and pick the closest slug "+
-			"from the registry rather than inventing one. "+
-			"Research the authoritative sources, read each via fetch_source, and save one draft.",
-		citySlug, topicSlug, name, topicSlug)
+			"from the registry rather than inventing one. ",
+		citySlug, topicSlug, name, language, topicSlug)
+
+	if language == "en" {
+		return header + "Research the authoritative sources, read each via fetch_source, and save one draft."
+	}
+
+	lang := languageName(language)
+	return header + fmt.Sprintf(
+		"First call get_playbook(city_slug=%q, topic_slug=%q, language=\"en\") to check for a published "+
+			"English version. If one exists and this is not the resource-directory topic, translate it "+
+			"into %s: reuse its exact citation URLs and verbatim quotes (re-fetch each via fetch_source in "+
+			"this session first), and write title/intro_md/body_md as an idiomatic %s translation of the "+
+			"same legal claims. If no English version exists, or the topic is resource-directory, research "+
+			"and draft fresh in %s instead — resource-directory in particular should list organisations "+
+			"that actually serve %s speakers, not a translation of the English list. "+
+			"Then save exactly one draft with language=%q.",
+		citySlug, topicSlug, lang, lang, lang, lang, language)
+}
+
+// languageName renders a language code as prose for the drafting prompt.
+// Extend alongside voice.Supported() when a new language is added.
+func languageName(code string) string {
+	switch code {
+	case "es":
+		return "Spanish"
+	default:
+		return code
+	}
 }
 
 func titleize(slug string) string {
@@ -123,6 +154,7 @@ func toolDefs() []anthropic.ToolUnionParam {
 				"intro_md":   strProp("short Markdown intro for the page"),
 				"page_kind":  strProp("HOW the page is laid out, chosen separately from topic_slug (which is what it is about): 'playbook' renders a numbered argument, 'directory' renders a list of organisations. Omit for playbook. topic_slug 'resource-directory' must use 'directory' or the save is rejected."),
 				"statements": map[string]any{"type": "array", "items": statementItems},
+				"language":   strProp("'en' (default) or 'es'. 'es' must be a translation of the existing English playbook (see get_playbook), reusing its exact citations, not independent Spanish research — except resource-directory, which should research fresh Spanish-serving organisations."),
 			},
 			[]string{"city_slug", "topic_slug", "title", "statements"}),
 
@@ -132,12 +164,19 @@ func toolDefs() []anthropic.ToolUnionParam {
 
 		customTool("list_topics",
 			"List topics that already have a published playbook for a city, to avoid duplicating coverage.",
-			map[string]any{"city_slug": strProp("the city slug")},
+			map[string]any{
+				"city_slug": strProp("the city slug"),
+				"language":  strProp("'en' (default) or 'es'. has_page reflects coverage in this language only."),
+			},
 			[]string{"city_slug"}),
 
 		customTool("get_playbook",
 			"Fetch an existing published playbook for a city+topic. Returns not-found if none exists.",
-			map[string]any{"city_slug": strProp("city slug"), "topic_slug": strProp("topic slug")},
+			map[string]any{
+				"city_slug":  strProp("city slug"),
+				"topic_slug": strProp("topic slug"),
+				"language":   strProp("'en' (default) or 'es'. Fetch 'en' as the source of truth before translating."),
+			},
 			[]string{"city_slug", "topic_slug"}),
 	}
 }
