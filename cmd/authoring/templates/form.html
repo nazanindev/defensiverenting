@@ -139,7 +139,11 @@
       <h2>Playbook</h2>
 
       {{if and .EditMode (eq .Status "published")}}
-      <!-- Published edit: location and topic are locked -->
+      <!-- Published edit: location, topic, and language are locked. Language
+           is part of the page's identity (jurisdiction + topic + language is
+           the actual uniqueness key), so it is locked the same way location
+           and topic are: changing it would move the page to a different
+           slot rather than edit the one that's live. -->
       <div class="g2">
         <div class="field">
           <label>Location</label>
@@ -149,6 +153,10 @@
           <label>Topic</label>
           <div style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:.875rem;background:#f8f9ff;color:#4a5568">{{.TopicSlug}}</div>
         </div>
+      </div>
+      <div class="field">
+        <label>Language</label>
+        <div style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:.875rem;background:#f8f9ff;color:#4a5568">{{.SelectedLanguageLabel}}</div>
       </div>
       {{else}}
       <!-- New or draft-edit: location and topic selectors -->
@@ -219,6 +227,16 @@
       <div class="derived" id="full-slug-row" style="display:none; margin-bottom:14px">
         <span class="derived-label">page URL →</span>
         <span class="derived-value" id="full-slug-preview">…</span>
+      </div>
+
+      <div class="field" style="margin-top:10px">
+        <label>Language</label>
+        <select name="language">
+          {{range .Languages}}<option value="{{.Code}}"{{if eq .Code $.SelectedLanguage}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+        <p class="hint">Spanish should translate an existing published English page, reusing its exact
+          citations and quotes — the AI drafting pipeline does this from get_playbook. Writing independent
+          Spanish legal claims here has no citation guardrail behind it, same as English does not either.</p>
       </div>
       {{end}}
 

@@ -318,12 +318,15 @@ func resolvePageKind(k string) (string, error) {
 	return k, nil
 }
 
-// resolveLanguage defaults to English and rejects any code voice has no
+// ResolveLanguage defaults to English and rejects any code voice has no
 // ruleset for, the same closed-registry discipline ADR-005 applies to topic
 // and jurisdiction slugs: a typo like "sp" must fail loudly here, rather than
 // silently saving under the wrong full-text-search config (see migration
 // 000012, lang_regconfig) with no voice lint applied at all.
-func resolveLanguage(lang string) (string, error) {
+//
+// Exported so cmd/authoring's manual form can apply the identical guardrail
+// instead of growing a second copy that could drift from this one.
+func ResolveLanguage(lang string) (string, error) {
 	lang = strings.TrimSpace(lang)
 	if lang == "" {
 		return draftLanguage, nil

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 )
 
 const systemPrompt = `You research U.S. tenant-rights law and draft citation-backed playbooks for renters.
@@ -56,7 +57,7 @@ func userPrompt(citySlug, topicSlug, topicName, language string) string {
 		return header + "Research the authoritative sources, read each via fetch_source, and save one draft."
 	}
 
-	lang := languageName(language)
+	lang := voice.Label(language)
 	return header + fmt.Sprintf(
 		"First call get_playbook(city_slug=%q, topic_slug=%q, language=\"en\") to check for a published "+
 			"English version. If one exists and this is not the resource-directory topic, translate it "+
@@ -67,17 +68,6 @@ func userPrompt(citySlug, topicSlug, topicName, language string) string {
 			"that actually serve %s speakers, not a translation of the English list. "+
 			"Then save exactly one draft with language=%q.",
 		citySlug, topicSlug, lang, lang, lang, lang, language)
-}
-
-// languageName renders a language code as prose for the drafting prompt.
-// Extend alongside voice.Supported() when a new language is added.
-func languageName(code string) string {
-	switch code {
-	case "es":
-		return "Spanish"
-	default:
-		return code
-	}
 }
 
 func titleize(slug string) string {

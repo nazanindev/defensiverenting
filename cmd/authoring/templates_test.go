@@ -206,6 +206,46 @@ func TestFormTemplateKeepsPageKindOnPublishedEdit(t *testing.T) {
 	}
 }
 
+// Language is part of the page's identity (jurisdiction+topic+language is the
+// actual uniqueness key), so a published edit must lock it the same way it
+// locks location and topic: no "language" select posted, and the stored value
+// shown as a label rather than editable.
+func TestFormTemplateLocksLanguageOnPublishedEdit(t *testing.T) {
+	html := renderForm(t, map[string]any{
+		"EditMode": true, "EditID": int64(2), "Status": "published",
+		"CityName": "Pittsburgh", "TopicSlug": "resource-directory",
+		"Topics": topicRegistry(), "SelectedPageKind": "directory",
+		"SelectedLanguage": "es", "SelectedLanguageLabel": "Spanish",
+		"Title": "T", "Intro": "I", "PreloadJSON": template.JS("null"),
+	})
+	if strings.Contains(html, `name="language"`) {
+		t.Error("published edit must not expose a language select — the save would reuse the stored language regardless of what's posted, so an editable one would mislead")
+	}
+	if !strings.Contains(html, "Spanish") {
+		t.Error("the page's actual language should be shown, even locked")
+	}
+}
+
+// A draft's language must be pre-selected from the stored playbook, and the
+// select must be posted so submitEditForm can read it — this is the fix for
+// the bug where editing a Spanish draft silently reset it to English.
+func TestFormTemplateSelectsLanguageOnDraftEdit(t *testing.T) {
+	html := renderForm(t, map[string]any{
+		"EditMode": true, "EditID": int64(3), "Status": "draft",
+		"Jurisdictions": allJurisdictions(), "Topics": topicRegistry(),
+		"SelectedCitySlug": "boston", "SelectedTopicKey": "security-deposits",
+		"SelectedPageKind": "playbook", "SelectedLanguage": "es",
+		"Languages": []languageOption{{Code: "en", Label: "English"}, {Code: "es", Label: "Spanish"}},
+		"Title":     "T", "Intro": "I", "PreloadJSON": template.JS("null"),
+	})
+	if !strings.Contains(html, `name="language"`) {
+		t.Fatal("draft edit form posts no language — saving would fall back to en regardless of the stored draft's language")
+	}
+	if !strings.Contains(html, `value="es" selected`) {
+		t.Error("language selector does not reflect the draft's stored language")
+	}
+}
+
 // A validation error used to re-render with no Topics at all, leaving an empty
 // topic dropdown the author could not resubmit from.
 func TestFormTemplateErrorStateKeepsTopics(t *testing.T) {

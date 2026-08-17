@@ -60,7 +60,7 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\brule of thumb\b`), `figurative; state the rule plainly`},
 		{regexp.MustCompile(`(?i)\bkeep in mind\b`), `drop it; state the fact directly`},
 	},
-	spelledNum: regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
+	spelledNum:   regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
 	allowedTerms: regexp.MustCompile(`(?i)\bfee waivers?\b`),
 }
 
@@ -103,7 +103,7 @@ var esRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\bregla general\b`), `figurative; state the rule plainly`},
 		{regexp.MustCompile(`(?i)\btenga (en cuenta|presente)\b`), `drop it; state the fact directly`},
 	},
-	spelledNum: regexp.MustCompile(`(?i)\b(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|veinte|treinta|sesenta|noventa)[- ](día|días|semana|semanas|mes|meses|año|años|hora|horas|vez|veces)\b`),
+	spelledNum:   regexp.MustCompile(`(?i)\b(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|veinte|treinta|sesenta|noventa)[- ](día|días|semana|semanas|mes|meses|año|años|hora|horas|vez|veces)\b`),
 	allowedTerms: regexp.MustCompile(`(?i)\bexenci(ón|ones) de (cuota|cuotas|tarifa|tarifas)\b`),
 }
 
@@ -111,9 +111,23 @@ var rulesets = map[string]ruleset{"en": enRuleset, "es": esRuleset}
 
 // Supported returns the language codes Lint has a ruleset for, sorted. This
 // is the canonical list of languages the drafting toolbelt accepts — see
-// drafting.resolveLanguage — so a language gains support in one place.
+// drafting.ResolveLanguage — so a language gains support in one place.
 func Supported() []string {
 	return []string{"en", "es"} // keep sorted; extend rulesets above first
+}
+
+// languageLabels renders each supported code as prose, for prompt text and
+// UI labels. Extend alongside Supported() and the rulesets above when a new
+// language is added.
+var languageLabels = map[string]string{"en": "English", "es": "Spanish"}
+
+// Label renders a language code as a human-readable name ("es" -> "Spanish"),
+// falling back to the code itself for anything Supported doesn't recognize.
+func Label(code string) string {
+	if l, ok := languageLabels[code]; ok {
+		return l
+	}
+	return code
 }
 
 var (

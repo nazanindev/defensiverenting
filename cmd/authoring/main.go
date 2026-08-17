@@ -32,6 +32,7 @@ import (
 	sitehandlers "github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
 	"github.com/nazanindev/defensiverenting/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 	webstatic "github.com/nazanindev/defensiverenting/web/static"
 	sitetmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
@@ -748,8 +749,10 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Jurisdictions": jurisdictions, "Topics": topics, "Error": "",
-		"PreloadJSON":     template.JS("null"),
-		"ImportGroups":    s.importablePages(r.Context(), 0, ""),
+		"PreloadJSON":      template.JS("null"),
+		"ImportGroups":     s.importablePages(r.Context(), 0, ""),
+		"Languages":        languageOptions(),
+		"SelectedLanguage": "en",
 	}
 
 	// ?from=<id> pre-fills the form from an existing playbook as a reference
@@ -1011,6 +1014,12 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 	}
 	topicSlug := topic.Slug
 
+	lang, err := drafting.ResolveLanguage(r.FormValue("language"))
+	if err != nil {
+		s.formError(w, r, err.Error())
+		return
+	}
+
 	// Parse sources
 	srcIndices := parseIndices(r.FormValue("active_sources"))
 	sourceByIdx := make(map[int]store.Source, len(srcIndices))
@@ -1041,7 +1050,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse statements — language is always "en" at this stage
+	// Parse statements
 	stmtIndices := parseIndices(r.FormValue("active_stmts"))
 	qv := newQuoteVerifier(s.pg)
 	var statements []store.IngestStatementParams
@@ -1079,7 +1088,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		statements = append(statements, store.IngestStatementParams{
-			BodyMD: body, Language: "en", Sources: cites,
+			BodyMD: body, Language: lang, Sources: cites,
 		})
 	}
 	if len(statements) == 0 {
@@ -1096,7 +1105,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 	if err := s.pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: j.ID,
 		TopicID:        topic.ID,
-		Language:       "en",
+		Language:       lang,
 		Slug:           topicSlug,
 		Title:          title,
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
@@ -1378,6 +1387,21 @@ func (s *srv) resolveTopic(ctx context.Context, r *http.Request) (store.Topic, s
 	return t, ""
 }
 
+// languageOption is one choice in the form's language select.
+type languageOption struct{ Code, Label string }
+
+// languageOptions lists the languages the form can save a page in, sourced
+// from voice.Supported() so the dropdown can't offer a code the editorial
+// lint (and drafting.ResolveLanguage) would reject.
+func languageOptions() []languageOption {
+	supported := voice.Supported()
+	opts := make([]languageOption, 0, len(supported))
+	for _, c := range supported {
+		opts = append(opts, languageOption{Code: c, Label: voice.Label(c)})
+	}
+	return opts
+}
+
 // editFormData builds the template data map for the edit form.
 func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements, errMsg string) map[string]any {
 	editorial, _ := s.pg.GetEditorialSource(ctx)
@@ -1388,19 +1412,22 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 	topics, _ := s.pg.ListTopicRegistry(ctx)
 
 	data := map[string]any{
-		"EditMode":         true,
-		"EditID":           pw.Playbook.ID,
-		"Status":           pw.Playbook.Status,
-		"CityName":         pw.Jurisdiction.Name,
-		"TopicSlug":        pw.Topic.Slug,
-		"SelectedCitySlug": citySlug,
-		"SelectedTopicKey": topicKey,
-		"Topics":           topics,
-		"SelectedPageKind": pw.Playbook.PageKind,
-		"Title":            pw.Playbook.Title,
-		"Intro":            pw.Playbook.IntroMD,
-		"Error":            errMsg,
-		"ImportGroups":     s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
+		"EditMode":              true,
+		"EditID":                pw.Playbook.ID,
+		"Status":                pw.Playbook.Status,
+		"CityName":              pw.Jurisdiction.Name,
+		"TopicSlug":             pw.Topic.Slug,
+		"SelectedCitySlug":      citySlug,
+		"SelectedTopicKey":      topicKey,
+		"Topics":                topics,
+		"SelectedPageKind":      pw.Playbook.PageKind,
+		"Languages":             languageOptions(),
+		"SelectedLanguage":      pw.Playbook.Language,
+		"SelectedLanguageLabel": voice.Label(pw.Playbook.Language),
+		"Title":                 pw.Playbook.Title,
+		"Intro":                 pw.Playbook.IntroMD,
+		"Error":                 errMsg,
+		"ImportGroups":          s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
 		"PreloadJSON": template.JS(pj),
 	}
@@ -1467,6 +1494,9 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 				data["NewStateName"] = r.FormValue("new_state_name")
 			}
 			data["SelectedPageKind"] = r.FormValue("page_kind")
+			if existing.Playbook.Status == "draft" {
+				data["SelectedLanguage"] = r.FormValue("language")
+			}
 		}
 		s.render(w, "form.html", data)
 	}
@@ -1519,7 +1549,11 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		}
 		jurisdictionID = j.ID
 		topicID = topic.ID
-		lang = "en"
+		lang, err = drafting.ResolveLanguage(r.FormValue("language"))
+		if err != nil {
+			editErr(err.Error())
+			return
+		}
 		slug = topic.Slug
 	} else {
 		jurisdictionID = existing.Playbook.JurisdictionID
@@ -1591,7 +1625,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 			editErr(fmt.Sprintf("Statement %d needs at least one citation", ji+1))
 			return
 		}
-		statements = append(statements, store.IngestStatementParams{BodyMD: body, Language: "en", Sources: cites})
+		statements = append(statements, store.IngestStatementParams{BodyMD: body, Language: lang, Sources: cites})
 	}
 	if len(statements) == 0 {
 		editErr("At least one statement is required")
@@ -1716,6 +1750,8 @@ func (s *srv) formError(w http.ResponseWriter, r *http.Request, msg string) {
 		"SelectedCitySlug": r.FormValue("jurisdiction_select"),
 		"SelectedTopicKey": r.FormValue("topic_key"),
 		"SelectedPageKind": r.FormValue("page_kind"),
+		"Languages":        languageOptions(),
+		"SelectedLanguage": r.FormValue("language"),
 		"NewCityName":      r.FormValue("new_city_name"),
 		"NewStateName":     r.FormValue("new_state_name"),
 		"Title":            r.FormValue("title"),

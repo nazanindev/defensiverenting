@@ -161,7 +161,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	if err := checkTopicLayout(in.TopicSlug, pageKind); err != nil {
 		return SaveDraftOutput{}, err
 	}
-	lang, err := resolveLanguage(in.Language)
+	lang, err := ResolveLanguage(in.Language)
 	if err != nil {
 		return SaveDraftOutput{}, err
 	}
@@ -353,7 +353,7 @@ func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTop
 		}
 		return ListTopicsOutput{}, err
 	}
-	lang, err := resolveLanguage(in.Language)
+	lang, err := ResolveLanguage(in.Language)
 	if err != nil {
 		return ListTopicsOutput{}, err
 	}
@@ -404,7 +404,7 @@ type CitationOut struct {
 }
 
 func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPlaybookOutput, error) {
-	lang, err := resolveLanguage(in.Language)
+	lang, err := ResolveLanguage(in.Language)
 	if err != nil {
 		return GetPlaybookOutput{}, err
 	}
