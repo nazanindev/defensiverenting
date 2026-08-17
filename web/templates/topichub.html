@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{.Language}}">
 <head>
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{.Topic.Name}} · Tenant Rights by City · RenterLaw</title>
   <meta name="description" content="{{.Topic.Name}}: free, step-by-step tenant rights guides for every city we cover. Every claim cites the law it comes from." />
-  <link rel="canonical" href="{{absURL (printf "/t/%s" .Topic.Slug)}}"/>
+  <link rel="canonical" href="{{absURL (printf "%s/t/%s" (langPrefix .Language) .Topic.Slug)}}"/>
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="RenterLaw" />
-  <meta property="og:url" content="{{absURL (printf "/t/%s" .Topic.Slug)}}" />
+  <meta property="og:url" content="{{absURL (printf "%s/t/%s" (langPrefix .Language) .Topic.Slug)}}" />
   <meta property="og:title" content="{{.Topic.Name}} · Tenant Rights by City · RenterLaw" />
   <meta property="og:description" content="{{.Topic.Name}}: free, step-by-step tenant rights guides for every city we cover. Every claim cites the law it comes from." />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
@@ -54,11 +54,11 @@
         {{range .Groups}}
         <section class="state-group">
           <h3 class="state-name">
-            {{if .Path}}<a href="{{.Path}}">{{.Name}}</a>{{else}}Other{{end}}
+            {{if .Path}}<a href="{{.PathIn $.Language}}">{{.Name}}</a>{{else}}Other{{end}}
           </h3>
           <ul class="city-list">
             {{range .Cities}}
-            <li><a href="{{.TopicPath $topic.Slug}}">{{.Name}}</a></li>
+            <li><a href="{{.TopicPathIn $.Language $topic.Slug}}">{{.Name}}</a></li>
             {{end}}
           </ul>
         </section>
@@ -73,7 +73,7 @@
       {{$topic := .Topic}}
       <ul class="city-list city-list--wide">
         {{range .Statewide}}
-        <li><a href="{{.TopicPath $topic.Slug}}">{{.Name}}</a></li>
+        <li><a href="{{.TopicPathIn $.Language $topic.Slug}}">{{.Name}}</a></li>
         {{end}}
       </ul>
     </section>

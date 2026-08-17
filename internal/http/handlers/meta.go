@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 )
 
 // Robots serves /robots.txt.
@@ -39,11 +40,6 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		topics, err := db.ListPublishedTopics(r.Context(), "en")
-		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
 
 		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 		fmt.Fprintf(w, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
@@ -59,8 +55,19 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>yearly</changefreq></url>\n", siteURL, p)
 		}
 
-		for _, t := range topics {
-			fmt.Fprintf(w, "  <url><loc>%s/t/%s</loc><changefreq>weekly</changefreq></url>\n", siteURL, t.Slug)
+		// Topic hubs (ADR-007 D7): one entry per language that has at least
+		// one published playbook for the topic, e.g. /t/{slug} and
+		// /es/t/{slug} independently.
+		for _, lang := range voice.Supported() {
+			topics, terr := db.ListPublishedTopics(r.Context(), lang)
+			if terr != nil {
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			for _, t := range topics {
+				fmt.Fprintf(w, "  <url><loc>%s%s/t/%s</loc><changefreq>weekly</changefreq></url>\n",
+					siteURL, store.LangPrefix(lang), t.Slug)
+			}
 		}
 
 		for _, j := range jurisdictions {

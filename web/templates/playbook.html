@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{.Playbook.Language}}">
 <head>
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
@@ -7,6 +7,12 @@
   <title>{{.Playbook.Title}} · RenterLaw</title>
   <meta name="description" content="{{.Description}}" />
   <link rel="canonical" href="{{.Canonical}}"/>
+  {{/* Language alternates (ADR-007 D6): only rendered when the other version
+       actually exists, and x-default is always set (falls back to Canonical
+       when there's no English version to prefer). */}}
+  <link rel="alternate" hreflang="{{.Playbook.Language}}" href="{{.Canonical}}"/>
+  {{if .OtherLangPath}}<link rel="alternate" hreflang="{{.OtherLangCode}}" href="{{absURL .OtherLangPath}}"/>{{end}}
+  <link rel="alternate" hreflang="x-default" href="{{.XDefaultPath}}"/>
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="RenterLaw" />
   <meta property="og:url" content="{{.Canonical}}" />
@@ -46,14 +52,15 @@
       <aside class="sidebar" aria-label="Site navigation">
         <nav class="sidebar-card">
           <span class="sidebar-label">{{.Jurisdiction.Name}} · {{.Topic.Name}}</span>
-          <a class="sidebar-back" href="{{.Jurisdiction.Path}}">← All topics</a>
+          <a class="sidebar-back" href="{{.Jurisdiction.PathIn .Playbook.Language}}">← All topics</a>
+          {{if .OtherLangPath}}<a class="sidebar-lang" href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a>{{end}}
         </nav>
       </aside>
 
       <div class="page-content">
         <nav class="breadcrumb" aria-label="breadcrumb">
           <a href="/">Home</a> <span aria-hidden="true">›</span>
-          <a href="{{.Jurisdiction.Path}}">{{.Jurisdiction.Name}}</a> <span aria-hidden="true">›</span>
+          <a href="{{.Jurisdiction.PathIn .Playbook.Language}}">{{.Jurisdiction.Name}}</a> <span aria-hidden="true">›</span>
           <span aria-current="page">{{.Topic.Name}}</span>
         </nav>
 
@@ -179,7 +186,7 @@
 
           <p class="report-link">
             Is something on this page wrong or out of date?
-            <a href="/report?url={{.Jurisdiction.TopicPath .Topic.Slug}}">Tell us</a>.
+            <a href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">Tell us</a>.
           </p>
         </main>
 
@@ -190,7 +197,7 @@
             {{$j := .Jurisdiction}}
             {{range .SiblingTopics}}
             <li>
-              <a href="{{$j.TopicPath .Slug}}">
+              <a href="{{$j.TopicPathIn $.Playbook.Language .Slug}}">
                 <span class="situation-name">{{.Name}}</span>
                 <span class="situation-arrow" aria-hidden="true">→</span>
               </a>
@@ -206,10 +213,10 @@
           <ul class="city-list city-list--wide">
             {{$t := .Topic}}
             {{range .OtherCities}}
-            <li><a href="{{.TopicPath $t.Slug}}">{{.Name}}</a></li>
+            <li><a href="{{.TopicPathIn $.Playbook.Language $t.Slug}}">{{.Name}}</a></li>
             {{end}}
           </ul>
-          <p class="related-more"><a href="/t/{{.Topic.Slug}}">All cities for this topic →</a></p>
+          <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">All cities for this topic →</a></p>
         </section>
         {{end}}
       </div>

@@ -52,6 +52,7 @@ func funcMap() template.FuncMap {
 			return baseURL + path
 		},
 		"groupByOrg": groupByOrg,
+		"langPrefix": store.LangPrefix,
 	}
 }
 
@@ -111,6 +112,17 @@ func (g StateGroup) Path() string {
 		return ""
 	}
 	return "/j/" + g.Slug
+}
+
+// PathIn is Path() prefixed for lang, for a bilingual page (e.g. topichub.html)
+// linking a state heading. Templates still check plain Path() for truthiness —
+// it and PathIn are empty under exactly the same condition — so the "Other"
+// fallback for a parentless city is unaffected by which one builds the href.
+func (g StateGroup) PathIn(lang string) string {
+	if g.Slug == "" {
+		return ""
+	}
+	return store.LangPrefix(lang) + "/j/" + g.Slug
 }
 
 // GroupByState buckets cities under their parent state, preserving the order
@@ -187,6 +199,10 @@ type TopicHubPage struct {
 	Groups    []StateGroup
 	Statewide []store.Jurisdiction
 	CityCount int
+	// Language is the language this hub's cities/statewide guides are
+	// filtered to (see ADR-007 D5) — "en" or "es". Drives <html lang> and the
+	// language-prefixed links this page renders.
+	Language string
 }
 
 // AuthorPage is a reviewer bio page.
@@ -201,6 +217,11 @@ type JurisdictionPage struct {
 	Jurisdiction store.Jurisdiction
 	Topics       []store.Topic
 	Cities       []store.Jurisdiction
+	// Language is the language Topics is filtered to (see ADR-007 D5) — "en"
+	// or "es". Drives <html lang> and the language-prefixed links this page
+	// renders. Cities is not language-scoped: a jurisdiction hub lists its
+	// child cities regardless of what language they have content in yet.
+	Language string
 }
 
 // PlaybookPage is a single topic playbook with cited statements.
@@ -223,6 +244,17 @@ type PlaybookPage struct {
 	// they read the law, not after.
 	LocalHelpPath string
 	LocalHelpName string // the topic's display name, e.g. "Local Help"
+
+	// Language-alternate fields (ADR-007 D6). All empty unless a translation
+	// of this exact page actually exists, so a toggle link or hreflang tag is
+	// never rendered pointing at a URL that would 404 — see ResolveLanguage
+	// and voice.Supported for the languages this project trusts at all.
+	OtherLangPath  string // relative path to the other language's version, or ""
+	OtherLangCode  string // e.g. "es"; "" iff OtherLangPath is ""
+	OtherLangLabel string // toggle-link text, written IN the other language
+	// XDefaultPath is the absolute URL for hreflang="x-default": the English
+	// version when one exists, this page's own Canonical otherwise. Always set.
+	XDefaultPath string
 }
 
 // LocalHelpTopic is the slug of the topic whose pages list local organisations

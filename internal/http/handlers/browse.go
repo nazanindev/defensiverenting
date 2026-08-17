@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/nazanindev/defensiverenting/internal/content"
 	"github.com/nazanindev/defensiverenting/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 	tmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
@@ -49,29 +50,42 @@ const (
 // the handler can read the parent off the jurisdiction row, so moving 19 live
 // URLs under their states needed no migration data at all — only the topic
 // renames do.
+//
+// Language (ADR-007 D1/D2): every /j/* and /t/* pattern above is registered
+// once per voice.Supported() language, bare for English and under a literal
+// "/es" (etc.) prefix otherwise — not a {lang} wildcard, so a typo'd or
+// unsupported code 404s instead of silently resolving. Everything else
+// (/, /search, /locations, the static pages) stays English-only: ADR-007 D2
+// explains why that is the right scope, not a shortcut.
 func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 	r.Get("/", index(db, logger))
-	r.Get("/j/{a}", oneSegment(db, logger))
-	r.Get("/j/{a}/{b}", twoSegment(db, logger))
-	r.Get("/j/{a}/{b}/{c}", cityPlaybook(db, logger))
-	r.Get("/t/{topic}", topicHub(db, logger))
 	r.Get("/locations", locations(db, logger))
 	r.Get(ReviewerPath, author)
+
+	for _, lang := range voice.Supported() {
+		prefix := store.LangPrefix(lang)
+		r.Get(prefix+"/j/{a}", oneSegment(db, logger, lang))
+		r.Get(prefix+"/j/{a}/{b}", twoSegment(db, logger, lang))
+		r.Get(prefix+"/j/{a}/{b}/{c}", cityPlaybook(db, logger, lang))
+		r.Get(prefix+"/t/{topic}", topicHub(db, logger, lang))
+	}
 }
 
-// oneSegment serves /j/{a}: a state or country hub. A city here is a flat URL
-// from before the hierarchy and redirects to its full address.
-func oneSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
+// oneSegment serves /j/{a} (or /es/j/{a}, ...): a state or country hub. A city
+// here is a flat URL from before the hierarchy and redirects to its full
+// address, in the same language.
+func oneSegment(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := chi.URLParam(r, "a")
 		j, err := db.GetJurisdictionBySlug(r.Context(), slug)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				if moved, aerr := db.ResolveJurisdictionAlias(r.Context(), slug); aerr == nil {
-					// Not an open redirect: the destination is built by Path()
-					// from a slug the database returned. The request supplies
-					// only the lookup key, never the target.
-					http.Redirect(w, r, moved.Path(), http.StatusMovedPermanently) // #nosec G710
+					// Not an open redirect: the destination is built by PathIn()
+					// from a slug the database returned and the language this
+					// route was registered under. The request supplies only the
+					// lookup key, never the target.
+					http.Redirect(w, r, moved.PathIn(lang), http.StatusMovedPermanently) // #nosec G710
 					return
 				}
 				http.NotFound(w, r)
@@ -83,16 +97,17 @@ func oneSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		}
 		if j.Kind == "city" && j.ParentSlug != "" {
 			// Not an open redirect: j came from the database.
-			http.Redirect(w, r, j.Path(), http.StatusMovedPermanently) // #nosec G710
+			http.Redirect(w, r, j.PathIn(lang), http.StatusMovedPermanently) // #nosec G710
 			return
 		}
-		renderJurisdiction(w, r, db, logger, j)
+		renderJurisdiction(w, r, db, logger, j, lang)
 	}
 }
 
-// twoSegment serves /j/{a}/{b}, which is either a state playbook or a city hub,
-// or the flat pre-hierarchy form of a city playbook.
-func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
+// twoSegment serves /j/{a}/{b} (or /es/j/{a}/{b}, ...), which is either a
+// state playbook or a city hub, or the flat pre-hierarchy form of a city
+// playbook.
+func twoSegment(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		a, b := chi.URLParam(r, "a"), chi.URLParam(r, "b")
 
@@ -107,7 +122,7 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 				// Not an open redirect: both halves of the target are
 				// database-resolved, moved from the alias table and the topic
 				// from canonicalTopic.
-				http.Redirect(w, r, moved.TopicPath(canonicalTopic(r.Context(), db, b)), http.StatusMovedPermanently) // #nosec G710
+				http.Redirect(w, r, moved.TopicPathIn(lang, canonicalTopic(r.Context(), db, b)), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
@@ -117,7 +132,7 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		// /j/{city}/{topic}: the flat form. Redirect to the full address,
 		// canonicalising the topic on the way so one hop is always enough.
 		if parent.Kind == "city" {
-			if target := parent.TopicPath(canonicalTopic(r.Context(), db, b)); target != r.URL.Path {
+			if target := parent.TopicPathIn(lang, canonicalTopic(r.Context(), db, b)); target != r.URL.Path {
 				// Not an open redirect: parent and the canonical topic are both
 				// database-resolved.
 				http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710
@@ -125,7 +140,7 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			}
 			// Already canonical. A city with no parent addresses itself flatly,
 			// so redirecting would send this URL to itself forever.
-			servePlaybook(w, r, db, logger, parent, b)
+			servePlaybook(w, r, db, logger, parent, b, lang)
 			return
 		}
 
@@ -134,20 +149,20 @@ func twoSegment(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			if child.ParentSlug != parent.Slug {
 				// Right city, wrong state in the URL. Not an open redirect:
 				// child came from the database.
-				http.Redirect(w, r, child.Path(), http.StatusMovedPermanently) // #nosec G710
+				http.Redirect(w, r, child.PathIn(lang), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
-			renderJurisdiction(w, r, db, logger, child)
+			renderJurisdiction(w, r, db, logger, child, lang)
 			return
 		}
 
 		// /j/{state}/{topic}: a state playbook.
-		servePlaybook(w, r, db, logger, parent, b)
+		servePlaybook(w, r, db, logger, parent, b, lang)
 	}
 }
 
-// cityPlaybook serves /j/{state}/{city}/{topic}.
-func cityPlaybook(db browseStore, logger *slog.Logger) http.HandlerFunc {
+// cityPlaybook serves /j/{state}/{city}/{topic} (or /es/j/{state}/{city}/{topic}, ...).
+func cityPlaybook(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		stateSlug, citySlug, topicSlug := chi.URLParam(r, "a"), chi.URLParam(r, "b"), chi.URLParam(r, "c")
 
@@ -161,14 +176,14 @@ func cityPlaybook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			if moved, aerr := db.ResolveJurisdictionAlias(r.Context(), citySlug); aerr == nil {
 				// Not an open redirect: alias target and canonical topic both
 				// come from the database.
-				http.Redirect(w, r, moved.TopicPath(canonicalTopic(r.Context(), db, topicSlug)), http.StatusMovedPermanently) // #nosec G710
+				http.Redirect(w, r, moved.TopicPathIn(lang, canonicalTopic(r.Context(), db, topicSlug)), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
 			return
 		}
 		if city.ParentSlug != stateSlug {
-			if target := city.TopicPath(canonicalTopic(r.Context(), db, topicSlug)); target != r.URL.Path {
+			if target := city.TopicPathIn(lang, canonicalTopic(r.Context(), db, topicSlug)); target != r.URL.Path {
 				// Not an open redirect: city and the canonical topic are both
 				// database-resolved.
 				http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710
@@ -177,7 +192,7 @@ func cityPlaybook(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		servePlaybook(w, r, db, logger, city, topicSlug)
+		servePlaybook(w, r, db, logger, city, topicSlug, lang)
 	}
 }
 
@@ -236,9 +251,9 @@ func locations(db browseStore, logger *slog.Logger) http.HandlerFunc {
 	}
 }
 
-// renderJurisdiction renders a hub page for a state, country, or city.
-func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, logger *slog.Logger, j store.Jurisdiction) {
-	topics, err := db.ListTopicsByJurisdiction(r.Context(), j.ID, "en")
+// renderJurisdiction renders a hub page for a state, country, or city, in lang.
+func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, logger *slog.Logger, j store.Jurisdiction, lang string) {
+	topics, err := db.ListTopicsByJurisdiction(r.Context(), j.ID, lang)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "list topics", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -249,6 +264,10 @@ func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, 
 	// middle of the URL tree was unreachable: /j/massachusetts rendered "no
 	// playbooks yet" while Boston sat directly under it. Best-effort, since a
 	// missing city list should degrade the page rather than 500 it.
+	//
+	// Not language-scoped: a jurisdiction hub lists its child cities
+	// regardless of what language they have content in yet, same as it always
+	// listed them regardless of whether they had ANY playbook at all.
 	var cities []store.Jurisdiction
 	if j.Kind != "city" {
 		if children, cerr := db.ListPublishedChildCities(r.Context(), j.ID); cerr == nil {
@@ -258,19 +277,21 @@ func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, 
 		}
 	}
 
-	render(w, r, http.StatusOK, tmpl.JurisdictionPage{Jurisdiction: j, Topics: topics, Cities: cities})
+	render(w, r, http.StatusOK, tmpl.JurisdictionPage{Jurisdiction: j, Topics: topics, Cities: cities, Language: lang})
 }
 
-// servePlaybook renders one playbook for an already-resolved jurisdiction, or
-// redirects when the topic slug was renamed.
-func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logger *slog.Logger, j store.Jurisdiction, topicSlug string) {
-	pb, err := db.GetPlaybook(r.Context(), j.Slug, topicSlug, "en")
+// servePlaybook renders one playbook for an already-resolved jurisdiction in
+// lang, or redirects when the topic slug was renamed. A translation that does
+// not exist yet 404s here rather than falling back to another language — see
+// ADR-007 D3.
+func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logger *slog.Logger, j store.Jurisdiction, topicSlug, lang string) {
+	pb, err := db.GetPlaybook(r.Context(), j.Slug, topicSlug, lang)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			if moved, aerr := db.ResolveTopicAlias(r.Context(), topicSlug); aerr == nil {
 				// Not an open redirect: j is the resolved jurisdiction and
 				// moved.Slug comes from the topic alias table.
-				http.Redirect(w, r, j.TopicPath(moved.Slug), http.StatusMovedPermanently) // #nosec G710
+				http.Redirect(w, r, j.TopicPathIn(lang, moved.Slug), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
 			http.NotFound(w, r)
@@ -283,9 +304,11 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 
 	page := BuildPlaybookPage(r.Context(), pb, logger)
 
-	// Cross-links: other topics in this jurisdiction, and this topic elsewhere.
+	// Cross-links: other topics in this jurisdiction, and this topic elsewhere
+	// — both scoped to this playbook's own language (ADR-007 D5), so every
+	// link built from them is guaranteed to resolve rather than 404.
 	// Best-effort; a failure degrades the page rather than 500ing it.
-	if topics, terr := db.ListTopicsByJurisdiction(r.Context(), pb.Jurisdiction.ID, "en"); terr == nil {
+	if topics, terr := db.ListTopicsByJurisdiction(r.Context(), pb.Jurisdiction.ID, pb.Playbook.Language); terr == nil {
 		for _, t := range topics {
 			if t.ID != pb.Topic.ID {
 				page.SiblingTopics = append(page.SiblingTopics, t)
@@ -296,7 +319,7 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 				// drawn from the same already-loaded list, so it costs no query
 				// and cannot point at a page that is not published.
 				if t.Slug == tmpl.LocalHelpTopic {
-					page.LocalHelpPath = pb.Jurisdiction.TopicPath(t.Slug)
+					page.LocalHelpPath = pb.Jurisdiction.TopicPathIn(pb.Playbook.Language, t.Slug)
 					page.LocalHelpName = t.Name
 				}
 			}
@@ -304,7 +327,7 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 	} else {
 		logger.ErrorContext(r.Context(), "list sibling topics", slog.Any("err", terr))
 	}
-	if cities, cerr := db.ListJurisdictionsByTopic(r.Context(), pb.Topic.ID, "en"); cerr == nil {
+	if cities, cerr := db.ListJurisdictionsByTopic(r.Context(), pb.Topic.ID, pb.Playbook.Language); cerr == nil {
 		for _, c := range cities {
 			if c.ID != pb.Jurisdiction.ID {
 				page.OtherCities = append(page.OtherCities, c)
@@ -314,10 +337,62 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		logger.ErrorContext(r.Context(), "list other cities", slog.Any("err", cerr))
 	}
 
+	// Language alternate: does this exact page exist in the other language?
+	// (ADR-007 D6). Best-effort and silent on any error, same as the
+	// cross-links above — a reader still gets the page either way.
+	if other := otherLanguage(pb.Playbook.Language); other != "" {
+		if op, oerr := db.GetPlaybook(r.Context(), j.Slug, topicSlug, other); oerr == nil {
+			page.OtherLangPath = pb.Jurisdiction.TopicPathIn(other, op.Topic.Slug)
+			page.OtherLangCode = other
+			page.OtherLangLabel = otherLangLabel(other)
+		}
+	}
+	switch {
+	case pb.Playbook.Language == "en":
+		page.XDefaultPath = page.Canonical
+	case page.OtherLangPath != "":
+		page.XDefaultPath = tmpl.BaseURL() + page.OtherLangPath
+	default:
+		page.XDefaultPath = page.Canonical
+	}
+
 	render(w, r, http.StatusOK, page)
 }
 
-func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
+// otherLanguage returns lang's counterpart for the language-toggle link,
+// assuming exactly two supported languages (voice.Supported() is "en","es"
+// today). Revisit this pairing if a third language is ever added.
+func otherLanguage(lang string) string {
+	switch lang {
+	case "en":
+		return "es"
+	case "es":
+		return "en"
+	default:
+		return ""
+	}
+}
+
+// otherLangLabel is the toggle-link text, written IN the target language —
+// the standard convention for language switchers, so a reader recognizes
+// their own language rather than reading a sentence in the one they're
+// trying to leave.
+func otherLangLabel(lang string) string {
+	switch lang {
+	case "es":
+		return "Ver esta página en español"
+	case "en":
+		return "Read this page in English"
+	default:
+		return "View in " + voice.Label(lang)
+	}
+}
+
+// topicHub serves /t/{topic} (or /es/t/{topic}, ...): every place with a
+// published playbook for this topic in lang. Like servePlaybook, a language
+// with zero cities is not a public page (ADR-007 D3) — falls out of the
+// existing len(cities)==0 check once cities is scoped to lang.
+func topicHub(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := chi.URLParam(r, "topic")
 		t, err := db.GetTopicBySlug(r.Context(), slug)
@@ -326,7 +401,7 @@ func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
 				// The 2026-08-01 topic cleanup retired slugs like
 				// pittsburgh-discrimination; those URLs land here.
 				if moved, aerr := db.ResolveTopicAlias(r.Context(), slug); aerr == nil {
-					http.Redirect(w, r, "/t/"+moved.Slug, http.StatusMovedPermanently)
+					http.Redirect(w, r, store.LangPrefix(lang)+"/t/"+moved.Slug, http.StatusMovedPermanently)
 					return
 				}
 				http.NotFound(w, r)
@@ -336,14 +411,15 @@ func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		cities, err := db.ListJurisdictionsByTopic(r.Context(), t.ID, "en")
+		cities, err := db.ListJurisdictionsByTopic(r.Context(), t.ID, lang)
 		if err != nil {
 			logger.ErrorContext(r.Context(), "list cities for topic", slog.Any("err", err))
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 		if len(cities) == 0 {
-			// A topic with no published playbooks is not a public page.
+			// A topic with no published playbooks in this language is not a
+			// public page.
 			http.NotFound(w, r)
 			return
 		}
@@ -358,7 +434,7 @@ func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			if city, jerr := db.GetJurisdictionBySlug(r.Context(), jSlug); jerr == nil {
 				for _, c := range cities {
 					if c.ID == city.ID {
-						http.Redirect(w, r, c.TopicPath(t.Slug), http.StatusFound)
+						http.Redirect(w, r, c.TopicPathIn(lang, t.Slug), http.StatusFound)
 						return
 					}
 				}
@@ -382,6 +458,7 @@ func topicHub(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			Groups:    tmpl.GroupByState(inCities),
 			Statewide: statewide,
 			CityCount: len(inCities),
+			Language:  lang,
 		})
 	}
 }
@@ -428,7 +505,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 		})
 	}
 
-	canonical := tmpl.BaseURL() + pb.Jurisdiction.TopicPath(pb.Topic.Slug)
+	canonical := tmpl.BaseURL() + pb.Jurisdiction.TopicPathIn(pb.Playbook.Language, pb.Topic.Slug)
 
 	var reviewedOn string
 	switch {
@@ -517,7 +594,7 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		Type: "BreadcrumbList",
 		Items: []breadcrumbItem{
 			{Type: "ListItem", Position: 1, Name: "Home", Item: tmpl.BaseURL() + "/"},
-			{Type: "ListItem", Position: 2, Name: pb.Jurisdiction.Name, Item: tmpl.BaseURL() + pb.Jurisdiction.Path()},
+			{Type: "ListItem", Position: 2, Name: pb.Jurisdiction.Name, Item: tmpl.BaseURL() + pb.Jurisdiction.PathIn(pb.Playbook.Language)},
 			{Type: "ListItem", Position: 3, Name: pb.Topic.Name},
 		},
 	}

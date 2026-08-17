@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{.Language}}">
 <head>
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{.Jurisdiction.Name}} Tenant Rights Guide · RenterLaw</title>
   <meta name="description" content="Free tenant rights guides for {{.Jurisdiction.Name}}. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
-  <link rel="canonical" href="{{absURL .Jurisdiction.Path}}"/>
+  <link rel="canonical" href="{{absURL (.Jurisdiction.PathIn .Language)}}"/>
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="RenterLaw" />
-  <meta property="og:url" content="{{absURL .Jurisdiction.Path}}" />
+  <meta property="og:url" content="{{absURL (.Jurisdiction.PathIn .Language)}}" />
   <meta property="og:title" content="{{.Jurisdiction.Name}} Tenant Rights Guide · RenterLaw" />
   <meta property="og:description" content="Free tenant rights guides for {{.Jurisdiction.Name}}. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
@@ -38,7 +38,7 @@
     <div class="halo" aria-hidden="true"></div>
     <nav class="breadcrumb" aria-label="breadcrumb">
       <a href="/">Home</a> <span aria-hidden="true">›</span>
-      {{if .Jurisdiction.ParentSlug}}<a href="/j/{{.Jurisdiction.ParentSlug}}">{{.Jurisdiction.ParentName}}</a> <span aria-hidden="true">›</span> {{end}}
+      {{if .Jurisdiction.ParentSlug}}<a href="{{langPrefix .Language}}/j/{{.Jurisdiction.ParentSlug}}">{{.Jurisdiction.ParentName}}</a> <span aria-hidden="true">›</span> {{end}}
       <span aria-current="page">{{.Jurisdiction.Name}}</span>
     </nav>
 
@@ -61,7 +61,7 @@
       <ul class="situation-list">
         {{range .Topics}}
         <li>
-          <a href="{{$.Jurisdiction.TopicPath .Slug}}">
+          <a href="{{$.Jurisdiction.TopicPathIn $.Language .Slug}}">
             <span class="situation-name">{{.Name}}</span>
             <span class="situation-arrow" aria-hidden="true">→</span>
           </a>
@@ -76,7 +76,7 @@
       <h2 id="cities-heading" class="section-title">Cities in {{.Jurisdiction.Name}}</h2>
       <ul class="city-list city-list--wide">
         {{range .Cities}}
-        <li><a href="{{.Path}}">{{.Name}}</a></li>
+        <li><a href="{{.PathIn $.Language}}">{{.Name}}</a></li>
         {{end}}
       </ul>
       <p class="empty-state-hint">Local ordinances stack on top of {{.Jurisdiction.Name}} law, so start with your city where we cover it.</p>

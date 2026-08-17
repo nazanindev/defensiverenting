@@ -453,17 +453,18 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 
 // ---- SEO -------------------------------------------------------------------
 
-// ListSitemapURLs returns jurisdiction/topic slug pairs for all English playbooks.
+// ListSitemapURLs returns jurisdiction/topic/language rows for every
+// published playbook, in whichever language(s) it exists — see ADR-007 D7.
 func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT j.slug, COALESCE(pj.slug, ''), j.kind, t.slug,
+		SELECT j.slug, COALESCE(pj.slug, ''), j.kind, t.slug, pb.language,
 		       COALESCE(pb.last_reviewed_at, pb.published_at, pb.updated_at)
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		JOIN topics        t ON t.id  = pb.topic_id
-		WHERE pb.language = 'en' AND pb.status = 'published'
-		ORDER BY j.slug, t.slug`)
+		WHERE pb.status = 'published'
+		ORDER BY j.slug, t.slug, pb.language`)
 	if err != nil {
 		return nil, err
 	}
@@ -472,7 +473,7 @@ func (pg *PG) ListSitemapURLs(ctx context.Context) ([]SitemapEntry, error) {
 	for rows.Next() {
 		var e SitemapEntry
 		if err := rows.Scan(&e.JurisdictionSlug, &e.JurisdictionParentSlug,
-			&e.JurisdictionKind, &e.TopicSlug, &e.LastMod); err != nil {
+			&e.JurisdictionKind, &e.TopicSlug, &e.Language, &e.LastMod); err != nil {
 			return nil, err
 		}
 		entries = append(entries, e)

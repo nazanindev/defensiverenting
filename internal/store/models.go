@@ -41,6 +41,29 @@ func (j Jurisdiction) TopicPath(topicSlug string) string {
 	return j.Path() + "/" + topicSlug
 }
 
+// LangPrefix returns the URL path prefix for lang: "" for English (the
+// unprefixed default, matching drafting.ResolveLanguage and voice.Supported's
+// treatment of "en" as the base case everywhere else), "/es" for Spanish.
+// See docs/ADRs/ADR-007. Every URL for language-scoped content is built by
+// prepending this to Path()/TopicPath() — via PathIn/TopicPathIn below —
+// rather than each call site concatenating it by hand.
+func LangPrefix(lang string) string {
+	if lang == "" || lang == "en" {
+		return ""
+	}
+	return "/" + lang
+}
+
+// PathIn is Path() prefixed for lang: the canonical URL for this
+// jurisdiction's hub page in a specific language.
+func (j Jurisdiction) PathIn(lang string) string { return LangPrefix(lang) + j.Path() }
+
+// TopicPathIn is TopicPath() prefixed for lang: the canonical URL for one
+// topic within this jurisdiction, in a specific language.
+func (j Jurisdiction) TopicPathIn(lang, topicSlug string) string {
+	return LangPrefix(lang) + j.TopicPath(topicSlug)
+}
+
 type Source struct {
 	ID             int64
 	URL            string
@@ -167,14 +190,15 @@ type SitemapEntry struct {
 	JurisdictionParentSlug string
 	JurisdictionKind       string
 	TopicSlug              string
+	Language               string
 	LastMod                *time.Time
 }
 
 // Path is the URL to emit for this entry. The sitemap must agree with the
-// canonical tag on the page, so both are built from Jurisdiction.TopicPath.
+// canonical tag on the page, so both are built from Jurisdiction.TopicPathIn.
 func (e SitemapEntry) Path() string {
 	j := Jurisdiction{Kind: e.JurisdictionKind, Slug: e.JurisdictionSlug, ParentSlug: e.JurisdictionParentSlug}
-	return j.TopicPath(e.TopicSlug)
+	return j.TopicPathIn(e.Language, e.TopicSlug)
 }
 
 // SourceCandidate is a proposed source awaiting author triage in the discovery

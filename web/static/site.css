@@ -314,6 +314,19 @@ h1 {
 
 .sidebar-back:hover { text-decoration: underline; }
 
+/* Language-toggle link (ADR-007 D6): only rendered when a translation of the
+   current page actually exists, so it deliberately reads as secondary to
+   "All topics" rather than a peer nav item. */
+.sidebar-lang {
+  display: block;
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: .85rem;
+  margin-top: 10px;
+}
+
+.sidebar-lang:hover { text-decoration: underline; color: var(--accent); }
+
 /* ── Disclaimer box ─────────────────────────────────────── */
 
 .disclaimer-box {

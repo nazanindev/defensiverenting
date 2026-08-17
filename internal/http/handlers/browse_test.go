@@ -23,6 +23,14 @@ type stubStore struct {
 	// retired slug -> live slug, for the alias-driven 301s
 	jurisdictionAliases map[string]string
 	topicAliases        map[string]string
+
+	// otherLangPlaybooks, when non-nil, makes GetPlaybook answer per the
+	// requested language (keyed by language code; a miss is store.ErrNotFound)
+	// instead of the single playbook/playbookErr every other test in this
+	// package relies on regardless of what language is asked. Nil (the zero
+	// value) is the pre-existing behavior — only set this in a test that
+	// specifically probes language-toggle/hreflang logic.
+	otherLangPlaybooks map[string]store.PlaybookWithStatements
 }
 
 func (s *stubStore) ResolveJurisdictionAlias(_ context.Context, alias string) (store.Jurisdiction, error) {
@@ -78,7 +86,14 @@ func (s *stubStore) ListTopicsByJurisdiction(_ context.Context, _ int64, _ strin
 	return s.topics, nil
 }
 
-func (s *stubStore) GetPlaybook(_ context.Context, _, _, _ string) (store.PlaybookWithStatements, error) {
+func (s *stubStore) GetPlaybook(_ context.Context, _, _, lang string) (store.PlaybookWithStatements, error) {
+	if s.otherLangPlaybooks != nil {
+		pb, ok := s.otherLangPlaybooks[lang]
+		if !ok {
+			return store.PlaybookWithStatements{}, store.ErrNotFound
+		}
+		return pb, nil
+	}
 	return s.playbook, s.playbookErr
 }
 
