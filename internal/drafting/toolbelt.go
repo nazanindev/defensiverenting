@@ -33,7 +33,8 @@ type Toolbelt struct {
 	cache       *fetchCache
 	fetch       func(url string) (fetched, error) // overridable in tests
 	extract     textExtractor
-	archiveBase string // Internet Archive fallback prefix, overridable in tests
+	archiveBase string                           // Internet Archive fallback prefix, overridable in tests
+	render      func(url string) (string, error) // headless-render fallback, overridable in tests; nil skips the tier
 }
 
 // fetched is the result of reading a source: its extracted text, and how it
@@ -48,6 +49,7 @@ type fetched struct {
 func New(db store.Store) *Toolbelt {
 	tb := &Toolbelt{db: db, cache: newFetchCache(), extract: htmlStripper{}, archiveBase: defaultArchiveBase}
 	tb.fetch = tb.httpFetch
+	tb.render = tb.chromeRender
 	return tb
 }
 
@@ -107,22 +109,30 @@ const (
 	minUsableChars = 2000
 )
 
-// httpFetch reads a source: direct fetch first, then the newest Internet
-// Archive snapshot of the same URL when the direct fetch fails or returns a
-// page too thin to quote from (JS-only shells, Cloudflare blocks). The
-// citation still points at the original URL; Via records the fallback so the
-// agent and the human reviewer can see how the text was obtained.
+// httpFetch reads a source in three tiers: a direct static fetch; if that
+// fails or returns a page too thin to quote from (JS-only shells, Cloudflare
+// blocks), a headless-Chrome render of the same live URL; and if that also
+// fails or is unavailable (no local Chrome), the newest Internet Archive
+// snapshot. The render tier is tried before the archive because it reflects
+// current law, where a snapshot may be stale. The citation always points at
+// the original URL; Via records which tier supplied the text so the agent
+// and the human reviewer can see how it was obtained.
 func (tb *Toolbelt) httpFetch(url string) (fetched, error) {
 	text, err := tb.fetchDirect(url)
 	if err == nil && !tooThin(text) {
 		return fetched{Text: text}, nil
+	}
+	if tb.render != nil {
+		if rtext, rerr := tb.render(url); rerr == nil && !tooThin(rtext) {
+			return fetched{Text: rtext, Via: "headless render"}, nil
+		}
 	}
 	atext, aerr := tb.fetchDirect(tb.archiveBase + url)
 	if aerr == nil && !tooThin(atext) {
 		return fetched{Text: atext, Via: "web.archive.org snapshot"}, nil
 	}
 	if err == nil {
-		return fetched{Text: text}, nil // direct was thin, but the archive was no better
+		return fetched{Text: text}, nil // direct was thin, but neither fallback was better
 	}
 	return fetched{}, err
 }

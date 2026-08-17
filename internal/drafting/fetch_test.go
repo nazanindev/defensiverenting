@@ -1,6 +1,7 @@
 package drafting
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +60,73 @@ func TestHTTPFetch_archiveFallbackOnBlock(t *testing.T) {
 				t.Errorf("Via = %q, want snapshot marker", got.Via)
 			}
 		})
+	}
+}
+
+func TestHTTPFetch_renderFallbackOnThinPage(t *testing.T) {
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html><body><div id="app"></div><script>boot()</script></body></html>`))
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{
+		extract:     htmlStripper{},
+		archiveBase: "http://127.0.0.1:1/", // unreachable: the render tier should satisfy this before archive is tried
+		render: func(url string) (string, error) {
+			return "RENDERED " + strings.Repeat("statute text ", 300), nil
+		},
+	}
+	got, err := tb.httpFetch(direct.URL)
+	if err != nil {
+		t.Fatalf("httpFetch: %v", err)
+	}
+	if !strings.Contains(got.Text, "RENDERED") || got.Via != "headless render" {
+		t.Errorf("got Via=%q text=%.40q, want headless-render text and Via=%q", got.Via, got.Text, "headless render")
+	}
+}
+
+func TestHTTPFetch_renderFailureFallsThroughToArchive(t *testing.T) {
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html><body><div id="app"></div><script>boot()</script></body></html>`))
+	}))
+	defer direct.Close()
+	archive := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(longPage("ARCHIVED")))
+	}))
+	defer archive.Close()
+
+	tb := &Toolbelt{
+		extract:     htmlStripper{},
+		archiveBase: archive.URL + "/snap/",
+		render: func(url string) (string, error) {
+			return "", errors.New("no local chrome found")
+		},
+	}
+	got, err := tb.httpFetch(direct.URL)
+	if err != nil {
+		t.Fatalf("httpFetch: %v", err)
+	}
+	if !strings.Contains(got.Text, "ARCHIVED") || got.Via != "web.archive.org snapshot" {
+		t.Errorf("got Via=%q text=%.40q, want archive text when render fails", got.Via, got.Text)
+	}
+}
+
+func TestHTTPFetch_renderNotConsultedWhenDirectSucceeds(t *testing.T) {
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(longPage("DIRECT")))
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{
+		extract:     htmlStripper{},
+		archiveBase: "http://127.0.0.1:1/",
+		render: func(url string) (string, error) {
+			t.Fatal("render should not be called when the direct fetch already succeeded")
+			return "", nil
+		},
+	}
+	if _, err := tb.httpFetch(direct.URL); err != nil {
+		t.Fatalf("httpFetch: %v", err)
 	}
 }
 
