@@ -6,7 +6,10 @@ COPY . .
 RUN go build -o /authoring ./cmd/authoring
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+# chromium backs the quote verifier's and checkSources' headless-render
+# fallback (see internal/drafting/render.go) for sources that block a plain
+# HTTP fetch. The rest are its runtime deps for headless rendering on Alpine.
+RUN apk add --no-cache ca-certificates chromium nss freetype harfbuzz ttf-freefont
 COPY --from=builder /authoring /authoring
 EXPOSE 8081
 ENTRYPOINT ["/authoring"]

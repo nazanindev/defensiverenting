@@ -25,7 +25,15 @@ const renderTimeout = 25 * time.Second
 // falls back to PATH. If none is found, or the page errors out, this returns
 // an error and the caller falls through to the next tier.
 func (tb *Toolbelt) chromeRender(url string) (string, error) {
-	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), chromedp.DefaultExecAllocatorOptions[:]...)
+	opts := append(append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...),
+		// The authoring container runs Chromium as root with no sandbox
+		// namespace available and a small /dev/shm; without these, Chrome
+		// either refuses to start (root) or crashes under memory pressure
+		// rendering a real page (shm), rather than just being slow.
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+	)
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelAlloc()
 	ctx, cancelCtx := chromedp.NewContext(allocCtx)
 	defer cancelCtx()
