@@ -177,12 +177,37 @@ func tooThin(text string) bool {
 }
 
 // FetchExtract fetches a URL and returns its extracted readable text using the
-// same direct HTTP fetch + extraction pipeline as the drafting tools. It never
-// falls back to the Internet Archive: the source-change checker hashes this
-// text to detect upstream drift, so it must reflect the live page only.
+// same direct HTTP fetch + extraction pipeline as the drafting tools, falling
+// back to a headless-Chrome render when the direct fetch is blocked (a
+// Cloudflare-style 403) or too thin to quote from (a JS-only shell) — the same
+// class of problem httpFetch's render tier solves for fetch_source. It never
+// falls back to the Internet Archive, unlike httpFetch: the source-change
+// checker hashes this text to detect upstream drift, and the quote verifier
+// checks a reviewer's pasted text against it, so both need the live page, not
+// a snapshot that could be stale.
 func FetchExtract(url string) (string, error) {
 	tb := &Toolbelt{extract: htmlStripper{}}
-	return tb.fetchDirect(url)
+	tb.render = tb.chromeRender
+	return tb.fetchNoArchive(url)
+}
+
+// fetchNoArchive is httpFetch without the archive tier: direct fetch, then a
+// headless render if that's blocked or too thin. Split out so FetchExtract's
+// render fallback is testable without a real Chrome (see fetch_test.go).
+func (tb *Toolbelt) fetchNoArchive(url string) (string, error) {
+	text, err := tb.fetchDirect(url)
+	if err == nil && !tooThin(text) {
+		return text, nil
+	}
+	if tb.render != nil {
+		if rtext, rerr := tb.render(url); rerr == nil && !tooThin(rtext) {
+			return rtext, nil
+		}
+	}
+	if err == nil {
+		return text, nil // direct was thin, but render was no better
+	}
+	return "", err
 }
 
 // textExtractor turns a fetched document body into readable text. Kept behind an

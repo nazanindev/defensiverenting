@@ -142,6 +142,51 @@ func TestHTTPFetch_errorWhenBothFail(t *testing.T) {
 	}
 }
 
+func TestFetchNoArchive_renderFallbackOn403(t *testing.T) {
+	// The class of bug this guards against: a reviewer pastes a quote from a
+	// source behind Cloudflare-style bot detection. The direct fetch that backs
+	// the quote verifier and checkSources must not give up at the 403 when a
+	// render would clear it, the way httpFetch already does for fetch_source.
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "Access Denied", http.StatusForbidden)
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{
+		extract: htmlStripper{},
+		render: func(url string) (string, error) {
+			return "RENDERED " + strings.Repeat("statute text ", 300), nil
+		},
+	}
+	got, err := tb.fetchNoArchive(direct.URL)
+	if err != nil {
+		t.Fatalf("fetchNoArchive: %v", err)
+	}
+	if !strings.Contains(got, "RENDERED") {
+		t.Errorf("text = %.40q, want rendered content", got)
+	}
+}
+
+func TestFetchNoArchive_neverFallsBackToArchive(t *testing.T) {
+	// FetchExtract backs drift detection and quote verification, both of which
+	// need the live page; a Toolbelt with no archiveBase set proves this path
+	// never reaches for one even when direct and render both fail.
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "Access Denied", http.StatusForbidden)
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{
+		extract: htmlStripper{},
+		render: func(url string) (string, error) {
+			return "", errors.New("no local chrome found")
+		},
+	}
+	if _, err := tb.fetchNoArchive(direct.URL); err == nil {
+		t.Fatal("fetchNoArchive = nil error, want the original 403 when render also fails")
+	}
+}
+
 func TestIsPDF(t *testing.T) {
 	if !isPDF("application/pdf", nil) || !isPDF("", []byte("%PDF-1.7 rest")) {
 		t.Error("isPDF should detect content-type and magic bytes")
