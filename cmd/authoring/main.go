@@ -1069,7 +1069,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
 				overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
 				res := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote)
-				if res.Msg != "" && !(res.Overridable && overridden) {
+				if res.Msg != "" && (!res.Overridable || !overridden) {
 					s.formError(w, r, res.Msg)
 					return
 				}
@@ -1610,7 +1610,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
 				overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
 				res := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote)
-				if res.Msg != "" && !(res.Overridable && overridden) {
+				if res.Msg != "" && (!res.Overridable || !overridden) {
 					editErr(res.Msg)
 					return
 				}
