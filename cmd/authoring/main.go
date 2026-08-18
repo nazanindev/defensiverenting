@@ -41,10 +41,11 @@ import (
 var templateFS embed.FS
 
 type srv struct {
-	pg   *store.PG
-	log  *slog.Logger
-	tmpl *template.Template
-	jobs *jobSet
+	pg          *store.PG
+	log         *slog.Logger
+	tmpl        *template.Template
+	jobs        *jobSet
+	sourceCache *sourceFetchCache
 }
 
 // jobSet tracks in-flight AI draft generations by "city/topic" key, so the
@@ -143,7 +144,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet()}
+	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet(), sourceCache: newSourceFetchCache(2 * time.Minute)}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
@@ -161,6 +162,7 @@ func main() {
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
+	mux.HandleFunc("POST /api/check-quote", s.checkQuoteLive)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 	mux.HandleFunc("POST /discover", s.discover)
 	mux.HandleFunc("GET /candidates", s.candidates)
@@ -1052,7 +1054,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 
 	// Parse statements
 	stmtIndices := parseIndices(r.FormValue("active_stmts"))
-	qv := newQuoteVerifier(s.pg)
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
 	var statements []store.IngestStatementParams
 	for _, ji := range stmtIndices {
 		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
@@ -1299,6 +1301,34 @@ func (s *srv) sourcesJSON(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(out); err != nil {
 		s.log.Error("encode sources", slog.Any("err", err))
 	}
+}
+
+// checkQuoteLive answers the form's live, per-citation check: a reviewer
+// leaves a quote field, the browser posts the source URL and what they typed,
+// and this runs the exact same check the save path would — so a citation that
+// will be refused later shows that now, while it is one field to fix instead
+// of a full-page error after writing the rest of the page.
+func (s *srv) checkQuoteLive(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL   string `json:"url"`
+		Quote string `json:"quote"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.URL) == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
+		return
+	}
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
+	res := qv.checkQuote(r.Context(), req.URL, req.Quote)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":          res.Msg == "",
+		"message":     res.Msg,
+		"overridable": res.Overridable,
+	})
 }
 
 // unpublish takes a live page down and leaves its content as the slot's draft.
@@ -1593,7 +1623,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stmtIndices := parseIndices(r.FormValue("active_stmts"))
-	qv := newQuoteVerifier(s.pg)
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
 	var statements []store.IngestStatementParams
 	for _, ji := range stmtIndices {
 		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
@@ -1677,7 +1707,7 @@ func (s *srv) serverError(w http.ResponseWriter, err error) {
 }
 
 // quoteVerifier checks pasted quotes against the source they claim to come
-// from, fetching each source at most once per save.
+// from.
 //
 // The drafting tools verify a quote when the agent writes it. A reviewer typing
 // one into the form had no such check, and until the publish guard landed there
@@ -1693,13 +1723,11 @@ type quoteLookup interface {
 type quoteVerifier struct {
 	quotes quoteLookup
 	fetch  func(string) (string, error)
-	text   map[string]string // url -> fetched text, one fetch per save
-	fail   map[string]error  // url -> fetch failure, so a dead source is reported once
+	cache  *sourceFetchCache // shared across requests; nil disables caching (tests)
 }
 
-func newQuoteVerifier(pg quoteLookup) *quoteVerifier {
-	return &quoteVerifier{quotes: pg, fetch: drafting.FetchExtract,
-		text: map[string]string{}, fail: map[string]error{}}
+func newQuoteVerifier(pg quoteLookup, cache *sourceFetchCache) *quoteVerifier {
+	return &quoteVerifier{quotes: pg, fetch: drafting.FetchExtract, cache: cache}
 }
 
 // quoteCheckResult is check's verdict: Msg is a reviewer-facing message when
@@ -1714,12 +1742,23 @@ type quoteCheckResult struct {
 }
 
 // check returns a reviewer-facing message when the quote cannot be confirmed,
-// and a zero result when it can.
+// and a zero result when it can. It is checkQuote with the statement number
+// woven into the message so a save error names the row that failed.
+func (qv *quoteVerifier) check(ctx context.Context, stmtNo int, url, quote string) quoteCheckResult {
+	res := qv.checkQuote(ctx, url, quote)
+	if res.Msg != "" {
+		res.Msg = fmt.Sprintf("Statement %d: %s", stmtNo, res.Msg)
+	}
+	return res
+}
+
+// checkQuote is check without a statement number, for callers that have no
+// statement to name — the live per-citation check the form fires on blur.
 //
 // An unchanged quote is skipped: it is already stored, so it was verified when
 // it was written. That keeps a save fast, and keeps a source that has since
 // gone unreachable from blocking edits to text that does not depend on it.
-func (qv *quoteVerifier) check(ctx context.Context, stmtNo int, url, quote string) quoteCheckResult {
+func (qv *quoteVerifier) checkQuote(ctx context.Context, url, quote string) quoteCheckResult {
 	quote = strings.TrimSpace(quote)
 	if quote == "" {
 		return quoteCheckResult{} // absence is caught at publish, not here: a draft may be part-finished
@@ -1727,28 +1766,70 @@ func (qv *quoteVerifier) check(ctx context.Context, stmtNo int, url, quote strin
 	if known, err := qv.quotes.CitationQuoteExists(ctx, url, quote); err == nil && known {
 		return quoteCheckResult{}
 	}
-	text, ok := qv.text[url]
-	if !ok {
-		if err, failed := qv.fail[url]; failed {
-			return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
-				"Statement %d: could not open %s to check the quote (%v). "+
-					"Check \"I verified this quote myself\" below to save it anyway.", stmtNo, url, err)}
-		}
-		var err error
-		text, err = qv.fetch(url)
-		if err != nil {
-			qv.fail[url] = err
-			return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
-				"Statement %d: could not open %s to check the quote (%v). "+
-					"Check \"I verified this quote myself\" below to save it anyway.", stmtNo, url, err)}
-		}
-		qv.text[url] = text
+	text, err := qv.fetchCached(url)
+	if err != nil {
+		return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
+			"could not open %s to check the quote (%v). "+
+				"Check \"I verified this quote myself\" below to save it anyway.", url, err)}
 	}
 	if !drafting.QuoteAppearsIn(text, quote) {
-		return quoteCheckResult{Msg: fmt.Sprintf("Statement %d: that quote does not appear in %s. "+
-			"Copy the wording from the source exactly, without editing it.", stmtNo, url)}
+		return quoteCheckResult{Msg: fmt.Sprintf("that quote does not appear in %s. "+
+			"Copy the wording from the source exactly, without editing it.", url)}
 	}
 	return quoteCheckResult{}
+}
+
+// fetchCached routes a fetch through the shared source cache when one is set,
+// so the live check fired on every blur and the check repeated at save don't
+// each pay a slow or blocked source's fetch cost on their own.
+func (qv *quoteVerifier) fetchCached(url string) (string, error) {
+	if qv.cache == nil {
+		return qv.fetch(url)
+	}
+	if text, err, ok := qv.cache.get(url); ok {
+		return text, err
+	}
+	text, err := qv.fetch(url)
+	qv.cache.put(url, text, err)
+	return text, err
+}
+
+// sourceFetchCache remembers a source fetch's outcome for a short time so
+// repeated checks of the same URL — several citations to one source, or a
+// live check followed moments later by save — don't each re-fetch it. A
+// blocked source's fetch alone can cost tens of seconds (direct timeout plus
+// the headless-render fallback), so without this a page citing one such
+// source several times would pay that cost once per citation instead of once.
+type sourceFetchCache struct {
+	mu  sync.Mutex
+	ttl time.Duration
+	m   map[string]cacheEntry
+}
+
+type cacheEntry struct {
+	text string
+	err  error
+	at   time.Time
+}
+
+func newSourceFetchCache(ttl time.Duration) *sourceFetchCache {
+	return &sourceFetchCache{ttl: ttl, m: map[string]cacheEntry{}}
+}
+
+func (c *sourceFetchCache) get(url string) (text string, err error, ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, found := c.m[url]
+	if !found || time.Since(e.at) > c.ttl {
+		return "", nil, false
+	}
+	return e.text, e.err, true
+}
+
+func (c *sourceFetchCache) put(url, text string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.m[url] = cacheEntry{text: text, err: err, at: time.Now()}
 }
 
 // formError re-renders the new-playbook form with a validation message, handing

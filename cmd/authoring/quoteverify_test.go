@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A reviewer can now type a quote into the form. These tests cover the check
@@ -23,8 +24,7 @@ func (f *fakeQuoteStore) CitationQuoteExists(_ context.Context, url, quote strin
 
 func newTestVerifier(known map[string]bool, fetch func(string) (string, error)) (*quoteVerifier, *fakeQuoteStore) {
 	fs := &fakeQuoteStore{known: known}
-	qv := &quoteVerifier{fetch: fetch, text: map[string]string{}, fail: map[string]error{}}
-	qv.quotes = fs
+	qv := &quoteVerifier{fetch: fetch, quotes: fs, cache: newSourceFetchCache(time.Minute)}
 	return qv, fs
 }
 
@@ -145,5 +145,62 @@ func TestQuoteVerifier_ignoresAnEmptyQuote(t *testing.T) {
 	})
 	if res := qv.check(context.Background(), 1, "https://law.example/x", "   "); res.Msg != "" {
 		t.Fatalf("want accepted, got %q", res.Msg)
+	}
+}
+
+func TestQuoteVerifier_checkQuoteOmitsTheStatementPrefix(t *testing.T) {
+	// The live per-citation check (fired on blur) has no statement to name —
+	// check adds that prefix on top of checkQuote, not checkQuote itself.
+	qv, _ := newTestVerifier(nil, func(string) (string, error) {
+		return "The lessor shall return the deposit within thirty days.", nil
+	})
+	res := qv.checkQuote(context.Background(), "https://law.example/15b", "within fourteen days")
+	if res.Msg == "" {
+		t.Fatal("a quote absent from the source must be refused")
+	}
+	if strings.Contains(res.Msg, "Statement") {
+		t.Errorf("checkQuote must not carry a statement number, got %q", res.Msg)
+	}
+}
+
+func TestSourceFetchCache_sharedAcrossVerifierInstances(t *testing.T) {
+	// The live check and the save-time check construct separate quoteVerifier
+	// instances per request; sharing one cache is what keeps a source checked
+	// live moments before save from being fetched a second time at save.
+	n := 0
+	fetch := func(string) (string, error) {
+		n++
+		return "alpha beta gamma delta", nil
+	}
+	cache := newSourceFetchCache(time.Minute)
+	ctx := context.Background()
+
+	live := &quoteVerifier{fetch: fetch, quotes: &fakeQuoteStore{}, cache: cache}
+	if res := live.checkQuote(ctx, "https://law.example/shared", "beta gamma"); res.Msg != "" {
+		t.Fatalf("live check: %s", res.Msg)
+	}
+
+	atSave := &quoteVerifier{fetch: fetch, quotes: &fakeQuoteStore{}, cache: cache}
+	if res := atSave.check(ctx, 1, "https://law.example/shared", "beta gamma"); res.Msg != "" {
+		t.Fatalf("save check: %s", res.Msg)
+	}
+
+	if n != 1 {
+		t.Errorf("a source checked live and then saved should be fetched once total, got %d fetches", n)
+	}
+}
+
+func TestSourceFetchCache_expiresAfterTTL(t *testing.T) {
+	n := 0
+	c := newSourceFetchCache(0) // expires immediately
+	qv := &quoteVerifier{fetch: func(string) (string, error) {
+		n++
+		return "alpha beta gamma delta", nil
+	}, quotes: &fakeQuoteStore{}, cache: c}
+	ctx := context.Background()
+	qv.checkQuote(ctx, "https://law.example/ttl", "beta gamma")
+	qv.checkQuote(ctx, "https://law.example/ttl", "beta gamma")
+	if n != 2 {
+		t.Errorf("an expired cache entry should be re-fetched, got %d fetches for 2 checks", n)
 	}
 }

@@ -11,11 +11,21 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; }
   .site-header { background: #4a1223; padding: 0 24px; }
-  .site-header .wrap { max-width: 700px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-header .wrap { max-width: 1320px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
   .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
   .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
   .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
-  .page { max-width: 700px; margin: 0 auto; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* main content + pinned sources rail */
+  .layout { display: flex; align-items: flex-start; gap: 28px; }
+  .main { flex: 1; min-width: 0; }
+  .rail { width: 300px; flex-shrink: 0; position: sticky; top: 16px; }
+  .rail .g2 { grid-template-columns: 1fr; }
+  @media (max-width: 960px) {
+    .layout { flex-direction: column; }
+    .rail { width: 100%; position: static; }
+  }
   .back { color: #9b2335; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
   .back:hover { text-decoration: underline; }
   h1 { font-family: 'Fraunces', serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 24px; }
@@ -83,6 +93,20 @@
   .quote-box-empty + .quote-hint { color: #9b2335; }
   .verify-override { display: flex; align-items: center; gap: 5px; font-size: .68rem; color: #b08080; margin-top: 4px; cursor: pointer; }
   .verify-override input { width: 11px; height: 11px; accent-color: #9b2335; }
+  .verify-override-off { display: none; }
+
+  /* live per-citation check status, and its rollup in the sources rail */
+  .check-status { display: block; font-size: .68rem; font-weight: 600; margin-top: 3px; min-height: 1em; }
+  .cs-checking { color: #b08080; font-weight: 400; font-style: italic; }
+  .cs-ok, .cs-manual { color: #2f855a; }
+  .cs-blocked { color: #c05621; }
+  .cs-mismatch { color: #c53030; }
+
+  .rail-status { display: block; font-size: .68rem; font-weight: 600; margin-top: 2px; }
+  .rail-ok, .rail-manual { color: #2f855a; }
+  .rail-warn { color: #c05621; }
+  .rail-pending { color: #b08080; font-weight: 400; font-style: italic; }
+  .rail-none { color: #c8a8a8; font-weight: 400; }
 
   .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
@@ -135,6 +159,8 @@
   {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 
   <form method="post" action="{{if .EditMode}}/edit/{{.EditID}}{{else}}/new{{end}}" onsubmit="return beforeSubmit()">
+  <div class="layout">
+  <div class="main">
 
     <!-- ── Playbook details ──────────────────────────────────── -->
     <section>
@@ -271,7 +297,26 @@
       </div>
     </section>
 
-    <!-- ── Sources ───────────────────────────────────────────── -->
+    <!-- ── Statements ────────────────────────────────────────── -->
+    <section>
+      <h2 id="stmts-heading">Statements</h2>
+      <div id="stmts-container"><p class="no-items">Each statement is one citable fact shown to the renter. Add sources first.</p></div>
+      <button type="button" class="btn btn-add" id="add-stmt-btn" onclick="addStmt()">+ Add statement</button>
+      <input type="hidden" name="active_stmts" id="active_stmts" value="">
+    </section>
+
+    <div class="footer">
+      <button type="submit" class="btn btn-save">{{if .EditMode}}Save changes{{else}}Save as draft{{end}}</button>
+      {{if not .EditMode}}<span class="footer-note">Won't go live until you publish from the dashboard.</span>{{end}}
+    </div>
+
+  </div>
+  <!-- ── Sources ───────────────────────────────────────────── -->
+  <!-- Pinned beside the statements rather than above them: verifying a
+       statement means checking its citation against the source, and that source
+       is usually several statements below where the author first added it. A
+       column that stays put removes the scroll-up-scroll-back-down that cost. -->
+  <aside class="rail">
     <section>
       <h2 id="sources-heading">Sources</h2>
       <div id="sources-container"><p class="no-items">Add sources you'll cite in the statements below.</p></div>
@@ -305,19 +350,8 @@
       {{end}}
       <input type="hidden" name="active_sources" id="active_sources" value="">
     </section>
-
-    <!-- ── Statements ────────────────────────────────────────── -->
-    <section>
-      <h2 id="stmts-heading">Statements</h2>
-      <div id="stmts-container"><p class="no-items">Each statement is one citable fact shown to the renter. Add sources first.</p></div>
-      <button type="button" class="btn btn-add" id="add-stmt-btn" onclick="addStmt()">+ Add statement</button>
-      <input type="hidden" name="active_stmts" id="active_stmts" value="">
-    </section>
-
-    <div class="footer">
-      <button type="submit" class="btn btn-save">{{if .EditMode}}Save changes{{else}}Save as draft{{end}}</button>
-      {{if not .EditMode}}<span class="footer-note">Won't go live until you publish from the dashboard.</span>{{end}}
-    </div>
+  </aside>
+  </div>
   </form>
 </div>
 
@@ -328,6 +362,10 @@ const PRELOAD = {{.PreloadJSON}};
 
 let sources = [], stmts = [];
 let nextSrcId = 0, nextStmtId = 0;
+// Live quote-check state, keyed by "<stmtId>_<srcId>". checkStatus holds the
+// last known verdict (or none, before any check); lastChecked holds the quote
+// text that verdict is for, so a blur on an unedited field does not re-fire.
+let checkStatus = {}, lastChecked = {};
 let curPageKind = document.getElementById('page-kind-sel')?.value || 'playbook';
 
 let curCitySlug = '', curCityName = '', curParentSlug = '';
@@ -392,6 +430,15 @@ if (PRELOAD && PRELOAD.sources) {
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
     Object.entries(s.verified || {}).forEach(([k, v]) => { st.verified[+k] = v; });
+    // A stored quote already passed the check when it was saved — that's
+    // exactly what saving enforces — so it starts "known good" rather than
+    // "unchecked": only an edit from here should trigger a fresh live check.
+    Object.entries(s.quotes || {}).forEach(([k, q]) => {
+      if (!q) return;
+      const key = st.id + '_' + k;
+      checkStatus[key] = { state: (s.verified || {})[k] ? 'manual' : 'ok' };
+      lastChecked[key] = q;
+    });
     stmts.push(st);
   });
   render();
@@ -491,7 +538,10 @@ function addSource() {
 function rmSource(id) {
   sync();
   sources = sources.filter(s => s.id !== id);
-  stmts.forEach(st => { delete st.cites[id]; delete st.locators[id]; delete st.quotes[id]; delete st.verified[id]; });
+  stmts.forEach(st => {
+    delete st.cites[id]; delete st.locators[id]; delete st.quotes[id]; delete st.verified[id];
+    delete checkStatus[st.id + '_' + id]; delete lastChecked[st.id + '_' + id];
+  });
   render();
 }
 
@@ -506,7 +556,139 @@ function addStmt() {
 function rmStmt(id) {
   sync();
   stmts = stmts.filter(s => s.id !== id);
+  sources.forEach(src => { delete checkStatus[id + '_' + src.id]; delete lastChecked[id + '_' + src.id]; });
   render();
+}
+
+// ── Live quote checking ───────────────────────────────────────────────────
+
+// checkStatusInfo renders one citation's current verdict for the row next to
+// its quote box.
+function checkStatusInfo(stId, srcId) {
+  const cs = checkStatus[stId + '_' + srcId];
+  if (!cs) return { cls: '', text: '' };
+  switch (cs.state) {
+    case 'checking': return { cls: 'cs-checking', text: 'checking against the source…' };
+    case 'ok':       return { cls: 'cs-ok',       text: '✓ verified against the source' };
+    case 'manual':   return { cls: 'cs-manual',   text: '✓ manually verified' };
+    case 'blocked':  return { cls: 'cs-blocked',  text: '⚠ ' + (cs.message || 'source unreachable') };
+    case 'mismatch': return { cls: 'cs-mismatch', text: '✗ ' + (cs.message || 'quote not found in source') };
+    default:         return { cls: '', text: '' };
+  }
+}
+
+// railStatusInfo rolls up every citation a source has, across all statements,
+// into the one line shown next to that source in the pinned rail: the worst
+// state wins, so a source is not marked fine while one of its quotes is not.
+function railStatusInfo(srcId) {
+  let anyBad = false, anyChecking = false, anyGood = false, anyManual = false, any = false;
+  stmts.forEach(function(st) {
+    // Reads the checkbox live rather than st.cites[srcId]: ticking one only
+    // toggles the DOM (onCiteToggle), and st.cites is not refreshed from it
+    // until the next sync() — which a blur-triggered check should not wait for.
+    if (!c('cite_' + st.id + '_' + srcId)) return;
+    if (!(st.quotes[srcId] || '').trim()) return;
+    any = true;
+    const cs = checkStatus[st.id + '_' + srcId];
+    if (!cs) return;
+    if (cs.state === 'blocked' || cs.state === 'mismatch') anyBad = true;
+    else if (cs.state === 'checking') anyChecking = true;
+    else if (cs.state === 'manual') anyManual = true;
+    else if (cs.state === 'ok') anyGood = true;
+  });
+  if (anyBad) return { cls: 'rail-warn', text: '⚠ needs attention' };
+  if (anyChecking) return { cls: 'rail-pending', text: 'checking…' };
+  if (anyGood) return { cls: 'rail-ok', text: '✓ checked' };
+  if (anyManual) return { cls: 'rail-manual', text: '✓ manually verified' };
+  return { cls: 'rail-none', text: any ? 'not yet checked' : '' };
+}
+
+function paintCheckStatus(stId, srcId) {
+  const el = document.getElementById('cs_' + stId + '_' + srcId);
+  if (!el) return;
+  const info = checkStatusInfo(stId, srcId);
+  el.className = 'check-status' + (info.cls ? ' ' + info.cls : '');
+  el.textContent = info.text;
+}
+
+function paintRailStatus(srcId) {
+  const el = document.getElementById('rs_' + srcId);
+  if (!el) return;
+  const info = railStatusInfo(srcId);
+  el.className = 'rail-status' + (info.cls ? ' ' + info.cls : '');
+  el.textContent = info.text;
+}
+
+// checkQuoteLive posts one citation's source + quote to the server and paints
+// the result once it resolves. Guarded by lastChecked so a slower, earlier
+// response can't clobber a newer edit's result if they resolve out of order.
+function checkQuoteLive(stId, srcId, quote, url) {
+  const key = stId + '_' + srcId;
+  lastChecked[key] = quote;
+  checkStatus[key] = { state: 'checking' };
+  paintCheckStatus(stId, srcId);
+  paintRailStatus(srcId);
+  fetch('/api/check-quote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url, quote: quote })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (lastChecked[key] !== quote) return; // superseded by a newer edit
+    checkStatus[key] = data.ok
+      ? { state: 'ok' }
+      : { state: data.overridable ? 'blocked' : 'mismatch', message: data.message };
+    paintCheckStatus(stId, srcId);
+    paintRailStatus(srcId);
+  }).catch(function() {
+    if (lastChecked[key] !== quote) return;
+    checkStatus[key] = { state: 'blocked', message: 'check failed — try again' };
+    paintCheckStatus(stId, srcId);
+    paintRailStatus(srcId);
+  });
+}
+
+// onQuoteInput keeps the quote box's own empty-state styling, hint text, and
+// the override checkbox's visibility in step with what's typed, on every
+// keystroke — cheap, local DOM reads, unlike the check itself. Without this
+// they stayed at whatever they were on the last full render() (i.e. empty,
+// for any new statement), so a citation typed in since then looked like it
+// still had no quote, and its override checkbox never appeared at all —
+// exactly the moment "check the box below" is telling the author to use it.
+function onQuoteInput(stId, srcId) {
+  const val = v('quote_' + stId + '_' + srcId);
+  const ta = document.querySelector('[name="quote_' + stId + '_' + srcId + '"]');
+  if (!ta) return;
+  ta.classList.toggle('quote-box-empty', !val);
+  const wrap = ta.closest('.quote-edit');
+  if (!wrap) return;
+  const hint = wrap.querySelector('.quote-hint');
+  if (hint) hint.textContent = val
+    ? 'Checked against the source as soon as you leave this field.'
+    : 'No quote yet. This citation cannot be published until one is added.';
+  const vo = wrap.querySelector('.verify-override');
+  if (vo) vo.classList.toggle('verify-override-off', !val);
+}
+
+// onQuoteBlur fires the live check as soon as a quote is added or edited —
+// not on every keystroke, since the check itself can be slow, and not for a
+// field the author only glanced at without changing.
+function onQuoteBlur(stId, srcId) {
+  onQuoteInput(stId, srcId); // guarantee hint/checkbox visibility are in sync even if input never fired
+  const val = (v('quote_' + stId + '_' + srcId) || '').trim();
+  const st = stmts.find(function(s) { return s.id === stId; });
+  if (st) st.quotes[srcId] = val;
+  const key = stId + '_' + srcId;
+  if (!val) {
+    delete checkStatus[key];
+    delete lastChecked[key];
+    paintCheckStatus(stId, srcId);
+    paintRailStatus(srcId);
+    return;
+  }
+  if (lastChecked[key] === val) return;
+  const src = sources.find(function(s) { return s.id === srcId; });
+  if (!src || !src.url) return;
+  checkQuoteLive(stId, srcId, val, src.url);
 }
 
 // ── Sync DOM → state ──────────────────────────────────────────────────────
@@ -557,11 +739,13 @@ function renderSources() {
         '<input type="text" name="src_loc_' + s.id + '" value="' + esc(s.locator) + '" placeholder="§ 410.200">' +
         '<p class="hint">Specific section or chapter shown next to the citation link.</p>' +
       '</div>';
+    const railInfo = railStatusInfo(s.id);
     return '<div class="card">' +
       '<div class="card-hd">' +
         '<span class="card-num">' + srcLabel + '</span>' +
         '<button type="button" class="btn btn-rm" onclick="rmSource(' + s.id + ')">Remove</button>' +
       '</div>' +
+      '<span class="rail-status' + (railInfo.cls ? ' ' + railInfo.cls : '') + '" id="rs_' + s.id + '">' + railInfo.text + '</span>' +
       '<div class="g2">' +
         '<div class="field">' +
           '<label>Website URL *</label>' +
@@ -642,21 +826,32 @@ function renderStmts() {
       // reviewer's escape hatch for that case only: it does nothing when the
       // check can run, and it never overrides a confirmed mismatch — the
       // server re-checks and ignores it unless the failure was unreachable.
-      const verifyRow = quote ?
-        '<label class="verify-override" title="Only takes effect when the automatic check cannot reach the source at all">' +
+      //
+      // Always rendered, like the quote box itself: this row was rendered only
+      // when quote was non-empty AT RENDER TIME, so a citation typed after the
+      // last full render (i.e. any new statement) never got the checkbox into
+      // the DOM at all — onQuoteBlur/onQuoteInput patch visibility afterward,
+      // they don't insert new nodes.
+      const verifyRow =
+        '<label class="verify-override' + (quote ? '' : ' verify-override-off') + '"' +
+          ' title="Only takes effect when the automatic check cannot reach the source at all">' +
           '<input type="checkbox" name="verify_override_' + st.id + '_' + src.id + '"' +
             (st.verified[src.id] ? ' checked' : '') + '>' +
           'I verified this quote against the source myself' +
-        '</label>' : '';
+        '</label>';
+      const csInfo = checkStatusInfo(st.id, src.id);
       const quoteRow =
         '<div class="quote-edit' + (st.cites[src.id] ? '' : ' quote-edit-off') + '" id="' + qid + '">' +
           '<textarea name="quote_' + st.id + '_' + src.id + '" rows="2" class="quote-box' +
             (quote ? '' : ' quote-box-empty') + '"' +
-            ' placeholder="Paste the sentence from the source, word for word">' + esc(quote) + '</textarea>' +
+            ' placeholder="Paste the sentence from the source, word for word"' +
+            ' oninput="onQuoteInput(' + st.id + ',' + src.id + ')"' +
+            ' onblur="onQuoteBlur(' + st.id + ',' + src.id + ')">' + esc(quote) + '</textarea>' +
           '<div class="quote-hint">' + (quote
-            ? 'Checked against the source when you save.'
+            ? 'Checked against the source as soon as you leave this field.'
             : 'No quote yet. This citation cannot be published until one is added.') +
           '</div>' +
+          '<span class="check-status' + (csInfo.cls ? ' ' + csInfo.cls : '') + '" id="cs_' + st.id + '_' + src.id + '">' + csInfo.text + '</span>' +
           verifyRow +
         '</div>';
       // An unticked source is noise while verifying: a page with 6 sources and
