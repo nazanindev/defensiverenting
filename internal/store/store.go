@@ -118,4 +118,7 @@ type IngestCitationParams struct {
 	SourceID int64
 	Locator  string
 	Quote    string
+	// ManuallyVerified marks a citation a reviewer attested to by hand because
+	// the automated fetch could not reach the source at all.
+	ManuallyVerified bool
 }

@@ -1067,16 +1067,19 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 					loc = srcLocatorByIdx[i]
 				}
 				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
-				if msg := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote); msg != "" {
-					s.formError(w, r, msg)
+				overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
+				res := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote)
+				if res.Msg != "" && !(res.Overridable && overridden) {
+					s.formError(w, r, res.Msg)
 					return
 				}
 				// Quote is carried through the form read-only. Omitting it here
 				// is what rewrote every citation's quote to "" on save.
 				cites = append(cites, store.IngestCitationParams{
-					SourceID: sourceByIdx[i].ID,
-					Locator:  loc,
-					Quote:    quote,
+					SourceID:         sourceByIdx[i].ID,
+					Locator:          loc,
+					Quote:            quote,
+					ManuallyVerified: overridden,
 				})
 			}
 		}
@@ -1605,16 +1608,19 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 					loc = srcLocatorByIdx[i]
 				}
 				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
-				if msg := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote); msg != "" {
-					editErr(msg)
+				overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
+				res := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote)
+				if res.Msg != "" && !(res.Overridable && overridden) {
+					editErr(res.Msg)
 					return
 				}
 				// See submitForm: the quote round-trips through the form, and
 				// dropping it here silently wiped the evidence.
 				cites = append(cites, store.IngestCitationParams{
-					SourceID: sourceByIdx[i].ID,
-					Locator:  loc,
-					Quote:    quote,
+					SourceID:         sourceByIdx[i].ID,
+					Locator:          loc,
+					Quote:            quote,
+					ManuallyVerified: overridden,
 				})
 			}
 		}
@@ -1696,40 +1702,53 @@ func newQuoteVerifier(pg quoteLookup) *quoteVerifier {
 		text: map[string]string{}, fail: map[string]error{}}
 }
 
+// quoteCheckResult is check's verdict: Msg is a reviewer-facing message when
+// the quote could not be confirmed ("" when it could), and Overridable says
+// whether that failure was the source being unreachable — blocked outright,
+// e.g. a WAF 403 — rather than a confirmed mismatch. Only an unreachable
+// source can be overridden by a reviewer who read it by hand; a mismatch
+// means the text was read and it is simply wrong, which no override may pass.
+type quoteCheckResult struct {
+	Msg         string
+	Overridable bool
+}
+
 // check returns a reviewer-facing message when the quote cannot be confirmed,
-// and "" when it can.
+// and a zero result when it can.
 //
 // An unchanged quote is skipped: it is already stored, so it was verified when
 // it was written. That keeps a save fast, and keeps a source that has since
 // gone unreachable from blocking edits to text that does not depend on it.
-func (qv *quoteVerifier) check(ctx context.Context, stmtNo int, url, quote string) string {
+func (qv *quoteVerifier) check(ctx context.Context, stmtNo int, url, quote string) quoteCheckResult {
 	quote = strings.TrimSpace(quote)
 	if quote == "" {
-		return "" // absence is caught at publish, not here: a draft may be part-finished
+		return quoteCheckResult{} // absence is caught at publish, not here: a draft may be part-finished
 	}
 	if known, err := qv.quotes.CitationQuoteExists(ctx, url, quote); err == nil && known {
-		return ""
+		return quoteCheckResult{}
 	}
 	text, ok := qv.text[url]
 	if !ok {
 		if err, failed := qv.fail[url]; failed {
-			return fmt.Sprintf("Statement %d: could not open %s to check the quote (%v). "+
-				"The quote has to be verified against the source before it can be saved.", stmtNo, url, err)
+			return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
+				"Statement %d: could not open %s to check the quote (%v). "+
+					"Check \"I verified this quote myself\" below to save it anyway.", stmtNo, url, err)}
 		}
 		var err error
 		text, err = qv.fetch(url)
 		if err != nil {
 			qv.fail[url] = err
-			return fmt.Sprintf("Statement %d: could not open %s to check the quote (%v). "+
-				"The quote has to be verified against the source before it can be saved.", stmtNo, url, err)
+			return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
+				"Statement %d: could not open %s to check the quote (%v). "+
+					"Check \"I verified this quote myself\" below to save it anyway.", stmtNo, url, err)}
 		}
 		qv.text[url] = text
 	}
 	if !drafting.QuoteAppearsIn(text, quote) {
-		return fmt.Sprintf("Statement %d: that quote does not appear in %s. "+
-			"Copy the wording from the source exactly, without editing it.", stmtNo, url)
+		return quoteCheckResult{Msg: fmt.Sprintf("Statement %d: that quote does not appear in %s. "+
+			"Copy the wording from the source exactly, without editing it.", stmtNo, url)}
 	}
-	return ""
+	return quoteCheckResult{}
 }
 
 // formError re-renders the new-playbook form with a validation message, handing
@@ -1788,6 +1807,11 @@ type preloadStmt struct {
 	// citations.quote to "" — a human review pass silently destroyed the
 	// evidence the drafting agent had verified. It round-trips read-only.
 	Quotes map[string]string `json:"quotes"`
+	// Verified marks a citation, keyed the same way as Quotes, whose quote a
+	// reviewer attested to by hand because the automated fetch could not reach
+	// the source at all. Round-trips so a manual override survives a
+	// validation-error re-render and an edit of an already-saved draft.
+	Verified map[string]bool `json:"verified"`
 }
 
 // preloadFromForm rebuilds the preload structure from a submitted form rather
@@ -1826,6 +1850,7 @@ func preloadFromForm(r *http.Request) preloadData {
 			Editorial: r.FormValue(fmt.Sprintf("edit_%d", id)) == "on",
 			Locators:  map[string]string{},
 			Quotes:    map[string]string{},
+			Verified:  map[string]bool{},
 		}
 		for _, srcID := range srcIDs {
 			if r.FormValue(fmt.Sprintf("cite_%d_%d", id, srcID)) == "on" {
@@ -1836,6 +1861,9 @@ func preloadFromForm(r *http.Request) preloadData {
 			}
 			if q := r.FormValue(fmt.Sprintf("quote_%d_%d", id, srcID)); q != "" {
 				ps.Quotes[strconv.Itoa(position[srcID])] = q
+			}
+			if r.FormValue(fmt.Sprintf("verify_override_%d_%d", id, srcID)) == "on" {
+				ps.Verified[strconv.Itoa(position[srcID])] = true
 			}
 		}
 		out.Stmts = append(out.Stmts, ps)
@@ -1880,7 +1908,7 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 
 	stmts := make([]preloadStmt, 0, len(pw.Statements))
 	for i, stmt := range pw.Statements {
-		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Locators: map[string]string{}, Quotes: map[string]string{}}
+		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true
@@ -1891,6 +1919,9 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 				}
 				if c.Quote != "" {
 					ps.Quotes[strconv.Itoa(m.idx)] = c.Quote
+				}
+				if c.ManuallyVerified {
+					ps.Verified[strconv.Itoa(m.idx)] = true
 				}
 			}
 		}

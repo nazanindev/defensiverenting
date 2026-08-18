@@ -81,6 +81,8 @@
   .quote-box-empty { border-left-color: #f0b0ba; background: #fdf0f2; }
   .quote-hint { font-size: .68rem; color: #b08080; margin-top: 2px; }
   .quote-box-empty + .quote-hint { color: #9b2335; }
+  .verify-override { display: flex; align-items: center; gap: 5px; font-size: .68rem; color: #b08080; margin-top: 4px; cursor: pointer; }
+  .verify-override input { width: 11px; height: 11px; accent-color: #9b2335; }
 
   .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
@@ -385,10 +387,11 @@ if (PRELOAD && PRELOAD.sources) {
     sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
   });
   PRELOAD.stmts.forEach(s => {
-    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, cites: {}, locators: {}, quotes: {} };
+    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, cites: {}, locators: {}, quotes: {}, verified: {} };
     (s.cites || []).forEach(i => { st.cites[i] = true; });
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
+    Object.entries(s.verified || {}).forEach(([k, v]) => { st.verified[+k] = v; });
     stmts.push(st);
   });
   render();
@@ -488,7 +491,7 @@ function addSource() {
 function rmSource(id) {
   sync();
   sources = sources.filter(s => s.id !== id);
-  stmts.forEach(st => { delete st.cites[id]; delete st.locators[id]; delete st.quotes[id]; });
+  stmts.forEach(st => { delete st.cites[id]; delete st.locators[id]; delete st.quotes[id]; delete st.verified[id]; });
   render();
 }
 
@@ -496,7 +499,7 @@ function rmSource(id) {
 
 function addStmt() {
   sync();
-  stmts.push({ id: nextStmtId++, body: '', editorial: false, cites: {}, locators: {}, quotes: {} });
+  stmts.push({ id: nextStmtId++, body: '', editorial: false, cites: {}, locators: {}, quotes: {}, verified: {} });
   render();
 }
 
@@ -522,6 +525,7 @@ function sync() {
       st.cites[src.id]    = c('cite_' + st.id + '_' + src.id);
       st.locators[src.id] = v('loc_' + st.id + '_' + src.id);
       st.quotes[src.id]   = v('quote_' + st.id + '_' + src.id);
+      st.verified[src.id] = c('verify_override_' + st.id + '_' + src.id);
     });
   });
 }
@@ -633,6 +637,17 @@ function renderStmts() {
       const quote = st.quotes[src.id] || '';
       const quoteField = '';
       const qid = 'q_' + st.id + '_' + src.id;
+      // Some sources block the automatic check outright (a WAF 403, a
+      // datacenter IP block) with no way around it. This checkbox is the
+      // reviewer's escape hatch for that case only: it does nothing when the
+      // check can run, and it never overrides a confirmed mismatch — the
+      // server re-checks and ignores it unless the failure was unreachable.
+      const verifyRow = quote ?
+        '<label class="verify-override" title="Only takes effect when the automatic check cannot reach the source at all">' +
+          '<input type="checkbox" name="verify_override_' + st.id + '_' + src.id + '"' +
+            (st.verified[src.id] ? ' checked' : '') + '>' +
+          'I verified this quote against the source myself' +
+        '</label>' : '';
       const quoteRow =
         '<div class="quote-edit' + (st.cites[src.id] ? '' : ' quote-edit-off') + '" id="' + qid + '">' +
           '<textarea name="quote_' + st.id + '_' + src.id + '" rows="2" class="quote-box' +
@@ -642,6 +657,7 @@ function renderStmts() {
             ? 'Checked against the source when you save.'
             : 'No quote yet. This citation cannot be published until one is added.') +
           '</div>' +
+          verifyRow +
         '</div>';
       // An unticked source is noise while verifying: a page with 6 sources and
       // 13 statements drew 78 rows, of which about 13 mattered. Unticked rows

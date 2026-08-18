@@ -32,9 +32,9 @@ func TestQuoteVerifier_acceptsAQuotePresentInTheSource(t *testing.T) {
 	qv, _ := newTestVerifier(nil, func(string) (string, error) {
 		return "The lessor shall, within thirty days after the termination of occupancy, return the deposit.", nil
 	})
-	if msg := qv.check(context.Background(), 1, "https://law.example/15b",
-		"within thirty days after the termination of occupancy"); msg != "" {
-		t.Fatalf("want accepted, got %q", msg)
+	if res := qv.check(context.Background(), 1, "https://law.example/15b",
+		"within thirty days after the termination of occupancy"); res.Msg != "" {
+		t.Fatalf("want accepted, got %q", res.Msg)
 	}
 }
 
@@ -42,12 +42,15 @@ func TestQuoteVerifier_rejectsAQuoteNotInTheSource(t *testing.T) {
 	qv, _ := newTestVerifier(nil, func(string) (string, error) {
 		return "The lessor shall return the deposit within thirty days.", nil
 	})
-	msg := qv.check(context.Background(), 3, "https://law.example/15b", "within fourteen days")
-	if msg == "" {
+	res := qv.check(context.Background(), 3, "https://law.example/15b", "within fourteen days")
+	if res.Msg == "" {
 		t.Fatal("a quote absent from the source must be refused")
 	}
-	if !strings.Contains(msg, "Statement 3") {
-		t.Errorf("message should name the statement so it can be found, got %q", msg)
+	if !strings.Contains(res.Msg, "Statement 3") {
+		t.Errorf("message should name the statement so it can be found, got %q", res.Msg)
+	}
+	if res.Overridable {
+		t.Error("a confirmed mismatch must never be overridable — the text was read and it is simply wrong")
 	}
 }
 
@@ -57,9 +60,9 @@ func TestQuoteVerifier_toleratesDifferentWhitespace(t *testing.T) {
 	qv, _ := newTestVerifier(nil, func(string) (string, error) {
 		return "The lessor shall,\n   within thirty days\nafter the termination, return it.", nil
 	})
-	if msg := qv.check(context.Background(), 1, "https://law.example/15b",
-		"within thirty days after the termination"); msg != "" {
-		t.Fatalf("whitespace differences must not fail the check, got %q", msg)
+	if res := qv.check(context.Background(), 1, "https://law.example/15b",
+		"within thirty days after the termination"); res.Msg != "" {
+		t.Fatalf("whitespace differences must not fail the check, got %q", res.Msg)
 	}
 }
 
@@ -72,8 +75,8 @@ func TestQuoteVerifier_skipsAQuoteAlreadyStored(t *testing.T) {
 		map[string]bool{"https://law.example/15b|already verified": true},
 		func(string) (string, error) { fetched = true; return "", nil },
 	)
-	if msg := qv.check(context.Background(), 1, "https://law.example/15b", "already verified"); msg != "" {
-		t.Fatalf("want accepted, got %q", msg)
+	if res := qv.check(context.Background(), 1, "https://law.example/15b", "already verified"); res.Msg != "" {
+		t.Fatalf("want accepted, got %q", res.Msg)
 	}
 	if fetched {
 		t.Error("a quote already on file must not trigger a fetch")
@@ -82,16 +85,20 @@ func TestQuoteVerifier_skipsAQuoteAlreadyStored(t *testing.T) {
 
 func TestQuoteVerifier_refusesWhenTheSourceCannotBeRead(t *testing.T) {
 	// Some sources block the fetcher outright, such as the Massachusetts
-	// sanitary code PDF. We cannot confirm the quote, so we do not accept it.
+	// sanitary code PDF. We cannot confirm the quote, so we do not accept it —
+	// unless the reviewer overrides it, which is what Overridable signals.
 	qv, _ := newTestVerifier(nil, func(string) (string, error) {
 		return "", errors.New("status 403")
 	})
-	msg := qv.check(context.Background(), 2, "https://mass.example/pdf", "68 degrees")
-	if msg == "" {
+	res := qv.check(context.Background(), 2, "https://mass.example/pdf", "68 degrees")
+	if res.Msg == "" {
 		t.Fatal("an unverifiable quote must be refused, not saved on trust")
 	}
-	if !strings.Contains(msg, "403") {
-		t.Errorf("message should say why it could not be checked, got %q", msg)
+	if !strings.Contains(res.Msg, "403") {
+		t.Errorf("message should say why it could not be checked, got %q", res.Msg)
+	}
+	if !res.Overridable {
+		t.Error("a source that could not be reached at all must be overridable by a reviewer who checked it by hand")
 	}
 }
 
@@ -103,8 +110,8 @@ func TestQuoteVerifier_fetchesEachSourceOnce(t *testing.T) {
 	})
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
-		if msg := qv.check(ctx, i+1, "https://law.example/x", "beta gamma"); msg != "" {
-			t.Fatalf("statement %d: %s", i+1, msg)
+		if res := qv.check(ctx, i+1, "https://law.example/x", "beta gamma"); res.Msg != "" {
+			t.Fatalf("statement %d: %s", i+1, res.Msg)
 		}
 	}
 	if n != 1 {
@@ -120,7 +127,7 @@ func TestQuoteVerifier_reportsAFailedFetchWithoutRetrying(t *testing.T) {
 	})
 	ctx := context.Background()
 	for i := 0; i < 4; i++ {
-		if msg := qv.check(ctx, i+1, "https://dead.example/x", "anything"); msg == "" {
+		if res := qv.check(ctx, i+1, "https://dead.example/x", "anything"); res.Msg == "" {
 			t.Fatal("want refusal")
 		}
 	}
@@ -136,7 +143,7 @@ func TestQuoteVerifier_ignoresAnEmptyQuote(t *testing.T) {
 		t.Fatal("an empty quote must not trigger a fetch")
 		return "", nil
 	})
-	if msg := qv.check(context.Background(), 1, "https://law.example/x", "   "); msg != "" {
-		t.Fatalf("want accepted, got %q", msg)
+	if res := qv.check(context.Background(), 1, "https://law.example/x", "   "); res.Msg != "" {
+		t.Fatalf("want accepted, got %q", res.Msg)
 	}
 }

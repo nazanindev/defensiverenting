@@ -98,15 +98,20 @@ type Citation struct {
 	SourceID    int64
 	Locator     string
 	Quote       string // verbatim line from the source backing this citation
+	// ManuallyVerified marks a citation the automated fetch could not check
+	// (the source blocked it outright) that a human reviewer attested to
+	// instead. Distinguishes an eyeballed citation from a machine-matched one.
+	ManuallyVerified bool
 }
 
 type CitationWithSource struct {
-	SourceID   int64
-	Locator    string
-	Quote      string // verbatim line from the source backing this citation
-	SourceURL  string
-	Publisher  string
-	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial
+	SourceID         int64
+	Locator          string
+	Quote            string // verbatim line from the source backing this citation
+	ManuallyVerified bool
+	SourceURL        string
+	Publisher        string
+	SourceKind       string // statute|regulation|gov_guidance|nonprofit|editorial
 }
 
 type Topic struct {
