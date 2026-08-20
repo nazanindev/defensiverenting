@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"time"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	"github.com/nazanindev/defensiverenting/internal/drafting"
@@ -20,9 +22,11 @@ import (
 
 // Options configures a single drafting run.
 type Options struct {
-	CitySlug  string
-	TopicSlug string
-	TopicName string
+	// JurisdictionSlug scopes the page: a city, a state, or "united-states"
+	// for a nationwide page.
+	JurisdictionSlug string
+	TopicSlug        string
+	TopicName        string
 	// Language defaults to "en". "es" asks the agent to translate the
 	// existing English playbook (see the system prompt) rather than
 	// research independently — see voice.Supported for the full set.
@@ -30,12 +34,53 @@ type Options struct {
 	Model    string                        // defaults to claude-opus-4-8
 	MaxSteps int                           // defaults to 30
 	Log      func(format string, a ...any) // progress sink; nil = discard
+	// Transcript, when non-nil, receives one JSON line per run event: the run
+	// inputs, every raw model response, every tool result, and the final
+	// Report. Writes are not synchronized — give each run its own writer.
+	Transcript io.Writer
 }
 
-// Run drives the drafting loop to completion. It returns nil once a draft has
-// been saved, or an error if the model finished, refused, or ran out of steps
-// without saving. Requires ANTHROPIC_API_KEY in the environment.
-func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) error {
+// Report summarizes what a drafting run spent and produced, so runs can be
+// compared across models on cost per accepted draft. It is meaningful even
+// when Run returns an error: counters cover everything up to the failure.
+type Report struct {
+	Model string `json:"model"`
+	// Steps is the number of model calls made, including pause_turn
+	// continuations for server-side web_search.
+	Steps int  `json:"steps"`
+	Saved bool `json:"saved"`
+	// ToolCalls counts client tool dispatches; Rejections counts the subset
+	// returned to the model as errors (toolbelt rejections, invalid
+	// arguments, unknown tools), each of which costs the model a retry.
+	ToolCalls  int           `json:"tool_calls"`
+	Rejections int           `json:"rejections"`
+	Duration   time.Duration `json:"duration_ns"`
+	Usage      TokenUsage    `json:"usage"`
+}
+
+// TokenUsage accumulates billed token and server-tool counts across every
+// model call in a run.
+type TokenUsage struct {
+	InputTokens         int64 `json:"input_tokens"`
+	OutputTokens        int64 `json:"output_tokens"`
+	CacheReadTokens     int64 `json:"cache_read_tokens"`
+	CacheCreationTokens int64 `json:"cache_creation_tokens"`
+	WebSearchRequests   int64 `json:"web_search_requests"`
+}
+
+func (u *TokenUsage) add(usage anthropic.Usage) {
+	u.InputTokens += usage.InputTokens
+	u.OutputTokens += usage.OutputTokens
+	u.CacheReadTokens += usage.CacheReadInputTokens
+	u.CacheCreationTokens += usage.CacheCreationInputTokens
+	u.WebSearchRequests += usage.ServerToolUse.WebSearchRequests
+}
+
+// Run drives the drafting loop to completion. The error is nil once a draft
+// has been saved, and set if the model finished, refused, or ran out of steps
+// without saving; the Report is valid either way. Requires ANTHROPIC_API_KEY
+// in the environment.
+func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) (report Report, err error) {
 	logf := opts.Log
 	if logf == nil {
 		logf = func(string, ...any) {}
@@ -49,6 +94,25 @@ func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) error {
 		maxSteps = 30
 	}
 
+	report.Model = model
+	tr := &transcript{w: opts.Transcript, logf: logf}
+	tr.emit(event{Type: "run", Run: &runInfo{
+		Jurisdiction: opts.JurisdictionSlug,
+		Topic:        opts.TopicSlug,
+		Language:     opts.Language,
+		Model:        model,
+		MaxSteps:     maxSteps,
+	}})
+	start := time.Now()
+	defer func() {
+		report.Duration = time.Since(start)
+		done := event{Type: "done", Report: &report}
+		if err != nil {
+			done.Error = err.Error()
+		}
+		tr.emit(done)
+	}()
+
 	client := anthropic.NewClient()
 	params := anthropic.MessageNewParams{
 		Model:        anthropic.Model(model),
@@ -58,16 +122,18 @@ func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) error {
 		System:       []anthropic.TextBlockParam{{Text: systemPrompt}},
 		Tools:        toolDefs(),
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(userPrompt(opts.CitySlug, opts.TopicSlug, opts.TopicName, opts.Language))),
+			anthropic.NewUserMessage(anthropic.NewTextBlock(userPrompt(opts.JurisdictionSlug, opts.TopicSlug, opts.TopicName, opts.Language))),
 		},
 	}
 
-	saved := false
 	for step := 1; step <= maxSteps; step++ {
-		resp, err := client.Messages.New(ctx, params)
-		if err != nil {
-			return fmt.Errorf("model call step %d: %w", step, err)
+		resp, cerr := client.Messages.New(ctx, params)
+		if cerr != nil {
+			return report, fmt.Errorf("model call step %d: %w", step, cerr)
 		}
+		report.Steps = step
+		report.Usage.add(resp.Usage)
+		tr.message(step, resp)
 
 		for _, block := range resp.Content {
 			if block.Type == "text" && block.Text != "" {
@@ -87,13 +153,16 @@ func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) error {
 				logf("→ %s", block.Name)
 				oc, fatal := execTool(ctx, tb, block.Name, block.Input)
 				if fatal != nil {
-					return fmt.Errorf("tool %q: %w", block.Name, fatal)
+					return report, fmt.Errorf("tool %q: %w", block.Name, fatal)
 				}
+				report.ToolCalls++
 				if oc.isError {
+					report.Rejections++
 					logf("  ✗ %s", oc.content)
 				} else if block.Name == "save_draft_playbook" {
-					saved = true
+					report.Saved = true
 				}
+				tr.emit(event{Type: "tool_result", Step: step, Tool: block.Name, IsError: oc.isError, Content: oc.content})
 				results = append(results, anthropic.NewToolResultBlock(block.ID, oc.content, oc.isError))
 			}
 			params.Messages = append(params.Messages, anthropic.NewUserMessage(results...))
@@ -102,15 +171,15 @@ func Run(ctx context.Context, tb *drafting.Toolbelt, opts Options) error {
 			continue
 		default:
 			if resp.StopReason == anthropic.StopReasonRefusal {
-				return fmt.Errorf("model refused: %v", resp.StopDetails)
+				return report, fmt.Errorf("model refused: %v", resp.StopDetails)
 			}
-			if saved {
-				return nil
+			if report.Saved {
+				return report, nil
 			}
-			return fmt.Errorf("model finished without saving a draft (stop_reason=%s)", resp.StopReason)
+			return report, fmt.Errorf("model finished without saving a draft (stop_reason=%s)", resp.StopReason)
 		}
 	}
-	return fmt.Errorf("hit max-steps (%d) without saving a draft", maxSteps)
+	return report, fmt.Errorf("hit max-steps (%d) without saving a draft", maxSteps)
 }
 
 type outcome struct {

@@ -34,6 +34,11 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 	r.Use(chimw.Recoverer)
 	r.Use(middleware.CanonicalHost(cfg.SiteURL, cfg.CanonicalRedirect))
 
+	// Unmatched URLs get the styled 404 instead of the stock one-liner. chi's
+	// NotFound handler runs outside the browse group, so the cache header is
+	// applied by hand — a 404 is as cacheable as any other browse response.
+	r.NotFound(middleware.StaticCache(handlers.NotFound()).ServeHTTP)
+
 	// Health endpoints — no caching
 	r.Get("/healthz", handlers.Healthz)
 	r.Get("/readyz", handlers.Readyz(db))

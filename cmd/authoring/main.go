@@ -524,19 +524,22 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 	// redirect. context.Background is deliberate here.
 	go func() { // #nosec G118
 		defer s.jobs.done(key)
-		err := draftagent.Run(context.Background(), drafting.New(s.pg), draftagent.Options{
-			CitySlug:  city,
-			TopicSlug: topic,
-			TopicName: topicName,
+		report, err := draftagent.Run(context.Background(), drafting.New(s.pg), draftagent.Options{
+			JurisdictionSlug: city,
+			TopicSlug:        topic,
+			TopicName:        topicName,
 			Log: func(format string, a ...any) {
 				s.log.Info("draftgen", slog.String("job", key), slog.String("msg", fmt.Sprintf(format, a...)))
 			},
 		})
 		if err != nil {
-			s.log.Error("draftgen failed", slog.String("job", key), slog.Any("err", err))
+			s.log.Error("draftgen failed", slog.String("job", key), slog.Any("err", err), slog.Int("steps", report.Steps))
 			return
 		}
-		s.log.Info("draftgen saved", slog.String("job", key))
+		s.log.Info("draftgen saved", slog.String("job", key),
+			slog.Int("steps", report.Steps),
+			slog.Int64("input_tokens", report.Usage.InputTokens),
+			slog.Int64("output_tokens", report.Usage.OutputTokens))
 	}()
 	redirect("msg", "generating draft for "+key+" — refresh in a minute to see it")
 }
@@ -1004,7 +1007,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 	} else {
 		j, err = s.pg.GetJurisdictionBySlug(ctx, jSlug)
 		if err != nil {
-			s.formError(w, r, "Unknown city selected")
+			s.formError(w, r, "Unknown jurisdiction selected")
 			return
 		}
 	}

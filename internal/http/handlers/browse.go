@@ -20,9 +20,12 @@ import (
 
 type browseStore interface {
 	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	ListPublishedHubJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListPublishedChildCities(ctx context.Context, parentID int64) ([]store.Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
+	GetNearestTopicJurisdiction(ctx context.Context, jurisdictionID, topicID int64, lang string) (store.Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, id int64, lang string) ([]store.Topic, error)
+	ListTopicsByJurisdictionRecursive(ctx context.Context, id int64, lang string) ([]store.Topic, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (store.PlaybookWithStatements, error)
 	GetTopicBySlug(ctx context.Context, slug string) (store.Topic, error)
 	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
@@ -60,6 +63,7 @@ const (
 func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 	r.Get("/", index(db, logger))
 	r.Get("/locations", locations(db, logger))
+	r.Get("/api/coverage", coverage(db, logger))
 	r.Get(ReviewerPath, author)
 
 	for _, lang := range voice.Supported() {
@@ -88,7 +92,7 @@ func oneSegment(db browseStore, logger *slog.Logger, lang string) http.HandlerFu
 					http.Redirect(w, r, moved.PathIn(lang), http.StatusMovedPermanently) // #nosec G710
 					return
 				}
-				http.NotFound(w, r)
+				render(w, r, http.StatusNotFound, tmpl.NotFoundPage{UncoveredPlace: true, Language: lang})
 				return
 			}
 			logger.ErrorContext(r.Context(), "get jurisdiction", slog.Any("err", err))
@@ -125,7 +129,7 @@ func twoSegment(db browseStore, logger *slog.Logger, lang string) http.HandlerFu
 				http.Redirect(w, r, moved.TopicPathIn(lang, canonicalTopic(r.Context(), db, b)), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
-			http.NotFound(w, r)
+			render(w, r, http.StatusNotFound, tmpl.NotFoundPage{UncoveredPlace: true, Language: lang})
 			return
 		}
 
@@ -156,7 +160,16 @@ func twoSegment(db browseStore, logger *slog.Logger, lang string) http.HandlerFu
 			return
 		}
 
-		// /j/{state}/{topic}: a state playbook.
+		// /j/{state}/{topic}: a state playbook. When b is not in the topic
+		// registry and is not a retired topic slug either, the reader more
+		// likely asked for a place under this state that we have not covered;
+		// tell them that rather than "no such topic".
+		if _, terr := db.GetTopicBySlug(r.Context(), b); errors.Is(terr, store.ErrNotFound) {
+			if _, aerr := db.ResolveTopicAlias(r.Context(), b); aerr != nil {
+				render(w, r, http.StatusNotFound, tmpl.NotFoundPage{UncoveredPlace: true, Parent: parent, Language: lang})
+				return
+			}
+		}
 		servePlaybook(w, r, db, logger, parent, b, lang)
 	}
 }
@@ -179,7 +192,13 @@ func cityPlaybook(db browseStore, logger *slog.Logger, lang string) http.Handler
 				http.Redirect(w, r, moved.TopicPathIn(lang, canonicalTopic(r.Context(), db, topicSlug)), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
-			http.NotFound(w, r)
+			// An unknown city under a known state is an uncovered place; the
+			// state hub is the best page we can offer for it.
+			page := tmpl.NotFoundPage{UncoveredPlace: true, Language: lang}
+			if st, serr := db.GetJurisdictionBySlug(r.Context(), stateSlug); serr == nil {
+				page.Parent = st
+			}
+			render(w, r, http.StatusNotFound, page)
 			return
 		}
 		if city.ParentSlug != stateSlug {
@@ -189,7 +208,7 @@ func cityPlaybook(db browseStore, logger *slog.Logger, lang string) http.Handler
 				http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710
 				return
 			}
-			http.NotFound(w, r)
+			render(w, r, http.StatusNotFound, tmpl.NotFoundPage{Language: lang})
 			return
 		}
 		servePlaybook(w, r, db, logger, city, topicSlug, lang)
@@ -238,16 +257,71 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 // the homepage while the homepage stays a fixed size.
 func locations(db browseStore, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cities, err := db.ListPublishedCityJurisdictions(r.Context())
+		hubs, err := db.ListPublishedHubJurisdictions(r.Context())
 		if err != nil {
 			logger.ErrorContext(r.Context(), "list jurisdictions", slog.Any("err", err))
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		// National hubs get their own section; a state with statewide content
+		// is not listed separately because its heading in the grouped city
+		// index already links to its hub.
+		var national, cities []store.Jurisdiction
+		for _, j := range hubs {
+			switch j.Kind {
+			case "country":
+				national = append(national, j)
+			case "city":
+				cities = append(cities, j)
+			}
+		}
 		render(w, r, http.StatusOK, tmpl.LocationsPage{
+			National:  national,
 			Groups:    tmpl.GroupByState(cities),
 			CityCount: len(cities),
 		})
+	}
+}
+
+// coverage serves /api/coverage?j={slug}: the topic slugs that resolve to a
+// published guide for that location, walking up its ancestor chain the same
+// way the ?j= redirect on /t/{topic} does. The homepage's situation list
+// fetches this after a location is chosen and hides the situations that would
+// fall through to the picker. It is a separate request on purpose: browse HTML
+// is served from a shared public cache, so the page itself cannot be
+// personalised, and shipping every location's coverage with the page would
+// grow it with every city (see the scope-script comment in layout.html).
+//
+// English-only, like the homepage and search page that consume it (ADR-007 D2).
+func coverage(db browseStore, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := r.URL.Query().Get("j")
+		if slug == "" {
+			http.Error(w, "missing j parameter", http.StatusBadRequest)
+			return
+		}
+		j, err := db.GetJurisdictionBySlug(r.Context(), slug)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				http.NotFound(w, r)
+				return
+			}
+			logger.ErrorContext(r.Context(), "coverage: get jurisdiction", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		topics, err := db.ListTopicsByJurisdictionRecursive(r.Context(), j.ID, "en")
+		if err != nil {
+			logger.ErrorContext(r.Context(), "coverage: list topics", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		slugs := make([]string, 0, len(topics))
+		for _, t := range topics {
+			slugs = append(slugs, t.Slug)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"j": j.Slug, "topics": slugs})
 	}
 }
 
@@ -294,7 +368,23 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 				http.Redirect(w, r, j.TopicPathIn(lang, moved.Slug), http.StatusMovedPermanently) // #nosec G710
 				return
 			}
-			http.NotFound(w, r)
+			// A registry topic this place has no guide for yet gets the
+			// explainer 404, offering the nearest ancestor's guide when one
+			// exists — an ancestor's law applies here too. It links rather
+			// than redirects: this URL may gain its own page later, and a
+			// cached redirect would keep stealing its traffic. The self check
+			// is defensive only; GetPlaybook and the nearest walk both see
+			// published rows only, so they cannot disagree about j itself.
+			page := tmpl.NotFoundPage{Language: lang}
+			if t, terr := db.GetTopicBySlug(r.Context(), topicSlug); terr == nil {
+				page.Place = j
+				page.Topic = t
+				if dest, derr := db.GetNearestTopicJurisdiction(r.Context(), j.ID, t.ID, lang); derr == nil && dest.ID != j.ID {
+					page.NearestPath = dest.TopicPathIn(lang, t.Slug)
+					page.NearestName = dest.Name
+				}
+			}
+			render(w, r, http.StatusNotFound, page)
 			return
 		}
 		logger.ErrorContext(r.Context(), "get playbook", slog.Any("err", err))
@@ -404,7 +494,7 @@ func topicHub(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc
 					http.Redirect(w, r, store.LangPrefix(lang)+"/t/"+moved.Slug, http.StatusMovedPermanently)
 					return
 				}
-				http.NotFound(w, r)
+				render(w, r, http.StatusNotFound, tmpl.NotFoundPage{Language: lang})
 				return
 			}
 			logger.ErrorContext(r.Context(), "get topic", slog.Any("err", err))
@@ -419,36 +509,44 @@ func topicHub(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc
 		}
 		if len(cities) == 0 {
 			// A topic with no published playbooks in this language is not a
-			// public page.
-			http.NotFound(w, r)
+			// public page, but the topic is real, so the 404 says "not written
+			// yet" rather than "no such page".
+			render(w, r, http.StatusNotFound, tmpl.NotFoundPage{Topic: t, Language: lang})
 			return
 		}
 
 		// ?j= carries the reader's chosen location. Resolving it here rather
 		// than in the browser is what lets the homepage link situations
 		// straight into a city without shipping a city×topic map to every
-		// visitor to avoid 404s. A city that lacks this topic falls through to
-		// the list instead of erroring. 302, not 301: coverage grows, so this
-		// mapping must not be cached in browsers forever.
+		// visitor to avoid 404s. Resolution walks up the ancestor chain — the
+		// city's own guide when it has one, else the state's, else the
+		// national guide — the same upward-only rule that scopes search. A
+		// location with nothing up its chain falls through to the list
+		// instead of erroring. 302, not 301: coverage grows, so this mapping
+		// must not be cached in browsers forever.
 		if jSlug := r.URL.Query().Get("j"); jSlug != "" {
-			if city, jerr := db.GetJurisdictionBySlug(r.Context(), jSlug); jerr == nil {
-				for _, c := range cities {
-					if c.ID == city.ID {
-						http.Redirect(w, r, c.TopicPathIn(lang, t.Slug), http.StatusFound)
-						return
-					}
+			if loc, jerr := db.GetJurisdictionBySlug(r.Context(), jSlug); jerr == nil {
+				if dest, derr := db.GetNearestTopicJurisdiction(r.Context(), loc.ID, t.ID, lang); derr == nil {
+					// Not an open redirect: dest comes from the jurisdictions
+					// table and t from the topics table.
+					http.Redirect(w, r, dest.TopicPathIn(lang, t.Slug), http.StatusFound) // #nosec G710
+					return
 				}
 			}
 		}
 
 		// The query returns anywhere with this topic published, which includes
-		// state-level guides. Split them: a state grouped by its parent would
-		// file under "United States" and read as a city you could pick.
-		var inCities, statewide []store.Jurisdiction
+		// state and national guides. Split them: a state grouped by its parent
+		// would file under "United States" and read as a city you could pick,
+		// and a national guide labelled "Statewide" is simply wrong.
+		var inCities, statewide, national []store.Jurisdiction
 		for _, c := range cities {
-			if c.Kind == "city" {
+			switch c.Kind {
+			case "city":
 				inCities = append(inCities, c)
-			} else {
+			case "country":
+				national = append(national, c)
+			default:
 				statewide = append(statewide, c)
 			}
 		}
@@ -457,6 +555,7 @@ func topicHub(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc
 			Topic:     t,
 			Groups:    tmpl.GroupByState(inCities),
 			Statewide: statewide,
+			National:  national,
 			CityCount: len(inCities),
 			Language:  lang,
 		})
@@ -465,6 +564,15 @@ func topicHub(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc
 
 func author(w http.ResponseWriter, r *http.Request) {
 	render(w, r, http.StatusOK, tmpl.AuthorPage{})
+}
+
+// NotFound renders the styled 404 for URLs that match no route at all — the
+// router's fallback. Browse handlers that know more (an uncovered place, a
+// covered place missing one topic) build a richer tmpl.NotFoundPage inline.
+func NotFound() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		render(w, r, http.StatusNotFound, tmpl.NotFoundPage{})
+	}
 }
 
 // BuildPlaybookPage converts a stored playbook into the public page model,
@@ -515,13 +623,20 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 		reviewedOn = pb.Playbook.UpdatedAt.Format("January 2, 2006")
 	}
 
+	// The fallback description reads "...guide for {name}", which works for a
+	// place name but not for the bare country ("guide for United States").
+	descFor := pb.Jurisdiction.Name
+	if pb.Jurisdiction.Kind == "country" {
+		descFor = "renters anywhere in the United States"
+	}
+
 	return tmpl.PlaybookPage{
 		Playbook:       pb.Playbook,
 		Jurisdiction:   pb.Jurisdiction,
 		Topic:          pb.Topic,
 		IntroHTML:      introHTML,
 		Statements:     statements,
-		Description:    metaDescription(pb.IntroMD, pb.Playbook.Title, pb.Jurisdiction.Name),
+		Description:    metaDescription(pb.IntroMD, pb.Playbook.Title, descFor),
 		Canonical:      canonical,
 		StructuredData: playbookSchema(pb, canonical, sourceURLs),
 		ReviewedOn:     reviewedOn,

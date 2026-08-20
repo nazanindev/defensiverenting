@@ -15,7 +15,7 @@ import (
 // ---- find_sources ----------------------------------------------------------
 
 type FindSourcesInput struct {
-	CitySlug string `json:"city_slug" jsonschema:"the city's slug, e.g. \"boston\" or \"chicago\""`
+	JurisdictionSlug string `json:"jurisdiction_slug" jsonschema:"the target jurisdiction's slug: a city like \"boston\", a state like \"massachusetts\", or \"united-states\" for a nationwide page"`
 }
 
 type Candidate struct {
@@ -32,11 +32,12 @@ type FindSourcesOutput struct {
 	Candidates []Candidate `json:"candidates"`
 }
 
-// FindSources returns ranked, vetted candidate primary sources for a city.
+// FindSources returns ranked, vetted candidate primary sources for a
+// jurisdiction: a city, a state, or the country.
 func (tb *Toolbelt) FindSources(_ context.Context, in FindSourcesInput) (FindSourcesOutput, error) {
-	slug := strings.TrimSpace(in.CitySlug)
+	slug := strings.TrimSpace(in.JurisdictionSlug)
 	if slug == "" {
-		return FindSourcesOutput{}, reject("city_slug is required")
+		return FindSourcesOutput{}, reject("jurisdiction_slug is required")
 	}
 	cands := discover.Run(slug, discover.DefaultProviders()...)
 	out := FindSourcesOutput{Candidates: make([]Candidate, 0, len(cands))}
@@ -101,7 +102,10 @@ type StatementInput struct {
 }
 
 type SaveDraftInput struct {
-	CitySlug string `json:"city_slug"`
+	// JurisdictionSlug scopes the page: a city, a state, or "united-states"
+	// for a nationwide page. Tenant law layers, and a playbook may hang off
+	// any level (see store.ListAuthorableJurisdictions).
+	JurisdictionSlug string `json:"jurisdiction_slug"`
 	// No topic_name: topics are a closed registry, so the display name comes
 	// from the topics table and is never supplied by the caller.
 	TopicSlug string `json:"topic_slug" jsonschema:"a slug from list_topics, e.g. \"security-deposits\""`
@@ -125,31 +129,31 @@ type SaveDraftInput struct {
 }
 
 type SaveDraftOutput struct {
-	CitySlug       string `json:"city_slug"`
-	TopicSlug      string `json:"topic_slug"`
-	PageKind       string `json:"page_kind" jsonschema:"the layout the draft was saved with; check it matches what you intended"`
-	Language       string `json:"language" jsonschema:"the language code the draft was saved under"`
-	StatementCount int    `json:"statement_count"`
-	CitationCount  int    `json:"citation_count"`
-	Status         string `json:"status"`
-	Message        string `json:"message"`
+	JurisdictionSlug string `json:"jurisdiction_slug"`
+	TopicSlug        string `json:"topic_slug"`
+	PageKind         string `json:"page_kind" jsonschema:"the layout the draft was saved with; check it matches what you intended"`
+	Language         string `json:"language" jsonschema:"the language code the draft was saved under"`
+	StatementCount   int    `json:"statement_count"`
+	CitationCount    int    `json:"citation_count"`
+	Status           string `json:"status"`
+	Message          string `json:"message"`
 }
 
 // SaveDraft validates every citation quote against the cached fetched source
 // text, then writes a status="draft" playbook. Guardrail failures are returned
 // as *RejectionError so the caller can hand them back to the model to fix.
 func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraftOutput, error) {
-	if strings.TrimSpace(in.CitySlug) == "" || strings.TrimSpace(in.TopicSlug) == "" || strings.TrimSpace(in.Title) == "" {
-		return SaveDraftOutput{}, reject("city_slug, topic_slug and title are required")
+	if strings.TrimSpace(in.JurisdictionSlug) == "" || strings.TrimSpace(in.TopicSlug) == "" || strings.TrimSpace(in.Title) == "" {
+		return SaveDraftOutput{}, reject("jurisdiction_slug, topic_slug and title are required")
 	}
 	if len(in.Statements) == 0 {
 		return SaveDraftOutput{}, reject("a playbook needs at least one statement")
 	}
 
-	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.CitySlug)
+	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.JurisdictionSlug)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return SaveDraftOutput{}, reject("no jurisdiction with slug %q — call list_jurisdictions to see valid cities", in.CitySlug)
+			return SaveDraftOutput{}, reject("no jurisdiction with slug %q — call list_jurisdictions to see valid slugs", in.JurisdictionSlug)
 		}
 		return SaveDraftOutput{}, err
 	}
@@ -166,11 +170,12 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		return SaveDraftOutput{}, err
 	}
 
-	// Guardrail: topics are shared across cities; a city-prefixed topic slug
-	// fragments cross-city hubs and produces /j/{city}/{city}-{topic} URLs.
-	if strings.HasPrefix(in.TopicSlug, in.CitySlug+"-") {
-		return SaveDraftOutput{}, reject("topic_slug %q is prefixed with the city slug — topics are shared across cities. Use %q instead (call list_topics to see existing shared topics).",
-			in.TopicSlug, strings.TrimPrefix(in.TopicSlug, in.CitySlug+"-"))
+	// Guardrail: topics are shared across jurisdictions; a place-prefixed
+	// topic slug fragments cross-city hubs and produces
+	// /j/{city}/{city}-{topic} URLs.
+	if strings.HasPrefix(in.TopicSlug, in.JurisdictionSlug+"-") {
+		return SaveDraftOutput{}, reject("topic_slug %q is prefixed with the jurisdiction slug — topics are shared across every place. Use %q instead (call list_topics to see existing shared topics).",
+			in.TopicSlug, strings.TrimPrefix(in.TopicSlug, in.JurisdictionSlug+"-"))
 	}
 
 	// A published page in this slot is not an error: the draft becomes a
@@ -182,7 +187,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	// and writing a draft would have overwritten live legal content. See
 	// migration 000015.
 	revises := false
-	if _, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, lang); err == nil {
+	if _, err := tb.db.GetPlaybook(ctx, in.JurisdictionSlug, in.TopicSlug, lang); err == nil {
 		revises = true
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return SaveDraftOutput{}, err
@@ -288,43 +293,48 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	}
 
 	return SaveDraftOutput{
-		CitySlug:       in.CitySlug,
-		TopicSlug:      in.TopicSlug,
-		PageKind:       pageKind,
-		Language:       lang,
-		StatementCount: len(in.Statements),
-		CitationCount:  citationCount,
-		Status:         "draft",
-		Message:        savedMessage(revises),
+		JurisdictionSlug: in.JurisdictionSlug,
+		TopicSlug:        in.TopicSlug,
+		PageKind:         pageKind,
+		Language:         lang,
+		StatementCount:   len(in.Statements),
+		CitationCount:    citationCount,
+		Status:           "draft",
+		Message:          savedMessage(revises),
 	}, nil
 }
 
 // ---- read helpers ----------------------------------------------------------
 
 type ListJurisdictionsOutput struct {
-	Cities []JurisdictionOut `json:"cities"`
+	Jurisdictions []JurisdictionOut `json:"jurisdictions"`
 }
 
 type JurisdictionOut struct {
 	Slug string `json:"slug"`
 	Name string `json:"name"`
+	Kind string `json:"kind" jsonschema:"country|state|city"`
 }
 
+// ListJurisdictions returns every jurisdiction a page can target, not just
+// cities: tenant law layers, and a playbook may hang off any level. The
+// city-only listing meant the drafting agent was never shown "united-states"
+// as a valid target even though the store accepted it.
 func (tb *Toolbelt) ListJurisdictions(ctx context.Context) (ListJurisdictionsOutput, error) {
-	js, err := tb.db.ListCityJurisdictions(ctx)
+	js, err := tb.db.ListAuthorableJurisdictions(ctx)
 	if err != nil {
 		return ListJurisdictionsOutput{}, err
 	}
-	out := ListJurisdictionsOutput{Cities: make([]JurisdictionOut, 0, len(js))}
+	out := ListJurisdictionsOutput{Jurisdictions: make([]JurisdictionOut, 0, len(js))}
 	for _, j := range js {
-		out.Cities = append(out.Cities, JurisdictionOut{Slug: j.Slug, Name: j.Name})
+		out.Jurisdictions = append(out.Jurisdictions, JurisdictionOut{Slug: j.Slug, Name: j.Name, Kind: j.Kind})
 	}
 	return out, nil
 }
 
 type ListTopicsInput struct {
-	CitySlug string `json:"city_slug"`
-	Language string `json:"language,omitempty" jsonschema:"language to check coverage for: \"en\" (default) or \"es\". has_page reflects this language, not any other."`
+	JurisdictionSlug string `json:"jurisdiction_slug"`
+	Language         string `json:"language,omitempty" jsonschema:"language to check coverage for: \"en\" (default) or \"es\". has_page reflects this language, not any other."`
 }
 
 type ListTopicsOutput struct {
@@ -346,10 +356,10 @@ type TopicOut struct {
 // With nothing to reuse, drafting runs invented slugs, which is how a second
 // topic vocabulary came to exist alongside the first. See docs/ADRs/ADR-005 D5.
 func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTopicsOutput, error) {
-	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.CitySlug)
+	jur, err := tb.db.GetJurisdictionBySlug(ctx, in.JurisdictionSlug)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return ListTopicsOutput{}, reject("no jurisdiction with slug %q", in.CitySlug)
+			return ListTopicsOutput{}, reject("no jurisdiction with slug %q", in.JurisdictionSlug)
 		}
 		return ListTopicsOutput{}, err
 	}
@@ -379,9 +389,9 @@ func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTop
 }
 
 type GetPlaybookInput struct {
-	CitySlug  string `json:"city_slug"`
-	TopicSlug string `json:"topic_slug"`
-	Language  string `json:"language,omitempty" jsonschema:"language of the version to fetch: \"en\" (default) or \"es\". Fetch language=\"en\" as the source of truth before translating it into another language."`
+	JurisdictionSlug string `json:"jurisdiction_slug"`
+	TopicSlug        string `json:"topic_slug"`
+	Language         string `json:"language,omitempty" jsonschema:"language of the version to fetch: \"en\" (default) or \"es\". Fetch language=\"en\" as the source of truth before translating it into another language."`
 }
 
 type GetPlaybookOutput struct {
@@ -408,10 +418,10 @@ func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPl
 	if err != nil {
 		return GetPlaybookOutput{}, err
 	}
-	pb, err := tb.db.GetPlaybook(ctx, in.CitySlug, in.TopicSlug, lang)
+	pb, err := tb.db.GetPlaybook(ctx, in.JurisdictionSlug, in.TopicSlug, lang)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return GetPlaybookOutput{}, reject("no published playbook for %s/%s in language %q yet", in.CitySlug, in.TopicSlug, lang)
+			return GetPlaybookOutput{}, reject("no published playbook for %s/%s in language %q yet", in.JurisdictionSlug, in.TopicSlug, lang)
 		}
 		return GetPlaybookOutput{}, err
 	}

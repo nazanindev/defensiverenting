@@ -121,6 +121,58 @@ func (pg *PG) ListPublishedChildCities(ctx context.Context, parentID int64) ([]J
 	return scanJurisdictions(rows)
 }
 
+// ListPublishedHubJurisdictions returns every jurisdiction — country, state,
+// or city — that has at least one published playbook of its own, ordered
+// country first, then states, then cities grouped under their state.
+//
+// This is the hub-page inventory: it feeds the sitemap and /locations, which
+// used to list city hubs only, leaving the national and statewide hubs live
+// but unreachable by crawl. A state that has covered cities but no statewide
+// playbook is deliberately absent: its heading in the grouped city index
+// already links to its hub.
+func (pg *PG) ListPublishedHubJurisdictions(ctx context.Context) ([]Jurisdiction, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
+		FROM jurisdictions j
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
+		WHERE EXISTS (
+			SELECT 1 FROM playbooks p
+			WHERE p.jurisdiction_id = j.id AND p.status = 'published')
+		ORDER BY CASE j.kind WHEN 'country' THEN 0 WHEN 'state' THEN 1 ELSE 2 END,
+		         COALESCE(pj.name, ''), j.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJurisdictions(rows)
+}
+
+// GetNearestTopicJurisdiction returns the closest jurisdiction, walking up from
+// the given one through its ancestors, that has a published playbook for the
+// topic in the language: the city's own page when it has one, else the state's,
+// else the national guide. Same upward-only rule that scopes search. Returns
+// ErrNotFound when nothing up the chain covers the topic.
+func (pg *PG) GetNearestTopicJurisdiction(ctx context.Context, jurisdictionID, topicID int64, language string) (Jurisdiction, error) {
+	row := pg.pool.QueryRow(ctx, `
+		WITH RECURSIVE ancestors AS (
+			SELECT id, parent_id, 0 AS depth FROM jurisdictions WHERE id = $1
+			UNION ALL
+			SELECT j.id, j.parent_id, a.depth + 1 FROM jurisdictions j
+			JOIN ancestors a ON j.id = a.parent_id
+		)
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
+		FROM ancestors a
+		JOIN jurisdictions j ON j.id = a.id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
+		WHERE EXISTS (
+			SELECT 1 FROM playbooks p
+			WHERE p.jurisdiction_id = j.id AND p.topic_id = $2
+			  AND p.language = $3 AND p.status = 'published')
+		ORDER BY a.depth
+		LIMIT 1`, jurisdictionID, topicID, language)
+	return scanJurisdiction(row)
+}
+
 // GetJurisdictionBySlug looks up one jurisdiction by its URL slug.
 func (pg *PG) GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdiction, error) {
 	row := pg.pool.QueryRow(ctx, `
@@ -143,7 +195,37 @@ func (pg *PG) ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64
 		return nil, err
 	}
 	defer rows.Close()
+	return scanTopics(rows)
+}
 
+// ListTopicsByJurisdictionRecursive returns topics that have a published
+// playbook for the jurisdiction or any of its ancestors, in the language. This
+// is the coverage set a location actually resolves to under the upward-only
+// rule: the topics /t/{topic}?j={slug} would land on a real guide for, which
+// is what the homepage's situation list filters against once a location is
+// chosen.
+func (pg *PG) ListTopicsByJurisdictionRecursive(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error) {
+	rows, err := pg.pool.Query(ctx, `
+		WITH RECURSIVE ancestors AS (
+			SELECT id, parent_id FROM jurisdictions WHERE id = $1
+			UNION ALL
+			SELECT j.id, j.parent_id FROM jurisdictions j
+			JOIN ancestors a ON j.id = a.parent_id
+		)
+		SELECT DISTINCT t.id, t.slug, t.name
+		FROM topics t
+		JOIN playbooks p ON p.topic_id = t.id
+		JOIN ancestors a ON a.id = p.jurisdiction_id
+		WHERE p.language = $2 AND p.status = 'published'
+		ORDER BY t.name`, jurisdictionID, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanTopics(rows)
+}
+
+func scanTopics(rows pgx.Rows) ([]Topic, error) {
 	var topics []Topic
 	for rows.Next() {
 		var t Topic

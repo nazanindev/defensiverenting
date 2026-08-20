@@ -65,7 +65,7 @@
         </nav>
 
         <header class="playbook-header">
-          <span class="city-badge">{{.Jurisdiction.Name}}</span>
+          <span class="city-badge">{{if eq .Jurisdiction.Kind "country"}}Nationwide{{else}}{{.Jurisdiction.Name}}{{end}}</span>
           <h1>{{.Playbook.Title}}</h1>
           <p class="byline">Reviewed by <a href="/authors/cameron-monteith">Cameron Monteith</a>{{if .ReviewedOn}} · Last verified {{.ReviewedOn}}{{end}}</p>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
@@ -192,7 +192,7 @@
 
         {{if .SiblingTopics}}
         <section class="related-section" aria-labelledby="related-city-heading">
-          <h2 id="related-city-heading" class="section-title">More tenant rights in {{.Jurisdiction.Name}}</h2>
+          <h2 id="related-city-heading" class="section-title">{{if eq .Jurisdiction.Kind "country"}}More nationwide tenant rights guides{{else}}More tenant rights in {{.Jurisdiction.Name}}{{end}}</h2>
           <ul class="situation-list">
             {{$j := .Jurisdiction}}
             {{range .SiblingTopics}}
@@ -209,7 +209,7 @@
 
         {{if .OtherCities}}
         <section class="related-section" aria-labelledby="related-topic-heading">
-          <h2 id="related-topic-heading" class="section-title">{{.Topic.Name}} in other cities</h2>
+          <h2 id="related-topic-heading" class="section-title">{{if eq .Jurisdiction.Kind "country"}}{{.Topic.Name}} in your state or city{{else}}{{.Topic.Name}} in other cities{{end}}</h2>
           <ul class="city-list city-list--wide">
             {{$t := .Topic}}
             {{range .OtherCities}}

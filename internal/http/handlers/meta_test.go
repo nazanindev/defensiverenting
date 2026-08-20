@@ -17,7 +17,7 @@ type sitemapStub struct {
 	topicsByLang  map[string][]store.Topic
 }
 
-func (s *sitemapStub) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
+func (s *sitemapStub) ListPublishedHubJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
 	return s.jurisdictions, nil
 }
 func (s *sitemapStub) ListSitemapURLs(_ context.Context) ([]store.SitemapEntry, error) {
@@ -52,6 +52,31 @@ func TestSitemap_emitsBothLanguages(t *testing.T) {
 		"<loc>https://renterlaw.org/es/j/massachusetts/boston/security-deposits</loc>",
 		"<loc>https://renterlaw.org/t/security-deposits</loc>",
 		"<loc>https://renterlaw.org/es/t/security-deposits</loc>",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("sitemap missing %q", want)
+		}
+	}
+}
+
+// Hub pages of every kind belong in the sitemap. The city-only listing left
+// /j/united-states (and any statewide hub) published but never submitted.
+func TestSitemap_listsNationalAndStateHubs(t *testing.T) {
+	stub := &sitemapStub{
+		jurisdictions: []store.Jurisdiction{
+			{ID: 1, Kind: "country", Name: "United States", Slug: "united-states"},
+			{ID: 2, Kind: "state", Name: "Massachusetts", Slug: "massachusetts", ParentSlug: "united-states"},
+			{ID: 3, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"},
+		},
+		topicsByLang: map[string][]store.Topic{"en": {}, "es": {}},
+	}
+	rec := httptest.NewRecorder()
+	handlers.Sitemap(stub, "https://renterlaw.org")(rec, httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil))
+	body := rec.Body.String()
+	for _, want := range []string{
+		"<loc>https://renterlaw.org/j/united-states</loc>",
+		"<loc>https://renterlaw.org/j/massachusetts</loc>",
+		"<loc>https://renterlaw.org/j/massachusetts/boston</loc>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sitemap missing %q", want)

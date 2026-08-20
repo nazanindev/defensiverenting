@@ -1,12 +1,22 @@
-// Command draft runs the AI drafting worker: for a city, it drafts one or more
+// Command draft runs the AI drafting worker: for a jurisdiction (a city, a
+// state, or united-states for a nationwide page), it drafts one or more
 // playbooks — each researched, cited, and verbatim-guardrailed — as drafts for
 // the author to verify and publish. Runs the tool loop in Go (internal/
 // draftagent); no `claude` CLI.
 //
-//	draft -city boston                       # seed the core 5 topics (default)
-//	draft -city boston -topics eviction-defense
-//	draft -city boston -topics a,b,c -model claude-sonnet-5
-//	draft -city boston -topics eviction-defense -language es   # translate the published English page
+//	draft -jurisdiction boston                       # seed the core 5 topics (default)
+//	draft -jurisdiction boston -topics eviction-defense
+//	draft -jurisdiction united-states -topics landlord-entry
+//	draft -jurisdiction boston -topics a,b,c -model claude-sonnet-5
+//	draft -jurisdiction boston -topics eviction-defense -language es   # translate the published English page
+//	draft -jurisdiction boston -transcripts runs                       # keep per-draft JSONL transcripts
+//
+// -city is an alias for -jurisdiction, kept for muscle memory and old scripts.
+//
+// -transcripts writes one JSONL file per draft (every model response, tool
+// result, and the final spend report), which is how model runs are compared:
+// run the same topics twice with different -model values and diff the "done"
+// lines.
 //
 // Auth: ANTHROPIC_API_KEY. DB: DATABASE_URL (or -db).
 package main
@@ -15,10 +25,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/draftagent"
 	"github.com/nazanindev/defensiverenting/internal/drafting"
@@ -27,17 +40,19 @@ import (
 
 func main() {
 	log.SetFlags(0)
-	city := flag.String("city", "", "city slug, e.g. boston (required)")
+	jurisdiction := flag.String("jurisdiction", "", "jurisdiction slug: a city like boston, a state, or united-states (required)")
+	flag.StringVar(jurisdiction, "city", "", "alias for -jurisdiction")
 	topicsSpec := flag.String("topics", "core", "'core' (the predetermined 5), or a comma-separated list of topic slugs")
 	language := flag.String("language", "en", "language to draft in: 'en' (default) or 'es' (translates the published English page; see internal/draftagent's system prompt)")
 	model := flag.String("model", "claude-haiku-4-5", "Anthropic model id")
 	parallel := flag.Int("parallel", 3, "max drafts to run concurrently")
 	maxSteps := flag.Int("max-steps", 30, "max tool-use turns per draft")
+	transcripts := flag.String("transcripts", "", "directory for per-draft JSONL transcripts (created if missing); empty disables")
 	dsn := flag.String("db", os.Getenv("DATABASE_URL"), "Postgres DSN")
 	flag.Parse()
 
-	if *city == "" {
-		log.Fatal("draft: -city is required")
+	if *jurisdiction == "" {
+		log.Fatal("draft: -jurisdiction is required")
 	}
 	if *dsn == "" {
 		log.Fatal("draft: DATABASE_URL (or -db) is required")
@@ -63,11 +78,19 @@ func main() {
 	}
 	tb := drafting.New(pg) // shared toolbelt (fetch cache is concurrency-safe)
 
-	fmt.Fprintf(os.Stderr, "drafting %d topic(s) for %s on %s (parallel %d)…\n\n", len(topics), *city, *model, *parallel)
+	if *transcripts != "" {
+		if err := os.MkdirAll(*transcripts, 0o750); err != nil {
+			log.Fatalf("draft: create transcripts dir: %v", err)
+		}
+	}
+	runStamp := time.Now().UTC().Format("20060102-150405")
+
+	fmt.Fprintf(os.Stderr, "drafting %d topic(s) for %s on %s (parallel %d)…\n\n", len(topics), *jurisdiction, *model, *parallel)
 
 	type res struct {
-		topic draftagent.Topic
-		err   error
+		topic  draftagent.Topic
+		report draftagent.Report
+		err    error
 	}
 	results := make([]res, len(topics))
 	sem := make(chan struct{}, *parallel)
@@ -79,37 +102,69 @@ func main() {
 			defer wg.Done()
 			defer func() { <-sem }()
 			t := topics[i]
-			err := draftagent.Run(ctx, tb, draftagent.Options{
-				CitySlug:  *city,
-				TopicSlug: t.Slug,
-				TopicName: t.Name,
-				Language:  *language,
-				Model:     *model,
-				MaxSteps:  *maxSteps,
+			var tw io.Writer
+			if *transcripts != "" {
+				name := fmt.Sprintf("%s-%s-%s-%s-%s.jsonl", runStamp, *jurisdiction, t.Slug, *language, *model)
+				f, ferr := os.Create(filepath.Join(*transcripts, name))
+				if ferr != nil {
+					results[i] = res{topic: t, err: fmt.Errorf("create transcript: %w", ferr)}
+					return
+				}
+				defer f.Close()
+				tw = f
+			}
+			report, err := draftagent.Run(ctx, tb, draftagent.Options{
+				JurisdictionSlug: *jurisdiction,
+				TopicSlug:        t.Slug,
+				TopicName:        t.Name,
+				Language:         *language,
+				Model:            *model,
+				MaxSteps:         *maxSteps,
+				Transcript:       tw,
 				Log: func(format string, a ...any) {
 					fmt.Fprintf(os.Stderr, "[%s] "+format+"\n", append([]any{t.Slug}, a...)...)
 				},
 			})
-			results[i] = res{t, err}
+			results[i] = res{t, report, err}
 		}(i)
 	}
 	wg.Wait()
 
 	okN, failN := 0, 0
+	var steps int
+	var usage draftagent.TokenUsage
 	fmt.Println()
 	for _, r := range results {
 		if r.err != nil {
 			failN++
-			fmt.Printf("✗ %s/%s — %v\n", *city, r.topic.Slug, r.err)
+			fmt.Printf("✗ %s/%s — %v\n", *jurisdiction, r.topic.Slug, r.err)
 		} else {
 			okN++
-			fmt.Printf("✓ %s/%s\n", *city, r.topic.Slug)
+			fmt.Printf("✓ %s/%s\n", *jurisdiction, r.topic.Slug)
 		}
+		if r.report.Steps > 0 {
+			fmt.Printf("    %s\n", summarize(r.report))
+		}
+		steps += r.report.Steps
+		usage.InputTokens += r.report.Usage.InputTokens
+		usage.OutputTokens += r.report.Usage.OutputTokens
+		usage.CacheReadTokens += r.report.Usage.CacheReadTokens
+		usage.CacheCreationTokens += r.report.Usage.CacheCreationTokens
+		usage.WebSearchRequests += r.report.Usage.WebSearchRequests
 	}
-	fmt.Printf("\n%s: %d drafted, %d failed — review them in the authoring tool.\n", *city, okN, failN)
+	fmt.Printf("\ntotals for %s: %d steps; tokens: %d in, %d out, %d cache-read, %d cache-write; %d web searches\n",
+		*model, steps, usage.InputTokens, usage.OutputTokens, usage.CacheReadTokens, usage.CacheCreationTokens, usage.WebSearchRequests)
+	fmt.Printf("%s: %d drafted, %d failed — review them in the authoring tool.\n", *jurisdiction, okN, failN)
 	if failN > 0 {
 		os.Exit(1)
 	}
+}
+
+// summarize renders a Report as the one-line spend summary under each result.
+func summarize(r draftagent.Report) string {
+	return fmt.Sprintf("%d steps, %d tool calls (%d rejected), %s; tokens: %d in, %d out, %d cache-read, %d cache-write; %d web searches",
+		r.Steps, r.ToolCalls, r.Rejections, r.Duration.Round(time.Second),
+		r.Usage.InputTokens, r.Usage.OutputTokens, r.Usage.CacheReadTokens, r.Usage.CacheCreationTokens, r.Usage.WebSearchRequests)
 }
 
 // resolveTopics turns the -topics spec into a topic list: "core" (the topics

@@ -20,9 +20,12 @@ func Robots(siteURL string) http.HandlerFunc {
 }
 
 type sitemapStore interface {
-	// Published only: a city with nothing published has an empty hub page, and
-	// submitting it invites Google to index a page with no content on it.
-	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	// Published only: a jurisdiction with nothing published has an empty hub
+	// page, and submitting it invites Google to index a page with no content
+	// on it. Hubs of every kind — national and statewide as well as city —
+	// belong here; the city-only listing left /j/united-states out of the
+	// sitemap entirely.
+	ListPublishedHubJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListSitemapURLs(ctx context.Context) ([]store.SitemapEntry, error)
 	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
 }
@@ -30,7 +33,7 @@ type sitemapStore interface {
 // Sitemap serves /sitemap.xml listing all jurisdiction and playbook pages.
 func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		jurisdictions, err := db.ListPublishedCityJurisdictions(r.Context())
+		jurisdictions, err := db.ListPublishedHubJurisdictions(r.Context())
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return

@@ -116,10 +116,10 @@ func TestSaveDraft_HappyPath(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "security-deposits",
-		Title:     "Boston Security Deposits",
-		IntroMD:   "What Boston renters should know.",
+		JurisdictionSlug: "boston",
+		TopicSlug:        "security-deposits",
+		Title:            "Boston Security Deposits",
+		IntroMD:          "What Boston renters should know.",
 		Statements: []StatementInput{
 			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
@@ -153,7 +153,7 @@ func TestSaveDraft_RejectsFabricatedQuote(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{
 			// This quote never appears in the fetched text — the guardrail must reject it.
 			stmt("Deposits must be returned within 14 days.", depositURL, "within fourteen days"),
@@ -172,7 +172,7 @@ func TestSaveDraft_RejectsUnfetchedURL(t *testing.T) {
 	tb := newTestToolbelt(fs, map[string]string{depositURL: `text`})
 	// Note: no mustFetch — the URL is cited without ever being fetched.
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "text")},
 	})
 	if !isRejection(err) {
@@ -192,7 +192,7 @@ func TestSaveDraft_WhitespaceTolerantMatch(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		// Quote uses single spaces; must still match despite layout differences.
 		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days after the termination")},
 	})
@@ -215,7 +215,7 @@ func TestSaveDraft_RevisesPublishedWithoutTouchingIt(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days")},
 	})
 	if err != nil {
@@ -245,7 +245,7 @@ func TestSaveDraft_DefaultsToEnglishLanguage(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{
 			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
@@ -273,7 +273,7 @@ func TestSaveDraft_SpanishDraftKeepsVerbatimGuardrail(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "El plazo de 30 días", Language: "es",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "El plazo de 30 días", Language: "es",
 		Statements: []StatementInput{
 			stmt("Su arrendador debe devolver el depósito en 30 días después de que termine el contrato.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
@@ -295,7 +295,7 @@ func TestSaveDraft_SpanishDraftKeepsVerbatimGuardrail(t *testing.T) {
 	tb2 := newTestToolbelt(fs2, map[string]string{depositURL: `<p>within thirty days</p>`})
 	mustFetch(t, tb2, depositURL)
 	_, err = tb2.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "es",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "es",
 		Statements: []StatementInput{stmt("Reclamo.", depositURL, "dentro de treinta días")},
 	})
 	if !isRejection(err) {
@@ -315,7 +315,7 @@ func TestSaveDraft_RejectsUnknownLanguage(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "sp",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "sp",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "within thirty days")},
 	})
 	if !isRejection(err) {
@@ -334,7 +334,7 @@ func TestSaveDraft_SpanishVoiceLintCatchesBannedWord(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "es",
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T", Language: "es",
 		Statements: []StatementInput{
 			stmt("Usted renuncia a este derecho si no responde.", depositURL, "within thirty days"),
 		},
@@ -359,14 +359,14 @@ func TestGetPlaybook_LanguageDefaultsAndThreadsThrough(t *testing.T) {
 	fs := &fakeStore{coveredLanguage: "en"}
 	tb := newTestToolbelt(fs, nil)
 
-	if _, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{CitySlug: "boston", TopicSlug: "security-deposits"}); err != nil {
+	if _, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{JurisdictionSlug: "boston", TopicSlug: "security-deposits"}); err != nil {
 		t.Fatalf("default language: unexpected error: %v", err)
 	}
 	if fs.lastLanguage != "en" {
 		t.Errorf("default language sent to store = %q, want en", fs.lastLanguage)
 	}
 
-	out, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{CitySlug: "boston", TopicSlug: "security-deposits", Language: "es"})
+	out, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{JurisdictionSlug: "boston", TopicSlug: "security-deposits", Language: "es"})
 	if !isRejection(err) {
 		t.Fatalf("Spanish version doesn't exist yet: want a not-found rejection, got out=%+v err=%v", out, err)
 	}
@@ -379,7 +379,7 @@ func TestListTopics_LanguageControlsHasPage(t *testing.T) {
 	fs := &fakeStore{coveredLanguage: "en"}
 	tb := newTestToolbelt(fs, nil)
 
-	out, err := tb.ListTopics(context.Background(), ListTopicsInput{CitySlug: "boston"})
+	out, err := tb.ListTopics(context.Background(), ListTopicsInput{JurisdictionSlug: "boston"})
 	if err != nil {
 		t.Fatalf("default language: unexpected error: %v", err)
 	}
@@ -387,7 +387,7 @@ func TestListTopics_LanguageControlsHasPage(t *testing.T) {
 		t.Error("security-deposits has an English page and default language is en; want has_page=true")
 	}
 
-	out, err = tb.ListTopics(context.Background(), ListTopicsInput{CitySlug: "boston", Language: "es"})
+	out, err = tb.ListTopics(context.Background(), ListTopicsInput{JurisdictionSlug: "boston", Language: "es"})
 	if err != nil {
 		t.Fatalf("es language: unexpected error: %v", err)
 	}
@@ -400,7 +400,7 @@ func TestSaveDraft_RejectsUnknownCity(t *testing.T) {
 	fs := &fakeStore{}
 	tb := newTestToolbelt(fs, nil)
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug: "atlantis", TopicSlug: "security-deposits", Title: "T",
+		JurisdictionSlug: "atlantis", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{stmt("Claim.", depositURL, "x")},
 	})
 	if !isRejection(err) {
@@ -420,10 +420,10 @@ func TestSaveDraft_RejectsTopicNotInRegistry(t *testing.T) {
 	mustFetch(t, tb, depositURL)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "deposit-return-rules",
-		Title:     "Boston Deposit Rules",
-		IntroMD:   "What Boston renters should know.",
+		JurisdictionSlug: "boston",
+		TopicSlug:        "deposit-return-rules",
+		Title:            "Boston Deposit Rules",
+		IntroMD:          "What Boston renters should know.",
 		Statements: []StatementInput{
 			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
@@ -470,11 +470,11 @@ func TestSaveDraft_SavesADirectoryPage(t *testing.T) {
 	tb := directoryToolbelt(t, fs)
 
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "resource-directory",
-		Title:     "Where to get help in Boston",
-		IntroMD:   "Local organisations that help renters.",
-		PageKind:  "directory",
+		JurisdictionSlug: "boston",
+		TopicSlug:        "resource-directory",
+		Title:            "Where to get help in Boston",
+		IntroMD:          "Local organisations that help renters.",
+		PageKind:         "directory",
 		Statements: []StatementInput{
 			orgStmt("Example Legal Aid gives free legal help to renters.",
 				"We provide free legal help to tenants in Allegheny County"),
@@ -502,10 +502,10 @@ func TestSaveDraft_DefaultsToPlaybookWhenPageKindOmitted(t *testing.T) {
 	tb := directoryToolbelt(t, fs)
 
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "security-deposits",
-		Title:     "Boston Security Deposits",
-		IntroMD:   "What Boston renters should know.",
+		JurisdictionSlug: "boston",
+		TopicSlug:        "security-deposits",
+		Title:            "Boston Security Deposits",
+		IntroMD:          "What Boston renters should know.",
 		Statements: []StatementInput{
 			orgStmt("Example Legal Aid gives free legal help to renters.",
 				"We provide free legal help to tenants in Allegheny County"),
@@ -528,11 +528,11 @@ func TestSaveDraft_RejectsUnknownPageKind(t *testing.T) {
 	tb := directoryToolbelt(t, fs)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "resource-directory",
-		Title:     "Where to get help in Boston",
-		IntroMD:   "Local organisations that help renters.",
-		PageKind:  "Directory", // right word, wrong case
+		JurisdictionSlug: "boston",
+		TopicSlug:        "resource-directory",
+		Title:            "Where to get help in Boston",
+		IntroMD:          "Local organisations that help renters.",
+		PageKind:         "Directory", // right word, wrong case
 		Statements: []StatementInput{
 			orgStmt("Example Legal Aid gives free legal help to renters.",
 				"We provide free legal help to tenants in Allegheny County"),
@@ -554,11 +554,11 @@ func TestSaveDraft_DirectoryStillRequiresVerbatimQuotes(t *testing.T) {
 	tb := directoryToolbelt(t, fs)
 
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "resource-directory",
-		Title:     "Where to get help in Boston",
-		IntroMD:   "Local organisations that help renters.",
-		PageKind:  "directory",
+		JurisdictionSlug: "boston",
+		TopicSlug:        "resource-directory",
+		Title:            "Where to get help in Boston",
+		IntroMD:          "Local organisations that help renters.",
+		PageKind:         "directory",
 		Statements: []StatementInput{
 			orgStmt("Example Legal Aid runs a 24-hour hotline.",
 				"We run a 24-hour hotline for renters"), // never appears in the source
@@ -581,11 +581,11 @@ func TestSaveDraft_RejectsLocalHelpLaidOutAsAPlaybook(t *testing.T) {
 		fs := &fakeStore{}
 		tb := directoryToolbelt(t, fs)
 		_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-			CitySlug:  "boston",
-			TopicSlug: "resource-directory",
-			Title:     "Where to get help in Boston",
-			IntroMD:   "Local organisations that help renters.",
-			PageKind:  kind,
+			JurisdictionSlug: "boston",
+			TopicSlug:        "resource-directory",
+			Title:            "Where to get help in Boston",
+			IntroMD:          "Local organisations that help renters.",
+			PageKind:         kind,
 			Statements: []StatementInput{
 				orgStmt("Example Legal Aid gives free legal help to renters.",
 					"We provide free legal help to tenants in Allegheny County"),
@@ -607,11 +607,11 @@ func TestSaveDraft_AllowsTheDirectoryLayoutOnOtherTopics(t *testing.T) {
 	fs := &fakeStore{}
 	tb := directoryToolbelt(t, fs)
 	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
-		CitySlug:  "boston",
-		TopicSlug: "cant-pay-rent",
-		Title:     "Rent help in Boston",
-		IntroMD:   "Where to go if you cannot pay.",
-		PageKind:  "directory",
+		JurisdictionSlug: "boston",
+		TopicSlug:        "cant-pay-rent",
+		Title:            "Rent help in Boston",
+		IntroMD:          "Where to go if you cannot pay.",
+		PageKind:         "directory",
 		Statements: []StatementInput{
 			orgStmt("Example Legal Aid gives free legal help to renters.",
 				"We provide free legal help to tenants in Allegheny County"),

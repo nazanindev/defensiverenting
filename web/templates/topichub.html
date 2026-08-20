@@ -78,6 +78,19 @@
       </ul>
     </section>
     {{end}}
+
+    {{if .National}}
+    <section class="city-section" aria-labelledby="national-heading">
+      <h2 id="national-heading" class="section-title">Nationwide guide</h2>
+      {{$topic := .Topic}}
+      <ul class="city-list city-list--wide">
+        {{range .National}}
+        <li><a href="{{.TopicPathIn $.Language $topic.Slug}}">{{.Name}}</a></li>
+        {{end}}
+      </ul>
+      <p class="empty-state-hint">This guide explains the rules that apply in every state. Your state and city can add more protections on top.</p>
+    </section>
+    {{end}}
   </main>
 
   {{template "site-footer" .}}

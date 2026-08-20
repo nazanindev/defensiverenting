@@ -184,20 +184,27 @@ func (p SearchPage) Scope() ScopeSearch {
 // LocationsPage is the crawlable directory of every covered city, grouped by
 // state. It exists so the homepage does not have to enumerate cities to keep
 // them linked for search engines.
+//
+// National carries country-level hubs with published guides of their own,
+// listed in a section of their own: bucketed like a city, "United States"
+// would render under an empty state heading and read as a city you could pick.
 type LocationsPage struct {
+	National  []store.Jurisdiction
 	Groups    []StateGroup
 	CityCount int
 }
 
 // TopicHubPage lists every place that has a published playbook for one topic.
 //
-// Statewide is kept apart from Groups because a state-level guide is not a
-// city: grouped by parent it would file itself under a "United States" heading
-// and read as if the country were a city you could pick.
+// Statewide and National are kept apart from Groups because neither is a
+// city: grouped by parent, a state guide would file itself under a "United
+// States" heading and read as if the country were a city you could pick, and
+// a national guide would land in the statewide bucket labelled "Statewide".
 type TopicHubPage struct {
 	Topic     store.Topic
 	Groups    []StateGroup
 	Statewide []store.Jurisdiction
+	National  []store.Jurisdiction
 	CityCount int
 	// Language is the language this hub's cities/statewide guides are
 	// filtered to (see ADR-007 D5) — "en" or "es". Drives <html lang> and the
@@ -390,6 +397,35 @@ type ContactPage struct {
 	ErrorMessage     string
 }
 
+// NotFoundPage is the styled 404. Every variant carries the same explanation:
+// a person researches and checks every guide before it is published, so
+// coverage grows one place and one topic at a time. Which fields are set
+// decides the rest of the story:
+//
+//   - all zero: a plain wrong URL ("we can't find that page")
+//   - UncoveredPlace: the URL named a place we have not covered, optionally
+//     under a known Parent hub the page can link ("everything we have for
+//     Massachusetts")
+//   - Place + Topic: a covered place missing this one guide; NearestPath and
+//     NearestName link the closest guide up the ancestor chain when one
+//     exists, since an ancestor's law applies in the place beneath it
+//   - Topic alone: a registry topic with no published guides in this language
+//
+// The page is always served with a 404 status; the body is helpful, the code
+// stays honest so search engines drop the URL.
+type NotFoundPage struct {
+	Place          store.Jurisdiction
+	Topic          store.Topic
+	NearestPath    string
+	NearestName    string
+	UncoveredPlace bool
+	Parent         store.Jurisdiction
+	// Language is the language of the URL that missed ("en" or "es"), used
+	// only to build links back into that language's pages. The chrome stays
+	// English like the rest of the non-content pages (ADR-007 D2).
+	Language string
+}
+
 // ThanksPage confirms a submission. Kind is "report" or "contact" and changes
 // only the wording.
 type ThanksPage struct {
@@ -428,6 +464,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "locations.html", p)
 	case AuthorPage:
 		return tmpl.ExecuteTemplate(w, "author.html", p)
+	case NotFoundPage:
+		return tmpl.ExecuteTemplate(w, "notfound.html", p)
 	default:
 		return fmt.Errorf("unknown page type %T", page)
 	}

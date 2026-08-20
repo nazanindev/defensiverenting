@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Page not found · RenterLaw</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body class="has-hero-search">
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="halo" aria-hidden="true"></div>
+
+    <section class="hero">
+      {{if .Topic.Slug}}
+        {{if .Place.Slug}}
+        <h1>No {{.Topic.Name}} guide for {{.Place.Name}} yet</h1>
+        <p class="lede">We have other guides for {{.Place.Name}}, but not this one yet.</p>
+        {{else}}
+        <h1>No {{.Topic.Name}} guides yet</h1>
+        <p class="lede">No guides are published for this topic yet.</p>
+        {{end}}
+      {{else if .UncoveredPlace}}
+      <h1>We don't cover this place yet</h1>
+      <p class="lede">RenterLaw adds new places one at a time.</p>
+      {{else}}
+      <h1>We can't find that page</h1>
+      <p class="lede">The link may be wrong, or the page may have moved.</p>
+      {{end}}
+      <form class="hero-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search by situation" autofocus />
+        <button type="submit">Search</button>
+      </form>
+    </section>
+
+    {{if .NearestPath}}
+    <section class="city-section" aria-labelledby="nearest-heading">
+      <h2 id="nearest-heading" class="section-title">The {{.NearestName}} guide covers this</h2>
+      <p class="empty-state-hint">{{.NearestName}} law applies in {{.Place.Name}}. Start there until we write the {{.Place.Name}} guide.</p>
+      <ul class="city-list city-list--wide">
+        <li><a href="{{.NearestPath}}">{{.Topic.Name}} in {{.NearestName}}</a></li>
+      </ul>
+    </section>
+    {{end}}
+
+    <section class="city-section" aria-labelledby="next-heading">
+      <h2 id="next-heading" class="section-title">Where to go instead</h2>
+      <ul class="city-list city-list--wide">
+        {{if .Place.Slug}}<li><a href="{{.Place.PathIn .Language}}">Everything we have for {{.Place.Name}}</a></li>{{end}}
+        {{if .Parent.Slug}}<li><a href="{{.Parent.PathIn .Language}}">Everything we have for {{.Parent.Name}}</a></li>{{end}}
+        <li><a href="/locations">All the places we cover</a></li>
+        <li><a href="/">Search from the homepage</a></li>
+      </ul>
+    </section>
+
+    <section class="city-section" aria-labelledby="why-heading">
+      <h2 id="why-heading" class="section-title">Why some pages are missing</h2>
+      <p class="empty-state-hint">
+        Every guide on this site is researched, and a person checks every citation before we publish it.
+        We publish nothing without that check.
+        That is why coverage grows one place and one topic at a time.
+        If we do not cover your city yet, your state's guide and the nationwide guides still apply to you.
+        <a href="/contact">Ask us to cover your city →</a>
+      </p>
+    </section>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

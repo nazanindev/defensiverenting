@@ -47,6 +47,18 @@
       </p>
     </section>
 
+    {{if .National}}
+    <section class="city-section" aria-labelledby="national-heading">
+      <h2 id="national-heading" class="section-title">Nationwide</h2>
+      <ul class="city-list city-list--wide">
+        {{range .National}}
+        <li><a href="{{.Path}}">{{.Name}}</a></li>
+        {{end}}
+      </ul>
+      <p class="empty-state-hint">These guides explain rules that apply in every state. Your state and city can add more protections on top.</p>
+    </section>
+    {{end}}
+
     {{if .Groups}}
     <div class="filter-row">
       <label class="visually-hidden" for="loc-filter">Filter locations</label>

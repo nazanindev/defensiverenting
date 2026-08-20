@@ -30,7 +30,9 @@ The reader may not have strong reading skills. They are stressed, short on time,
 
 Depth: write 10-14 statements per playbook. Cover the full arc of the situation: what the law says, deadlines and amounts, what the renter should do step by step, what happens if the landlord ignores it, and what happens in court where relevant. Do not pad; every statement must earn its place with a distinct, actionable fact.
 
-Do NOT add a "where to get help" section to a playbook. Local help is its own page: topic_slug "resource-directory" (display name "Local Help") with page_kind "directory". A city needs that page once, and repeating the same organisations at the foot of every topic means the same dead phone number has to be fixed in seven places. A playbook explains the law; it does not carry the referral list.
+Do NOT add a "where to get help" section to a playbook. Local help is its own page: topic_slug "resource-directory" (display name "Local Help") with page_kind "directory". A jurisdiction needs that page once, and repeating the same organisations at the foot of every topic means the same dead phone number has to be fixed in seven places. A playbook explains the law; it does not carry the referral list.
+
+Nationwide pages (jurisdiction_slug "united-states"): most tenant law is state law, so a nationwide page cannot state one rule the way a city page can. State a rule as nationwide only when federal law or an authoritative nationwide source backs it. Otherwise say plainly how it varies: "most states require notice before entry; the number of hours differs by state". Cite federal statutes, HUD, CFPB, or a source that surveys every state. Never cite one state's statute to back a claim written as if it were true everywhere. End the reader's path at their own location: the site links every nationwide page to the state and city guides, so point variation at "check your state's guide" rather than listing every state.
 
 When you are asked to draft "resource-directory" itself: one organisation per statement, naming what it does and how to reach it, citing that organisation's own site (kind "nonprofit") or the government program page (kind "gov_guidance"). Never cite an aggregator that is summarising other organisations. If you cannot find an organisation's own URL, leave it out.
 
@@ -38,7 +40,7 @@ Languages: every tool defaults to language "en". The only other supported langua
 
 Workflow: use find_sources and web_search to locate authoritative sources → fetch_source each one → write the statements, each with >=1 verbatim citation → call save_draft_playbook once. The result is a DRAFT; a human reviews and publishes it. You never publish.`
 
-func userPrompt(citySlug, topicSlug, topicName, language string) string {
+func userPrompt(jurisdictionSlug, topicSlug, topicName, language string) string {
 	name := topicName
 	if name == "" {
 		name = titleize(topicSlug)
@@ -47,11 +49,11 @@ func userPrompt(citySlug, topicSlug, topicName, language string) string {
 		language = "en"
 	}
 	header := fmt.Sprintf(
-		"Draft a tenant-rights playbook for city_slug=%q, topic_slug=%q (topic: %s), language=%q. "+
+		"Draft a tenant-rights playbook for jurisdiction_slug=%q, topic_slug=%q (topic: %s), language=%q. "+
 			"Use exactly these slugs when you call save_draft_playbook. The topic must "+
 			"already exist: call list_topics if %q is rejected, and pick the closest slug "+
 			"from the registry rather than inventing one. ",
-		citySlug, topicSlug, name, language, topicSlug)
+		jurisdictionSlug, topicSlug, name, language, topicSlug)
 
 	if language == "en" {
 		return header + "Research the authoritative sources, read each via fetch_source, and save one draft."
@@ -59,7 +61,7 @@ func userPrompt(citySlug, topicSlug, topicName, language string) string {
 
 	lang := voice.Label(language)
 	return header + fmt.Sprintf(
-		"First call get_playbook(city_slug=%q, topic_slug=%q, language=\"en\") to check for a published "+
+		"First call get_playbook(jurisdiction_slug=%q, topic_slug=%q, language=\"en\") to check for a published "+
 			"English version. If one exists and this is not the resource-directory topic, translate it "+
 			"into %s: reuse its exact citation URLs and verbatim quotes (re-fetch each via fetch_source in "+
 			"this session first), and write title/intro_md/body_md as an idiomatic %s translation of the "+
@@ -67,7 +69,7 @@ func userPrompt(citySlug, topicSlug, topicName, language string) string {
 			"and draft fresh in %s instead — resource-directory in particular should list organisations "+
 			"that actually serve %s speakers, not a translation of the English list. "+
 			"Then save exactly one draft with language=%q.",
-		citySlug, topicSlug, lang, lang, lang, lang, language)
+		jurisdictionSlug, topicSlug, lang, lang, lang, lang, language)
 }
 
 func titleize(slug string) string {
@@ -123,9 +125,9 @@ func toolDefs() []anthropic.ToolUnionParam {
 		{OfWebSearchTool20250305: &anthropic.WebSearchTool20250305Param{MaxUses: anthropic.Int(10)}},
 
 		customTool("find_sources",
-			"List ranked, vetted authoritative primary sources for a city to seed research.",
-			map[string]any{"city_slug": strProp("the city slug, e.g. 'boston'")},
-			[]string{"city_slug"}),
+			"List ranked, vetted authoritative primary sources for a jurisdiction to seed research.",
+			map[string]any{"jurisdiction_slug": strProp("the jurisdiction slug: a city like 'boston', a state, or 'united-states'")},
+			[]string{"jurisdiction_slug"}),
 
 		customTool("fetch_source",
 			"Fetch a source URL and return its readable text. Read a source through this tool before citing it — quotes are verified against text returned here.",
@@ -138,35 +140,35 @@ func toolDefs() []anthropic.ToolUnionParam {
 		customTool("save_draft_playbook",
 			"Save a DRAFT page. Every citation quote must be verbatim in a fetched source, or the save is rejected. Never publishes.",
 			map[string]any{
-				"city_slug":  strProp("city slug (use the one from the task)"),
-				"topic_slug": strProp("WHAT the page is about. A slug from list_topics; topics are a fixed set and cannot be created here"),
-				"title":      strProp("page title"),
-				"intro_md":   strProp("short Markdown intro for the page"),
-				"page_kind":  strProp("HOW the page is laid out, chosen separately from topic_slug (which is what it is about): 'playbook' renders a numbered argument, 'directory' renders a list of organisations. Omit for playbook. topic_slug 'resource-directory' must use 'directory' or the save is rejected."),
-				"statements": map[string]any{"type": "array", "items": statementItems},
-				"language":   strProp("'en' (default) or 'es'. 'es' must be a translation of the existing English playbook (see get_playbook), reusing its exact citations, not independent Spanish research — except resource-directory, which should research fresh Spanish-serving organisations."),
+				"jurisdiction_slug": strProp("jurisdiction slug (use the one from the task)"),
+				"topic_slug":        strProp("WHAT the page is about. A slug from list_topics; topics are a fixed set and cannot be created here"),
+				"title":             strProp("page title"),
+				"intro_md":          strProp("short Markdown intro for the page"),
+				"page_kind":         strProp("HOW the page is laid out, chosen separately from topic_slug (which is what it is about): 'playbook' renders a numbered argument, 'directory' renders a list of organisations. Omit for playbook. topic_slug 'resource-directory' must use 'directory' or the save is rejected."),
+				"statements":        map[string]any{"type": "array", "items": statementItems},
+				"language":          strProp("'en' (default) or 'es'. 'es' must be a translation of the existing English playbook (see get_playbook), reusing its exact citations, not independent Spanish research — except resource-directory, which should research fresh Spanish-serving organisations."),
 			},
-			[]string{"city_slug", "topic_slug", "title", "statements"}),
+			[]string{"jurisdiction_slug", "topic_slug", "title", "statements"}),
 
 		customTool("list_jurisdictions",
-			"List the cities known to the platform (slug + name).",
+			"List the jurisdictions known to the platform (slug + name + kind: country, state, or city). A page can target any of them.",
 			map[string]any{}, nil),
 
 		customTool("list_topics",
-			"List topics that already have a published playbook for a city, to avoid duplicating coverage.",
+			"List topics that already have a published playbook for a jurisdiction, to avoid duplicating coverage.",
 			map[string]any{
-				"city_slug": strProp("the city slug"),
-				"language":  strProp("'en' (default) or 'es'. has_page reflects coverage in this language only."),
+				"jurisdiction_slug": strProp("the jurisdiction slug"),
+				"language":          strProp("'en' (default) or 'es'. has_page reflects coverage in this language only."),
 			},
-			[]string{"city_slug"}),
+			[]string{"jurisdiction_slug"}),
 
 		customTool("get_playbook",
-			"Fetch an existing published playbook for a city+topic. Returns not-found if none exists.",
+			"Fetch an existing published playbook for a jurisdiction+topic. Returns not-found if none exists.",
 			map[string]any{
-				"city_slug":  strProp("city slug"),
-				"topic_slug": strProp("topic slug"),
-				"language":   strProp("'en' (default) or 'es'. Fetch 'en' as the source of truth before translating."),
+				"jurisdiction_slug": strProp("jurisdiction slug"),
+				"topic_slug":        strProp("topic slug"),
+				"language":          strProp("'en' (default) or 'es'. Fetch 'en' as the source of truth before translating."),
 			},
-			[]string{"city_slug", "topic_slug"}),
+			[]string{"jurisdiction_slug", "topic_slug"}),
 	}
 }

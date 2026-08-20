@@ -13,8 +13,17 @@ type Store interface {
 	ListCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	ListAuthorableJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdiction, error)
+	// ListPublishedHubJurisdictions is the hub-page inventory: every
+	// jurisdiction of any kind with a published playbook of its own.
+	ListPublishedHubJurisdictions(ctx context.Context) ([]Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (Jurisdiction, error)
+	// GetNearestTopicJurisdiction resolves a location to the closest guide up
+	// its ancestor chain: city, else state, else country.
+	GetNearestTopicJurisdiction(ctx context.Context, jurisdictionID, topicID int64, language string) (Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error)
+	// ListTopicsByJurisdictionRecursive is the coverage set that same walk
+	// resolves for a location: its own topics plus every ancestor's.
+	ListTopicsByJurisdictionRecursive(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error)
 	GetTopicBySlug(ctx context.Context, slug string) (Topic, error)
 	// ListTopicRegistry returns the whole canonical topic set, not just topics
 	// already published somewhere. Drafting a new city must see the vocabulary

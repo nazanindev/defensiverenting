@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -208,5 +209,88 @@ func TestSearch_recursive(t *testing.T) {
 	}
 	if len(results) == 0 {
 		t.Error("expected results via recursive jurisdiction expansion, got none")
+	}
+}
+
+// The ?j= redirect and the homepage coverage filter both resolve a location to
+// the nearest guide up its ancestor chain. Seed a chain with a guide only at
+// the top and check the walk, the recursive coverage list, and the hub
+// inventory all see it.
+func TestNearestTopicJurisdiction_walksUpTheChain(t *testing.T) {
+	pg := testDB(t)
+	ctx := context.Background()
+
+	country, _ := pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+		Kind: "country", Name: "Nearest Country", Slug: "nearest-country-" + t.Name(),
+	})
+	state, _ := pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+		ParentID: &country.ID, Kind: "state", Name: "Nearest State", Slug: "nearest-state-" + t.Name(),
+	})
+	city, _ := pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+		ParentID: &state.ID, Kind: "city", Name: "Nearest City", Slug: "nearest-city-" + t.Name(),
+	})
+	topic, _ := pg.UpsertTopic(ctx, store.UpsertTopicParams{
+		Slug: "nearest-topic-" + t.Name(), Name: "Nearest Topic",
+	})
+	src, _ := pg.UpsertSource(ctx, store.UpsertSourceParams{
+		URL: "https://example.com/nearest-" + t.Name(), Publisher: "Test", Kind: "statute",
+	})
+
+	// Publish the guide at the country only.
+	err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
+		JurisdictionID: country.ID,
+		TopicID:        topic.ID,
+		Language:       "en",
+		Slug:           "nearest-" + t.Name(),
+		Title:          "Nearest title",
+		IntroMD:        "Nearest intro.",
+		Statements: []store.IngestStatementParams{{
+			BodyMD: "The nearest claim.", Language: "en",
+			Sources: []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1"}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+
+	got, err := pg.GetNearestTopicJurisdiction(ctx, city.ID, topic.ID, "en")
+	if err != nil {
+		t.Fatalf("nearest: %v", err)
+	}
+	if got.ID != country.ID {
+		t.Errorf("nearest = %s, want the country %s", got.Slug, country.Slug)
+	}
+
+	topics, err := pg.ListTopicsByJurisdictionRecursive(ctx, city.ID, "en")
+	if err != nil {
+		t.Fatalf("recursive topics: %v", err)
+	}
+	foundTopic := false
+	for _, tp := range topics {
+		if tp.ID == topic.ID {
+			foundTopic = true
+		}
+	}
+	if !foundTopic {
+		t.Error("recursive topic list from the city is missing the national topic")
+	}
+
+	hubs, err := pg.ListPublishedHubJurisdictions(ctx)
+	if err != nil {
+		t.Fatalf("hubs: %v", err)
+	}
+	foundHub := false
+	for _, h := range hubs {
+		if h.ID == country.ID {
+			foundHub = true
+		}
+	}
+	if !foundHub {
+		t.Error("hub inventory is missing the country with a published playbook")
+	}
+
+	// No coverage anywhere up the chain is ErrNotFound, not an error.
+	if _, err := pg.GetNearestTopicJurisdiction(ctx, city.ID, topic.ID, "es"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("es lookup: err = %v, want ErrNotFound", err)
 	}
 }

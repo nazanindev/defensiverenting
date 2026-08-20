@@ -87,6 +87,39 @@
       labels[j].textContent = name ? ' in ' + name : '';
       labels[j].hidden = !name;
     }
+    filterTopics(slug);
+  }
+
+  // Hide situations the chosen location has no guide for, up its whole chain
+  // (its city, then its state, then nationwide) — the same walk the ?j=
+  // redirect makes, so a visible situation always lands on a real guide. The
+  // coverage list is fetched per location rather than shipped with the page:
+  // the HTML is shared-cache, and a full location×topic map would grow with
+  // every city. Any failure leaves the list unfiltered, which is just the
+  // pre-filter behavior.
+  var covReq = 0;
+  function filterTopics(slug) {
+    var cards = document.querySelectorAll('[data-topic-path]');
+    if (!cards.length) return;
+    var id = ++covReq;
+    function show(covered) {
+      for (var i = 0; i < cards.length; i++) {
+        var item = cards[i].closest ? (cards[i].closest('li') || cards[i]) : cards[i];
+        var topic = cards[i].getAttribute('data-topic-path').split('/t/')[1];
+        item.hidden = !!covered && !covered[topic];
+      }
+    }
+    if (!slug || !window.fetch) { show(null); return; }
+    fetch('/api/coverage?j=' + encodeURIComponent(slug))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (id !== covReq) return; // a newer selection superseded this fetch
+        if (!data || !data.topics) { show(null); return; }
+        var covered = {};
+        for (var i = 0; i < data.topics.length; i++) covered[data.topics[i]] = true;
+        show(covered);
+      })
+      .catch(function () { if (id === covReq) show(null); });
   }
 
   sel.addEventListener('change', apply);

@@ -1,22 +1,28 @@
 <!doctype html>
 <html lang="{{.Language}}">
 <head>
+  {{- /* "for United States" is not a sentence; the country hub gets its own
+       description. Everything else keeps the place-name form. */ -}}
+  {{- $desc := printf "Free tenant rights guides for %s. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." .Jurisdiction.Name -}}
+  {{- if eq .Jurisdiction.Kind "country" -}}
+    {{- $desc = "Free tenant rights guides for renters anywhere in the United States. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." -}}
+  {{- end}}
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{.Jurisdiction.Name}} Tenant Rights Guide · RenterLaw</title>
-  <meta name="description" content="Free tenant rights guides for {{.Jurisdiction.Name}}. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
+  <meta name="description" content="{{$desc}}" />
   <link rel="canonical" href="{{absURL (.Jurisdiction.PathIn .Language)}}"/>
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="RenterLaw" />
   <meta property="og:url" content="{{absURL (.Jurisdiction.PathIn .Language)}}" />
   <meta property="og:title" content="{{.Jurisdiction.Name}} Tenant Rights Guide · RenterLaw" />
-  <meta property="og:description" content="Free tenant rights guides for {{.Jurisdiction.Name}}. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
+  <meta property="og:description" content="{{$desc}}" />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:title" content="{{.Jurisdiction.Name}} Tenant Rights Guide · RenterLaw" />
-  <meta name="twitter:description" content="Free tenant rights guides for {{.Jurisdiction.Name}}. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." />
+  <meta name="twitter:description" content="{{$desc}}" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -56,7 +62,7 @@
     {{if .Topics}}
     <section aria-labelledby="topics-heading">
       <h2 id="topics-heading" class="section-title">
-        {{if .Cities}}{{.Jurisdiction.Name}} statewide rules{{else}}Or pick a topic{{end}}
+        {{if eq .Jurisdiction.Kind "country"}}Nationwide guides{{else if .Cities}}{{.Jurisdiction.Name}} statewide rules{{else}}Or pick a topic{{end}}
       </h2>
       <ul class="situation-list">
         {{range .Topics}}

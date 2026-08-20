@@ -31,6 +31,13 @@ type stubStore struct {
 	// value) is the pre-existing behavior — only set this in a test that
 	// specifically probes language-toggle/hreflang logic.
 	otherLangPlaybooks map[string]store.PlaybookWithStatements
+
+	// topicCoverage, when non-nil, restricts which jurisdiction IDs
+	// GetNearestTopicJurisdiction treats as having a published guide. Nil (the
+	// zero value) means every jurisdiction in the stub has one, which keeps
+	// the ?j= redirect resolving to the selected city itself, the behavior
+	// every pre-existing test relies on.
+	topicCoverage map[int64]bool
 }
 
 func (s *stubStore) ResolveJurisdictionAlias(_ context.Context, alias string) (store.Jurisdiction, error) {
@@ -61,6 +68,32 @@ func (s *stubStore) ResolveTopicAlias(_ context.Context, alias string) (store.To
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
 	return s.jurisdictions, nil
+}
+
+func (s *stubStore) ListPublishedHubJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
+	return s.jurisdictions, nil
+}
+
+func (s *stubStore) GetNearestTopicJurisdiction(_ context.Context, jurisdictionID, _ int64, _ string) (store.Jurisdiction, error) {
+	byID := make(map[int64]store.Jurisdiction, len(s.jurisdictions))
+	for _, j := range s.jurisdictions {
+		byID[j.ID] = j
+	}
+	j, ok := byID[jurisdictionID]
+	for ok {
+		if s.topicCoverage == nil || s.topicCoverage[j.ID] {
+			return j, nil
+		}
+		if j.ParentID == nil {
+			break
+		}
+		j, ok = byID[*j.ParentID]
+	}
+	return store.Jurisdiction{}, store.ErrNotFound
+}
+
+func (s *stubStore) ListTopicsByJurisdictionRecursive(_ context.Context, _ int64, _ string) ([]store.Topic, error) {
+	return s.topics, nil
 }
 
 func (s *stubStore) ListPublishedChildCities(_ context.Context, parentID int64) ([]store.Jurisdiction, error) {
