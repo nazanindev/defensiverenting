@@ -269,6 +269,10 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 				SourceID: srcID[strings.TrimSpace(c.URL)],
 				Locator:  c.Locator,
 				Quote:    c.Quote,
+				// The guardrail above matched this quote against the text
+				// fetch_source returned in this session, so the citation is
+				// checked as of this save.
+				CheckedNow: true,
 			})
 		}
 		stmts = append(stmts, store.IngestStatementParams{

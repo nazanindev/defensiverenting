@@ -72,6 +72,9 @@
   .cite-quote-text { font-size: .8rem; line-height: 1.55; color: #3a2a2a; font-style: italic; }
   .cite-quote-src { grid-column: 2; margin-top: 4px; font-size: .72rem; color: #9b2335; text-decoration: none; font-weight: 600; word-break: break-word; }
   .cite-quote-src:hover { text-decoration: underline; }
+  .cite-quote-checked { grid-column: 2; font-size: .68rem; color: #6b7f5e; }
+  .check-stamp { display: inline-flex; align-items: center; padding: .2rem .55rem; border-radius: 6px; font-size: .72rem; font-weight: 600; border: 1px solid #cddcc4; background: #f2f8ee; color: #3f5c33; }
+  .check-stamp-missing { border-color: #f0e0b0; background: #fdf6e3; color: #8a6d3b; }
   .btn-publish { background: #065f46; color: #fff; }
   .btn-publish:hover { background: #054c39; }
 
@@ -137,6 +140,14 @@
     </div>
   </div>
 
+  {{if .Playbook.Playbook.AuthorNotes}}
+  <!-- Author notes: portal-only working text, never rendered on the site -->
+  <section>
+    <h2>Author notes</h2>
+    <p style="font-size:.85rem;line-height:1.6;color:#5c3a3a;white-space:pre-wrap">{{.Playbook.Playbook.AuthorNotes}}</p>
+  </section>
+  {{end}}
+
   <!-- Sources -->
   <section>
     <h2>Sources ({{len .Sources}})</h2>
@@ -179,12 +190,18 @@
           {{if .Editorial}}
           <span class="cite-chip cite-chip-editorial">Editorial guidance</span>
           {{end}}
+          {{if .Unchecked}}
+          <span class="check-stamp check-stamp-missing" title="At least one citation has never been confirmed against its live source">Not checked yet</span>
+          {{else if .CheckedAt}}
+          <span class="check-stamp" title="Every citation was confirmed against its live source, the oldest on this date">Checked {{date .CheckedAt}}</span>
+          {{end}}
         </div>
         {{range .Cites}}{{if .Quote}}
         <blockquote class="cite-quote">
           <span class="cite-quote-num">{{.Num}}</span>
           <span class="cite-quote-text">“{{.Quote}}”</span>
           <a class="cite-quote-src" href="{{.URL}}" target="_blank" rel="noopener">{{if .Locator}}{{.Locator}} · {{end}}{{.Domain}} ↗</a>
+          <span class="cite-quote-checked">{{if .CheckedAt}}Confirmed at the source {{date .CheckedAt}}{{else}}Not yet confirmed at the source{{end}}</span>
         </blockquote>
         {{end}}{{end}}
       </div>

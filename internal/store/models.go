@@ -73,6 +73,10 @@ type Source struct {
 	RetrievedAt    *time.Time
 	ContentHash    *string
 	FlaggedAt      *time.Time // set when a cited quote no longer appears at the source
+	// LastCheckedAt is when the checker last fetched this source and examined
+	// its cited quotes. RetrievedAt cannot carry that meaning: UpsertSource
+	// bumps it on every save without fetching anything.
+	LastCheckedAt *time.Time
 }
 
 // CitationCheckRow pairs a source with one verbatim quote cited from it, for the
@@ -102,6 +106,10 @@ type Citation struct {
 	// (the source blocked it outright) that a human reviewer attested to
 	// instead. Distinguishes an eyeballed citation from a machine-matched one.
 	ManuallyVerified bool
+	// CheckedAt is when the quote was last confirmed to appear at the live
+	// source, by whichever path looked (save-time verification, a check-sources
+	// run, or manual attestation). Nil means never confirmed.
+	CheckedAt *time.Time
 }
 
 type CitationWithSource struct {
@@ -109,6 +117,7 @@ type CitationWithSource struct {
 	Locator          string
 	Quote            string // verbatim line from the source backing this citation
 	ManuallyVerified bool
+	CheckedAt        *time.Time // see Citation.CheckedAt
 	SourceURL        string
 	Publisher        string
 	SourceKind       string // statute|regulation|gov_guidance|nonprofit|editorial
@@ -134,6 +143,9 @@ type Playbook struct {
 	IntroMD        string
 	Status         string
 	PageKind       string // playbook|directory|faq|checklist
+	// AuthorNotes is authoring-portal working text. Only the authoring queries
+	// populate it; the public render path never reads it.
+	AuthorNotes    string
 	LastReviewedAt *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

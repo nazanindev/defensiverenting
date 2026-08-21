@@ -96,15 +96,35 @@ func (pg *PG) CitationQuoteExists(ctx context.Context, url, quote string) (bool,
 	return exists, err
 }
 
-// MarkSourceReviewed stamps retrieved_at and, when a cited quote went missing,
-// sets flagged_at. An existing flag is left intact when changed is false — only
-// a dismiss clears it.
+// MarkSourceReviewed stamps retrieved_at and last_checked_at and, when a cited
+// quote went missing, sets flagged_at. An existing flag is left intact when
+// changed is false — only a dismiss clears it. Only the checker calls this, so
+// last_checked_at means exactly "the checker fetched this source and examined
+// its quotes then" — unlike retrieved_at, which UpsertSource bumps on every
+// save without fetching.
 func (pg *PG) MarkSourceReviewed(ctx context.Context, id int64, changed bool) error {
 	_, err := pg.pool.Exec(ctx, `
 		UPDATE sources
-		SET retrieved_at = NOW(),
-		    flagged_at   = CASE WHEN $2 THEN NOW() ELSE flagged_at END
+		SET retrieved_at    = NOW(),
+		    last_checked_at = NOW(),
+		    flagged_at      = CASE WHEN $2 THEN NOW() ELSE flagged_at END
 		WHERE id = $1`, id, changed)
+	return err
+}
+
+// MarkQuotesChecked stamps checked_at on every citation of this source whose
+// quote the checker just confirmed at the URL. Matching on (source_id, quote)
+// rather than citation ids stamps every statement carrying the same confirmed
+// text — including orphaned rows, whose stamps insertCitationSQL inherits when
+// the same quote is saved again. Quotes that went missing are absent from the
+// list and keep the stamp from the run that last actually saw them.
+func (pg *PG) MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []string) error {
+	if len(quotes) == 0 {
+		return nil
+	}
+	_, err := pg.pool.Exec(ctx, `
+		UPDATE citations SET checked_at = NOW()
+		WHERE source_id = $1 AND quote = ANY($2)`, sourceID, quotes)
 	return err
 }
 
@@ -112,10 +132,34 @@ func (pg *PG) MarkSourceReviewed(ctx context.Context, id int64, changed bool) er
 // appears), newest first.
 func (pg *PG) ListFlaggedSources(ctx context.Context) ([]Source, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, flagged_at
+		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, flagged_at, last_checked_at
 		FROM sources
 		WHERE flagged_at IS NOT NULL
 		ORDER BY flagged_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSources(rows)
+}
+
+// ListUnusedSources returns sources no page on the site cites: no citation
+// from any statement still linked to a playbook. Saves upsert a source row the
+// moment a URL is typed and never remove one, and re-saves orphan statements
+// (see ListCitationsForCheck), so rows drift into disuse silently. An unused
+// source costs a re-fetch on every check run and clutters the import picker,
+// and nothing surfaced them until this. The site's own editorial source is
+// permanent plumbing, not clutter, so it is excluded.
+func (pg *PG) ListUnusedSources(ctx context.Context) ([]Source, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, flagged_at, last_checked_at
+		FROM sources s
+		WHERE s.url <> '/editorial'
+		  AND NOT EXISTS (
+			SELECT 1 FROM citations c
+			JOIN playbook_statements ps ON ps.statement_id = c.statement_id
+			WHERE c.source_id = s.id)
+		ORDER BY s.publisher, s.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +178,7 @@ func scanSources(rows pgx.Rows) ([]Source, error) {
 	for rows.Next() {
 		var s Source
 		if err := rows.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind,
-			&s.RetrievedAt, &s.ContentHash, &s.FlaggedAt); err != nil {
+			&s.RetrievedAt, &s.ContentHash, &s.FlaggedAt, &s.LastCheckedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

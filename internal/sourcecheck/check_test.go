@@ -14,6 +14,7 @@ type fakeStore struct {
 	store.Store
 	rows        []store.CitationCheckRow
 	marks       map[int64]bool
+	stamped     map[int64][]string // sourceID -> quotes confirmed present and stamped
 	uncheckable int
 }
 
@@ -30,6 +31,14 @@ func (f *fakeStore) MarkSourceReviewed(_ context.Context, id int64, changed bool
 		f.marks = map[int64]bool{}
 	}
 	f.marks[id] = changed
+	return nil
+}
+
+func (f *fakeStore) MarkQuotesChecked(_ context.Context, id int64, quotes []string) error {
+	if f.stamped == nil {
+		f.stamped = map[int64][]string{}
+	}
+	f.stamped[id] = append(f.stamped[id], quotes...)
 	return nil
 }
 
@@ -68,6 +77,15 @@ func TestRun_FlagsSourcesWithMissingQuotes(t *testing.T) {
 	}
 	if _, ok := fs.marks[3]; ok {
 		t.Error("source 3 (fetch failed) must not be marked reviewed")
+	}
+	if got := len(fs.stamped[1]); got != 2 {
+		t.Errorf("source 1: %d quote(s) stamped checked, want both", got)
+	}
+	if got := len(fs.stamped[2]); got != 0 {
+		t.Errorf("source 2: %d quote(s) stamped checked, want none — its quote is gone and must keep its old stamp", got)
+	}
+	if got := len(fs.stamped[3]); got != 0 {
+		t.Errorf("source 3: %d quote(s) stamped checked, want none — the fetch failed, nothing was examined", got)
 	}
 }
 

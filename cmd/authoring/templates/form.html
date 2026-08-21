@@ -20,11 +20,15 @@
   /* main content + pinned sources rail */
   .layout { display: flex; align-items: flex-start; gap: 28px; }
   .main { flex: 1; min-width: 0; }
-  .rail { width: 300px; flex-shrink: 0; position: sticky; top: 16px; }
+  /* Wide enough that a URL and a publisher read without truncation, and
+     scrolling its own overflow: a long source list must not force the page
+     to scroll past the statements it is pinned beside. */
+  .rail { width: 400px; flex-shrink: 0; position: sticky; top: 16px;
+          max-height: calc(100vh - 32px); overflow-y: auto; }
   .rail .g2 { grid-template-columns: 1fr; }
-  @media (max-width: 960px) {
+  @media (max-width: 1100px) {
     .layout { flex-direction: column; }
-    .rail { width: 100%; position: static; }
+    .rail { width: 100%; position: static; max-height: none; overflow-y: visible; }
   }
   .back { color: #9b2335; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 20px; }
   .back:hover { text-decoration: underline; }
@@ -44,6 +48,8 @@
     font-size: .875rem; font-family: inherit; color: #1e1215; background: #fff;
     transition: border-color .15s;
   }
+  /* The boxes where prose is actually written get room to write it. */
+  textarea { line-height: 1.55; font-size: .9rem; resize: vertical; }
   input:focus, textarea:focus, select:focus {
     outline: none; border-color: #9b2335; box-shadow: 0 0 0 3px rgba(155,35,53,.1);
   }
@@ -101,6 +107,15 @@
   .cs-ok, .cs-manual { color: #2f855a; }
   .cs-blocked { color: #c05621; }
   .cs-mismatch { color: #c53030; }
+
+  /* a source is a thing you open, not a string you copy */
+  .src-open { font-weight: 600; font-size: .72rem; margin-left: 8px; color: #9b2335; text-decoration: none; }
+  .src-open:hover { text-decoration: underline; }
+  .btn-src-text { background: transparent; color: #7a5555; border: 1px solid #e0c8c8; padding: .22rem .55rem; font-size: .72rem; }
+  .btn-src-text:hover { background: #fdf8f8; }
+  .src-text { max-height: 340px; overflow-y: auto; white-space: pre-wrap; font-size: .74rem;
+              line-height: 1.55; background: #faf6f0; border: 1px solid #e8dede; border-radius: 6px;
+              padding: 9px 11px; margin-top: 8px; color: #3a2a2a; }
 
   .rail-status { display: block; font-size: .68rem; font-weight: 600; margin-top: 2px; }
   .rail-ok, .rail-manual { color: #2f855a; }
@@ -292,7 +307,7 @@
 
       <div class="field">
         <label>Intro</label>
-        <textarea name="intro" rows="2"
+        <textarea name="intro" rows="4"
                   placeholder="1–2 sentences framing the situation. E.g. 'No heat is an emergency. Here are your options.'">{{.Intro}}</textarea>
       </div>
     </section>
@@ -304,6 +319,19 @@
       <button type="button" class="btn btn-add" id="add-stmt-btn" onclick="addStmt()">+ Add statement</button>
       <input type="hidden" name="active_stmts" id="active_stmts" value="">
     </section>
+
+    {{if .EditMode}}
+    {{/* Notes ride the playbook row, not the statements, so they survive both
+         re-saves here and agent re-drafts (IngestPlaybook never touches them). */}}
+    <section>
+      <h2>Author notes</h2>
+      <div class="field">
+        <textarea name="author_notes" rows="5"
+                  placeholder="Working notes for future you: what to re-check, why a source was picked, what's unresolved.">{{.AuthorNotes}}</textarea>
+        <p class="hint">Private to this portal. Never shown on the site.</p>
+      </div>
+    </section>
+    {{end}}
 
     <div class="footer">
       <button type="submit" class="btn btn-save">{{if .EditMode}}Save changes{{else}}Save as draft{{end}}</button>
@@ -743,13 +771,20 @@ function renderSources() {
     return '<div class="card">' +
       '<div class="card-hd">' +
         '<span class="card-num">' + srcLabel + '</span>' +
-        '<button type="button" class="btn btn-rm" onclick="rmSource(' + s.id + ')">Remove</button>' +
+        '<span>' +
+          '<button type="button" class="btn btn-src-text" onclick="toggleSrcText(' + s.id + ')" id="srctextbtn_' + s.id + '">Read text</button> ' +
+          '<button type="button" class="btn btn-rm" onclick="rmSource(' + s.id + ')">Remove</button>' +
+        '</span>' +
       '</div>' +
       '<span class="rail-status' + (railInfo.cls ? ' ' + railInfo.cls : '') + '" id="rs_' + s.id + '">' + railInfo.text + '</span>' +
       '<div class="g2">' +
         '<div class="field">' +
-          '<label>Website URL *</label>' +
-          '<input type="url" name="src_url_' + s.id + '" value="' + esc(s.url) + '" placeholder="https://…" required>' +
+          '<label>Website URL *' +
+            '<a class="src-open" id="srcopen_' + s.id + '" href="' + esc(s.url) + '" target="_blank" rel="noopener"' +
+              (s.url ? '' : ' style="display:none"') + '>open ↗</a>' +
+          '</label>' +
+          '<input type="url" name="src_url_' + s.id + '" value="' + esc(s.url) + '" placeholder="https://…" required' +
+            ' oninput="onSrcUrlInput(' + s.id + ', this.value)">' +
         '</div>' +
         '<div class="field">' +
           '<label>' + (isDir ? 'Organization name *' : 'Publisher *') + '</label>' +
@@ -769,8 +804,38 @@ function renderSources() {
         '<input type="hidden" name="src_kind_' + s.id + '" value="' + esc(s.kind) + '">' +
         '<input type="hidden" name="src_loc_' + s.id + '" value="">'
       : '') +
+      '<pre class="src-text" id="srctext_' + s.id + '" hidden></pre>' +
     '</div>';
   }).join('');
+}
+
+// onSrcUrlInput keeps the "open ↗" link beside the URL field pointing at what
+// is typed, so a source is always one click away rather than a copy-paste.
+function onSrcUrlInput(id, val) {
+  const a = document.getElementById('srcopen_' + id);
+  if (!a) return;
+  a.href = val;
+  a.style.display = val ? '' : 'none';
+}
+
+// toggleSrcText shows the source's readable text inside the card, fetched
+// server-side through the same extractor and cache the quote check uses, so
+// what the author reads here is exactly the text quotes are verified against.
+function toggleSrcText(id) {
+  sync();
+  const pre = document.getElementById('srctext_' + id);
+  const btn = document.getElementById('srctextbtn_' + id);
+  const src = sources.find(function(s) { return s.id === id; });
+  if (!pre || !src) return;
+  if (!pre.hidden) { pre.hidden = true; if (btn) btn.textContent = 'Read text'; return; }
+  if (!src.url) { pre.hidden = false; pre.textContent = 'Enter a URL first.'; return; }
+  pre.hidden = false;
+  if (btn) btn.textContent = 'Hide text';
+  pre.textContent = 'Fetching ' + src.url + ' …';
+  fetch('/api/source-text?url=' + encodeURIComponent(src.url))
+    .then(function(r) { return r.text(); })
+    .then(function(t) { pre.textContent = t || '(no readable text extracted)'; })
+    .catch(function(e) { pre.textContent = 'Fetch failed: ' + e; });
 }
 
 function renderStmts() {
@@ -906,7 +971,7 @@ function renderStmts() {
           (i === stmts.length - 1 ? ' disabled' : '') + ' onclick="moveStmt(' + i + ',1)">↓</button>' +
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
-      '<textarea name="stmt_' + st.id + '" rows="3" placeholder="' + stmtPlaceholder + '" required' +
+      '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '" required' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
       citesHtml +

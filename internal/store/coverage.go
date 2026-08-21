@@ -32,6 +32,10 @@ type CoverageRow struct {
 // Every city is included, including those with no pages at all. Those rows look
 // like noise but are the opposite: a city seeded with no content is exactly the
 // one nothing else on this dashboard would surface.
+//
+// The country row (United States, first) is in the matrix for the same reason
+// the cities are: national guides are the fallback every uncovered location
+// resolves to (ADR-009), so a hole in the national row is a hole for everyone.
 func (pg *PG) AuthorCoverage(ctx context.Context) ([]CoverageRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT j.name, j.slug, t.slug,
@@ -42,9 +46,9 @@ func (pg *PG) AuthorCoverage(ctx context.Context) ([]CoverageRow, error) {
 		       ON p.jurisdiction_id = j.id
 		      AND p.topic_id = t.id
 		      AND p.status IN ('published', 'draft')
-		WHERE j.kind = 'city' AND t.is_core
-		GROUP BY j.name, j.slug, t.slug
-		ORDER BY j.name, t.slug`)
+		WHERE j.kind IN ('city', 'country') AND t.is_core
+		GROUP BY j.kind, j.name, j.slug, t.slug
+		ORDER BY (j.kind <> 'country'), j.name, t.slug`)
 	if err != nil {
 		return nil, err
 	}

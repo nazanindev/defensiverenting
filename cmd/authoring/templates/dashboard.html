@@ -140,13 +140,23 @@
       <span><strong>{{len .Flagged}}</strong> source(s) where a quote we cited no longer appears — the law may have been amended; re-verify the guides that cite them:</span>
       {{range .Flagged}}
       <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-        <span>⚑ <a href="{{.URL}}" target="_blank" rel="noopener">{{.Publisher}}</a> <span style="color:#9a7878;font-size:.76rem;word-break:break-all">{{.URL}}</span></span>
+        <span>⚑ <a href="{{.URL}}" target="_blank" rel="noopener">{{.Publisher}}</a> <span style="color:#9a7878;font-size:.76rem;word-break:break-all">{{.URL}}</span> <span style="color:#9a7878;font-size:.76rem">flagged {{date .FlaggedAt}} · last checked {{date .LastCheckedAt}}</span></span>
         <form method="post" action="/sources/{{.ID}}/dismiss-flag" style="margin:0"><button class="btn btn-view" type="submit">Dismiss</button></form>
       </div>
       {{end}}
     </div>
     {{else}}
     <p class="gen-note">Re-fetches every cited source and flags any where the exact text we quoted no longer appears — the precise signal that a statute was amended. Dynamic page content (dates, banners) won't trigger it.</p>
+    {{end}}
+    {{if .Unused}}
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-size:.82rem;color:#7a5555"><strong>{{len .Unused}}</strong> source(s) no page cites — candidates for cleanup, and each one still costs a fetch every check run</summary>
+      <div class="review-links" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px">
+        {{range .Unused}}
+        <span style="font-size:.8rem">○ <a href="{{.URL}}" target="_blank" rel="noopener">{{.Publisher}}</a> <span style="color:#9a7878;font-size:.74rem;word-break:break-all">{{.URL}}</span> <span style="color:#b08080;font-size:.7rem">{{.Kind}}</span></span>
+        {{end}}
+      </div>
+    </details>
     {{end}}
   </div>
 

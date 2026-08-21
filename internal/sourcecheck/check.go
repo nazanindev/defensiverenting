@@ -28,6 +28,9 @@ type FetchFunc func(url string) (string, error)
 // Run re-fetches every cited source once and confirms each verbatim quote cited
 // from it still appears in the current page. A source with any missing quote is
 // flagged for the author to re-verify. Fetch failures are counted and skipped.
+// Every confirmation is recorded: the source's last_checked_at and each
+// confirmed citation's checked_at are stamped, so "when was this last checked"
+// is answerable per source and per statement, not just per run.
 //
 // Result.Skipped reports the citations that carry no quote and so cannot be
 // verified at all. They are counted separately and up front, because the
@@ -76,11 +79,20 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 			continue
 		}
 		hay := normalize(text)
+		var present []string
 		missing := 0
 		for _, q := range a.quotes {
-			if !strings.Contains(hay, normalize(q)) {
+			if strings.Contains(hay, normalize(q)) {
+				present = append(present, q)
+			} else {
 				missing++
 			}
+		}
+		// Stamp the quotes this fetch confirmed, even on a flagged source: the
+		// quotes still present were checked and found intact, and only the
+		// missing ones keep their older stamp.
+		if err := db.MarkQuotesChecked(ctx, id, present); err != nil {
+			return res, err
 		}
 		changed := missing > 0
 		if err := db.MarkSourceReviewed(ctx, id, changed); err != nil {

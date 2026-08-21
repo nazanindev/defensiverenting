@@ -59,7 +59,13 @@ type Store interface {
 	CountUncheckableCitations(ctx context.Context) (int, error)
 	CitationQuoteExists(ctx context.Context, url, quote string) (bool, error)
 	MarkSourceReviewed(ctx context.Context, id int64, changed bool) error
+	// MarkQuotesChecked stamps checked_at on every citation of this source
+	// whose quote is in quotes — the ones a check run confirmed are still
+	// present at the URL. Quotes that went missing are not stamped: their last
+	// confirmation stays at the run that last actually saw them.
+	MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []string) error
 	ListFlaggedSources(ctx context.Context) ([]Source, error)
+	ListUnusedSources(ctx context.Context) ([]Source, error)
 	DismissSourceFlag(ctx context.Context, id int64) error
 
 	// Authoring
@@ -81,6 +87,7 @@ type AuthorUpdatePlaybookParams struct {
 	Title          string
 	IntroMD        string
 	PageKind       string
+	AuthorNotes    string
 	Statements     []IngestStatementParams
 }
 
@@ -130,4 +137,11 @@ type IngestCitationParams struct {
 	// ManuallyVerified marks a citation a reviewer attested to by hand because
 	// the automated fetch could not reach the source at all.
 	ManuallyVerified bool
+	// CheckedNow says this save confirmed the quote against the source: the
+	// drafting guardrail matched it against fetched text, the authoring form
+	// fetched the source live, or a reviewer attested to it by hand. When
+	// false the insert inherits the newest checked_at already stored for the
+	// same (source, quote) — a stored identical quote got there through a
+	// verified path, but the verification happened then, not now.
+	CheckedNow bool
 }

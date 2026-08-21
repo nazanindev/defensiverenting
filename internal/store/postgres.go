@@ -388,7 +388,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
 			s.id, s.body_md, ps.position,
-			c.source_id, c.locator, c.quote, c.manually_verified,
+			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
@@ -587,10 +587,10 @@ func (pg *PG) UpsertSource(ctx context.Context, params UpsertSourceParams) (Sour
 		    SET publisher     = EXCLUDED.publisher,
 		        kind          = EXCLUDED.kind,
 		        retrieved_at  = EXCLUDED.retrieved_at
-		RETURNING id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash`,
+		RETURNING id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, last_checked_at`,
 		params.URL, params.Publisher, params.JurisdictionID, params.Kind, now)
 	var s Source
-	err := row.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind, &s.RetrievedAt, &s.ContentHash)
+	err := row.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind, &s.RetrievedAt, &s.ContentHash, &s.LastCheckedAt)
 	return s, err
 }
 
@@ -732,17 +732,50 @@ func (pg *PG) UpsertTopic(ctx context.Context, params UpsertTopicParams) (Topic,
 	return t, err
 }
 
+// GetEditorialSource returns the site's own editorial-guidance source — the
+// row migration 000001 seeded at url '/editorial'. It must select by URL, not
+// by kind: third-party commentary (law firm blogs, Nolo) was historically
+// filed under kind='editorial' too, and `WHERE kind = 'editorial' LIMIT 1`
+// with no ORDER BY returned an arbitrary row. Every statement saved with the
+// "editorial guidance" checkbox cites the row returned here, so the arbitrary
+// pick published statements citing a lawyer's marketing blog as if it were
+// our own guidance (found live on three pages, 2026-08-21). url is UNIQUE, so
+// this is deterministic.
 func (pg *PG) GetEditorialSource(ctx context.Context) (Source, error) {
 	row := pg.pool.QueryRow(ctx, `
-		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash
-		FROM sources WHERE kind = 'editorial' LIMIT 1`)
+		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, last_checked_at
+		FROM sources WHERE url = '/editorial' LIMIT 1`)
 	var s Source
-	err := row.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind, &s.RetrievedAt, &s.ContentHash)
+	err := row.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind, &s.RetrievedAt, &s.ContentHash, &s.LastCheckedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s, ErrNotFound
 	}
 	return s, err
 }
+
+// insertCitationSQL is the one way a citation row is written, shared by
+// IngestPlaybook and AuthorUpdatePlaybook so checked_at cannot drift between
+// the two save paths.
+//
+// checked_at records when the quote was last confirmed at the live source. An
+// empty quote was never confirmed, so it stays NULL. When the caller verified
+// the quote during this save ($6), the stamp is now. Otherwise the row inherits
+// the newest stamp stored for the same (source, quote): the save skipped the
+// fetch precisely because that pair was verified before (CitationQuoteExists),
+// and the identical text carries its confirmation with it. Rows from before
+// migration 000017 have no stamp to inherit and stay NULL — claiming a time we
+// did not record would be the same lie retrieved_at already tells.
+const insertCitationSQL = `
+	INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified, checked_at)
+	VALUES ($1, $2, $3, $4, $5,
+		CASE WHEN btrim($4) = '' THEN NULL
+		     WHEN $6 THEN NOW()
+		     ELSE (SELECT max(c2.checked_at) FROM citations c2
+		           WHERE c2.source_id = $2 AND c2.quote = $4)
+		END)
+	ON CONFLICT (statement_id, source_id) DO UPDATE SET
+		locator = EXCLUDED.locator, quote = EXCLUDED.quote,
+		manually_verified = EXCLUDED.manually_verified, checked_at = EXCLUDED.checked_at`
 
 // IngestPlaybook writes a full playbook atomically. The transaction is rolled
 // back if any statement has zero citations, enforcing the citation guarantee at the DB layer.
@@ -814,12 +847,8 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 			}
 
 			for _, cite := range sp.Sources {
-				if _, err := tx.Exec(ctx, `
-					INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified)
-					VALUES ($1, $2, $3, $4, $5)
-					ON CONFLICT (statement_id, source_id) DO UPDATE SET
-						locator = EXCLUDED.locator, quote = EXCLUDED.quote, manually_verified = EXCLUDED.manually_verified`,
-					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified,
+				if _, err := tx.Exec(ctx, insertCitationSQL,
+					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow,
 				); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}
@@ -876,7 +905,8 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		)
 		if err := rows.Scan(
 			&stmtID, &bodyMD, &position,
-			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.SourceURL, &c.Publisher, &c.SourceKind,
+			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt,
+			&c.SourceURL, &c.Publisher, &c.SourceKind,
 		); err != nil {
 			continue
 		}
@@ -902,7 +932,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	err := pg.pool.QueryRow(ctx, `
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
-			pb.slug, pb.title, pb.intro_md, pb.status, pb.page_kind, pb.last_reviewed_at,
+			pb.slug, pb.title, pb.intro_md, pb.status, pb.page_kind, pb.author_notes, pb.last_reviewed_at,
 			pb.created_at, pb.updated_at, pb.published_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''),
 			t.id, t.slug, t.name
@@ -914,7 +944,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	).Scan(
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
-		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt,
+		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.PageKind, &p.Playbook.AuthorNotes, &p.Playbook.LastReviewedAt,
 		&p.Playbook.CreatedAt, &p.Playbook.UpdatedAt, &p.Playbook.PublishedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug, &p.Jurisdiction.ParentSlug,
@@ -929,7 +959,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
 			s.id, s.body_md, ps.position,
-			c.source_id, c.locator, c.quote, c.manually_verified,
+			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
@@ -959,10 +989,12 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 		if _, err := tx.Exec(ctx, `
 			UPDATE playbooks
 			SET jurisdiction_id = $2, topic_id = $3, language = $4,
-			    slug = $5, title = $6, intro_md = $7, page_kind = $8, updated_at = NOW()
+			    slug = $5, title = $6, intro_md = $7, page_kind = $8,
+			    author_notes = $9, updated_at = NOW()
 			WHERE id = $1`,
 			params.ID, params.JurisdictionID, params.TopicID,
 			params.Language, params.Slug, params.Title, params.IntroMD, pageKind,
+			params.AuthorNotes,
 		); err != nil {
 			return fmt.Errorf("update playbook: %w", err)
 		}
@@ -984,12 +1016,8 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 				return fmt.Errorf("insert statement %d: %w", i, err)
 			}
 			for _, cite := range sp.Sources {
-				if _, err := tx.Exec(ctx, `
-					INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified)
-					VALUES ($1, $2, $3, $4, $5)
-					ON CONFLICT (statement_id, source_id) DO UPDATE SET
-						locator = EXCLUDED.locator, quote = EXCLUDED.quote, manually_verified = EXCLUDED.manually_verified`,
-					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified,
+				if _, err := tx.Exec(ctx, insertCitationSQL,
+					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow,
 				); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}

@@ -163,6 +163,7 @@ func main() {
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
 	mux.HandleFunc("POST /api/check-quote", s.checkQuoteLive)
+	mux.HandleFunc("GET /api/source-text", s.sourceText)
 	mux.HandleFunc("POST /delete/{id}", s.delete)
 	mux.HandleFunc("POST /discover", s.discover)
 	mux.HandleFunc("GET /candidates", s.candidates)
@@ -382,6 +383,11 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	unused, err := s.pg.ListUnusedSources(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	coreTopics, err := s.pg.ListCoreTopics(ctx)
 	if err != nil {
 		s.serverError(w, err)
@@ -455,6 +461,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"ReviewCounts":    counts,
 		"Generating":      s.jobs.list(),
 		"Flagged":         flagged,
+		"Unused":          unused,
 		"View":            view,
 		"Places":          places.Opts(),
 		"Status":          view.Status,
@@ -861,9 +868,11 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 				vs.Cites = append(vs.Cites, viewCite{
 					Num: m.Idx + 1, Locator: c.Locator,
 					Quote: c.Quote, URL: c.SourceURL, Domain: hostOf(c.SourceURL),
+					CheckedAt: c.CheckedAt,
 				})
 			}
 		}
+		vs.CheckedAt, vs.Unchecked = stmtCheckedAt(vs.Cites)
 		stmts = append(stmts, vs)
 	}
 
@@ -899,11 +908,12 @@ type viewSource struct {
 }
 
 type viewCite struct {
-	Num     int
-	Locator string
-	Quote   string
-	URL     string
-	Domain  string
+	Num       int
+	Locator   string
+	Quote     string
+	URL       string
+	Domain    string
+	CheckedAt *time.Time // when the quote was last confirmed at the source; nil = never
 }
 
 type viewStmt struct {
@@ -911,6 +921,27 @@ type viewStmt struct {
 	Body      string
 	Cites     []viewCite
 	Editorial bool
+	// CheckedAt is when the statement was last fully checked: the oldest
+	// confirmation among its citations, since a statement is only as current
+	// as its least-recently-confirmed evidence. Unchecked is set instead when
+	// any citation has never been confirmed. Editorial-only statements carry
+	// neither: they cite no external text to check.
+	CheckedAt *time.Time
+	Unchecked bool
+}
+
+// stmtCheckedAt derives a statement's last-checked stamp from its citations.
+func stmtCheckedAt(cites []viewCite) (*time.Time, bool) {
+	var oldest *time.Time
+	for _, c := range cites {
+		if c.CheckedAt == nil {
+			return nil, true
+		}
+		if oldest == nil || c.CheckedAt.Before(*oldest) {
+			oldest = c.CheckedAt
+		}
+	}
+	return oldest, false
 }
 
 // viewGroup is a run of statements shown together under one heading.
@@ -1085,6 +1116,10 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 					Locator:          loc,
 					Quote:            quote,
 					ManuallyVerified: overridden,
+					// A live fetch confirmed the quote just now, or the
+					// reviewer attested to it by hand just now. A known-quote
+					// skip is neither, and inherits its earlier stamp.
+					CheckedNow: res.Verified || overridden,
 				})
 			}
 		}
@@ -1311,6 +1346,32 @@ func (s *srv) sourcesJSON(w http.ResponseWriter, r *http.Request) {
 // and this runs the exact same check the save path would — so a citation that
 // will be refused later shows that now, while it is one field to fix instead
 // of a full-page error after writing the rest of the page.
+// sourceText returns the readable text of a source URL, fetched through the
+// shared source cache, so an author can read the source in the form instead of
+// tabbing out to a site that may fight the browser (PDFs, WAF walls). Fetching
+// arbitrary URLs server-side is nothing new for this tool — /api/check-quote
+// has always done it — and the portal sits behind basic auth.
+func (s *srv) sourceText(w http.ResponseWriter, r *http.Request) {
+	u := strings.TrimSpace(r.URL.Query().Get("url"))
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		http.Error(w, "url query parameter must be an http(s) URL", http.StatusBadRequest)
+		return
+	}
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
+	text, err := qv.fetchCached(u)
+	// Fetched page text is untrusted; text/plain plus nosniff means no browser
+	// will ever interpret it as HTML, which is what gosec's XSS taint warning
+	// is about.
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprintf(w, "Could not fetch %s: %v", u, err) //nolint:gosec // plain text + nosniff, see above
+		return
+	}
+	_, _ = w.Write([]byte(text)) //nolint:gosec // plain text + nosniff, see above
+}
+
 func (s *srv) checkQuoteLive(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		URL   string `json:"url"`
@@ -1462,6 +1523,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"SelectedLanguageLabel": voice.Label(pw.Playbook.Language),
 		"Title":                 pw.Playbook.Title,
 		"Intro":                 pw.Playbook.IntroMD,
+		"AuthorNotes":           pw.Playbook.AuthorNotes,
 		"Error":                 errMsg,
 		"ImportGroups":          s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
@@ -1654,6 +1716,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 					Locator:          loc,
 					Quote:            quote,
 					ManuallyVerified: overridden,
+					CheckedNow:       res.Verified || overridden, // see submitForm
 				})
 			}
 		}
@@ -1686,6 +1749,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		Title:          title,
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
 		PageKind:       r.FormValue("page_kind"),
+		AuthorNotes:    strings.TrimSpace(r.FormValue("author_notes")),
 		Statements:     statements,
 	}); err != nil {
 		editErr("Failed to save playbook: " + err.Error())
@@ -1742,6 +1806,11 @@ func newQuoteVerifier(pg quoteLookup, cache *sourceFetchCache) *quoteVerifier {
 type quoteCheckResult struct {
 	Msg         string
 	Overridable bool
+	// Verified says this call fetched the live source and found the quote in
+	// it. False on the known-quote skip: that pass rests on a verification
+	// recorded earlier, so the citation's checked_at must inherit that older
+	// stamp rather than claim one from a fetch that never happened.
+	Verified bool
 }
 
 // check returns a reviewer-facing message when the quote cannot be confirmed,
@@ -1779,7 +1848,7 @@ func (qv *quoteVerifier) checkQuote(ctx context.Context, url, quote string) quot
 		return quoteCheckResult{Msg: fmt.Sprintf("that quote does not appear in %s. "+
 			"Copy the wording from the source exactly, without editing it.", url)}
 	}
-	return quoteCheckResult{}
+	return quoteCheckResult{Verified: true}
 }
 
 // fetchCached routes a fetch through the shared source cache when one is set,
