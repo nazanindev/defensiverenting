@@ -685,10 +685,11 @@ func TestSaveDraft_ConceptTags(t *testing.T) {
 	})
 }
 
-// A concept is the claim's public anchor, so two statements on one page may
-// not share one: the agent is hard-rejected with both statement numbers named
-// (the human form gets an advisory warning for the same duplication instead).
-func TestSaveDraft_RejectsDuplicateConceptOnOnePage(t *testing.T) {
+// Several statements on one page may share a concept: a claim often takes
+// more than one statement to state (decided 2026-08-22, reversing the
+// previous day's one-per-page rule). The render layer keeps the HTML valid
+// by giving only the first tagged statement the public anchor.
+func TestSaveDraft_AcceptsSharedConceptOnOnePage(t *testing.T) {
 	const quote = "within thirty days after the termination of the tenancy, return the security deposit"
 	fs := &fakeStore{}
 	tb := newTestToolbelt(fs, map[string]string{
@@ -705,14 +706,15 @@ func TestSaveDraft_RejectsDuplicateConceptOnOnePage(t *testing.T) {
 		JurisdictionSlug: "boston", TopicSlug: "security-deposits",
 		Title: "T", IntroMD: "I", Statements: []StatementInput{st1, st2},
 	})
-	if !isRejection(err) {
-		t.Fatalf("want rejection for duplicate concept, got %v", err)
+	if err != nil {
+		t.Fatalf("statements sharing a concept must save, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "statements 1 and 2") {
-		t.Errorf("rejection must name both statements, got: %v", err)
+	if fs.ingested == nil {
+		t.Fatal("IngestPlaybook was not called")
 	}
-	if fs.ingested != nil {
-		t.Error("nothing may be written on rejection")
+	if fs.ingested.Statements[0].ConceptSlug != "deposit-return-deadline" ||
+		fs.ingested.Statements[1].ConceptSlug != "deposit-return-deadline" {
+		t.Error("both statements must keep their shared concept tag")
 	}
 }
 

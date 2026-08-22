@@ -772,6 +772,10 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
 	var sourceURLs []string
 	seenSources := make(map[string]bool)
+	// Several statements may share a concept tag (a claim often takes more
+	// than one statement to state), but an HTML id must be unique: the first
+	// tagged statement owns the anchor, and deep links land there.
+	seenAnchors := map[string]bool{}
 	for _, s := range pb.Statements {
 		if len(s.Citations) == 0 {
 			// Log the violation and skip rather than panic in production.
@@ -804,10 +808,15 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 				topicRefName = name
 			}
 		}
+		anchor := ""
+		if s.ConceptSlug != "" && !seenAnchors[s.ConceptSlug] {
+			seenAnchors[s.ConceptSlug] = true
+			anchor = s.ConceptSlug
+		}
 		checkedAt, checkedOn := statementCheckedAt(s.Citations)
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:      content.RenderMarkdown(s.BodyMD),
-			Anchor:        s.ConceptSlug,
+			Anchor:        anchor,
 			SpecificsPath: stmtSpecifics,
 			TopicRefPath:  topicRefPath,
 			TopicRefName:  topicRefName,

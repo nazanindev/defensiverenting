@@ -521,8 +521,8 @@ func TestConceptPage_definitionAndLocalAnswers(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "What it means") || !strings.Contains(body, "notice to quit") {
-		t.Error("page must lead with the national definition")
+	if !strings.Contains(body, "The general rule") || !strings.Contains(body, "notice to quit") {
+		t.Error("page must lead with the general rule from the national statement")
 	}
 	if !strings.Contains(body, "Pittsburgh") || !strings.Contains(body, "10 days") {
 		t.Error("page must carry each place's own answer")
@@ -577,5 +577,38 @@ func TestTermsIndexAndHomepageSection(t *testing.T) {
 	}
 	if strings.Contains(body, `href="/c/small-claims-court"`) {
 		t.Error("homepage must not list terms with no national definition")
+	}
+}
+
+// Statements may share a concept tag, but an HTML id must be unique: the
+// first tagged statement owns the anchor and later ones render without it.
+func TestPlaybookHandler_sharedConceptAnchorsOnce(t *testing.T) {
+	stub := &stubStore{
+		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}},
+		topics:        []store.Topic{{ID: 1, Slug: "security-deposits", Name: "Security Deposits"}},
+		playbook: store.PlaybookWithStatements{
+			Playbook:     store.Playbook{ID: 1, Title: "T", Slug: "security-deposits", Language: "en"},
+			Jurisdiction: store.Jurisdiction{Name: "Boston", Slug: "boston"},
+			Topic:        store.Topic{Name: "Security Deposits", Slug: "security-deposits"},
+			Statements: []store.CitedStatement{
+				{
+					ID: 1, BodyMD: "Deposits come back in 30 days.", ConceptSlug: "deposit-return-deadline",
+					Citations: []store.CitationWithSource{{SourceID: 1, SourceURL: "https://a.gov", Publisher: "A", SourceKind: "statute"}},
+				},
+				{
+					ID: 2, BodyMD: "The clock starts at key handback.", ConceptSlug: "deposit-return-deadline",
+					Citations: []store.CitationWithSource{{SourceID: 1, SourceURL: "https://a.gov", Publisher: "A", SourceKind: "statute"}},
+				},
+			},
+		},
+	}
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+	req := httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/security-deposits", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if got := strings.Count(rec.Body.String(), `id="deposit-return-deadline"`); got != 1 {
+		t.Errorf("anchor rendered %d times, want exactly 1", got)
 	}
 }

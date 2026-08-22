@@ -42,8 +42,11 @@
     {{if .Definition}}<p class="lede">{{.Definition}}</p>{{end}}
 
     {{if .National}}
-    <section aria-labelledby="definition-heading">
-      <h2 id="definition-heading" class="section-title">What it means</h2>
+    <section aria-labelledby="general-rule-heading">
+      {{/* Not "What it means": the lede above already defines the term, and
+           the national statement is not a definition, it is the rule stated
+           generally. "The general rule" pairs with "The rule where you live". */}}
+      <h2 id="general-rule-heading" class="section-title">The general rule</h2>
       {{/* statement-list supplies the grid gap; a bare statement-item has no
            outer margin of its own and the cards collide without it. */}}
       <div class="statement-list">
