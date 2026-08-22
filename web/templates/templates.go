@@ -278,18 +278,12 @@ type RenderedStatement struct {
 	// element id so other pages can deep-link to this exact claim. "" for
 	// untagged statements: no id, no links.
 	Anchor string
-	// Localizations are the places whose own published page carries this
-	// concept, shown as "Specifics for:" links. Populated only on national
-	// pages (ADR-011 D4).
-	Localizations []LocalizedLink
+	// SpecificsPath is the topic hub the statement points a reader at for
+	// their own place's rules, instead of a bare "check your state". Set only
+	// on national pages' tagged statements (ADR-011 D4, amended: one hub link
+	// listing every covered jurisdiction, not a per-place link row).
+	SpecificsPath string
 	Citations     []CitationChip
-}
-
-// LocalizedLink is one place's localized statement for a concept: the link a
-// national page's generic statement offers instead of "check your state".
-type LocalizedLink struct {
-	Name string // place display name, e.g. "Massachusetts" or "Boston"
-	URL  string // topic path with the concept anchor
 }
 
 // CitationChip is a rendered citation link shown inline after each statement.

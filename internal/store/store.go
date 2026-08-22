@@ -71,7 +71,6 @@ type Store interface {
 	// Concepts (ADR-011)
 	ListConcepts(ctx context.Context) ([]Concept, error)
 	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
-	ListConceptLocalizations(ctx context.Context, topicID int64, language string) ([]ConceptLocalization, error)
 	ListSourceUsage(ctx context.Context) ([]SourceUsage, error)
 
 	// Authoring

@@ -175,14 +175,13 @@
                 </a>
                 {{end}}
               </div>
-              {{/* ADR-011 D4: a national statement that can only outline the
-                   rule links to the places whose own guide states it with
-                   local law. Rendered only where localizations exist, so a
-                   page never shows an empty shell of the feature. */}}
-              {{if .Localizations}}
-              <p class="statement-specifics">Specifics for:
-                {{range $i, $l := .Localizations}}{{if $i}} · {{end}}<a href="{{$l.URL}}">{{$l.Name}}</a>{{end}}
-              </p>
+              {{/* ADR-011 D4 (amended): a national statement that can only
+                   outline the rule sends the reader to the topic hub, where
+                   every covered state and city is listed. One link that
+                   scales, instead of a per-place row that grows with every
+                   city shipped. */}}
+              {{if .SpecificsPath}}
+              <p class="statement-specifics">This rule depends on where you live. <a href="{{.SpecificsPath}}">See the states and cities we cover.</a></p>
               {{end}}
             </li>
             {{end}}

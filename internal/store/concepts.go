@@ -30,42 +30,6 @@ func (pg *PG) ListConcepts(ctx context.Context) ([]Concept, error) {
 	return out, rows.Err()
 }
 
-// ListConceptLocalizations returns, for one topic and language, every
-// non-national place whose published page carries a tagged statement, keyed by
-// concept slug. The national page's renderer joins these to its own tagged
-// statements to build the "Specifics for:" rows (ADR-011 D4). Published only:
-// these become public links, and a link onto a draft is a link onto a page
-// that does not exist.
-func (pg *PG) ListConceptLocalizations(ctx context.Context, topicID int64, language string) ([]ConceptLocalization, error) {
-	rows, err := pg.pool.Query(ctx, `
-		SELECT co.slug, j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
-		FROM playbooks pb
-		JOIN playbook_statements ps ON ps.playbook_id = pb.id
-		JOIN statements s  ON s.id  = ps.statement_id
-		JOIN concepts   co ON co.id = s.concept_id
-		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
-		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
-		WHERE pb.topic_id = $1 AND pb.language = $2 AND pb.status = 'published'
-		  AND j.kind <> 'country'
-		GROUP BY co.slug, j.id, j.parent_id, j.kind, j.name, j.slug, pj.slug, pj.name
-		ORDER BY co.slug, j.name`, topicID, language)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []ConceptLocalization
-	for rows.Next() {
-		var l ConceptLocalization
-		if err := rows.Scan(&l.ConceptSlug, &l.Jurisdiction.ID, &l.Jurisdiction.ParentID,
-			&l.Jurisdiction.Kind, &l.Jurisdiction.Name, &l.Jurisdiction.Slug,
-			&l.Jurisdiction.ParentSlug, &l.Jurisdiction.ParentName); err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
-}
-
 // ConceptCoverage computes the resolution-aware matrix (ADR-011 D3): for each
 // concept, which covered places have their own tagged statement (localized),
 // which are covered only because the national page states the claim (generic

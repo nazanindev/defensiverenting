@@ -1043,13 +1043,21 @@ func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	// Match the live renderer: a national page previews with its "Specifics
-	// for:" rows (ADR-011 D4), so publishing holds no surprises.
-	var locs []store.ConceptLocalization
+	// Match the live renderer: a national page previews with its topic-hub
+	// links on tagged statements (ADR-011 D4, amended), so publishing holds
+	// no surprises.
+	specificsPath := ""
 	if pw.Jurisdiction.Kind == "country" {
-		locs, _ = s.pg.ListConceptLocalizations(r.Context(), pw.Topic.ID, pw.Playbook.Language)
+		if hubJs, herr := s.pg.ListJurisdictionsByTopic(r.Context(), pw.Topic.ID, pw.Playbook.Language); herr == nil {
+			for _, hj := range hubJs {
+				if hj.Kind != "country" {
+					specificsPath = store.LangPrefix(pw.Playbook.Language) + "/t/" + pw.Topic.Slug
+					break
+				}
+			}
+		}
 	}
-	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, locs, s.log)
+	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, specificsPath, s.log)
 	page.Preview = true
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := sitetmpl.Render(w, page); err != nil {

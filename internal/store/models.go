@@ -135,13 +135,6 @@ type Concept struct {
 	TopicSlug string
 }
 
-// ConceptLocalization is one place's own tagged statement for a concept, used
-// to render the "Specifics for:" links under a national statement (ADR-011 D4).
-type ConceptLocalization struct {
-	ConceptSlug  string
-	Jurisdiction Jurisdiction
-}
-
 // ConceptCoverageRow is one concept's standing across covered places
 // (ADR-011 D3): localized (own tagged statement), generic (only the national
 // statement covers them), and whether the national page states it at all.

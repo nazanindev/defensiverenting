@@ -32,7 +32,6 @@ type browseStore interface {
 	ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]store.Jurisdiction, error)
 	ResolveJurisdictionAlias(ctx context.Context, alias string) (store.Jurisdiction, error)
 	ResolveTopicAlias(ctx context.Context, alias string) (store.Topic, error)
-	ListConceptLocalizations(ctx context.Context, topicID int64, language string) ([]store.ConceptLocalization, error)
 }
 
 // Reviewer is the human who verifies every playbook before publishing.
@@ -393,19 +392,28 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		return
 	}
 
-	// A national page links each tagged statement down to the places that
-	// localized its claim (ADR-011 D4). Best-effort like the cross-links
-	// below: a lookup failure just renders the page without the rows.
-	var locs []store.ConceptLocalization
+	// A national page links each tagged statement to the topic hub, where
+	// every covered jurisdiction is listed (ADR-011 D4, amended): the reader
+	// picks their place rather than scanning a per-place link row that would
+	// outgrow the statement it hangs under. Offered only when somewhere other
+	// than the national page itself covers the topic — a hub listing only the
+	// page the reader is already on is a link to nowhere. Best-effort like
+	// the cross-links below.
+	specificsPath := ""
 	if pb.Jurisdiction.Kind == "country" {
-		var lerr error
-		locs, lerr = db.ListConceptLocalizations(r.Context(), pb.Topic.ID, pb.Playbook.Language)
-		if lerr != nil {
-			logger.ErrorContext(r.Context(), "list concept localizations", slog.Any("err", lerr))
+		if hubJs, herr := db.ListJurisdictionsByTopic(r.Context(), pb.Topic.ID, pb.Playbook.Language); herr == nil {
+			for _, hj := range hubJs {
+				if hj.Kind != "country" {
+					specificsPath = store.LangPrefix(pb.Playbook.Language) + "/t/" + pb.Topic.Slug
+					break
+				}
+			}
+		} else {
+			logger.ErrorContext(r.Context(), "list topic jurisdictions", slog.Any("err", herr))
 		}
 	}
 
-	page := BuildPlaybookPage(r.Context(), pb, locs, logger)
+	page := BuildPlaybookPage(r.Context(), pb, specificsPath, logger)
 
 	// Cross-links: other topics in this jurisdiction, and this topic elsewhere
 	// — both scoped to this playbook's own language (ADR-007 D5), so every
@@ -592,23 +600,12 @@ func NotFound() http.HandlerFunc {
 // rendering markdown and enforcing the citation invariant. Shared with the
 // authoring tool's draft preview so previews match the live site exactly.
 //
-// locs carries the concept localizations for a national page's "Specifics
-// for:" rows (ADR-011 D4); pass nil for non-country pages, where no rows
-// render.
-func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, locs []store.ConceptLocalization, logger *slog.Logger) tmpl.PlaybookPage {
+// specificsPath is the topic-hub path a national page's tagged statements
+// link to (ADR-011 D4, amended); pass "" for non-country pages or when no
+// other jurisdiction covers the topic, and no link renders.
+func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, specificsPath string, logger *slog.Logger) tmpl.PlaybookPage {
 	// Render markdown intro to HTML
 	introHTML := content.RenderMarkdown(pb.IntroMD)
-
-	// Group localizations by concept slug once; each tagged statement picks up
-	// its own links below. The link lands on the localized statement itself:
-	// tagged statements render their concept slug as an anchor.
-	locsBySlug := map[string][]tmpl.LocalizedLink{}
-	for _, l := range locs {
-		locsBySlug[l.ConceptSlug] = append(locsBySlug[l.ConceptSlug], tmpl.LocalizedLink{
-			Name: l.Jurisdiction.Name,
-			URL:  l.Jurisdiction.TopicPathIn(pb.Playbook.Language, pb.Topic.Slug) + "#" + l.ConceptSlug,
-		})
-	}
 
 	// Render each statement's body markdown and validate citation invariant
 	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
@@ -635,10 +632,14 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, loc
 				sourceURLs = append(sourceURLs, c.SourceURL)
 			}
 		}
+		stmtSpecifics := ""
+		if s.ConceptSlug != "" {
+			stmtSpecifics = specificsPath
+		}
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:      content.RenderMarkdown(s.BodyMD),
 			Anchor:        s.ConceptSlug,
-			Localizations: locsBySlug[s.ConceptSlug],
+			SpecificsPath: stmtSpecifics,
 			Citations:     chips,
 		})
 	}
