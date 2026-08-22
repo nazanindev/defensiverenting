@@ -79,6 +79,16 @@
   .btn-publish { background: #065f46; color: #fff; }
   .btn-publish:hover { background: #054c39; }
 
+  .flash { padding: 10px 14px; border-radius: 8px; font-size: .85rem; margin-bottom: 16px;
+           background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+  /* Publish-gate issues (ADR-013): the same list the publish button will
+     refuse on, shown before anyone clicks it. */
+  .issues { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;
+            padding: 16px 20px; margin-bottom: 20px; color: #991b1b; }
+  .issues h2 { font-size: .78rem; font-weight: 700; text-transform: uppercase;
+               letter-spacing: .07em; margin-bottom: 10px; }
+  .issues ul { margin: 0; padding-left: 20px; font-size: .85rem; line-height: 1.6; }
+
   /* CTA */
   .cta { background: #fdf0f2; border: 1px solid #f0c0c8; border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .cta-text { font-size: .875rem; color: #4a1223; line-height: 1.5; }
@@ -102,6 +112,26 @@
 </header>
 <div class="page">
   <a href="/" class="back">← Back to playbooks</a>
+
+  {{if .Msg}}<div class="flash">{{.Msg}}</div>{{end}}
+
+  {{if .Issues}}
+  <div class="issues">
+    {{if eq .Playbook.Playbook.Status "draft"}}
+    <h2>Not yet publishable — {{len .Issues}} issue(s)</h2>
+    {{else}}
+    <h2>{{len .Issues}} issue(s) on this page</h2>
+    {{end}}
+    <ul>
+      {{range .Issues}}<li>{{.}}</li>{{end}}
+    </ul>
+    {{if eq .Playbook.Playbook.Status "draft"}}
+    <p style="font-size:.8rem;margin:10px 0 0">The draft is safe to keep editing — these only block <strong>publishing</strong>.</p>
+    {{else}}
+    <p style="font-size:.8rem;margin:10px 0 0">This page went live before the publish gate covered these checks. Its next save or publish must fix them.</p>
+    {{end}}
+  </div>
+  {{end}}
 
   <!-- Header -->
   <div class="header">
@@ -174,7 +204,7 @@
   <!-- Statements -->
   <section>
     <h2>Statements ({{len .Stmts}})</h2>
-    {{if .Stmts}}<p class="verify-hint">Each quote below is <strong>verbatim from its source</strong> — the draft could not be saved otherwise. Confirm the quote supports the statement and the source is authoritative, then use <strong>Verify &amp; publish</strong> above.</p>{{end}}
+    {{if .Stmts}}<p class="verify-hint">Each quote below should be <strong>verbatim from its source</strong> — the editor checks it against the live page, and publishing is refused while any citation's quote is missing or unconfirmed. Confirm the quote supports the statement and the source is authoritative, then use <strong>Verify &amp; publish</strong> above.</p>{{end}}
     {{range .Groups}}
     {{if .Heading}}<h3 class="org-heading">{{.Heading}}</h3>{{end}}
     {{range .Stmts}}

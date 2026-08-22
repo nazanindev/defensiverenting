@@ -70,15 +70,23 @@ func (pg *PG) CountUncheckableCitations(ctx context.Context) (int, error) {
 }
 
 // CitationQuoteExists reports whether this exact (source URL, quote) pair is
-// already stored.
+// already stored with a confirmation behind it.
 //
 // It answers "has this quote been verified before?" for the authoring form,
 // which re-checks a pasted quote against the live source. Re-fetching every
-// source on every save would make saving slow, and would fail a save outright
-// when a source is temporarily unreachable — including sources that block the
-// fetcher permanently, such as the Massachusetts sanitary code PDF. A quote
-// that is already stored got there through a path that verified it, so an
-// unchanged quote needs no second look; only new or edited text is fetched.
+// source on every save would make saving slow — including sources that block
+// the fetcher permanently, such as the Massachusetts sanitary code PDF — so an
+// unchanged, already-confirmed quote needs no second look; only new or edited
+// text is fetched.
+//
+// The confirmation condition is load-bearing under ADR-013: a save now stores
+// a quote whether or not it could be checked, so "it is stored" no longer
+// implies "it was verified". Matching stored-but-unconfirmed text here would
+// launder it — the first save records it unverified, and every later check
+// would call it known-good. checked_at IS NOT NULL (a fetch found it, or an
+// attestation stamped it) is what actually says someone looked; the
+// manually_verified arm covers rows attested before checked_at existed
+// (migration 000017), which were never stamped.
 //
 // Matching on the pair rather than on a row id keeps this correct when
 // statements are reordered, added, or removed between edits.
@@ -92,6 +100,7 @@ func (pg *PG) CitationQuoteExists(ctx context.Context, url, quote string) (bool,
 			SELECT 1 FROM citations c
 			JOIN sources s ON s.id = c.source_id
 			WHERE s.url = $1 AND c.quote = $2
+			  AND (c.checked_at IS NOT NULL OR c.manually_verified)
 		)`, url, quote).Scan(&exists)
 	return exists, err
 }

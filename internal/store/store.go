@@ -80,10 +80,15 @@ type Store interface {
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
 	AuthorCoverage(ctx context.Context) ([]CoverageRow, error)
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
+	AuthorFindDraft(ctx context.Context, jurisdictionID, topicID int64, language string) (int64, error)
 	AuthorUpdatePlaybook(ctx context.Context, p AuthorUpdatePlaybookParams) error
 	AuthorPublishPlaybook(ctx context.Context, id int64, actor string) error
 	AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool, actor string) error
 	AuthorDeletePlaybook(ctx context.Context, id int64) error
+	// Page issues (ADR-013): the invariants publishing enforces, surfaced on
+	// drafts so the dashboard can mark what is not yet publishable.
+	AuthorPlaybookIssues(ctx context.Context, id int64) ([]PageIssue, error)
+	AuthorDraftIssues(ctx context.Context) (map[int64][]PageIssue, error)
 }
 
 // Actor names for the non-human write paths, recorded in updated_by and
@@ -147,6 +152,12 @@ type IngestPlaybookParams struct {
 	Status         string // "draft" | "published"; defaults to "published" if empty
 	// UpdatedBy is who is saving; see AuthorUpdatePlaybookParams.UpdatedBy.
 	UpdatedBy string
+	// AllowIncomplete captures a person's part-finished draft (ADR-013):
+	// statements may lack citations and statute locators go unvalidated, with
+	// the gaps surfacing as page issues that block publishing instead of the
+	// save. Only valid with Status "draft". The drafting agent and the seeding
+	// tools leave it false — their output has no excuse to be incomplete.
+	AllowIncomplete bool
 }
 
 type IngestStatementParams struct {

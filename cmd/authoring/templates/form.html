@@ -305,7 +305,9 @@
 
       <div class="field">
         <label>Title *</label>
-        <input type="text" name="title" id="title-input" required
+        {{/* Not marked required: a missing title never blocks a save (ADR-013),
+             it is flagged on the dashboard and blocks publishing instead. */}}
+        <input type="text" name="title" id="title-input"
                value="{{.Title}}"
                placeholder="e.g. Heat Not Working in Chicago — What Can I Do?">
         <p class="hint">Written as a question a renter would search. Auto-suggested — edit freely.</p>
@@ -341,7 +343,12 @@
 
     <div class="footer">
       <button type="submit" class="btn btn-save">{{if .EditMode}}Save changes{{else}}Save as draft{{end}}</button>
-      {{if not .EditMode}}<span class="footer-note">Won't go live until you publish from the dashboard.</span>{{end}}
+      {{if and .EditMode (eq .Status "published")}}
+      <span class="footer-note">This page is <strong>live</strong>. Saving applies your changes to the public site immediately, and a save that would break the page is refused.</span>
+      {{else}}
+      <span class="footer-note">Saving never blocks — gaps are flagged on the dashboard and checked at publish. Autosaves every minute while you work.</span>
+      {{end}}
+      <span class="footer-note" id="autosave-status" aria-live="polite"></span>
     </div>
 
   </div>
@@ -802,12 +809,12 @@ function renderSources() {
             '<a class="src-open" id="srcopen_' + s.id + '" href="' + esc(s.url) + '" target="_blank" rel="noopener"' +
               (s.url ? '' : ' style="display:none"') + '>open ↗</a>' +
           '</label>' +
-          '<input type="url" name="src_url_' + s.id + '" value="' + esc(s.url) + '" placeholder="https://…" required' +
+          '<input type="url" name="src_url_' + s.id + '" value="' + esc(s.url) + '" placeholder="https://…"' +
             ' oninput="onSrcUrlInput(' + s.id + ', this.value)">' +
         '</div>' +
         '<div class="field">' +
           '<label>' + (isDir ? 'Organization name *' : 'Publisher *') + '</label>' +
-          '<input type="text" name="src_pub_' + s.id + '" value="' + esc(s.publisher) + '" placeholder="' + pubPlaceholder + '" required>' +
+          '<input type="text" name="src_pub_' + s.id + '" value="' + esc(s.publisher) + '" placeholder="' + pubPlaceholder + '">' +
         '</div>' +
       '</div>' +
       (isDir ? '' :
@@ -990,7 +997,7 @@ function renderStmts() {
           (i === stmts.length - 1 ? ' disabled' : '') + ' onclick="moveStmt(' + i + ',1)">↓</button>' +
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
-      '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '" required' +
+      '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '"' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
       conceptRow(st) +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
@@ -1194,21 +1201,82 @@ function onDragEnd() {
   });
 }
 
-// ── Submit guard ──────────────────────────────────────────────────────────
+// ── Submit ────────────────────────────────────────────────────────────────
 
+// No client-side blocking (ADR-013): whatever is on the form saves, and what
+// is incomplete about it comes back as issues on the dashboard and the view
+// page. The only job here is making sure what's typed is what's posted.
 function beforeSubmit() {
   sync();
   updateHidden();
-  if (!stmts.length) { alert('Add at least one statement.'); return false; }
-  for (let i = 0; i < stmts.length; i++) {
-    const st = stmts[i];
-    if (!st.editorial && !sources.some(s => st.cites[s.id])) {
-      alert('Statement ' + (i + 1) + ' has no citation.\nCheck a source or mark it as editorial guidance.');
-      return false;
-    }
-  }
+  autosaveDirty = false; // a full save is on its way; don't warn on the unload it causes
   return true;
 }
+
+// ── Autosave ──────────────────────────────────────────────────────────────
+
+// Work belongs in the database, not in a browser tab: the form autosaves once
+// a minute whenever something changed. Not on published pages — their saves
+// apply straight to the live site and run the publish gate, so only a person's
+// explicit Save gets to try.
+const AUTOSAVE_ON = {{if and .EditMode (eq .Status "published")}}false{{else}}true{{end}};
+let autosaveDirty = false, autosaveBusy = false;
+const formEl = document.querySelector('form');
+formEl.addEventListener('input',  function() { autosaveDirty = true; });
+formEl.addEventListener('change', function() { autosaveDirty = true; });
+
+function autosaveNote(text, bad) {
+  const el = document.getElementById('autosave-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = bad ? '#c05621' : '#2f855a';
+}
+
+function autosaveTick() {
+  if (!autosaveDirty || autosaveBusy) return;
+  const action = formEl.getAttribute('action');
+  if (action === '/new') {
+    // A page has nowhere to save until it has a slot: location + topic.
+    const city = v('jurisdiction_select');
+    if (!city || !v('topic_key')) return;
+    if (city === 'new' && !(v('new_city_name').trim() && v('new_state_name').trim())) return;
+  }
+  sync();
+  updateHidden();
+  autosaveBusy = true;
+  const fd = new FormData(formEl);
+  fd.set('autosave', '1');
+  fetch(action, { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      autosaveBusy = false;
+      if (!data.ok) { autosaveNote('Not autosaved: ' + (data.error || 'unknown error'), true); return; }
+      autosaveDirty = false;
+      if (data.editUrl && formEl.getAttribute('action') === '/new') {
+        // The first autosave created the draft; edit it from now on, so a
+        // reload lands on the saved page rather than an empty form.
+        formEl.setAttribute('action', data.editUrl);
+        history.replaceState(null, '', data.editUrl);
+      }
+      const n = (data.issues || []).length;
+      const when = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      autosaveNote('Draft autosaved ' + when + (n ? ' · ' + n + ' issue' + (n === 1 ? '' : 's') + ' to fix before publish' : ''), n > 0);
+    })
+    .catch(function() {
+      autosaveBusy = false;
+      autosaveNote('Autosave failed — will retry', true);
+    });
+}
+
+if (AUTOSAVE_ON) setInterval(autosaveTick, 60000);
+
+// Autosave shrinks the window for losing work to a minute; this catches the
+// last minute.
+window.addEventListener('beforeunload', function(e) {
+  if (!autosaveDirty) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 

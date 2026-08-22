@@ -272,6 +272,13 @@ func (s *srv) guidelines(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "guidelines.html", nil)
 }
 
+// issueBadge is one draft's issue rollup for the dashboard list: the count in
+// the badge, every detail in the hover.
+type issueBadge struct {
+	N       int
+	Tooltip string
+}
+
 // dashboardView is the sort and filter state of the page list.
 //
 // It is remembered in a cookie because the review loop constantly leaves and
@@ -463,6 +470,17 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	draftIssues, err := s.pg.AuthorDraftIssues(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	// Pointer values so the template's {{with}} skips clean rows; a zero
+	// struct would count as truthy and badge every draft.
+	issueBadges := make(map[int64]*issueBadge, len(draftIssues))
+	for pid, issues := range draftIssues {
+		issueBadges[pid] = &issueBadge{N: len(issues), Tooltip: strings.Join(issueDetails(issues), "\n")}
+	}
 
 	// Drafts and published pages share one table, so a review pass through a
 	// batch of drafts otherwise means scrolling past every live page.
@@ -527,6 +545,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 
 	s.render(w, "dashboard.html", map[string]any{
 		"Actor":           actor(r),
+		"Issues":          issueBadges,
 		"Playbooks":       playbooks,
 		"Cities":          cities,
 		"ReviewCounts":    counts,
@@ -1032,12 +1051,22 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 	}
 	groups := groupViewStmts(stmts, pw.Playbook.PageKind == "directory", publisherOf)
 
+	// The same issues the publish gate will refuse on, shown where the
+	// publish button is, so "Verify & publish" never surprises.
+	issues, err := s.pg.AuthorPlaybookIssues(r.Context(), id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+
 	s.render(w, "view.html", map[string]any{
 		"Playbook": pw,
 		"Sources":  sources,
 		"Stmts":    stmts,
 		"Groups":   groups,
 		"Grouped":  pw.Playbook.PageKind == "directory",
+		"Issues":   issueDetails(issues),
+		"Msg":      r.URL.Query().Get("msg"),
 	})
 }
 
@@ -1160,63 +1189,50 @@ func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if err := r.ParseForm(); err != nil {
-		s.formError(w, r, "Invalid form data: "+err.Error())
-		return
-	}
+// isAutosave reports whether this save was posted by the form's autosave
+// timer rather than the Save button. An autosave answers JSON instead of
+// redirecting, and never fetches sources to check quotes — it fires every
+// minute, and hammering a slow or blocked source once a minute would turn
+// the safety net into a load test.
+func isAutosave(r *http.Request) bool { return r.FormValue("autosave") == "1" }
 
-	// Resolve jurisdiction
-	jSlug := r.FormValue("jurisdiction_select")
-	var j store.Jurisdiction
-	var citySlug string
-	var err error
-	if jSlug == "new" {
-		cityName := strings.TrimSpace(r.FormValue("new_city_name"))
-		stateName := strings.TrimSpace(r.FormValue("new_state_name"))
-		if cityName == "" || stateName == "" {
-			s.formError(w, r, "City name and state name are required for a new city")
-			return
-		}
-		citySlug = toSlug(cityName)
-		stateSlug := toSlug(stateName)
-		state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
-			Kind: "state", Name: stateName, Slug: stateSlug,
-		})
-		if err != nil {
-			s.formError(w, r, "Failed to create state: "+err.Error())
-			return
-		}
-		j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
-			ParentID: &state.ID, Kind: "city", Name: cityName, Slug: citySlug,
-		})
-		if err != nil {
-			s.formError(w, r, "Failed to create city: "+err.Error())
-			return
-		}
-	} else {
-		j, err = s.pg.GetJurisdictionBySlug(ctx, jSlug)
-		if err != nil {
-			s.formError(w, r, "Unknown jurisdiction selected")
-			return
-		}
+// writeJSON answers an autosave request.
+func (s *srv) writeJSON(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		s.log.Error("encode autosave response", slog.Any("err", err))
 	}
+}
 
-	topic, msg := s.resolveTopic(ctx, r)
-	if msg != "" {
-		s.formError(w, r, msg)
-		return
+func (s *srv) autosaveError(w http.ResponseWriter, msg string) {
+	s.writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": msg})
+}
+
+// issueDetails flattens page issues to the strings the form and the action
+// pages show.
+func issueDetails(issues []store.PageIssue) []string {
+	out := make([]string, len(issues))
+	for i, is := range issues {
+		out[i] = is.Detail
 	}
-	topicSlug := topic.Slug
+	return out
+}
 
-	lang, err := drafting.ResolveLanguage(r.FormValue("language"))
-	if err != nil {
-		s.formError(w, r, err.Error())
-		return
-	}
+// parsePageContent reads the form's sources and statements without refusing
+// any of it (ADR-013): saving captures what is there, and what is wrong with
+// it surfaces as page issues after the save. The returned notes name anything
+// that could not be captured at all — a source card with no URL has no row to
+// store, and a reference-only domain may never become a source — so the
+// author is told rather than left to notice.
+//
+// verifyQuotes controls whether new quotes are checked against the live
+// source right now (stamping checked_at when they match). Manual saves check;
+// autosaves skip the fetch and leave new quotes unverified until a manual
+// save or a live blur-check confirms them.
+func (s *srv) parsePageContent(ctx context.Context, r *http.Request, lang, actorName string, verifyQuotes bool) ([]store.IngestStatementParams, []string, error) {
+	var notes []string
 
-	// Parse sources
 	srcIndices := parseIndices(r.FormValue("active_sources"))
 	sourceByIdx := make(map[int]store.Source, len(srcIndices))
 	srcLocatorByIdx := make(map[int]string, len(srcIndices))
@@ -1225,16 +1241,19 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		pub := strings.TrimSpace(r.FormValue(fmt.Sprintf("src_pub_%d", i)))
 		knd := r.FormValue(fmt.Sprintf("src_kind_%d", i))
 		loc := r.FormValue(fmt.Sprintf("src_loc_%d", i))
-		if u == "" || pub == "" {
-			s.formError(w, r, fmt.Sprintf("Source %d is missing a URL or publisher", i+1))
-			return
+		if u == "" {
+			notes = append(notes, fmt.Sprintf("source %d has no URL yet, so it was not kept — sources are stored by URL", i+1))
+			continue
+		}
+		if discover.ReferenceOnly(u) {
+			notes = append(notes, fmt.Sprintf("source %d (%s) is reference-only (lawyer marketing or content mill) and was not kept — cite the primary law it summarizes", i+1, u))
+			continue
 		}
 		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
 			URL: u, Publisher: pub, Kind: knd,
 		})
 		if err != nil {
-			s.formError(w, r, "Failed to save source: "+err.Error())
-			return
+			return nil, nil, fmt.Errorf("save source %d (%s): %w", i+1, u, err)
 		}
 		sourceByIdx[i] = src
 		srcLocatorByIdx[i] = loc
@@ -1242,54 +1261,54 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 
 	editorialSrc, err := s.pg.GetEditorialSource(ctx)
 	if err != nil {
-		s.formError(w, r, "Editorial source not found — run migrations first")
-		return
+		return nil, nil, fmt.Errorf("editorial source not found — run migrations first: %w", err)
 	}
 
-	// Parse statements
-	stmtIndices := parseIndices(r.FormValue("active_stmts"))
 	qv := newQuoteVerifier(s.pg, s.sourceCache)
+	if !verifyQuotes {
+		qv = knownQuoteVerifier(s.pg)
+	}
+	stmtIndices := parseIndices(r.FormValue("active_stmts"))
 	var statements []store.IngestStatementParams
 	for _, ji := range stmtIndices {
+		// Empty bodies are kept: an empty card is usually exactly what the
+		// author means to come back and fill in, and dropping it on save —
+		// which autosave now does unasked — would delete it while they look.
 		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
-		if body == "" {
-			continue
-		}
 		var cites []store.IngestCitationParams
 		for _, i := range srcIndices {
-			if r.FormValue(fmt.Sprintf("cite_%d_%d", ji, i)) == "on" {
-				loc := r.FormValue(fmt.Sprintf("loc_%d_%d", ji, i))
-				if loc == "" {
-					loc = srcLocatorByIdx[i]
-				}
-				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
-				overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
-				res := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote)
-				if res.Msg != "" && (!res.Overridable || !overridden) {
-					s.formError(w, r, res.Msg)
-					return
-				}
-				// Quote is carried through the form read-only. Omitting it here
-				// is what rewrote every citation's quote to "" on save.
-				cites = append(cites, store.IngestCitationParams{
-					SourceID:         sourceByIdx[i].ID,
-					Locator:          loc,
-					Quote:            quote,
-					ManuallyVerified: overridden,
-					// A live fetch confirmed the quote just now, or the
-					// reviewer attested to it by hand just now. A known-quote
-					// skip is neither, and inherits its earlier stamp.
-					CheckedNow: res.Verified || overridden,
-					CheckedBy:  actor(r),
-				})
+			src, kept := sourceByIdx[i]
+			if !kept || r.FormValue(fmt.Sprintf("cite_%d_%d", ji, i)) != "on" {
+				continue
 			}
+			loc := r.FormValue(fmt.Sprintf("loc_%d_%d", ji, i))
+			if loc == "" {
+				loc = srcLocatorByIdx[i]
+			}
+			quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
+			overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
+			res := qv.check(ctx, ji+1, src.URL, quote)
+			if verifyQuotes && res.Msg != "" && (!res.Overridable || !overridden) {
+				// Saved all the same: the citation stays unverified, which the
+				// dashboard flags and publishing refuses.
+				notes = append(notes, res.Msg)
+			}
+			// Quote is carried through the form read-only. Omitting it here
+			// is what rewrote every citation's quote to "" on save.
+			cites = append(cites, store.IngestCitationParams{
+				SourceID:         src.ID,
+				Locator:          loc,
+				Quote:            quote,
+				ManuallyVerified: overridden,
+				// A live fetch confirmed the quote just now, or the
+				// reviewer attested to it by hand just now. A known-quote
+				// skip is neither, and inherits its earlier stamp.
+				CheckedNow: res.Verified || overridden,
+				CheckedBy:  actorName,
+			})
 		}
 		if r.FormValue(fmt.Sprintf("edit_%d", ji)) == "on" {
 			cites = append(cites, store.IngestCitationParams{SourceID: editorialSrc.ID})
-		}
-		if len(cites) == 0 {
-			s.formError(w, r, fmt.Sprintf("Statement %d needs at least one citation", ji+1))
-			return
 		}
 		conceptSlug, topicRefSlug := parseStatementTag(r.FormValue(fmt.Sprintf("tag_%d", ji)))
 		statements = append(statements, store.IngestStatementParams{
@@ -1299,34 +1318,143 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			Sources:      cites,
 		})
 	}
-	if len(statements) == 0 {
-		s.formError(w, r, "At least one statement is required")
+	return statements, notes, nil
+}
+
+// saveFlash summarizes a manual save for the redirect's flash message.
+func saveFlash(notes []string) string {
+	if len(notes) == 0 {
+		return "Saved."
+	}
+	return "Saved. " + strings.Join(notes, " · ")
+}
+
+func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	autosave := isAutosave(r)
+	// fail reports a problem that stopped the save entirely. Only structural
+	// problems do that now (ADR-013): no jurisdiction or topic means no slot
+	// to save into. Content problems save anyway and surface as issues.
+	fail := func(msg string) {
+		if autosave {
+			s.autosaveError(w, msg)
+			return
+		}
+		s.formError(w, r, msg)
+	}
+	if err := r.ParseForm(); err != nil {
+		fail("Invalid form data: " + err.Error())
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
-	if title == "" {
-		s.formError(w, r, "Title is required")
+	// Resolve jurisdiction
+	jSlug := r.FormValue("jurisdiction_select")
+	var j store.Jurisdiction
+	var err error
+	if jSlug == "new" {
+		cityName := strings.TrimSpace(r.FormValue("new_city_name"))
+		stateName := strings.TrimSpace(r.FormValue("new_state_name"))
+		if cityName == "" || stateName == "" {
+			fail("City name and state name are required for a new city")
+			return
+		}
+		state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+			Kind: "state", Name: stateName, Slug: toSlug(stateName),
+		})
+		if err != nil {
+			fail("Failed to create state: " + err.Error())
+			return
+		}
+		j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+			ParentID: &state.ID, Kind: "city", Name: cityName, Slug: toSlug(cityName),
+		})
+		if err != nil {
+			fail("Failed to create city: " + err.Error())
+			return
+		}
+	} else {
+		j, err = s.pg.GetJurisdictionBySlug(ctx, jSlug)
+		if err != nil {
+			fail("Unknown jurisdiction selected")
+			return
+		}
+	}
+
+	topic, msg := s.resolveTopic(ctx, r)
+	if msg != "" {
+		fail(msg)
+		return
+	}
+
+	lang, err := drafting.ResolveLanguage(r.FormValue("language"))
+	if err != nil {
+		fail(err.Error())
+		return
+	}
+
+	// An autosave that would land in a slot whose draft this form did not
+	// open must not silently overwrite that draft. A person clicking Save
+	// keeps the long-standing upsert semantics; a timer does not get to.
+	if autosave {
+		if _, err := s.pg.AuthorFindDraft(ctx, j.ID, topic.ID, lang); err == nil {
+			s.autosaveError(w, fmt.Sprintf("a draft for %s/%s already exists — open it from the dashboard instead (autosave is off)", j.Slug, topic.Slug))
+			return
+		} else if !errors.Is(err, store.ErrNotFound) {
+			s.autosaveError(w, "could not check the draft slot: "+err.Error())
+			return
+		}
+	}
+
+	statements, notes, err := s.parsePageContent(ctx, r, lang, actor(r), !autosave)
+	if err != nil {
+		fail(err.Error())
 		return
 	}
 
 	if err := s.pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
-		JurisdictionID: j.ID,
-		TopicID:        topic.ID,
-		Language:       lang,
-		Slug:           topicSlug,
-		Title:          title,
-		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
-		PageKind:       r.FormValue("page_kind"),
-		Statements:     statements,
-		Status:         "draft",
-		UpdatedBy:      actor(r),
+		JurisdictionID:  j.ID,
+		TopicID:         topic.ID,
+		Language:        lang,
+		Slug:            topic.Slug,
+		Title:           strings.TrimSpace(r.FormValue("title")),
+		IntroMD:         strings.TrimSpace(r.FormValue("intro")),
+		PageKind:        r.FormValue("page_kind"),
+		Statements:      statements,
+		Status:          "draft",
+		UpdatedBy:       actor(r),
+		AllowIncomplete: true,
 	}); err != nil {
-		s.formError(w, r, "Failed to save playbook: "+err.Error())
+		fail("Failed to save playbook: " + err.Error())
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	id, err := s.pg.AuthorFindDraft(ctx, j.ID, topic.ID, lang)
+	if err != nil {
+		fail("saved, but could not find the saved draft: " + err.Error())
+		return
+	}
+	if autosave {
+		s.autosaveOK(w, r, id, notes)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(saveFlash(notes))), http.StatusSeeOther)
+}
+
+// autosaveOK answers a successful autosave with where the draft lives and what
+// the dashboard currently holds against it, so the form can show "saved · N
+// issues" without another round trip.
+func (s *srv) autosaveOK(w http.ResponseWriter, r *http.Request, id int64, notes []string) {
+	issues, err := s.pg.AuthorPlaybookIssues(r.Context(), id)
+	if err != nil {
+		s.log.Error("autosave issues lookup", slog.Any("err", err))
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"id":      id,
+		"editUrl": fmt.Sprintf("/edit/%d", id),
+		"issues":  issueDetails(issues),
+		"notes":   notes,
+	})
 }
 
 func (s *srv) publish(w http.ResponseWriter, r *http.Request) {
@@ -1335,11 +1463,24 @@ func (s *srv) publish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := s.pg.AuthorPublishPlaybook(r.Context(), id, actor(r)); err != nil {
+	switch err := s.pg.AuthorPublishPlaybook(r.Context(), id, actor(r)); {
+	case err == nil:
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	case errors.Is(err, store.ErrNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	default:
+		// Publishing is the gate (ADR-013): a refusal is the workflow doing
+		// its job, so it reads as a checklist, not as a server error.
+		var npe *store.NotPublishableError
+		if errors.As(err, &npe) {
+			s.actionError(w, id, actionChoice{
+				Message: fmt.Sprintf("This page is not ready to go live: %d critical issue(s) must be fixed first. The draft is saved and nothing is lost.", len(npe.Issues)),
+				Items:   issueDetails(npe.Issues),
+			})
+			return
+		}
 		s.serverError(w, err)
-		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // placeOption is one entry in the location filter.
@@ -1601,7 +1742,8 @@ func (s *srv) unpublish(w http.ResponseWriter, r *http.Request) {
 // the button that goes ahead anyway.
 type actionChoice struct {
 	Message      string
-	ConfirmLabel string // empty when there is nothing to confirm
+	Items        []string // itemized detail under the message (publish-gate issues)
+	ConfirmLabel string   // empty when there is nothing to confirm
 	ConfirmPath  string
 	ConfirmField string // hidden field set to "1" when confirming
 }
@@ -1731,16 +1873,29 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	autosave := isAutosave(r)
+	// A live page cannot take autosaves: its saves apply straight to the
+	// public site, so they run the publish gate and only a person's explicit
+	// Save gets to try. The form does not autosave published pages; this is
+	// the backstop for a stale tab.
+	if autosave && existing.Playbook.Status == "published" {
+		s.autosaveError(w, "this page is live — changes apply only when you press Save")
+		return
+	}
 
-	// editErr re-renders the edit form with a validation message, showing what
-	// was submitted rather than what is stored. Re-reading the playbook here
+	// editErr re-renders the edit form with the message, showing what was
+	// submitted rather than what is stored. Re-reading the playbook here
 	// silently reverted the whole session: on a page with a dozen statements,
-	// one missing citation discarded every other edit the author had made.
+	// one bad field discarded every other edit the author had made.
 	//
 	// The stored copy is still the fallback. A request that failed to parse has
 	// no usable form values, and handing back an empty form would be a second
 	// way to lose the same work.
 	editErr := func(msg string) {
+		if autosave {
+			s.autosaveError(w, msg)
+			return
+		}
 		pw := existing
 		if v := r.FormValue("title"); v != "" {
 			pw.Playbook.Title = v
@@ -1772,148 +1927,66 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve jurisdiction and topic — editable for drafts, locked for published.
-	var jurisdictionID, topicID int64
-	var lang, slug string
+	// Resolve jurisdiction and topic — editable for drafts, locked for
+	// published. A draft whose selection cannot be resolved keeps its stored
+	// identity rather than losing the save (ADR-013): the note says what
+	// happened, and the statements the author actually wrote are captured.
+	jurisdictionID := existing.Playbook.JurisdictionID
+	topicID := existing.Playbook.TopicID
+	lang := existing.Playbook.Language
+	slug := existing.Playbook.Slug
+	var notes []string
 	if existing.Playbook.Status == "draft" {
 		jSlug := r.FormValue("jurisdiction_select")
-		var j store.Jurisdiction
-		var citySlug string
 		if jSlug == "new" {
 			cityName := strings.TrimSpace(r.FormValue("new_city_name"))
 			stateName := strings.TrimSpace(r.FormValue("new_state_name"))
 			if cityName == "" || stateName == "" {
-				editErr("City name and state name are required for a new city")
-				return
-			}
-			citySlug = toSlug(cityName)
-			state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
-				Kind: "state", Name: stateName, Slug: toSlug(stateName),
-			})
-			if err != nil {
-				editErr("Failed to create state: " + err.Error())
-				return
-			}
-			j, err = s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
-				ParentID: &state.ID, Kind: "city", Name: cityName, Slug: citySlug,
-			})
-			if err != nil {
-				editErr("Failed to create city: " + err.Error())
-				return
-			}
-		} else {
-			j, err = s.pg.GetJurisdictionBySlug(ctx, jSlug)
-			if err != nil {
-				editErr("Unknown city selected")
-				return
-			}
-		}
-		topic, msg := s.resolveTopic(ctx, r)
-		if msg != "" {
-			editErr(msg)
-			return
-		}
-		jurisdictionID = j.ID
-		topicID = topic.ID
-		lang, err = drafting.ResolveLanguage(r.FormValue("language"))
-		if err != nil {
-			editErr(err.Error())
-			return
-		}
-		slug = topic.Slug
-	} else {
-		jurisdictionID = existing.Playbook.JurisdictionID
-		topicID = existing.Playbook.TopicID
-		lang = existing.Playbook.Language
-		slug = existing.Playbook.Slug
-	}
-
-	srcIndices := parseIndices(r.FormValue("active_sources"))
-	sourceByIdx := make(map[int]store.Source, len(srcIndices))
-	srcLocatorByIdx := make(map[int]string, len(srcIndices))
-	for _, i := range srcIndices {
-		u := strings.TrimSpace(r.FormValue(fmt.Sprintf("src_url_%d", i)))
-		pub := strings.TrimSpace(r.FormValue(fmt.Sprintf("src_pub_%d", i)))
-		knd := r.FormValue(fmt.Sprintf("src_kind_%d", i))
-		loc := r.FormValue(fmt.Sprintf("src_loc_%d", i))
-		if u == "" || pub == "" {
-			editErr(fmt.Sprintf("Source %d is missing a URL or publisher", i+1))
-			return
-		}
-		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{URL: u, Publisher: pub, Kind: knd})
-		if err != nil {
-			editErr("Failed to save source: " + err.Error())
-			return
-		}
-		sourceByIdx[i] = src
-		srcLocatorByIdx[i] = loc
-	}
-
-	editorialSrc, err := s.pg.GetEditorialSource(ctx)
-	if err != nil {
-		editErr("Editorial source not found — run migrations first")
-		return
-	}
-
-	stmtIndices := parseIndices(r.FormValue("active_stmts"))
-	qv := newQuoteVerifier(s.pg, s.sourceCache)
-	var statements []store.IngestStatementParams
-	for _, ji := range stmtIndices {
-		body := strings.TrimSpace(r.FormValue(fmt.Sprintf("stmt_%d", ji)))
-		if body == "" {
-			continue
-		}
-		var cites []store.IngestCitationParams
-		for _, i := range srcIndices {
-			if r.FormValue(fmt.Sprintf("cite_%d_%d", ji, i)) == "on" {
-				loc := r.FormValue(fmt.Sprintf("loc_%d_%d", ji, i))
-				if loc == "" {
-					loc = srcLocatorByIdx[i]
-				}
-				quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
-				overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
-				res := qv.check(ctx, ji+1, sourceByIdx[i].URL, quote)
-				if res.Msg != "" && (!res.Overridable || !overridden) {
-					editErr(res.Msg)
+				notes = append(notes, "a new city needs both a city and a state name — the page kept its current location")
+			} else {
+				state, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+					Kind: "state", Name: stateName, Slug: toSlug(stateName),
+				})
+				if err != nil {
+					editErr("Failed to create state: " + err.Error())
 					return
 				}
-				// See submitForm: the quote round-trips through the form, and
-				// dropping it here silently wiped the evidence.
-				cites = append(cites, store.IngestCitationParams{
-					SourceID:         sourceByIdx[i].ID,
-					Locator:          loc,
-					Quote:            quote,
-					ManuallyVerified: overridden,
-					CheckedNow:       res.Verified || overridden, // see submitForm
-					CheckedBy:        actor(r),
+				j, err := s.pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{
+					ParentID: &state.ID, Kind: "city", Name: cityName, Slug: toSlug(cityName),
 				})
+				if err != nil {
+					editErr("Failed to create city: " + err.Error())
+					return
+				}
+				jurisdictionID = j.ID
+			}
+		} else if jSlug != "" {
+			j, err := s.pg.GetJurisdictionBySlug(ctx, jSlug)
+			if err != nil {
+				notes = append(notes, fmt.Sprintf("unknown location %q — the page kept its current location", jSlug))
+			} else {
+				jurisdictionID = j.ID
 			}
 		}
-		if r.FormValue(fmt.Sprintf("edit_%d", ji)) == "on" {
-			cites = append(cites, store.IngestCitationParams{SourceID: editorialSrc.ID})
+		if topic, msg := s.resolveTopic(ctx, r); msg != "" {
+			notes = append(notes, msg+" — the page kept its current topic")
+		} else {
+			topicID = topic.ID
+			slug = topic.Slug
 		}
-		if len(cites) == 0 {
-			editErr(fmt.Sprintf("Statement %d needs at least one citation", ji+1))
-			return
+		if l, err := drafting.ResolveLanguage(r.FormValue("language")); err != nil {
+			notes = append(notes, err.Error()+" — the page kept its current language")
+		} else {
+			lang = l
 		}
-		conceptSlug, topicRefSlug := parseStatementTag(r.FormValue(fmt.Sprintf("tag_%d", ji)))
-		statements = append(statements, store.IngestStatementParams{
-			BodyMD: body, Language: lang,
-			ConceptSlug:  conceptSlug,
-			TopicRefSlug: topicRefSlug,
-			Sources:      cites,
-		})
-	}
-	if len(statements) == 0 {
-		editErr("At least one statement is required")
-		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
-	if title == "" {
-		editErr("Title is required")
+	statements, contentNotes, err := s.parsePageContent(ctx, r, lang, actor(r), !autosave)
+	if err != nil {
+		editErr(err.Error())
 		return
 	}
+	notes = append(notes, contentNotes...)
 
 	if err := s.pg.AuthorUpdatePlaybook(ctx, store.AuthorUpdatePlaybookParams{
 		ID:             id,
@@ -1921,18 +1994,30 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		TopicID:        topicID,
 		Language:       lang,
 		Slug:           slug,
-		Title:          title,
+		Title:          strings.TrimSpace(r.FormValue("title")),
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
 		PageKind:       r.FormValue("page_kind"),
 		AuthorNotes:    strings.TrimSpace(r.FormValue("author_notes")),
 		UpdatedBy:      actor(r),
 		Statements:     statements,
 	}); err != nil {
+		var npe *store.NotPublishableError
+		if errors.As(err, &npe) {
+			// Only a live page's save runs the gate; the refusal names every
+			// issue so one round trip shows the whole list.
+			editErr("This page is live, so a save must leave it publishable. Nothing was changed. Fix these first, or take the page down and edit it as a draft: " +
+				strings.Join(issueDetails(npe.Issues), "; "))
+			return
+		}
 		editErr("Failed to save playbook: " + err.Error())
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/view/%d", id), http.StatusSeeOther)
+	if autosave {
+		s.autosaveOK(w, r, id, notes)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(saveFlash(notes))), http.StatusSeeOther)
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -1971,6 +2056,18 @@ type quoteVerifier struct {
 
 func newQuoteVerifier(pg quoteLookup, cache *sourceFetchCache) *quoteVerifier {
 	return &quoteVerifier{quotes: pg, fetch: drafting.FetchExtract, cache: cache}
+}
+
+// errNoFetch is what an autosave's verifier answers instead of fetching.
+var errNoFetch = errors.New("autosave does not fetch sources")
+
+// knownQuoteVerifier checks quotes against stored confirmations only, never
+// the live source. Autosave runs once a minute; letting it fetch would hit a
+// slow or blocked source sixty times an hour, and caching the refusal would
+// poison the shared cache a real save reads. No cache, no fetch: an unknown
+// quote simply stays unverified until a manual save or blur-check confirms it.
+func knownQuoteVerifier(pg quoteLookup) *quoteVerifier {
+	return &quoteVerifier{quotes: pg, fetch: func(string) (string, error) { return "", errNoFetch }}
 }
 
 // quoteCheckResult is check's verdict: Msg is a reviewer-facing message when

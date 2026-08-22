@@ -11,6 +11,7 @@
            border-radius: 12px; padding: 28px 30px; }
     h1 { font-size: 1.15rem; margin: 0 0 12px; color: #9b2335; }
     p { line-height: 1.65; margin: 0 0 22px; }
+    ul.items { margin: 0 0 22px; padding-left: 20px; line-height: 1.65; font-size: .9rem; }
     .keep { background: #fdf0f2; border-left: 3px solid #9b2335; padding: 10px 14px;
             border-radius: 0 6px 6px 0; font-size: .86rem; margin: 0 0 22px; }
     .btn { display: inline-block; padding: 10px 16px; border-radius: 8px; text-decoration: none;
@@ -25,6 +26,12 @@
   <div class="box">
     <h1>Nothing has changed yet</h1>
     <p>{{.C.Message}}</p>
+
+    {{if .C.Items}}
+    <ul class="items">
+      {{range .C.Items}}<li>{{.}}</li>{{end}}
+    </ul>
+    {{end}}
 
     {{if .C.ConfirmLabel}}
     <p class="keep"><strong>Nothing is deleted.</strong> A retired draft moves to the

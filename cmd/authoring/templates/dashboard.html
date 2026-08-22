@@ -45,6 +45,7 @@
   .badge-published { background: #d1fae5; color: #065f46; }
   .badge-superseded { background: #ede9fe; color: #5b21b6; }
   .badge-revision { background: #fef3c7; color: #92400e; }
+  .badge-issues { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; cursor: help; }
   .badge-playbook { background: #fde8eb; color: #7a1c2a; }
   .badge-directory { background: #e8f4fd; color: #2c5282; }
   .actions { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
@@ -166,6 +167,7 @@
     <div class="metrics">
       <span class="metric"><b>{{len .Coverage}}</b> cities</span>
       <span class="metric {{if .DraftCount}}metric-warn{{end}}"><b>{{.DraftCount}}</b> drafts to review</span>
+      <span class="metric {{if .Issues}}metric-bad{{end}}" title="Drafts carrying an issue the publish gate refuses — marked ⚠ in the list below"><b>{{len .Issues}}</b> drafts not yet publishable</span>
       <span class="metric {{if .Flagged}}metric-bad{{end}}"><b>{{len .Flagged}}</b> flagged sources</span>
     </div>
 
@@ -283,7 +285,7 @@
           <td class="title-cell">{{.Title}}</td>
           <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           {{if $.ShowLanguage}}<td class="meta-cell">{{.Language}}</td>{{end}}
-          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}</td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}{{with index $.Issues .ID}} <span class="badge badge-issues" title="Publishing is blocked until these are fixed:&#10;{{.Tooltip}}">⚠ {{.N}}</span>{{end}}</td>
           <td class="meta-cell num" title="{{.StatementCount}} statements, {{.SourceCount}} sources">{{.StatementCount}}/{{.SourceCount}}</td>
           <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}{{if .UpdatedBy}} · {{.UpdatedBy}}{{end}}</td>
           <td>

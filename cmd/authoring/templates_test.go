@@ -33,7 +33,12 @@ func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[strin
 	}}
 	return map[string]any{
 		"Playbooks": playbooks,
-		"Cities":    []store.Jurisdiction{{Name: "Chicago", Slug: "chicago"}},
+		// Draft 1 carries issues so the ⚠ badge path renders, not just the
+		// clean-row skip.
+		"Issues": map[int64]*issueBadge{
+			1: {N: 2, Tooltip: "the page has no title\nstatement 1 has no citation"},
+		},
+		"Cities": []store.Jurisdiction{{Name: "Chicago", Slug: "chicago"}},
 		"ReviewCounts": []store.CandidateCountRow{
 			{JurisdictionName: "Chicago", JurisdictionSlug: "chicago", PendingCount: 7},
 		},

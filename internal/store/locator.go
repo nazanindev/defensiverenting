@@ -101,67 +101,6 @@ func isCodeAbbrev(s string) bool {
 	return true
 }
 
-// validatePublishableQuotes refuses to publish a page carrying a citation that
-// nobody can verify.
-//
-// ADR-003 makes every claim traceable to a source; the verbatim quote is what
-// makes that traceability checkable. save_draft_playbook enforces it on the
-// drafting path, but the authoring form can only preserve an existing quote,
-// never create one, so a citation a reviewer adds by hand arrives with
-// quote = ''. Nothing stopped that page going live: the chip rendered like any
-// other, and sourcecheck skipped the citation rather than failing it. That is
-// how 17 of 19 published pages reached production carrying citations that had
-// never been checked and never could be.
-//
-// The form now shows the reviewer which citations lack a quote. This is the
-// same guarantee at the boundary that matters, so it holds whether or not
-// anyone read the warning.
-//
-// Editorial sources are exempt for the reason they are exempt everywhere else:
-// they cite no external text by design (ADR-003), so there is nothing to quote.
-func validatePublishableQuotes(ctx context.Context, tx pgx.Tx, playbookID int64) error {
-	rows, err := tx.Query(ctx, `
-		SELECT ps.position + 1, src.url
-		FROM playbook_statements ps
-		JOIN citations c ON c.statement_id = ps.statement_id
-		JOIN sources src ON src.id = c.source_id
-		WHERE ps.playbook_id = $1
-		  AND src.kind <> 'editorial'
-		  AND btrim(c.quote) = ''
-		ORDER BY ps.position, src.url`, playbookID)
-	if err != nil {
-		return fmt.Errorf("check citation quotes: %w", err)
-	}
-	defer rows.Close()
-
-	var offenders []string
-	for rows.Next() {
-		var position int
-		var url string
-		if err := rows.Scan(&position, &url); err != nil {
-			return fmt.Errorf("scan citation quote: %w", err)
-		}
-		offenders = append(offenders, fmt.Sprintf("statement %d cites %s", position, url))
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("check citation quotes: %w", err)
-	}
-	if len(offenders) == 0 {
-		return nil
-	}
-
-	shown := offenders
-	suffix := ""
-	if len(shown) > 5 {
-		shown, suffix = shown[:5], fmt.Sprintf(" (and %d more)", len(offenders)-5)
-	}
-	return fmt.Errorf(
-		"cannot publish: %d citation(s) carry no verbatim quote, so the source checker can never "+
-			"verify them — %s%s. Re-draft the page through the research tools, which record the "+
-			"quote, or remove the citation",
-		len(offenders), strings.Join(shown, "; "), suffix)
-}
-
 // validateStatuteLocators rejects any citation that claims statutory authority
 // without naming a provision. It runs inside the ingest transaction so a
 // rejected playbook writes nothing, the same way a citation-less statement

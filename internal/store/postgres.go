@@ -619,11 +619,15 @@ func (pg *PG) UpsertSource(ctx context.Context, params UpsertSourceParams) (Sour
 		return Source{}, fmt.Errorf("%s is reference-only (lawyer marketing or content mill) and can never be a source. Read it to orient, then cite the primary law it summarizes", params.URL)
 	}
 	now := time.Now().UTC()
+	// Sources are shared across pages, and a save may now arrive with a
+	// publisher not yet filled in (ADR-013). An empty publisher must not wipe
+	// the name every other page shows for the same source.
 	row := pg.pool.QueryRow(ctx, `
 		INSERT INTO sources (url, publisher, jurisdiction_id, kind, retrieved_at)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (url) DO UPDATE
-		    SET publisher     = EXCLUDED.publisher,
+		    SET publisher     = CASE WHEN EXCLUDED.publisher = '' THEN sources.publisher
+		                             ELSE EXCLUDED.publisher END,
 		        kind          = EXCLUDED.kind,
 		        retrieved_at  = EXCLUDED.retrieved_at
 		RETURNING id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, last_checked_at`,
@@ -869,19 +873,29 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 }
 
 // IngestPlaybook writes a full playbook atomically. The transaction is rolled
-// back if any statement has zero citations, enforcing the citation guarantee at the DB layer.
+// back if any statement has zero citations, enforcing the citation guarantee at
+// the DB layer — unless AllowIncomplete relaxes it for a human's draft
+// (ADR-013), in which case the gaps surface as page issues instead.
 func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) error {
 	status := params.Status
 	if status == "" {
 		status = "published"
+	}
+	// AllowIncomplete captures a person's part-finished work. The drafting
+	// agent and the seeding tools have no such excuse, and anything published
+	// must be whole — so an incomplete non-draft is refused outright.
+	if params.AllowIncomplete && status != "draft" {
+		return fmt.Errorf("AllowIncomplete only applies to drafts, not status %q", status)
 	}
 	pageKind := params.PageKind
 	if pageKind == "" {
 		pageKind = "playbook"
 	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := validateStatuteLocators(ctx, tx, params.Statements); err != nil {
-			return err
+		if !params.AllowIncomplete {
+			if err := validateStatuteLocators(ctx, tx, params.Statements); err != nil {
+				return err
+			}
 		}
 		// A slot now holds at most one row per status, so the row to replace is
 		// the one with the SAME status. Re-drafting a page that is already
@@ -924,7 +938,7 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		}
 
 		for i, sp := range params.Statements {
-			if len(sp.Sources) == 0 {
+			if len(sp.Sources) == 0 && !params.AllowIncomplete {
 				return fmt.Errorf("statement %d has no citations — ingest aborted", i)
 			}
 
@@ -1072,10 +1086,22 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 
 // AuthorUpdatePlaybook replaces a playbook's metadata and all its statements in one transaction.
 // Unlike IngestPlaybook, it targets by ID so city/topic can be changed on drafts.
+// AuthorUpdatePlaybook saves whatever the author has (ADR-013). A draft may
+// be incomplete in any way — uncited statements, missing quotes, no title —
+// and still saves: the issues surface on the dashboard and block publishing,
+// not saving. A page that is already published is different: this save
+// rewrites what renters are reading right now, so it must pass the same gate
+// publishing does, and a save that would break the live page is refused with
+// a NotPublishableError and writes nothing.
 func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlaybookParams) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := validateStatuteLocators(ctx, tx, params.Statements); err != nil {
-			return err
+		var status string
+		err := tx.QueryRow(ctx, `SELECT status FROM playbooks WHERE id = $1`, params.ID).Scan(&status)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("read playbook %d: %w", params.ID, err)
 		}
 		pageKind := params.PageKind
 		if pageKind == "" {
@@ -1099,9 +1125,6 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 		}
 
 		for i, sp := range params.Statements {
-			if len(sp.Sources) == 0 {
-				return fmt.Errorf("statement %d has no citations", i)
-			}
 			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp)
 			if err != nil {
 				return fmt.Errorf("insert statement %d: %w", i, err)
@@ -1119,6 +1142,26 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			); err != nil {
 				return fmt.Errorf("link statement %d to playbook: %w", i, err)
 			}
+		}
+
+		// The gate runs after the write so it judges exactly what was saved,
+		// and inside the tx so a refusal rolls the whole save back.
+		if status == "published" {
+			if err := validatePublishable(ctx, tx, params.ID); err != nil {
+				return err
+			}
+		}
+
+		// Re-saving detaches the previous statement rows; with autosave doing
+		// this every minute they would pile up forever. Deleted last so the
+		// citation inserts above could still inherit checked_at/checked_by
+		// from the rows being replaced (see insertCitationSQL) — the new rows
+		// carry those stamps forward, so nothing is lost by dropping the old.
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM statements s
+			WHERE NOT EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = s.id)`,
+		); err != nil {
+			return fmt.Errorf("clean up detached statements: %w", err)
 		}
 		return nil
 	})
@@ -1162,6 +1205,23 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 	return out, rows.Err()
 }
 
+// AuthorFindDraft returns the id of the draft occupying a slot, or ErrNotFound.
+// The one-draft-per-slot index makes this at most one row. The authoring
+// portal uses it to land on the page a save just created, and to refuse an
+// autosave that would silently overwrite a draft someone else already has in
+// the slot.
+func (pg *PG) AuthorFindDraft(ctx context.Context, jurisdictionID, topicID int64, language string) (int64, error) {
+	var id int64
+	err := pg.pool.QueryRow(ctx, `
+		SELECT id FROM playbooks
+		 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3 AND status = 'draft'`,
+		jurisdictionID, topicID, language).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return id, err
+}
+
 // AuthorPublishPlaybook sets a playbook's status to "published", recording
 // actor as the person who signed it off.
 func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64, actor string) error {
@@ -1176,7 +1236,7 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64, actor string)
 	// it used to say survives. Retiring must happen first or the one-published-
 	// per-slot index rejects the swap.
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := validatePublishableQuotes(ctx, tx, id); err != nil {
+		if err := validatePublishable(ctx, tx, id); err != nil {
 			return err
 		}
 		var jurisdictionID, topicID int64

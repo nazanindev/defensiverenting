@@ -27,7 +27,10 @@ func seedPlaybook(t *testing.T, pg *store.PG, jID, tID int64, status, title stri
 		Title: title, IntroMD: "intro", Status: status,
 		Statements: []store.IngestStatementParams{{
 			BodyMD: "A claim. " + title, Language: "en",
-			Sources: []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1", Quote: "verbatim"}},
+			// CheckedNow mirrors the real drafting path, which confirms the
+			// quote against the fetched source as it saves. Without the stamp
+			// the publish gate would refuse the page as unverified.
+			Sources: []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1", Quote: "verbatim", CheckedNow: true, CheckedBy: "test"}},
 		}},
 	}); err != nil {
 		t.Fatalf("ingest %s: %v", status, err)
