@@ -612,6 +612,12 @@ func (pg *PG) UpsertJurisdiction(ctx context.Context, params UpsertJurisdictionP
 }
 
 func (pg *PG) UpsertSource(ctx context.Context, params UpsertSourceParams) (Source, error) {
+	// Reference-only domains never become source rows, from any path — the
+	// agent, the authoring form, or ingest. This is the deepest chokepoint,
+	// so a new caller cannot recreate the lawyer-blog-as-source incident.
+	if discover.ReferenceOnly(params.URL) {
+		return Source{}, fmt.Errorf("%s is reference-only (lawyer marketing or content mill) and can never be a source. Read it to orient, then cite the primary law it summarizes", params.URL)
+	}
 	now := time.Now().UTC()
 	row := pg.pool.QueryRow(ctx, `
 		INSERT INTO sources (url, publisher, jurisdiction_id, kind, retrieved_at)

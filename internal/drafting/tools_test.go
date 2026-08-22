@@ -715,3 +715,30 @@ func TestSaveDraft_RejectsDuplicateConceptOnOnePage(t *testing.T) {
 		t.Error("nothing may be written on rejection")
 	}
 }
+
+// Reference-only sites may be fetched to orient, never cited: the rejection
+// tells the agent to cite the primary law instead, and nothing is written.
+func TestSaveDraft_RejectsReferenceOnlyCitation(t *testing.T) {
+	const noloURL = "https://www.nolo.com/legal-encyclopedia/deposits.html"
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{
+		noloURL: `<p>Most states require deposits back within thirty days.</p>`,
+	})
+	mustFetch(t, tb, noloURL) // fetching to orient is allowed
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
+		Statements: []StatementInput{
+			stmt("Deposits come back within 30 days.", noloURL, "deposits back within thirty days"),
+		},
+	})
+	if !isRejection(err) {
+		t.Fatalf("want rejection for reference-only citation, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "reference-only") {
+		t.Errorf("rejection must explain the policy, got: %v", err)
+	}
+	if fs.ingested != nil {
+		t.Error("nothing may be written on rejection")
+	}
+}

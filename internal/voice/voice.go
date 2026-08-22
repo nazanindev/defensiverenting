@@ -35,6 +35,18 @@ type ruleset struct {
 	// forms, program names). They are stripped before the banned-word scan so
 	// naming them, with a plain-words explanation, stays legal.
 	allowedTerms *regexp.Regexp
+	// moneyMultiplier + moneyWord together flag multiplied money amounts
+	// ("3 times the deposit", "double the rent") that carry no worked dollar
+	// example — the same failure the percent rule catches. A stressed reader
+	// should never have to do the multiplication themselves.
+	moneyMultiplier *regexp.Regexp
+	moneyWord       *regexp.Regexp
+	// timeSpan matches one time period ("30 days"); three or more in one
+	// block with no ordering cue (orderCue) is a pile of deadlines nobody can
+	// act on: either the steps happen in an order that must be written out,
+	// or they are separate cases that belong in separate statements.
+	timeSpan *regexp.Regexp
+	orderCue *regexp.Regexp
 }
 
 var enRuleset = ruleset{
@@ -50,6 +62,19 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\b(herein|hereby|thereof|aforementioned|forthwith)\b`), `plain words only`},
 		{regexp.MustCompile(`(?i)\bprior to\b`), `use "before"`},
 		{regexp.MustCompile(`(?i)\butiliz(e|es|ed|ing)\b`), `use "use"`},
+		{regexp.MustCompile(`(?i)\bshall\b`), `use "must"`},
+		{regexp.MustCompile(`(?i)\bcommenc(e|es|ed|ing|ement)\b`), `use "start"`},
+		{regexp.MustCompile(`(?i)\bterminat(e|es|ed|ing|ion)\b`), `use "end", like "end your lease" or "a notice ending your tenancy"`},
+		{regexp.MustCompile(`(?i)\bdwellings?\b`), `use "home"`},
+		{regexp.MustCompile(`(?i)\bpremises\b`), `use "the home" or "the property"`},
+		{regexp.MustCompile(`(?i)\bin the event (that|of)\b`), `use "if"`},
+		{regexp.MustCompile(`(?i)\b(thereafter|subsequently|subsequent to)\b`), `use "after" or "after that"`},
+		{regexp.MustCompile(`(?i)\bin accordance with\b`), `use "under"`},
+		{regexp.MustCompile(`(?i)\bremit(s|ted|ting|tance)?\b`), `use "pay" or "send"`},
+		{regexp.MustCompile(`(?i)\bmonies\b`), `use "money"`},
+		{regexp.MustCompile(`(?i)\bhabitab(le|ility)\b`), `use "fit to live in" (naming the warranty of habitability once, with a plain explanation, stays legal)`},
+		{regexp.MustCompile(`(?i)\bfacilitat(e|es|ed|ing)\b`), `use "help"`},
+		{regexp.MustCompile(`(?i)\bendeavor(s|ed|ing)?\b`), `use "try"`},
 		// Figurative language: breaks in translation.
 		{regexp.MustCompile(`(?i)\bmental model\b`), `figurative; say "this page explains"`},
 		{regexp.MustCompile(`(?i)\bnavigat(e|es|ed|ing|ion)\b`), `figurative; name the concrete action`},
@@ -60,8 +85,12 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\brule of thumb\b`), `figurative; state the rule plainly`},
 		{regexp.MustCompile(`(?i)\bkeep in mind\b`), `drop it; state the fact directly`},
 	},
-	spelledNum:   regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
-	allowedTerms: regexp.MustCompile(`(?i)\bfee waivers?\b`),
+	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
+	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),
+	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
+	moneyWord:       regexp.MustCompile(`(?i)\b(deposit|rent|damages|amount|penalty)\b`),
+	timeSpan:        regexp.MustCompile(`(?i)\b\d+\s*(business\s+)?(day|days|hour|hours|week|weeks|month|months)\b`),
+	orderCue:        regexp.MustCompile(`(?i)\b(first|then|next|after|before|step|until|once|start(s|ing)?|count(s|ing)?)\b`),
 }
 
 // esRuleset is a first-pass Spanish translation of enRuleset's intent, not a
@@ -105,6 +134,13 @@ var esRuleset = ruleset{
 	},
 	spelledNum:   regexp.MustCompile(`(?i)\b(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|veinte|treinta|sesenta|noventa)[- ](día|días|semana|semanas|mes|meses|año|años|hora|horas|vez|veces)\b`),
 	allowedTerms: regexp.MustCompile(`(?i)\bexenci(ón|ones) de (cuota|cuotas|tarifa|tarifas)\b`),
+	// Same draft-quality caveat as the rest of this ruleset: these mirror the
+	// English money-example and deadline-pile rules and need a native
+	// speaker's read against real drafts.
+	moneyMultiplier: regexp.MustCompile(`(?i)\b(el doble|el triple|\d+\s*veces)\b`),
+	moneyWord:       regexp.MustCompile(`(?i)\b(depósito|renta|alquiler|fianza|monto|multa)\b`),
+	timeSpan:        regexp.MustCompile(`(?i)\b\d+\s*(día|días|hora|horas|semana|semanas|mes|meses|días hábiles)\b`),
+	orderCue:        regexp.MustCompile(`(?i)\b(primero|luego|después|antes|paso|hasta|una vez|desde|a partir de)\b`),
 }
 
 var rulesets = map[string]ruleset{"en": enRuleset, "es": esRuleset}
@@ -171,6 +207,23 @@ func Lint(lang, text string) []string {
 
 	if percentRe.MatchString(text) && !dollarRe.MatchString(text) {
 		out = append(out, `mentions a percentage with no worked dollar example: add one, like "5% of $1,000 rent is $50"`)
+	}
+
+	// Multiplied money is arithmetic the reader should never have to do:
+	// "3 times the deposit" means nothing at 2am; "$4,500 on a $1,500
+	// deposit" means everything.
+	if rs.moneyMultiplier != nil && rs.moneyMultiplier.MatchString(text) &&
+		rs.moneyWord.MatchString(text) && !dollarRe.MatchString(text) {
+		out = append(out, `multiplies a money amount with no worked dollar example: add one, like "3 times a $1,000 deposit is $3,000"`)
+	}
+
+	// A pile of deadlines with no ordering words is unactionable. Either the
+	// periods happen in a sequence, which must be written out, or they are
+	// separate cases, which belong in separate statements.
+	if rs.timeSpan != nil {
+		if n := len(rs.timeSpan.FindAllString(text, -1)); n >= 3 && !rs.orderCue.MatchString(text) {
+			out = append(out, fmt.Sprintf("%d time periods in one block with no ordering words: if they happen in sequence, write the order (first, then, after that) and say what starts each clock; if they are separate cases, split them into separate statements", n))
+		}
 	}
 
 	if m := rs.spelledNum.FindString(text); m != "" {

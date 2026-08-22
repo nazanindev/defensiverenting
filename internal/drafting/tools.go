@@ -54,7 +54,7 @@ func (tb *Toolbelt) FindSources(_ context.Context, in FindSourcesInput) (FindSou
 // ---- fetch_source ----------------------------------------------------------
 
 type FetchSourceInput struct {
-	URL string `json:"url" jsonschema:"the http(s) URL of the primary source to fetch and cache"`
+	URL string `json:"url" jsonschema:"the http(s) URL of the source to fetch and cache. Reference-only sites (Nolo, Justia, law firm blogs) MAY be fetched to orient your research and compare your own copy, but citations to them are rejected: cite the primary law they summarize."`
 }
 
 type FetchSourceOutput struct {
@@ -220,6 +220,12 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		for ci, c := range st.Citations {
 			if strings.TrimSpace(c.URL) == "" || strings.TrimSpace(c.Quote) == "" {
 				return SaveDraftOutput{}, reject("statement %d citation %d needs both a url and a quote", si+1, ci+1)
+			}
+			// Reference-only sites (lawyer marketing, content mills) may be
+			// fetched to orient, never cited. Rejected here with the fix
+			// spelled out, before UpsertSource refuses the row less helpfully.
+			if discover.ReferenceOnly(c.URL) {
+				return SaveDraftOutput{}, reject("statement %d citation %d cites %s, which is reference-only: lawyer marketing and content-mill sites are never sources. Reading it to orient was fine. Now find the statute, regulation, or official guidance it summarizes, fetch_source that, and cite it instead.", si+1, ci+1, c.URL)
 			}
 			cached, ok := tb.cache.get(strings.TrimSpace(c.URL))
 			if !ok {

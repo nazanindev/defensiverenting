@@ -7,7 +7,11 @@
 // implement the same Provider interface and drop into Run.
 package discover
 
-import "sort"
+import (
+	"net/url"
+	"sort"
+	"strings"
+)
 
 // Candidate is a proposed source surfaced for author review.
 type Candidate struct {
@@ -30,13 +34,51 @@ func DefaultProviders() []Provider {
 	return []Provider{seedProvider{}}
 }
 
+// ReferenceOnlyDomains are sites the pipeline must never treat as sources:
+// lawyer marketing, legal content mills, and landlord-industry blogs. The
+// standing policy (2026-08-21, after a law firm's blog reached three live
+// pages as "editorial guidance"): these are research input only. The agent
+// may read them via fetch_source to orient and to compare its own copy, but
+// discovery never surfaces them, UpsertSource refuses to create rows for
+// them, and save_draft_playbook rejects citations to them. The fix is always
+// the same: find the primary law the page summarizes and cite that.
+var ReferenceOnlyDomains = []string{
+	"nolo.com", "justia.com", "findlaw.com", "avvo.com", "legalzoom.com",
+	"rocketlawyer.com", "lawyers.com", "legalmatch.com", "superlawyers.com",
+	"hg.org", "freeadvice.com", "enjuris.com", "upcounsel.com",
+	"apartments.com", "apartmentlist.com", "zillow.com", "rent.com",
+	"avail.co", "turbotenant.com", "rentprep.com", "ipropertymanagement.com",
+	"doorloop.com", "steadily.com", "landlordology.com",
+}
+
+// ReferenceOnly reports whether rawURL is on a reference-only domain,
+// matching subdomains too (blog.nolo.com) but never suffix lookalikes
+// (notnolo.com).
+func ReferenceOnly(rawURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || u.Host == "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, d := range ReferenceOnlyDomains {
+		if host == d || strings.HasSuffix(host, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
 // Run executes every provider for the jurisdiction, deduplicates by URL keeping
 // the highest-confidence hit, and returns candidates sorted by confidence desc
-// (URL as a stable tiebreaker).
+// (URL as a stable tiebreaker). Reference-only domains are dropped before
+// anything downstream can triage them into sources.
 func Run(slug string, providers ...Provider) []Candidate {
 	best := map[string]Candidate{}
 	for _, p := range providers {
 		for _, c := range p.Discover(slug) {
+			if ReferenceOnly(c.URL) {
+				continue
+			}
 			if existing, ok := best[c.URL]; !ok || c.Confidence > existing.Confidence {
 				best[c.URL] = c
 			}

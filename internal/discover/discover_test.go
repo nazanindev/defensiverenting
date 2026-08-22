@@ -78,3 +78,35 @@ func TestSeedProvider_ReturnsCopy(t *testing.T) {
 		t.Error("Discover leaked the package-level seed slice; callers can mutate shared state")
 	}
 }
+
+// Reference-only domains never leave discovery, and the matcher takes
+// subdomains but not suffix lookalikes.
+func TestReferenceOnly(t *testing.T) {
+	for url, want := range map[string]bool{
+		"https://www.nolo.com/legal-encyclopedia/x": true,
+		"https://blog.zillow.com/rentals":           true,
+		"https://www.notnolo.com/x":                 false,
+		"https://malegislature.gov/Laws":            false,
+		"https://www.justia.com/real-estate/":       true,
+	} {
+		if got := ReferenceOnly(url); got != want {
+			t.Errorf("ReferenceOnly(%q) = %v, want %v", url, got, want)
+		}
+	}
+}
+
+type refOnlyProvider struct{}
+
+func (refOnlyProvider) Discover(string) []Candidate {
+	return []Candidate{
+		{URL: "https://www.nolo.com/x", Confidence: 0.9},
+		{URL: "https://malegislature.gov/Laws", Confidence: 0.5},
+	}
+}
+
+func TestRun_DropsReferenceOnlyCandidates(t *testing.T) {
+	got := Run("boston", refOnlyProvider{})
+	if len(got) != 1 || got[0].URL != "https://malegislature.gov/Laws" {
+		t.Errorf("reference-only candidate must be dropped, got %+v", got)
+	}
+}

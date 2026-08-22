@@ -150,3 +150,39 @@ func TestSupported(t *testing.T) {
 		}
 	}
 }
+
+// The money-example and deadline-pile rules added 2026-08-21: multiplied
+// money must carry a worked dollar example, and 3+ time periods in one block
+// need ordering words or a split.
+func TestLint_moneyMultiplierAndDeadlinePile(t *testing.T) {
+	if v := Lint("en", "The landlord owes you 3 times the deposit."); len(v) != 1 || !strings.Contains(v[0], "worked dollar example") {
+		t.Errorf("bare multiplier must require an example, got %v", v)
+	}
+	if v := Lint("en", "The landlord owes you 3 times the deposit. On a $1,500 deposit that is $4,500."); len(v) != 0 {
+		t.Errorf("multiplier with an example must pass, got %v", v)
+	}
+	if v := Lint("en", "You get a 5 day notice. You have 10 days to respond. The appeal takes 30 days."); len(v) != 1 || !strings.Contains(v[0], "ordering words") {
+		t.Errorf("3 unordered time periods must be flagged, got %v", v)
+	}
+	if v := Lint("en", "First you get a 5 day notice. Then you have 10 days to respond. After that the appeal takes 30 days."); len(v) != 0 {
+		t.Errorf("an ordered sequence must pass, got %v", v)
+	}
+}
+
+// New banned legalese, and the habitability allowance: the doctrine may be
+// named once, but bare "habitable" is jargon.
+func TestLint_newBannedWords(t *testing.T) {
+	for _, bad := range []string{
+		"The landlord shall fix it.",
+		"You must vacate the premises.",
+		"Your landlord may terminate the lease.",
+		"The home must be habitable.",
+	} {
+		if v := Lint("en", bad); len(v) == 0 {
+			t.Errorf("expected a violation for %q", bad)
+		}
+	}
+	if v := Lint("en", "Lawyers call this the warranty of habitability. It means your home must be fit to live in."); len(v) != 0 {
+		t.Errorf("naming the warranty of habitability must stay legal, got %v", v)
+	}
+}
