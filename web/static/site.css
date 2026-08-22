@@ -370,6 +370,27 @@ h1 {
 
 .statement-body p { margin: 0; }
 
+/* ADR-011 D4: the links a national statement offers in place of "check your
+   state". A quiet single line under the chips, not a second content block. */
+.statement-specifics {
+  margin-top: 12px;
+  font-size: .9rem;
+  color: var(--ink-soft, #6b5555);
+}
+.statement-specifics a {
+  color: var(--brand, #9b2335);
+  font-weight: 600;
+  text-decoration: none;
+}
+.statement-specifics a:hover { text-decoration: underline; }
+
+/* A reader arriving through a concept anchor needs to see which statement
+   they were sent to; :target does that without any script. */
+.statement-item:target, .directory-entry:target, .faq-item:target, .checklist-item:target {
+  outline: 2px solid var(--brand, #9b2335);
+  outline-offset: 2px;
+}
+
 .citation-chips {
   display: flex;
   flex-wrap: wrap;

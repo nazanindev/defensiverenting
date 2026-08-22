@@ -273,8 +273,23 @@ const LocalHelpTopic = "resource-directory"
 // RenderedStatement is a statement whose body has been converted to HTML.
 // Citations is always non-empty; the handler guarantees this before constructing the value.
 type RenderedStatement struct {
-	BodyHTML  template.HTML
-	Citations []CitationChip
+	BodyHTML template.HTML
+	// Anchor is the statement's concept slug (ADR-011), rendered as the
+	// element id so other pages can deep-link to this exact claim. "" for
+	// untagged statements: no id, no links.
+	Anchor string
+	// Localizations are the places whose own published page carries this
+	// concept, shown as "Specifics for:" links. Populated only on national
+	// pages (ADR-011 D4).
+	Localizations []LocalizedLink
+	Citations     []CitationChip
+}
+
+// LocalizedLink is one place's localized statement for a concept: the link a
+// national page's generic statement offers instead of "check your state".
+type LocalizedLink struct {
+	Name string // place display name, e.g. "Massachusetts" or "Boston"
+	URL  string // topic path with the concept anchor
 }
 
 // CitationChip is a rendered citation link shown inline after each statement.
@@ -302,6 +317,18 @@ type CitationChip struct {
 type OrgGroup struct {
 	Chip       CitationChip
 	Statements []RenderedStatement
+}
+
+// Anchor is the group's element id: the first tagged statement's concept slug.
+// A directory entry is one organisation rendered as one card, so the card gets
+// one anchor even when several of its statements are tagged.
+func (g OrgGroup) Anchor() string {
+	for _, s := range g.Statements {
+		if s.Anchor != "" {
+			return s.Anchor
+		}
+	}
+	return ""
 }
 
 // groupByOrg collapses consecutive statements sharing a first citation into one

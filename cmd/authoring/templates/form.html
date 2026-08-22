@@ -125,6 +125,11 @@
 
   .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
+  /* statement concept tag (ADR-011) */
+  .concept-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+  .concept-row label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #b08080; flex-shrink: 0; }
+  .concept-row select { width: auto; max-width: 320px; font-size: .78rem; padding: 4px 7px; }
+
   /* kind tags */
   .kind-tag { display: inline-block; padding: .1rem .4rem; border-radius: 3px; font-size: .68rem; font-weight: 700; background: #fde8eb; color: #9b2335; margin-left: 5px; vertical-align: middle; }
 
@@ -387,6 +392,12 @@
 // ── State ──────────────────────────────────────────────────────────────────
 
 const PRELOAD = {{.PreloadJSON}};
+// The concept registry (ADR-011): [{slug, name, topic}]. Closed — the select
+// below offers it, nothing here extends it.
+const CONCEPTS = {{.ConceptsJSON}};
+// Fallback topic for the concept filter when the topic select is locked
+// (published edits render no topic-sel, so curTopicKey never gets set).
+const PAGE_TOPIC = '{{.TopicSlug}}';
 
 let sources = [], stmts = [];
 let nextSrcId = 0, nextStmtId = 0;
@@ -453,7 +464,7 @@ if (PRELOAD && PRELOAD.sources) {
     sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
   });
   PRELOAD.stmts.forEach(s => {
-    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, cites: {}, locators: {}, quotes: {}, verified: {} };
+    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, concept: s.concept || '', cites: {}, locators: {}, quotes: {}, verified: {} };
     (s.cites || []).forEach(i => { st.cites[i] = true; });
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
@@ -519,8 +530,13 @@ function onStateNameInput(v) {
 }
 
 function onTopicChange(v) {
+  // sync() before re-render for the same reason onPageKindChange does: the
+  // statement cards re-render to refilter their concept selects, and anything
+  // typed since the last sync would be thrown away without it.
+  sync();
   curTopicKey = v;
   updateDerived();
+  renderStmts();
 }
 
 // Mirrors Jurisdiction.Path in internal/store/models.go: a city sits under its
@@ -577,7 +593,7 @@ function rmSource(id) {
 
 function addStmt() {
   sync();
-  stmts.push({ id: nextStmtId++, body: '', editorial: false, cites: {}, locators: {}, quotes: {}, verified: {} });
+  stmts.push({ id: nextStmtId++, body: '', editorial: false, concept: '', cites: {}, locators: {}, quotes: {}, verified: {} });
   render();
 }
 
@@ -731,6 +747,7 @@ function sync() {
   stmts.forEach(function(st) {
     st.body      = v('stmt_' + st.id);
     st.editorial = c('edit_' + st.id);
+    st.concept   = v('concept_' + st.id);
     sources.forEach(function(src) {
       st.cites[src.id]    = c('cite_' + st.id + '_' + src.id);
       st.locators[src.id] = v('loc_' + st.id + '_' + src.id);
@@ -973,12 +990,35 @@ function renderStmts() {
       '</div>' +
       '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '" required' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
+      conceptRow(st) +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
       citesHtml +
       moreBtn +
       editorialRow +
     '</div>';
   }).join('');
+}
+
+// conceptRow renders the statement's concept select (ADR-011): the registry
+// concepts for the page's topic plus the cross-cutting renting-fundamentals
+// set. A statement whose claim varies by place gets tagged; page-specific
+// procedure stays on "No concept".
+function conceptRow(st) {
+  const topic = curTopicKey || PAGE_TOPIC;
+  const opts = CONCEPTS.filter(function(co) {
+    return co.topic === topic || co.topic === 'renting-fundamentals';
+  });
+  if (!opts.length) return '';
+  return '<div class="concept-row">' +
+    '<label for="concept_' + st.id + '">Concept</label>' +
+    '<select name="concept_' + st.id + '" id="concept_' + st.id + '">' +
+      '<option value="">— no concept —</option>' +
+      opts.map(function(co) {
+        return '<option value="' + esc(co.slug) + '"' + (st.concept === co.slug ? ' selected' : '') + '>' +
+          esc(co.name) + '</option>';
+      }).join('') +
+    '</select>' +
+  '</div>';
 }
 
 // moveStmt shifts one statement by one position. sync() first so text typed

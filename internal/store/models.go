@@ -123,6 +123,46 @@ type CitationWithSource struct {
 	SourceKind       string // statute|regulation|gov_guidance|nonprofit|editorial
 }
 
+// Concept names a claim that recurs across jurisdictions, from the closed
+// registry migration 000019 seeded (ADR-011). TopicSlug is the owning topic;
+// concepts owned by renting-fundamentals are cross-cutting and may be tagged
+// on any page.
+type Concept struct {
+	ID        int64
+	Slug      string
+	Name      string
+	TopicID   int64
+	TopicSlug string
+}
+
+// ConceptLocalization is one place's own tagged statement for a concept, used
+// to render the "Specifics for:" links under a national statement (ADR-011 D4).
+type ConceptLocalization struct {
+	ConceptSlug  string
+	Jurisdiction Jurisdiction
+}
+
+// ConceptCoverageRow is one concept's standing across covered places
+// (ADR-011 D3): localized (own tagged statement), generic (only the national
+// statement covers them), and whether the national page states it at all.
+type ConceptCoverageRow struct {
+	Concept     Concept
+	National    bool
+	Localized   []string // place display names with their own tagged statement
+	GenericOnly []string // place display names covered only by resolution
+	Missing     []string // place display names with no statement anywhere up the chain
+}
+
+// SourceUsage is one source's citation structure across the whole site
+// (ADR-011 D6): the same page cited under different statutes is one source
+// with several locators, and this row is what makes that visible.
+type SourceUsage struct {
+	SourceID   int64
+	Statements int
+	Pages      int
+	Locators   []string
+}
+
 type Topic struct {
 	ID   int64
 	Slug string
@@ -176,9 +216,10 @@ type PlaybookWithStatements struct {
 // CitedStatement is an atomic claim paired with its citation chips.
 // Citations must be non-empty — the store constructor enforces this.
 type CitedStatement struct {
-	ID        int64
-	BodyMD    string
-	Citations []CitationWithSource
+	ID          int64
+	BodyMD      string
+	ConceptSlug string // "" when untagged; doubles as the public anchor (ADR-011 D4)
+	Citations   []CitationWithSource
 }
 
 type SearchResult struct {

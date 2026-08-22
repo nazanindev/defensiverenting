@@ -75,6 +75,16 @@ func (f *fakeStore) IngestPlaybook(_ context.Context, p store.IngestPlaybookPara
 	return nil
 }
 
+// The registry the concept guardrail validates against: one concept owned by
+// the test topic, one cross-cutting, one owned by an unrelated topic.
+func (f *fakeStore) ListConcepts(_ context.Context) ([]store.Concept, error) {
+	return []store.Concept{
+		{ID: 1, Slug: "deposit-return-deadline", Name: "Deadline to return the deposit", TopicSlug: "security-deposits"},
+		{ID: 2, Slug: "retaliation-protection", Name: "Protection from retaliation", TopicSlug: "renting-fundamentals"},
+		{ID: 3, Slug: "entry-notice-period", Name: "Advance notice before entry", TopicSlug: "landlord-entry"},
+	}, nil
+}
+
 func newTestToolbelt(fs *fakeStore, pages map[string]string) *Toolbelt {
 	tb := &Toolbelt{db: fs, cache: newFetchCache(), extract: htmlStripper{}}
 	tb.fetch = func(u string) (fetched, error) {
@@ -623,4 +633,54 @@ func TestSaveDraft_AllowsTheDirectoryLayoutOnOtherTopics(t *testing.T) {
 	if fs.ingested.PageKind != "directory" {
 		t.Errorf("page_kind = %q, want directory", fs.ingested.PageKind)
 	}
+}
+
+// Concept tags come from a closed registry (ADR-011 D2): the page's own topic
+// and the cross-cutting renting-fundamentals set pass; anything else is
+// rejected with the valid choices named, before anything is written.
+func TestSaveDraft_ConceptTags(t *testing.T) {
+	const quote = "within thirty days after the termination of the tenancy, return the security deposit"
+	page := map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	}
+	input := func(concept string) SaveDraftInput {
+		st := stmt("Your landlord must return your deposit within 30 days.", depositURL, quote)
+		st.Concept = concept
+		return SaveDraftInput{
+			JurisdictionSlug: "boston", TopicSlug: "security-deposits",
+			Title: "T", IntroMD: "I", Statements: []StatementInput{st},
+		}
+	}
+
+	t.Run("own-topic and cross-cutting slugs are saved", func(t *testing.T) {
+		for _, concept := range []string{"deposit-return-deadline", "retaliation-protection"} {
+			fs := &fakeStore{}
+			tb := newTestToolbelt(fs, page)
+			mustFetch(t, tb, depositURL)
+			if _, err := tb.SaveDraft(context.Background(), input(concept)); err != nil {
+				t.Fatalf("concept %q: unexpected error: %v", concept, err)
+			}
+			if got := fs.ingested.Statements[0].ConceptSlug; got != concept {
+				t.Errorf("concept %q was not plumbed through to ingest, got %q", concept, got)
+			}
+		}
+	})
+
+	t.Run("unknown and wrong-topic slugs are rejected with the choices named", func(t *testing.T) {
+		for _, concept := range []string{"made-up-concept", "entry-notice-period"} {
+			fs := &fakeStore{}
+			tb := newTestToolbelt(fs, page)
+			mustFetch(t, tb, depositURL)
+			_, err := tb.SaveDraft(context.Background(), input(concept))
+			if !isRejection(err) {
+				t.Fatalf("concept %q: want rejection, got %v", concept, err)
+			}
+			if !strings.Contains(err.Error(), "deposit-return-deadline") {
+				t.Errorf("concept %q: rejection must name the valid choices, got: %v", concept, err)
+			}
+			if fs.ingested != nil {
+				t.Errorf("concept %q: nothing may be written on rejection", concept)
+			}
+		}
+	})
 }

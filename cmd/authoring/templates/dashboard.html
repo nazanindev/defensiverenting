@@ -201,6 +201,39 @@
         this chart does not track it.
       </p>
     </details>
+
+    {{if .ConceptCoverage}}
+    <details class="coverage">
+      <summary>Statement concepts (ADR-011) — who localized which claim</summary>
+      <table class="cov" style="table-layout:auto">
+        <thead>
+          <tr>
+            <th style="text-align:left">Concept</th>
+            <th title="The national page states this claim">US</th>
+            <th style="text-align:left" title="Places whose own page states it with local citations">Localized</th>
+            <th style="text-align:left" title="Places covered only by the national statement — the research queue">Generic only</th>
+            <th style="text-align:left" title="No statement anywhere up the chain">Missing</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .ConceptCoverage}}
+          <tr>
+            <td style="text-align:left;white-space:nowrap"><code>{{.Concept.Slug}}</code><br><span style="color:#9a7878;font-size:.72rem">{{.Concept.Name}} · {{.Concept.TopicSlug}}</span></td>
+            <td>{{if .National}}<span class="dot-published" title="on the national page">●</span>{{else}}<span class="dot-missing" title="not on the national page">·</span>{{end}}</td>
+            <td style="text-align:left;font-size:.76rem">{{range $i, $n := .Localized}}{{if $i}}, {{end}}{{$n}}{{end}}</td>
+            <td style="text-align:left;font-size:.76rem;color:#8a6d3b">{{range $i, $n := .GenericOnly}}{{if $i}}, {{end}}{{$n}}{{end}}</td>
+            <td style="text-align:left;font-size:.76rem;color:#c53030">{{range $i, $n := .Missing}}{{if $i}}, {{end}}{{$n}}{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      <p class="cov-legend">
+        A concept is one claim that recurs across places. <strong>Generic only</strong> is the work queue: those
+        places get the claim from the national page, and a locally-cited statement would serve their renters
+        better. Tag statements in the page editor; the vocabulary itself grows by migration.
+      </p>
+    </details>
+    {{end}}
   </div>
 
   {{$v := .View}}

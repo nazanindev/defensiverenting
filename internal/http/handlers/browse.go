@@ -32,6 +32,7 @@ type browseStore interface {
 	ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]store.Jurisdiction, error)
 	ResolveJurisdictionAlias(ctx context.Context, alias string) (store.Jurisdiction, error)
 	ResolveTopicAlias(ctx context.Context, alias string) (store.Topic, error)
+	ListConceptLocalizations(ctx context.Context, topicID int64, language string) ([]store.ConceptLocalization, error)
 }
 
 // Reviewer is the human who verifies every playbook before publishing.
@@ -392,7 +393,19 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		return
 	}
 
-	page := BuildPlaybookPage(r.Context(), pb, logger)
+	// A national page links each tagged statement down to the places that
+	// localized its claim (ADR-011 D4). Best-effort like the cross-links
+	// below: a lookup failure just renders the page without the rows.
+	var locs []store.ConceptLocalization
+	if pb.Jurisdiction.Kind == "country" {
+		var lerr error
+		locs, lerr = db.ListConceptLocalizations(r.Context(), pb.Topic.ID, pb.Playbook.Language)
+		if lerr != nil {
+			logger.ErrorContext(r.Context(), "list concept localizations", slog.Any("err", lerr))
+		}
+	}
+
+	page := BuildPlaybookPage(r.Context(), pb, locs, logger)
 
 	// Cross-links: other topics in this jurisdiction, and this topic elsewhere
 	// — both scoped to this playbook's own language (ADR-007 D5), so every
@@ -578,9 +591,24 @@ func NotFound() http.HandlerFunc {
 // BuildPlaybookPage converts a stored playbook into the public page model,
 // rendering markdown and enforcing the citation invariant. Shared with the
 // authoring tool's draft preview so previews match the live site exactly.
-func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, logger *slog.Logger) tmpl.PlaybookPage {
+//
+// locs carries the concept localizations for a national page's "Specifics
+// for:" rows (ADR-011 D4); pass nil for non-country pages, where no rows
+// render.
+func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, locs []store.ConceptLocalization, logger *slog.Logger) tmpl.PlaybookPage {
 	// Render markdown intro to HTML
 	introHTML := content.RenderMarkdown(pb.IntroMD)
+
+	// Group localizations by concept slug once; each tagged statement picks up
+	// its own links below. The link lands on the localized statement itself:
+	// tagged statements render their concept slug as an anchor.
+	locsBySlug := map[string][]tmpl.LocalizedLink{}
+	for _, l := range locs {
+		locsBySlug[l.ConceptSlug] = append(locsBySlug[l.ConceptSlug], tmpl.LocalizedLink{
+			Name: l.Jurisdiction.Name,
+			URL:  l.Jurisdiction.TopicPathIn(pb.Playbook.Language, pb.Topic.Slug) + "#" + l.ConceptSlug,
+		})
+	}
 
 	// Render each statement's body markdown and validate citation invariant
 	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
@@ -608,8 +636,10 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, log
 			}
 		}
 		statements = append(statements, tmpl.RenderedStatement{
-			BodyHTML:  content.RenderMarkdown(s.BodyMD),
-			Citations: chips,
+			BodyHTML:      content.RenderMarkdown(s.BodyMD),
+			Anchor:        s.ConceptSlug,
+			Localizations: locsBySlug[s.ConceptSlug],
+			Citations:     chips,
 		})
 	}
 

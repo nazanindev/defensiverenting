@@ -68,6 +68,12 @@ type Store interface {
 	ListUnusedSources(ctx context.Context) ([]Source, error)
 	DismissSourceFlag(ctx context.Context, id int64) error
 
+	// Concepts (ADR-011)
+	ListConcepts(ctx context.Context) ([]Concept, error)
+	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
+	ListConceptLocalizations(ctx context.Context, topicID int64, language string) ([]ConceptLocalization, error)
+	ListSourceUsage(ctx context.Context) ([]SourceUsage, error)
+
 	// Authoring
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
 	AuthorCoverage(ctx context.Context) ([]CoverageRow, error)
@@ -125,7 +131,11 @@ type IngestPlaybookParams struct {
 type IngestStatementParams struct {
 	BodyMD   string
 	Language string
-	Sources  []IngestCitationParams
+	// ConceptSlug tags the statement with a registry concept (ADR-011); ""
+	// leaves it untagged. An unknown slug fails the save — the registry is
+	// closed, and silently dropping a tag would hide the mistake.
+	ConceptSlug string
+	Sources     []IngestCitationParams
 }
 
 // IngestCitationParams pairs a source row (already upserted) with its locator

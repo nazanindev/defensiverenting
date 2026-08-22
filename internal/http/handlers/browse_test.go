@@ -24,6 +24,10 @@ type stubStore struct {
 	jurisdictionAliases map[string]string
 	topicAliases        map[string]string
 
+	// localizations, when set, are returned by ListConceptLocalizations —
+	// the places a national page's tagged statements link down to (ADR-011).
+	localizations []store.ConceptLocalization
+
 	// otherLangPlaybooks, when non-nil, makes GetPlaybook answer per the
 	// requested language (keyed by language code; a miss is store.ErrNotFound)
 	// instead of the single playbook/playbookErr every other test in this
@@ -64,6 +68,10 @@ func (s *stubStore) ResolveTopicAlias(_ context.Context, alias string) (store.To
 		}
 	}
 	return store.Topic{Slug: live}, nil
+}
+
+func (s *stubStore) ListConceptLocalizations(_ context.Context, _ int64, _ string) ([]store.ConceptLocalization, error) {
+	return s.localizations, nil
 }
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
@@ -337,5 +345,53 @@ func TestPlaybookHandler_localHelpPageDoesNotLinkToItself(t *testing.T) {
 
 	if strings.Contains(body, "help-bar") {
 		t.Error("the Local Help page must not link to itself")
+	}
+}
+
+// A national statement tagged with a concept renders its anchor and links down
+// to the places whose own published page localized the claim (ADR-011 D4) —
+// the follow-up "check your state" never had.
+func TestPlaybookHandler_nationalStatementLinksToLocalizations(t *testing.T) {
+	stub := &stubStore{
+		jurisdictions: []store.Jurisdiction{{ID: 9, Kind: "country", Name: "United States", Slug: "united-states"}},
+		topics:        []store.Topic{{ID: 4, Slug: "security-deposits", Name: "Security Deposits"}},
+		playbook: store.PlaybookWithStatements{
+			Playbook:     store.Playbook{ID: 1, Title: "Security Deposits", Slug: "security-deposits", Language: "en"},
+			Jurisdiction: store.Jurisdiction{ID: 9, Kind: "country", Name: "United States", Slug: "united-states"},
+			Topic:        store.Topic{ID: 4, Name: "Security Deposits", Slug: "security-deposits"},
+			Statements: []store.CitedStatement{{
+				ID:          1,
+				BodyMD:      "Your landlord cannot punish you for using your rights.",
+				ConceptSlug: "retaliation-protection",
+				Citations: []store.CitationWithSource{{
+					SourceID: 1, SourceURL: "https://example.gov/law", Publisher: "HUD", SourceKind: "gov_guidance",
+				}},
+			}},
+		},
+		localizations: []store.ConceptLocalization{{
+			ConceptSlug:  "retaliation-protection",
+			Jurisdiction: store.Jurisdiction{ID: 2, Kind: "state", Name: "Massachusetts", Slug: "massachusetts"},
+		}},
+	}
+
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+
+	req := httptest.NewRequest(http.MethodGet, "/j/united-states/security-deposits", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="retaliation-protection"`) {
+		t.Error("tagged statement must render its concept slug as an anchor")
+	}
+	if !strings.Contains(body, "Specifics for:") {
+		t.Error("national page must offer the localization row for a tagged statement")
+	}
+	if !strings.Contains(body, `/j/massachusetts/security-deposits#retaliation-protection`) {
+		t.Error("localization link must deep-link to the localized statement's anchor")
 	}
 }

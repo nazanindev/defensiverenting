@@ -387,11 +387,12 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	// Fetch statement rows; each row is one citation, so multiple rows per statement
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.body_md, ps.position,
+			s.id, s.body_md, COALESCE(co.slug, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
+		LEFT JOIN concepts co ON co.id = s.concept_id
 		JOIN citations  c   ON c.statement_id = s.id
 		JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1
@@ -777,6 +778,32 @@ const insertCitationSQL = `
 		locator = EXCLUDED.locator, quote = EXCLUDED.quote,
 		manually_verified = EXCLUDED.manually_verified, checked_at = EXCLUDED.checked_at`
 
+// insertStatement writes one statement row, resolving its concept slug against
+// the registry. An unknown slug is an error, not a silently dropped tag: the
+// registry is closed (ADR-011 D1), both tagging paths validate before save,
+// and a tag that vanished quietly would surface later as a coverage lie.
+func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp IngestStatementParams) (int64, error) {
+	var conceptID *int64
+	if sp.ConceptSlug != "" {
+		var id int64
+		err := tx.QueryRow(ctx, `SELECT id FROM concepts WHERE slug = $1`, sp.ConceptSlug).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, fmt.Errorf("unknown concept slug %q: concepts are a closed registry (ADR-011), added by migration", sp.ConceptSlug)
+		}
+		if err != nil {
+			return 0, err
+		}
+		conceptID = &id
+	}
+	var stmtID int64
+	err := tx.QueryRow(ctx, `
+		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id)
+		VALUES ($1, $2, $3, $4) RETURNING id`,
+		jurisdictionID, sp.Language, sp.BodyMD, conceptID,
+	).Scan(&stmtID)
+	return stmtID, err
+}
+
 // IngestPlaybook writes a full playbook atomically. The transaction is rolled
 // back if any statement has zero citations, enforcing the citation guarantee at the DB layer.
 func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) error {
@@ -837,12 +864,8 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 				return fmt.Errorf("statement %d has no citations — ingest aborted", i)
 			}
 
-			var stmtID int64
-			if err := tx.QueryRow(ctx, `
-				INSERT INTO statements (jurisdiction_id, language, body_md)
-				VALUES ($1, $2, $3) RETURNING id`,
-				params.JurisdictionID, sp.Language, sp.BodyMD,
-			).Scan(&stmtID); err != nil {
+			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp)
+			if err != nil {
 				return fmt.Errorf("insert statement %d: %w", i, err)
 			}
 
@@ -898,13 +921,14 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 
 	for rows.Next() {
 		var (
-			stmtID   int64
-			bodyMD   string
-			position int
-			c        CitationWithSource
+			stmtID      int64
+			bodyMD      string
+			conceptSlug string
+			position    int
+			c           CitationWithSource
 		)
 		if err := rows.Scan(
-			&stmtID, &bodyMD, &position,
+			&stmtID, &bodyMD, &conceptSlug, &position,
 			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt,
 			&c.SourceURL, &c.Publisher, &c.SourceKind,
 		); err != nil {
@@ -914,7 +938,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		i, ok := idx[k]
 		if !ok {
 			i = len(out)
-			out = append(out, CitedStatement{ID: stmtID, BodyMD: bodyMD})
+			out = append(out, CitedStatement{ID: stmtID, BodyMD: bodyMD, ConceptSlug: conceptSlug})
 			idx[k] = i
 			order = append(order, k)
 		}
@@ -958,11 +982,12 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	}
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.body_md, ps.position,
+			s.id, s.body_md, COALESCE(co.slug, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
+		LEFT JOIN concepts co ON co.id = s.concept_id
 		JOIN citations  c   ON c.statement_id = s.id
 		JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1
@@ -1007,12 +1032,8 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			if len(sp.Sources) == 0 {
 				return fmt.Errorf("statement %d has no citations", i)
 			}
-			var stmtID int64
-			if err := tx.QueryRow(ctx, `
-				INSERT INTO statements (jurisdiction_id, language, body_md)
-				VALUES ($1, $2, $3) RETURNING id`,
-				params.JurisdictionID, sp.Language, sp.BodyMD,
-			).Scan(&stmtID); err != nil {
+			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp)
+			if err != nil {
 				return fmt.Errorf("insert statement %d: %w", i, err)
 			}
 			for _, cite := range sp.Sources {

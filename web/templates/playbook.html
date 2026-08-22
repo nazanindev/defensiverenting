@@ -92,7 +92,7 @@
                cards belonged together. See groupByOrg. */}}
           <ul class="directory-list">
             {{range groupByOrg .Statements}}
-            <li class="directory-entry">
+            <li class="directory-entry"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="citation-chips" aria-label="Source">
                 <a class="{{chipClass .Chip.SourceKind}}"
                    href="{{.Chip.URL}}"
@@ -117,7 +117,7 @@
           {{else if eq .Playbook.PageKind "faq"}}
           <dl class="faq-list">
             {{range .Statements}}
-            <div class="faq-item">
+            <div class="faq-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="faq-body">{{.BodyHTML}}</div>
               <div class="citation-chips" aria-label="Sources">
                 {{range .Citations}}
@@ -137,7 +137,7 @@
           {{else if eq .Playbook.PageKind "checklist"}}
           <ul class="checklist-list">
             {{range .Statements}}
-            <li class="checklist-item">
+            <li class="checklist-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <label class="checklist-row">
                 <input type="checkbox" class="checklist-check">
                 <div class="checklist-body">
@@ -162,7 +162,7 @@
           {{else}}
           <ol class="statement-list">
             {{range .Statements}}
-            <li class="statement-item">
+            <li class="statement-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="statement-body">{{.BodyHTML}}</div>
               <div class="citation-chips" aria-label="Sources">
                 {{range .Citations}}
@@ -175,6 +175,15 @@
                 </a>
                 {{end}}
               </div>
+              {{/* ADR-011 D4: a national statement that can only outline the
+                   rule links to the places whose own guide states it with
+                   local law. Rendered only where localizations exist, so a
+                   page never shows an empty shell of the feature. */}}
+              {{if .Localizations}}
+              <p class="statement-specifics">Specifics for:
+                {{range $i, $l := .Localizations}}{{if $i}} · {{end}}<a href="{{$l.URL}}">{{$l.Name}}</a>{{end}}
+              </p>
+              {{end}}
             </li>
             {{end}}
           </ol>

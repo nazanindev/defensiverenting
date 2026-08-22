@@ -388,6 +388,11 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	conceptCoverage, err := s.pg.ConceptCoverage(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	coreTopics, err := s.pg.ListCoreTopics(ctx)
 	if err != nil {
 		s.serverError(w, err)
@@ -467,6 +472,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Status":          view.Status,
 		"ShowLanguage":    len(langs) > 1,
 		"Coverage":        coverage,
+		"ConceptCoverage": conceptCoverage,
 		"CoreTopics":      coreTopics,
 		"DraftCount":      draftCount,
 		"PublishedCount":  publishedCount,
@@ -762,6 +768,8 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Jurisdictions": jurisdictions, "Topics": topics, "Error": "",
 		"PreloadJSON":      template.JS("null"),
+		"ConceptsJSON":     s.conceptsJSON(r.Context()),
+		"TopicSlug":        "",
 		"ImportGroups":     s.importablePages(r.Context(), 0, ""),
 		"Languages":        languageOptions(),
 		"SelectedLanguage": "en",
@@ -781,6 +789,30 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "form.html", data)
+}
+
+// conceptsJSON renders the concept registry (ADR-011) for the form's
+// per-statement selects: [{slug, name, topic}]. A read failure degrades to an
+// empty list — the form then simply offers no concept select — rather than
+// blocking authoring on a registry lookup.
+func (s *srv) conceptsJSON(ctx context.Context) template.JS {
+	type row struct {
+		Slug  string `json:"slug"`
+		Name  string `json:"name"`
+		Topic string `json:"topic"`
+	}
+	concepts, err := s.pg.ListConcepts(ctx)
+	if err != nil {
+		s.log.Error("list concepts", slog.Any("err", err))
+		return template.JS("[]")
+	}
+	rows := make([]row, 0, len(concepts))
+	for _, c := range concepts {
+		rows = append(rows, row{Slug: c.Slug, Name: c.Name, Topic: c.TopicSlug})
+	}
+	b, _ := json.Marshal(rows)
+	//nolint:gosec // json.Marshal output of registry rows, not user input
+	return template.JS(b)
 }
 
 // fmtDate renders a timestamp (time.Time or *time.Time) for the authoring UI;
@@ -852,15 +884,32 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Site-wide citation structure per source (ADR-011 D6): the same statute
+	// page cited under three sections reads as one source used three ways.
+	// Best-effort — a failure just drops the usage line.
+	usageOf := map[int64]store.SourceUsage{}
+	if usage, uerr := s.pg.ListSourceUsage(r.Context()); uerr == nil {
+		for _, u := range usage {
+			usageOf[u.SourceID] = u
+		}
+	}
+
 	var sources []viewSource
 	for _, id := range srcOrder {
 		m := srcByID[id]
-		sources = append(sources, viewSource{Num: m.Idx + 1, URL: m.URL, Publisher: m.Publisher, Kind: m.Kind})
+		vs := viewSource{Num: m.Idx + 1, URL: m.URL, Publisher: m.Publisher, Kind: m.Kind}
+		if u, ok := usageOf[id]; ok {
+			vs.Usage = fmt.Sprintf("Cited by %d statement(s) on %d page(s)", u.Statements, u.Pages)
+			if len(u.Locators) > 0 {
+				vs.Usage += " · " + strings.Join(u.Locators, ", ")
+			}
+		}
+		sources = append(sources, vs)
 	}
 
 	var stmts []viewStmt
 	for i, stmt := range pw.Statements {
-		vs := viewStmt{Num: i + 1, Body: stmt.BodyMD}
+		vs := viewStmt{Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorial.ID {
 				vs.Editorial = true
@@ -905,6 +954,7 @@ type viewSource struct {
 	URL       string
 	Publisher string
 	Kind      string
+	Usage     string // site-wide citation structure line (ADR-011 D6); "" when unknown
 }
 
 type viewCite struct {
@@ -919,6 +969,7 @@ type viewCite struct {
 type viewStmt struct {
 	Num       int
 	Body      string
+	Concept   string // registry concept slug (ADR-011); "" untagged
 	Cites     []viewCite
 	Editorial bool
 	// CheckedAt is when the statement was last fully checked: the oldest
@@ -992,7 +1043,13 @@ func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, s.log)
+	// Match the live renderer: a national page previews with its "Specifics
+	// for:" rows (ADR-011 D4), so publishing holds no surprises.
+	var locs []store.ConceptLocalization
+	if pw.Jurisdiction.Kind == "country" {
+		locs, _ = s.pg.ListConceptLocalizations(r.Context(), pw.Topic.ID, pw.Playbook.Language)
+	}
+	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, locs, s.log)
 	page.Preview = true
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := sitetmpl.Render(w, page); err != nil {
@@ -1131,7 +1188,9 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		statements = append(statements, store.IngestStatementParams{
-			BodyMD: body, Language: lang, Sources: cites,
+			BodyMD: body, Language: lang,
+			ConceptSlug: strings.TrimSpace(r.FormValue(fmt.Sprintf("concept_%d", ji))),
+			Sources:     cites,
 		})
 	}
 	if len(statements) == 0 {
@@ -1524,6 +1583,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"Title":                 pw.Playbook.Title,
 		"Intro":                 pw.Playbook.IntroMD,
 		"AuthorNotes":           pw.Playbook.AuthorNotes,
+		"ConceptsJSON":          s.conceptsJSON(ctx),
 		"Error":                 errMsg,
 		"ImportGroups":          s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
@@ -1727,7 +1787,11 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 			editErr(fmt.Sprintf("Statement %d needs at least one citation", ji+1))
 			return
 		}
-		statements = append(statements, store.IngestStatementParams{BodyMD: body, Language: lang, Sources: cites})
+		statements = append(statements, store.IngestStatementParams{
+			BodyMD: body, Language: lang,
+			ConceptSlug: strings.TrimSpace(r.FormValue(fmt.Sprintf("concept_%d", ji))),
+			Sources:     cites,
+		})
 	}
 	if len(statements) == 0 {
 		editErr("At least one statement is required")
@@ -1953,6 +2017,7 @@ type preloadStmt struct {
 	ID        int               `json:"id"`
 	Body      string            `json:"body"`
 	Editorial bool              `json:"editorial"`
+	Concept   string            `json:"concept"`  // registry slug (ADR-011); "" untagged
 	Cites     []int             `json:"cites"`    // indices into sources slice
 	Locators  map[string]string `json:"locators"` // "srcIdx" -> locator override
 	// Quotes carries the verbatim source text backing each citation, keyed the
@@ -2001,6 +2066,7 @@ func preloadFromForm(r *http.Request) preloadData {
 			ID:        i,
 			Body:      r.FormValue(fmt.Sprintf("stmt_%d", id)),
 			Editorial: r.FormValue(fmt.Sprintf("edit_%d", id)) == "on",
+			Concept:   strings.TrimSpace(r.FormValue(fmt.Sprintf("concept_%d", id))),
 			Locators:  map[string]string{},
 			Quotes:    map[string]string{},
 			Verified:  map[string]bool{},
@@ -2061,7 +2127,7 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 
 	stmts := make([]preloadStmt, 0, len(pw.Statements))
 	for i, stmt := range pw.Statements {
-		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}}
+		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true

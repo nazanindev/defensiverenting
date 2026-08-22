@@ -98,6 +98,7 @@ type CitationInput struct {
 
 type StatementInput struct {
 	BodyMD    string          `json:"body_md" jsonschema:"one atomic, plain-language claim in Markdown"`
+	Concept   string          `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Tag statements whose claim varies by place; leave page-specific procedure untagged. Only registry slugs for this page's topic (or the cross-cutting renting-fundamentals set) are accepted."`
 	Citations []CitationInput `json:"citations" jsonschema:"at least one citation quoting a fetched source"`
 }
 
@@ -261,6 +262,14 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		return SaveDraftOutput{}, err
 	}
 
+	// Guardrail: a concept tag must come from the closed registry and belong to
+	// this page's topic or the cross-cutting renting-fundamentals set (ADR-011
+	// D2). Same shape as the topic check above: the agent may reuse the
+	// vocabulary, never extend it, and the rejection names the valid choices.
+	if err := tb.validateConcepts(ctx, in.TopicSlug, in.Statements); err != nil {
+		return SaveDraftOutput{}, err
+	}
+
 	stmts := make([]store.IngestStatementParams, 0, len(in.Statements))
 	for _, st := range in.Statements {
 		cites := make([]store.IngestCitationParams, 0, len(st.Citations))
@@ -276,9 +285,10 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			})
 		}
 		stmts = append(stmts, store.IngestStatementParams{
-			BodyMD:   st.BodyMD,
-			Language: lang,
-			Sources:  cites,
+			BodyMD:      st.BodyMD,
+			Language:    lang,
+			ConceptSlug: strings.TrimSpace(st.Concept),
+			Sources:     cites,
 		})
 	}
 
@@ -451,4 +461,47 @@ func savedMessage(revises bool) string {
 			"The live page is unchanged. Publishing this revision replaces it and retires the old version; nothing was published."
 	}
 	return "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published."
+}
+
+// crossCuttingTopic owns the concepts taggable on a page of any topic
+// (retaliation, discrimination, lockouts): claims that genuinely recur across
+// subjects, per ADR-011 D1.
+const crossCuttingTopic = "renting-fundamentals"
+
+// validateConcepts checks every statement's concept tag against the closed
+// registry before anything is written. The rejection lists the slugs valid for
+// this page so the agent's retry is a choice, not a guess — the same contract
+// the topic-slug check keeps.
+func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmts []StatementInput) error {
+	var tagged bool
+	for _, st := range stmts {
+		if strings.TrimSpace(st.Concept) != "" {
+			tagged = true
+			break
+		}
+	}
+	if !tagged {
+		return nil
+	}
+	concepts, err := tb.db.ListConcepts(ctx)
+	if err != nil {
+		return err
+	}
+	allowed := map[string]bool{}
+	var choices []string
+	for _, c := range concepts {
+		if c.TopicSlug == topicSlug || c.TopicSlug == crossCuttingTopic {
+			allowed[c.Slug] = true
+			choices = append(choices, c.Slug)
+		}
+	}
+	for si, st := range stmts {
+		slug := strings.TrimSpace(st.Concept)
+		if slug == "" || allowed[slug] {
+			continue
+		}
+		return reject("statement %d concept %q is not in the registry for topic %q. Concepts are a closed registry (ADR-011): pick one of [%s] or omit the field. Do not invent concepts.",
+			si+1, slug, topicSlug, strings.Join(choices, ", "))
+	}
+	return nil
 }
