@@ -372,6 +372,19 @@ h1 {
 
 /* ── Reference layer (ADR-012): term lists and concept pages ───── */
 
+/* Reference pages breathe on their own. main.wrap carries no vertical
+   padding — hero sections supply it on the guide pages — so without this
+   the breadcrumb sits against the sticky header, the sections against each
+   other, and the report link against the footer. The h1 also steps down
+   from the hero clamp: these are utility pages, and a 3.8rem "Rent control /
+   rent stabilization" is a wall, not a title. */
+.reference-main { padding-top: 32px; padding-bottom: 72px; }
+.reference-main h1 { font-size: clamp(1.9rem, 1.8vw + 1.2rem, 2.6rem); margin-bottom: 10px; }
+.reference-main .lede { margin-bottom: 40px; }
+.reference-main section { margin-bottom: 48px; }
+.reference-main section:last-of-type { margin-bottom: 0; }
+.reference-main .report-link { margin-top: 44px; }
+
 /* Terms are a list, not a card grid: one term per row, name leading, the
    blurb trailing in the quiet ink so scanning the names stays fast. */
 .term-list { list-style: none; padding: 0; margin: 0; }
