@@ -67,7 +67,7 @@
         <header class="playbook-header">
           <span class="city-badge">{{if eq .Jurisdiction.Kind "country"}}Nationwide{{else}}{{.Jurisdiction.Name}}{{end}}</span>
           <h1>{{.Playbook.Title}}</h1>
-          <p class="byline">Reviewed by <a href="/authors/cameron-monteith">Cameron Monteith</a>{{if .ReviewedOn}} · Last verified {{.ReviewedOn}}{{end}}</p>
+          <p class="byline">Reviewed by <a href="/authors">Nazanin</a> and <a href="/authors">Cameron Monteith</a>{{if .ReviewedOn}} · Last verified {{.ReviewedOn}}{{end}}</p>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
         </header>
 

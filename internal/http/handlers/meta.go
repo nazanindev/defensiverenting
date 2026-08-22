@@ -55,7 +55,7 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 		fmt.Fprintf(w, "  <url><loc>%s/locations</loc><changefreq>weekly</changefreq></url>\n", siteURL)
 		// /thanks is deliberately absent: it is a confirmation, and it carries
 		// a noindex of its own.
-		for _, p := range []string{"/about", "/support", "/editorial", "/report", "/contact", ReviewerPath} {
+		for _, p := range []string{"/about", "/support", "/editorial", "/report", "/contact", AuthorsPath} {
 			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>yearly</changefreq></url>\n", siteURL, p)
 		}
 

@@ -37,11 +37,17 @@ type browseStore interface {
 	GetConceptPage(ctx context.Context, slug, language string) (store.ConceptPageData, error)
 }
 
-// Reviewer is the human who verifies every playbook before publishing.
-// Surfaced in the byline and as reviewedBy in JSON-LD; bio at ReviewerPath.
+// The authoring team, surfaced in the byline and as reviewedBy in JSON-LD.
+// Both review guides; the split between them is everything before a guide
+// exists (Nazanin builds and runs the pipeline) and both bios live on the
+// team page at AuthorsPath. PublisherName is deliberately a first name only.
+// ReviewerPath is the reviewer's old bio URL, kept as a permanent redirect
+// because it is linked from published JSON-LD and old sitemaps.
 const (
-	ReviewerName = "Cameron Monteith"
-	ReviewerPath = "/authors/cameron-monteith"
+	PublisherName = "Nazanin"
+	ReviewerName  = "Cameron Monteith"
+	AuthorsPath   = "/authors"
+	ReviewerPath  = "/authors/cameron-monteith"
 )
 
 // Browse wires the browse routes onto a chi.Router.
@@ -72,7 +78,10 @@ func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 	r.Get("/terms", termsIndex(db, logger))
 	r.Get("/c/{concept}", conceptPage(db, logger))
 	r.Get("/api/coverage", coverage(db, logger))
-	r.Get(ReviewerPath, author)
+	r.Get(AuthorsPath, authors)
+	r.Get(ReviewerPath, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, AuthorsPath, http.StatusMovedPermanently)
+	})
 
 	for _, lang := range voice.Supported() {
 		prefix := store.LangPrefix(lang)
@@ -693,8 +702,8 @@ func topicHub(db browseStore, logger *slog.Logger, lang string) http.HandlerFunc
 	}
 }
 
-func author(w http.ResponseWriter, r *http.Request) {
-	render(w, r, http.StatusOK, tmpl.AuthorPage{})
+func authors(w http.ResponseWriter, r *http.Request) {
+	render(w, r, http.StatusOK, tmpl.AuthorsPage{})
 }
 
 // NotFound renders the styled 404 for URLs that match no route at all — the
@@ -851,17 +860,17 @@ type breadcrumbItem struct {
 // playbook page. isBasedOn lists the primary sources the playbook cites.
 func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURLs []string) template.JS {
 	article := struct {
-		Type          string    `json:"@type"`
-		Headline      string    `json:"headline"`
-		Description   string    `json:"description"`
-		URL           string    `json:"url"`
-		MainEntity    string    `json:"mainEntityOfPage"`
-		DatePublished string    `json:"datePublished,omitempty"`
-		DateModified  string    `json:"dateModified,omitempty"`
-		IsBasedOn     []string  `json:"isBasedOn,omitempty"`
-		Author        schemaOrg `json:"author"`
-		Publisher     schemaOrg `json:"publisher"`
-		ReviewedBy    schemaOrg `json:"reviewedBy"`
+		Type          string      `json:"@type"`
+		Headline      string      `json:"headline"`
+		Description   string      `json:"description"`
+		URL           string      `json:"url"`
+		MainEntity    string      `json:"mainEntityOfPage"`
+		DatePublished string      `json:"datePublished,omitempty"`
+		DateModified  string      `json:"dateModified,omitempty"`
+		IsBasedOn     []string    `json:"isBasedOn,omitempty"`
+		Author        schemaOrg   `json:"author"`
+		Publisher     schemaOrg   `json:"publisher"`
+		ReviewedBy    []schemaOrg `json:"reviewedBy"`
 	}{
 		Type:        "Article",
 		Headline:    pb.Playbook.Title + " — " + pb.Jurisdiction.Name + " Tenant Rights",
@@ -871,7 +880,10 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		IsBasedOn:   sourceURLs,
 		Author:      schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
 		Publisher:   schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
-		ReviewedBy:  schemaOrg{Type: "Person", Name: ReviewerName, URL: tmpl.BaseURL() + ReviewerPath},
+		ReviewedBy: []schemaOrg{
+			{Type: "Person", Name: PublisherName, URL: tmpl.BaseURL() + AuthorsPath},
+			{Type: "Person", Name: ReviewerName, URL: tmpl.BaseURL() + AuthorsPath},
+		},
 	}
 	if pb.Playbook.PublishedAt != nil {
 		article.DatePublished = pb.Playbook.PublishedAt.Format(time.DateOnly)

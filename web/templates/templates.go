@@ -247,8 +247,9 @@ type TopicHubPage struct {
 	Language string
 }
 
-// AuthorPage is a reviewer bio page.
-type AuthorPage struct{}
+// AuthorsPage is the authoring team page: the editor and the reviewing
+// editor, one page for both.
+type AuthorsPage struct{}
 
 // JurisdictionPage lists topics available for a city, state, or country.
 //
@@ -555,8 +556,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "topichub.html", p)
 	case LocationsPage:
 		return tmpl.ExecuteTemplate(w, "locations.html", p)
-	case AuthorPage:
-		return tmpl.ExecuteTemplate(w, "author.html", p)
+	case AuthorsPage:
+		return tmpl.ExecuteTemplate(w, "authors.html", p)
 	case NotFoundPage:
 		return tmpl.ExecuteTemplate(w, "notfound.html", p)
 	default:
