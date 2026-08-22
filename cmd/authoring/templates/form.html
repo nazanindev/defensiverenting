@@ -1055,25 +1055,43 @@ function renderStmts() {
 // counterpart is another statement; a topic reference marks a statement that
 // summarizes a whole subject the site covers as pages (D7). Page-specific
 // procedure stays on "no tag".
+// conceptRow offers the FULL registry, grouped: this page's topic first, the
+// cross-cutting set, then everything else by topic. The old own-topic-only
+// filter hid most tags, and claims cross topics constantly — an eviction
+// concept belongs on a cant-pay page when that is where the claim lives.
 function conceptRow(st) {
   const topic = curTopicKey || PAGE_TOPIC;
-  const concepts = (TAGS.concepts || []).filter(function(co) {
-    return co.topic === topic || co.topic === 'renting-fundamentals';
-  });
+  const all = TAGS.concepts || [];
   const topics = (TAGS.topics || []).filter(function(t) { return t.slug !== topic; });
-  if (!concepts.length && !topics.length) return '';
+  if (!all.length && !topics.length) return '';
+
+  const own = all.filter(function(co) { return co.topic === topic; });
+  const cross = all.filter(function(co) { return co.topic === 'renting-fundamentals' && co.topic !== topic; });
+  const byTopic = {};
+  all.forEach(function(co) {
+    if (co.topic === topic || co.topic === 'renting-fundamentals') return;
+    (byTopic[co.topic] = byTopic[co.topic] || []).push(co);
+  });
+
+  function group(label, cos) {
+    if (!cos.length) return '';
+    return '<optgroup label="' + esc(label) + '">' +
+      cos.map(function(co) {
+        const val = 'c:' + co.slug;
+        return '<option value="' + esc(val) + '"' + (st.tag === val ? ' selected' : '') + '>' +
+          esc(co.name) + '</option>';
+      }).join('') + '</optgroup>';
+  }
+
   return '<div class="concept-row">' +
     '<label for="tag_' + st.id + '">Tag</label>' +
     '<select name="tag_' + st.id + '" id="tag_' + st.id + '">' +
       '<option value="">— no tag —</option>' +
-      (concepts.length ?
-        '<optgroup label="Concept — this claim varies by place">' +
-        concepts.map(function(co) {
-          const val = 'c:' + co.slug;
-          return '<option value="' + esc(val) + '"' + (st.tag === val ? ' selected' : '') + '>' +
-            esc(co.name) + '</option>';
-        }).join('') + '</optgroup>'
-      : '') +
+      group('Concepts — ' + topic, own) +
+      group('Concepts — cross-cutting', cross) +
+      Object.keys(byTopic).sort().map(function(t) {
+        return group('Concepts — ' + t, byTopic[t]);
+      }).join('') +
       (topics.length ?
         '<optgroup label="Whole topic — this statement summarizes a subject">' +
         topics.map(function(t) {

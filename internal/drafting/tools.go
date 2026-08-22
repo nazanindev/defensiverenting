@@ -98,7 +98,7 @@ type CitationInput struct {
 
 type StatementInput struct {
 	BodyMD  string `json:"body_md" jsonschema:"one atomic, plain-language claim in Markdown"`
-	Concept string `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Tag statements whose claim varies by place; leave page-specific procedure untagged. Only registry slugs for this page's topic (or the cross-cutting renting-fundamentals set) are accepted."`
+	Concept string `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Any registry slug is accepted on any page — tag the statement making the claim wherever it lives. Leave page-specific procedure untagged. Never invent slugs."`
 	// TopicRef marks a statement that summarizes a whole subject the site
 	// covers as its own pages, rather than making one claim.
 	TopicRef  string          `json:"topic_ref,omitempty" jsonschema:"optional topic slug from list_topics, for a statement that is a one-paragraph summary of an entire subject (e.g. a fundamentals statement about safe housing points at repairs-and-habitability). Mutually exclusive with concept. Never set it to this page's own topic."`
@@ -475,10 +475,6 @@ func savedMessage(revises bool) string {
 	return "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published."
 }
 
-// crossCuttingTopic owns the concepts taggable on a page of any topic
-// (retaliation, discrimination, lockouts): claims that genuinely recur across
-// subjects, per ADR-011 D1.
-const crossCuttingTopic = "renting-fundamentals"
 
 // validateConcepts checks every statement's concept tag and topic reference
 // against their closed registries before anything is written. The rejection
@@ -499,13 +495,15 @@ func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmt
 	if err != nil {
 		return err
 	}
+	// Any registry concept is taggable on any page — claims cross topics
+	// constantly, so the old own-topic-or-cross-cutting restriction hid most
+	// of the vocabulary (dropped 2026-08-22, matching the form). Only
+	// invented slugs are rejected.
 	allowed := map[string]bool{}
 	var choices []string
 	for _, c := range concepts {
-		if c.TopicSlug == topicSlug || c.TopicSlug == crossCuttingTopic {
-			allowed[c.Slug] = true
-			choices = append(choices, c.Slug)
-		}
+		allowed[c.Slug] = true
+		choices = append(choices, c.Slug)
 	}
 	topics, err := tb.db.ListTopicRegistry(ctx)
 	if err != nil {
@@ -525,8 +523,8 @@ func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmt
 				si+1, concept, topicRef)
 		}
 		if concept != "" && !allowed[concept] {
-			return reject("statement %d concept %q is not in the registry for topic %q. Concepts are a closed registry (ADR-011): pick one of [%s] or omit the field. Do not invent concepts.",
-				si+1, concept, topicSlug, strings.Join(choices, ", "))
+			return reject("statement %d concept %q is not in the registry. Concepts are a closed registry (ADR-011): pick one of [%s] or omit the field. Do not invent concepts.",
+				si+1, concept, strings.Join(choices, ", "))
 		}
 		if topicRef != "" && (!topicOK[topicRef] || topicRef == topicSlug) {
 			return reject("statement %d topic_ref %q must be a registry topic other than this page's own (%q). Valid: [%s].",

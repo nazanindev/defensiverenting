@@ -666,21 +666,33 @@ func TestSaveDraft_ConceptTags(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown and wrong-topic slugs are rejected with the choices named", func(t *testing.T) {
-		for _, concept := range []string{"made-up-concept", "entry-notice-period"} {
-			fs := &fakeStore{}
-			tb := newTestToolbelt(fs, page)
-			mustFetch(t, tb, depositURL)
-			_, err := tb.SaveDraft(context.Background(), input(concept))
-			if !isRejection(err) {
-				t.Fatalf("concept %q: want rejection, got %v", concept, err)
-			}
-			if !strings.Contains(err.Error(), "deposit-return-deadline") {
-				t.Errorf("concept %q: rejection must name the valid choices, got: %v", concept, err)
-			}
-			if fs.ingested != nil {
-				t.Errorf("concept %q: nothing may be written on rejection", concept)
-			}
+	t.Run("any registry slug is accepted, on any page", func(t *testing.T) {
+		// entry-notice-period is owned by another topic; claims cross topics,
+		// so the old own-topic restriction is gone (2026-08-22).
+		fs := &fakeStore{}
+		tb := newTestToolbelt(fs, page)
+		mustFetch(t, tb, depositURL)
+		if _, err := tb.SaveDraft(context.Background(), input("entry-notice-period")); err != nil {
+			t.Fatalf("cross-topic registry concept must save, got %v", err)
+		}
+		if got := fs.ingested.Statements[0].ConceptSlug; got != "entry-notice-period" {
+			t.Errorf("concept not plumbed through, got %q", got)
+		}
+	})
+
+	t.Run("invented slugs are rejected with the choices named", func(t *testing.T) {
+		fs := &fakeStore{}
+		tb := newTestToolbelt(fs, page)
+		mustFetch(t, tb, depositURL)
+		_, err := tb.SaveDraft(context.Background(), input("made-up-concept"))
+		if !isRejection(err) {
+			t.Fatalf("want rejection for invented slug, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "deposit-return-deadline") {
+			t.Errorf("rejection must name the valid choices, got: %v", err)
+		}
+		if fs.ingested != nil {
+			t.Error("nothing may be written on rejection")
 		}
 	})
 }
