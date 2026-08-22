@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -29,6 +30,9 @@ type PageIssue struct {
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
+	// Stmt is the 1-based position of the statement the issue sits on, so the
+	// editor can scroll to it; 0 for page-level issues.
+	Stmt int
 }
 
 // NotPublishableError reports why a page may not cross to the public site. It
@@ -90,15 +94,17 @@ func validatePublishable(ctx context.Context, q rowQuerier, playbookID int64) er
 // so the two can never disagree about what an issue is.
 func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) (map[int64][]PageIssue, error) {
 	out := map[int64][]PageIssue{}
-	add := func(id int64, code, detail string) {
-		out[id] = append(out[id], PageIssue{Code: code, Detail: detail})
+	add := func(id int64, stmt int, code, detail string) {
+		out[id] = append(out[id], PageIssue{Code: code, Detail: detail, Stmt: stmt})
 	}
+	// Positions arrive as text columns; they are always digits.
+	pos := func(f string) int { n, _ := strconv.Atoi(f); return n }
 
 	// A page with no title has no headline, no <title>, and no search result.
 	if err := scanIssueRows(ctx, q, `
 		SELECT pb.id FROM playbooks pb
 		WHERE `+cond+` AND btrim(pb.title) = ''`, args,
-		func(id int64, _ []string) { add(id, "no-title", "the page has no title") },
+		func(id int64, _ []string) { add(id, 0, "no-title", "the page has no title") },
 	); err != nil {
 		return nil, err
 	}
@@ -108,7 +114,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		SELECT pb.id FROM playbooks pb
 		WHERE `+cond+` AND NOT EXISTS
 			(SELECT 1 FROM playbook_statements ps WHERE ps.playbook_id = pb.id)`, args,
-		func(id int64, _ []string) { add(id, "no-statements", "the page has no statements") },
+		func(id int64, _ []string) { add(id, 0, "no-statements", "the page has no statements") },
 	); err != nil {
 		return nil, err
 	}
@@ -122,7 +128,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		WHERE `+cond+` AND btrim(s.body_md) = ''
 		ORDER BY pb.id, ps.position`, args,
 		func(id int64, f []string) {
-			add(id, "empty-statement", fmt.Sprintf("statement %s has no text", f[0]))
+			add(id, pos(f[0]), "empty-statement", fmt.Sprintf("statement %s has no text", f[0]))
 		},
 	); err != nil {
 		return nil, err
@@ -137,7 +143,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 			(SELECT 1 FROM citations c WHERE c.statement_id = ps.statement_id)
 		ORDER BY pb.id, ps.position`, args,
 		func(id int64, f []string) {
-			add(id, "uncited-statement", fmt.Sprintf("statement %s has no citation — cite a source or mark it editorial guidance", f[0]))
+			add(id, pos(f[0]), "uncited-statement", fmt.Sprintf("statement %s has no citation — cite a source or mark it editorial guidance", f[0]))
 		},
 	); err != nil {
 		return nil, err
@@ -157,7 +163,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		WHERE `+cond+` AND src.kind <> 'editorial' AND btrim(c.quote) = ''
 		ORDER BY pb.id, ps.position, src.url`, args,
 		func(id int64, f []string) {
-			add(id, "missing-quote", fmt.Sprintf("statement %s cites %s with no verbatim quote", f[0], f[1]))
+			add(id, pos(f[0]), "missing-quote", fmt.Sprintf("statement %s cites %s with no verbatim quote", f[0], f[1]))
 		},
 	); err != nil {
 		return nil, err
@@ -178,7 +184,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		  AND btrim(c.quote) <> '' AND c.checked_at IS NULL AND NOT c.manually_verified
 		ORDER BY pb.id, ps.position, src.url`, args,
 		func(id int64, f []string) {
-			add(id, "unverified-quote", fmt.Sprintf("statement %s: the quote from %s was never confirmed at the source — re-check it in the editor, or attest to it by hand", f[0], f[1]))
+			add(id, pos(f[0]), "unverified-quote", fmt.Sprintf("statement %s: the quote from %s was never confirmed at the source — re-check it in the editor, or attest to it by hand", f[0], f[1]))
 		},
 	); err != nil {
 		return nil, err
@@ -198,7 +204,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 			if looksLikeSection(f[2]) {
 				return
 			}
-			add(id, "statute-locator", fmt.Sprintf("statement %s cites %s as a statute but its locator %q does not name a provision (for example %q or %q)", f[0], f[1], f[2], "§ 15B", "RCW 59.18.060"))
+			add(id, pos(f[0]), "statute-locator", fmt.Sprintf("statement %s cites %s as a statute but its locator %q does not name a provision (for example %q or %q)", f[0], f[1], f[2], "§ 15B", "RCW 59.18.060"))
 		},
 	); err != nil {
 		return nil, err
@@ -214,7 +220,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		WHERE `+cond+` AND src.kind <> 'editorial' AND btrim(src.publisher) = ''
 		ORDER BY pb.id, src.url`, args,
 		func(id int64, f []string) {
-			add(id, "source-no-publisher", fmt.Sprintf("the source %s has no publisher name", f[0]))
+			add(id, 0, "source-no-publisher", fmt.Sprintf("the source %s has no publisher name", f[0]))
 		},
 	); err != nil {
 		return nil, err

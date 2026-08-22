@@ -105,8 +105,22 @@
   .check-status { display: block; font-size: .68rem; font-weight: 600; margin-top: 3px; min-height: 1em; }
   .cs-checking { color: #b08080; font-weight: 400; font-style: italic; }
   .cs-ok, .cs-manual { color: #2f855a; }
-  .cs-blocked { color: #c05621; }
+  .cs-blocked, .cs-unchecked { color: #c05621; }
   .cs-mismatch { color: #c53030; }
+
+  /* Publish blockers: the same list the publish gate refuses on, live in the
+     rail while editing, so nothing about publishability arrives as a surprise
+     after a save (ADR-013). */
+  .blockers { border-color: #fecaca; background: #fef2f2; }
+  .blockers h2 { color: #991b1b; }
+  .blockers.ok { border-color: #a7f3d0; background: #ecfdf5; }
+  .blockers.ok h2 { color: #065f46; }
+  .blockers ul { margin: 0; padding-left: 18px; font-size: .78rem; line-height: 1.5; color: #991b1b; }
+  .blockers li { margin-bottom: 4px; cursor: pointer; }
+  .blockers li:hover { text-decoration: underline; }
+  .blockers .ok-note { font-size: .8rem; color: #065f46; }
+  .blockers .note { font-size: .7rem; color: #b08080; margin-top: 8px; }
+  .stmt-flag { font-size: .68rem; color: #c05621; font-weight: 600; margin-left: 8px; text-transform: none; letter-spacing: 0; }
 
   /* a source is a thing you open, not a string you copy */
   .src-open { font-weight: 600; font-size: .72rem; margin-left: 8px; color: #9b2335; text-decoration: none; }
@@ -358,6 +372,9 @@
        is usually several statements below where the author first added it. A
        column that stays put removes the scroll-up-scroll-back-down that cost. -->
   <aside class="rail">
+    <!-- Filled by refreshIssues(): what would block publishing right now,
+         updated as the author types. Hidden only until the script runs. -->
+    <section class="blockers" id="blockers-panel" hidden></section>
     <section>
       <h2 id="sources-heading">Sources</h2>
       <div id="sources-container"><p class="no-items">Add sources you'll cite in the statements below.</p></div>
@@ -407,6 +424,16 @@ const TAGS = {{.ConceptsJSON}};
 // Fallback topic for the tag filter when the topic select is locked
 // (published edits render no topic-sel, so curTopicKey never gets set).
 const PAGE_TOPIC = '{{.TopicSlug}}';
+// The stored page's publish blockers, embedded at load (ADR-013). Most are
+// recomputed live from the form as it changes; the ones only the server can
+// judge (statute locators, publisher-less sources) are carried from here and
+// refreshed from each autosave's response. Their statement numbers refer to
+// the saved order, so they can drift after a reorder until the next autosave.
+const SERVER_ISSUES = {{.IssuesJSON}};
+const SERVER_ONLY_CODES = { 'statute-locator': true, 'source-no-publisher': true };
+let serverOnlyIssues = (SERVER_ISSUES || []).filter(function(i) { return SERVER_ONLY_CODES[i.code]; });
+// A live page's saves run the publish gate, so its blockers block saving too.
+const IS_LIVE = {{if and .EditMode (eq .Status "published")}}true{{else}}false{{end}};
 
 let sources = [], stmts = [];
 let nextSrcId = 0, nextStmtId = 0;
@@ -480,13 +507,19 @@ if (PRELOAD && PRELOAD.sources) {
     Object.entries(s.verified || {}).forEach(([k, v]) => { st.verified[+k] = v; });
     // A stored quote is only "known good" if something actually confirmed it
     // (ADR-013: a draft may hold quotes nobody checked). Confirmed ones start
-    // green and skip a pointless re-check; the rest carry no verdict until the
-    // blur check runs — the issues list is what says they block publishing.
+    // green and skip a pointless re-check; unconfirmed ones start visibly
+    // amber right at the quote box — not silent until a save surprises the
+    // author. lastChecked stays unset for those, so just clicking in and out
+    // of the field fires a fresh live check.
     Object.entries(s.quotes || {}).forEach(([k, q]) => {
-      if (!q || !(s.checked || {})[k]) return;
+      if (!q) return;
       const key = st.id + '_' + k;
-      checkStatus[key] = { state: (s.verified || {})[k] ? 'manual' : 'ok' };
-      lastChecked[key] = q;
+      if ((s.checked || {})[k]) {
+        checkStatus[key] = { state: (s.verified || {})[k] ? 'manual' : 'ok' };
+        lastChecked[key] = q;
+      } else {
+        checkStatus[key] = { state: 'unchecked' };
+      }
     });
     stmts.push(st);
   });
@@ -622,12 +655,13 @@ function checkStatusInfo(stId, srcId) {
   const cs = checkStatus[stId + '_' + srcId];
   if (!cs) return { cls: '', text: '' };
   switch (cs.state) {
-    case 'checking': return { cls: 'cs-checking', text: 'checking against the source…' };
-    case 'ok':       return { cls: 'cs-ok',       text: '✓ verified against the source' };
-    case 'manual':   return { cls: 'cs-manual',   text: '✓ manually verified' };
-    case 'blocked':  return { cls: 'cs-blocked',  text: '⚠ ' + (cs.message || 'source unreachable') };
-    case 'mismatch': return { cls: 'cs-mismatch', text: '✗ ' + (cs.message || 'quote not found in source') };
-    default:         return { cls: '', text: '' };
+    case 'checking':  return { cls: 'cs-checking',  text: 'checking against the source…' };
+    case 'ok':        return { cls: 'cs-ok',        text: '✓ verified against the source' };
+    case 'manual':    return { cls: 'cs-manual',    text: '✓ manually verified' };
+    case 'blocked':   return { cls: 'cs-blocked',   text: '⚠ ' + (cs.message || 'source unreachable') };
+    case 'mismatch':  return { cls: 'cs-mismatch',  text: '✗ ' + (cs.message || 'quote not found in source') };
+    case 'unchecked': return { cls: 'cs-unchecked', text: '⚠ never confirmed at the source — click in and out of the field to check now, or attest below' };
+    default:          return { cls: '', text: '' };
   }
 }
 
@@ -635,7 +669,7 @@ function checkStatusInfo(stId, srcId) {
 // into the one line shown next to that source in the pinned rail: the worst
 // state wins, so a source is not marked fine while one of its quotes is not.
 function railStatusInfo(srcId) {
-  let anyBad = false, anyChecking = false, anyGood = false, anyManual = false, any = false;
+  let anyBad = false, anyUnchecked = false, anyChecking = false, anyGood = false, anyManual = false, any = false;
   stmts.forEach(function(st) {
     // Reads the checkbox live rather than st.cites[srcId]: ticking one only
     // toggles the DOM (onCiteToggle), and st.cites is not refreshed from it
@@ -646,11 +680,13 @@ function railStatusInfo(srcId) {
     const cs = checkStatus[st.id + '_' + srcId];
     if (!cs) return;
     if (cs.state === 'blocked' || cs.state === 'mismatch') anyBad = true;
+    else if (cs.state === 'unchecked') anyUnchecked = true;
     else if (cs.state === 'checking') anyChecking = true;
     else if (cs.state === 'manual') anyManual = true;
     else if (cs.state === 'ok') anyGood = true;
   });
   if (anyBad) return { cls: 'rail-warn', text: '⚠ needs attention' };
+  if (anyUnchecked) return { cls: 'rail-warn', text: '⚠ has unconfirmed quotes' };
   if (anyChecking) return { cls: 'rail-pending', text: 'checking…' };
   if (anyGood) return { cls: 'rail-ok', text: '✓ checked' };
   if (anyManual) return { cls: 'rail-manual', text: '✓ manually verified' };
@@ -682,6 +718,7 @@ function checkQuoteLive(stId, srcId, quote, url) {
   checkStatus[key] = { state: 'checking' };
   paintCheckStatus(stId, srcId);
   paintRailStatus(srcId);
+  queueRefreshIssues();
   fetch('/api/check-quote', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -693,11 +730,13 @@ function checkQuoteLive(stId, srcId, quote, url) {
       : { state: data.overridable ? 'blocked' : 'mismatch', message: data.message };
     paintCheckStatus(stId, srcId);
     paintRailStatus(srcId);
+    queueRefreshIssues();
   }).catch(function() {
     if (lastChecked[key] !== quote) return;
     checkStatus[key] = { state: 'blocked', message: 'check failed — try again' };
     paintCheckStatus(stId, srcId);
     paintRailStatus(srcId);
+    queueRefreshIssues();
   });
 }
 
@@ -773,6 +812,7 @@ function render() {
   renderSources();
   renderStmts();
   updateHidden();
+  refreshIssues();
 }
 
 function renderSources() {
@@ -1001,7 +1041,8 @@ function renderStmts() {
       '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '"' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
       conceptRow(st) +
-      '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') + '</div>' +
+      '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') +
+        '<span class="stmt-flag" id="cite_flag_' + st.id + '"></span></div>' +
       citesHtml +
       moreBtn +
       editorialRow +
@@ -1223,8 +1264,8 @@ function beforeSubmit() {
 const AUTOSAVE_ON = {{if and .EditMode (eq .Status "published")}}false{{else}}true{{end}};
 let autosaveDirty = false, autosaveBusy = false;
 const formEl = document.querySelector('form');
-formEl.addEventListener('input',  function() { autosaveDirty = true; });
-formEl.addEventListener('change', function() { autosaveDirty = true; });
+formEl.addEventListener('input',  function() { autosaveDirty = true; queueRefreshIssues(); });
+formEl.addEventListener('change', function() { autosaveDirty = true; queueRefreshIssues(); });
 
 function autosaveNote(text, bad) {
   const el = document.getElementById('autosave-status');
@@ -1262,6 +1303,10 @@ function autosaveTick() {
       const n = (data.issues || []).length;
       const when = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       autosaveNote('Draft autosaved ' + when + (n ? ' · ' + n + ' issue' + (n === 1 ? '' : 's') + ' to fix before publish' : ''), n > 0);
+      // The server just re-judged the whole page: refresh the checks only it
+      // can make, and re-anchor their statement numbers to the saved order.
+      serverOnlyIssues = (data.issues || []).filter(function(is) { return SERVER_ONLY_CODES[is.code]; });
+      refreshIssues();
     })
     .catch(function() {
       autosaveBusy = false;
@@ -1278,6 +1323,94 @@ window.addEventListener('beforeunload', function(e) {
   e.preventDefault();
   e.returnValue = '';
 });
+
+// ── Publish blockers panel ────────────────────────────────────────────────
+
+// The publish gate's list, recomputed live in the rail while editing, so a
+// save never delivers a surprise: what would block publishing is on screen
+// the moment it becomes true and gone the moment it is fixed. Structural
+// checks and quote verdicts come straight from the form; the two checks only
+// the server can judge (statute locators, publisher-less sources) ride along
+// from the last load or autosave.
+let refreshQueued = null;
+
+// queueRefreshIssues coalesces per-keystroke triggers; the recompute is a
+// few hundred cheap DOM reads, but once per pause beats once per key.
+function queueRefreshIssues() {
+  if (refreshQueued) return;
+  refreshQueued = setTimeout(function() { refreshQueued = null; refreshIssues(); }, 300);
+}
+
+function refreshIssues() {
+  const panel = document.getElementById('blockers-panel');
+  if (!panel) return;
+  const isDir = curPageKind === 'directory';
+  const noun = isDir ? 'entry' : 'statement';
+  const issues = [];
+
+  if (!(v('title') || '').trim()) issues.push({ stmt: 0, text: 'the page has no title' });
+  if (!stmts.length) issues.push({ stmt: 0, text: 'the page has no ' + noun + 's' });
+
+  stmts.forEach(function(st, i) {
+    const n = i + 1;
+    if (!(v('stmt_' + st.id) || '').trim()) issues.push({ stmt: n, text: noun + ' ' + n + ' has no text' });
+    let cited = 0;
+    sources.forEach(function(src) {
+      if (!c('cite_' + st.id + '_' + src.id)) return;
+      cited++;
+      const who = (v('src_pub_' + src.id) || '').trim() || hostOf(v('src_url_' + src.id)) || 'source ' + (sources.indexOf(src) + 1);
+      const quote = (v('quote_' + st.id + '_' + src.id) || '').trim();
+      if (!quote) { issues.push({ stmt: n, text: noun + ' ' + n + ' cites ' + who + ' with no verbatim quote' }); return; }
+      // The attestation checkbox clears the citation the moment it is ticked,
+      // matching what the save will record.
+      if (c('verify_override_' + st.id + '_' + src.id)) return;
+      const cs = checkStatus[st.id + '_' + src.id];
+      if (!cs || cs.state === 'unchecked') issues.push({ stmt: n, text: noun + ' ' + n + ': quote from ' + who + ' never confirmed at the source' });
+      else if (cs.state === 'checking') issues.push({ stmt: n, text: noun + ' ' + n + ': quote from ' + who + ' still being checked…' });
+      else if (cs.state === 'mismatch') issues.push({ stmt: n, text: noun + ' ' + n + ': quote does not appear at ' + who });
+      else if (cs.state === 'blocked') issues.push({ stmt: n, text: noun + ' ' + n + ': ' + who + ' unreachable — attest by hand, or fix the URL' });
+    });
+    const uncited = !cited && !c('edit_' + st.id);
+    if (uncited) issues.push({ stmt: n, text: noun + ' ' + n + ' needs a citation or the editorial tick' });
+    // The same fact at the card itself, where the fix happens.
+    const flag = document.getElementById('cite_flag_' + st.id);
+    if (flag) flag.textContent = uncited ? '⚠ needs a citation — blocks publish' : '';
+  });
+
+  serverOnlyIssues.forEach(function(si) { issues.push({ stmt: si.stmt || 0, text: si.detail }); });
+  renderBlockers(panel, issues);
+}
+
+function renderBlockers(panel, issues) {
+  panel.hidden = false;
+  panel.classList.toggle('ok', !issues.length);
+  if (!issues.length) {
+    panel.innerHTML = '<h2>Publish blockers</h2><p class="ok-note">✓ None — ' +
+      (IS_LIVE ? 'this page can be saved and stays publishable.' : 'this page can be published.') + '</p>';
+    return;
+  }
+  const note = IS_LIVE
+    ? 'This page is live, so a save must clear this list before it applies.'
+    : 'These only block publishing — saving and autosave capture everything as it is.';
+  // A rough draft can have dozens; the panel is a heads-up display, not a
+  // scroll of shame, and the sources it sits above must stay reachable.
+  const shown = issues.slice(0, 10);
+  const more = issues.length - shown.length;
+  panel.innerHTML = '<h2>Publish blockers (' + issues.length + ')</h2><ul>' +
+    shown.map(function(is) {
+      return '<li onclick="jumpToStmt(' + (is.stmt || 0) + ')" title="Click to jump to it">' + esc(is.text) + '</li>';
+    }).join('') +
+    '</ul>' + (more > 0 ? '<p class="note">…and ' + more + ' more further down the page.</p>' : '') +
+    '<p class="note">' + note + '</p>';
+}
+
+function jumpToStmt(n) {
+  if (!n || !stmts[n - 1]) return;
+  const card = document.getElementById('card_' + stmts[n - 1].id);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+refreshIssues();
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 

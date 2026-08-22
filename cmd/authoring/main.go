@@ -855,6 +855,7 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 		"Jurisdictions": jurisdictions, "Topics": topics, "Error": "",
 		"PreloadJSON":      template.JS("null"),
 		"ConceptsJSON":     s.conceptsJSON(r.Context()),
+		"IssuesJSON":       template.JS("[]"), // a new page has no stored issues yet
 		"TopicSlug":        "",
 		"ImportGroups":     s.importablePages(r.Context(), 0, ""),
 		"Languages":        languageOptions(),
@@ -1220,6 +1221,30 @@ func issueDetails(issues []store.PageIssue) []string {
 	return out
 }
 
+// issueJSON is one publish blocker in the shape the editor's live panel
+// reads; Stmt lets it scroll to the statement the issue sits on.
+type issueJSON struct {
+	Code   string `json:"code"`
+	Detail string `json:"detail"`
+	Stmt   int    `json:"stmt"` // 1-based statement position; 0 = page-level
+}
+
+func issuesAsJSON(issues []store.PageIssue) []issueJSON {
+	out := make([]issueJSON, len(issues))
+	for i, is := range issues {
+		out[i] = issueJSON{Code: is.Code, Detail: is.Detail, Stmt: is.Stmt}
+	}
+	return out
+}
+
+// issuesJS marshals issues for embedding in the form template. json.Marshal
+// escapes <, > and & by default, so the result is safe inside a script block.
+func issuesJS(issues []store.PageIssue) template.JS {
+	b, _ := json.Marshal(issuesAsJSON(issues))
+	//nolint:gosec // json.Marshal output with default HTML escaping, see above
+	return template.JS(b)
+}
+
 // parsePageContent reads the form's sources and statements without refusing
 // any of it (ADR-013): saving captures what is there, and what is wrong with
 // it surfaces as page issues after the save. The returned notes name anything
@@ -1288,12 +1313,11 @@ func (s *srv) parsePageContent(ctx context.Context, r *http.Request, lang, actor
 			}
 			quote := r.FormValue(fmt.Sprintf("quote_%d_%d", ji, i))
 			overridden := r.FormValue(fmt.Sprintf("verify_override_%d_%d", ji, i)) == "on"
+			// The check runs so a confirmable quote gets its stamp. A failure
+			// earns no note: the editor already shows it live at the quote box
+			// and in its blockers panel, and it lands in the page's issue
+			// list — repeating it in the save flash buried the flash.
 			res := qv.check(ctx, ji+1, src.URL, quote)
-			if verifyQuotes && res.Msg != "" && (!res.Overridable || !overridden) {
-				// Saved all the same: the citation stays unverified, which the
-				// dashboard flags and publishing refuses.
-				notes = append(notes, res.Msg)
-			}
 			// Quote is carried through the form read-only. Omitting it here
 			// is what rewrote every citation's quote to "" on save.
 			cites = append(cites, store.IngestCitationParams{
@@ -1455,7 +1479,7 @@ func (s *srv) autosaveOK(w http.ResponseWriter, r *http.Request, id int64, notes
 		"ok":      true,
 		"id":      id,
 		"editUrl": fmt.Sprintf("/edit/%d", id),
-		"issues":  issueDetails(issues),
+		"issues":  issuesAsJSON(issues),
 		"notes":   notes,
 	})
 }
@@ -1815,6 +1839,14 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 	editorial, _ := s.pg.GetEditorialSource(ctx)
 	pj, _ := json.Marshal(buildPreload(pw, editorial.ID))
 
+	// The stored issues seed the editor's live blockers panel, so what blocks
+	// publishing is on screen while editing, not discovered after a save.
+	// Best-effort: a lookup failure costs the seed, not the editor.
+	issues, err := s.pg.AuthorPlaybookIssues(ctx, pw.Playbook.ID)
+	if err != nil {
+		s.log.Error("load page issues for editor", slog.Any("err", err))
+	}
+
 	citySlug := pw.Jurisdiction.Slug
 	topicKey := pw.Topic.Slug
 	topics, _ := s.pg.ListTopicRegistry(ctx)
@@ -1837,6 +1869,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"AuthorNotes":           pw.Playbook.AuthorNotes,
 		"UpdatedBy":             pw.Playbook.UpdatedBy,
 		"ConceptsJSON":          s.conceptsJSON(ctx),
+		"IssuesJSON":            issuesJS(issues),
 		"Error":                 errMsg,
 		"ImportGroups":          s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
 		//nolint:gosec // pj is json.Marshal output of an internal struct, not user input
@@ -2197,8 +2230,13 @@ func (s *srv) formError(w http.ResponseWriter, r *http.Request, msg string) {
 	topics, _ := s.pg.ListTopicRegistry(ctx)
 	pj, _ := json.Marshal(preloadFromForm(r))
 	s.render(w, "form.html", map[string]any{
-		"Jurisdictions":    jurisdictions,
-		"Topics":           topics,
+		"Jurisdictions": jurisdictions,
+		"Topics":        topics,
+		// Without ConceptsJSON the script gets TAGS = null and dies before it
+		// can re-render the preserved statements — the exact loss this
+		// re-render exists to prevent.
+		"ConceptsJSON":     s.conceptsJSON(ctx),
+		"IssuesJSON":       template.JS("[]"),
 		"SelectedCitySlug": r.FormValue("jurisdiction_select"),
 		"SelectedTopicKey": r.FormValue("topic_key"),
 		"SelectedPageKind": r.FormValue("page_kind"),
