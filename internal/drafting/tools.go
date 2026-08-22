@@ -475,7 +475,6 @@ func savedMessage(revises bool) string {
 	return "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published."
 }
 
-
 // validateConcepts checks every statement's concept tag and topic reference
 // against their closed registries before anything is written. The rejection
 // lists the valid choices so the agent's retry is a choice, not a guess — the
