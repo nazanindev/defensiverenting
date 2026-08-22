@@ -117,7 +117,7 @@ func TestActorStamps_saveEditAndPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	if pw.Playbook.Status != "published" || pw.Playbook.UpdatedBy != "Cameron" {
-		t.Errorf("after publish status=%q updated_by=%q, want published by Cameron", pw.Playbook.Status, pw.Playbook.UpdatedBy)
+		t.Errorf("after publish status=%q updated_by=%q, want published by Cameron: updated_by is what the public byline reads", pw.Playbook.Status, pw.Playbook.UpdatedBy)
 	}
 }
 

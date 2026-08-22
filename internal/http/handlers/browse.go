@@ -50,6 +50,20 @@ const (
 	ReviewerPath  = "/authors/cameron-monteith"
 )
 
+// reviewerDisplay maps an updated_by stamp (a portal login, see cmd/authoring)
+// to the public "Last reviewed by" name. The byline follows the last save on
+// purpose: an edit to a live page moves the credit to whoever made it, not
+// whoever published first. Nazanin appears first-name-only by request. Every
+// other stamp — Cameron's login, the legacy shared credential, or the empty
+// stamp on pages untouched since per-person logins — shows the site's
+// historical reviewer claim, which is what those pages said all along.
+func reviewerDisplay(stamp string) string {
+	if stamp == PublisherName {
+		return PublisherName
+	}
+	return ReviewerName
+}
+
 // Browse wires the browse routes onto a chi.Router.
 //
 // URLs are hierarchical (ADR-005 D2): /j/{state}/{city}/{topic}. Two segments
@@ -830,6 +844,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 		Canonical:      canonical,
 		StructuredData: playbookSchema(pb, canonical, sourceURLs),
 		ReviewedOn:     reviewedOn,
+		ReviewedByName: reviewerDisplay(pb.Playbook.UpdatedBy),
 	}
 }
 
@@ -860,17 +875,17 @@ type breadcrumbItem struct {
 // playbook page. isBasedOn lists the primary sources the playbook cites.
 func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURLs []string) template.JS {
 	article := struct {
-		Type          string      `json:"@type"`
-		Headline      string      `json:"headline"`
-		Description   string      `json:"description"`
-		URL           string      `json:"url"`
-		MainEntity    string      `json:"mainEntityOfPage"`
-		DatePublished string      `json:"datePublished,omitempty"`
-		DateModified  string      `json:"dateModified,omitempty"`
-		IsBasedOn     []string    `json:"isBasedOn,omitempty"`
-		Author        schemaOrg   `json:"author"`
-		Publisher     schemaOrg   `json:"publisher"`
-		ReviewedBy    []schemaOrg `json:"reviewedBy"`
+		Type          string    `json:"@type"`
+		Headline      string    `json:"headline"`
+		Description   string    `json:"description"`
+		URL           string    `json:"url"`
+		MainEntity    string    `json:"mainEntityOfPage"`
+		DatePublished string    `json:"datePublished,omitempty"`
+		DateModified  string    `json:"dateModified,omitempty"`
+		IsBasedOn     []string  `json:"isBasedOn,omitempty"`
+		Author        schemaOrg `json:"author"`
+		Publisher     schemaOrg `json:"publisher"`
+		ReviewedBy    schemaOrg `json:"reviewedBy"`
 	}{
 		Type:        "Article",
 		Headline:    pb.Playbook.Title + " — " + pb.Jurisdiction.Name + " Tenant Rights",
@@ -880,10 +895,7 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		IsBasedOn:   sourceURLs,
 		Author:      schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
 		Publisher:   schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
-		ReviewedBy: []schemaOrg{
-			{Type: "Person", Name: PublisherName, URL: tmpl.BaseURL() + AuthorsPath},
-			{Type: "Person", Name: ReviewerName, URL: tmpl.BaseURL() + AuthorsPath},
-		},
+		ReviewedBy:  schemaOrg{Type: "Person", Name: reviewerDisplay(pb.Playbook.UpdatedBy), URL: tmpl.BaseURL() + AuthorsPath},
 	}
 	if pb.Playbook.PublishedAt != nil {
 		article.DatePublished = pb.Playbook.PublishedAt.Format(time.DateOnly)

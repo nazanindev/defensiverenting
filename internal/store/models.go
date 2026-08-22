@@ -228,8 +228,10 @@ type Playbook struct {
 	UpdatedAt      time.Time
 	PublishedAt    *time.Time
 	// UpdatedBy names who last touched this row — saved, published or took it
-	// down. Authoring-only, like AuthorNotes; empty on rows from before the
-	// portal had per-person logins.
+	// down. On a published page this is also what the public "Last reviewed
+	// by" byline reads: a later edit moves the credit to whoever made it.
+	// Empty on rows from before the portal had per-person logins; the byline
+	// falls back to the historical reviewer claim.
 	UpdatedBy string
 }
 

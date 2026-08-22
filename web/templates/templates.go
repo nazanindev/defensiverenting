@@ -279,6 +279,7 @@ type PlaybookPage struct {
 	StructuredData template.JS          // JSON-LD Article + BreadcrumbList schema, pre-marshaled
 	Preview        bool                 // authoring-tool draft preview: shows a banner, never set on the live site
 	ReviewedOn     string               // human-readable last-verified date for the byline; empty hides the date
+	ReviewedByName string               // byline name of who last saved or published the page; falls back to the historical reviewer
 	SiblingTopics  []store.Topic        // other published topics in this city
 	OtherCities    []store.Jurisdiction // other cities with this topic published
 	// LocalHelpPath links to this city's Local Help page when one is published,

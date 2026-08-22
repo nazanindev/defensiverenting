@@ -358,7 +358,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	err := pg.pool.QueryRow(ctx, `
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
-			pb.slug, pb.title, pb.intro_md, pb.page_kind, pb.last_reviewed_at,
+			pb.slug, pb.title, pb.intro_md, pb.page_kind, pb.last_reviewed_at, pb.updated_by,
 			pb.published_at, pb.updated_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''),
 			t.id, t.slug, t.name
@@ -371,7 +371,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	).Scan(
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
-		&p.Playbook.IntroMD, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt,
+		&p.Playbook.IntroMD, &p.Playbook.PageKind, &p.Playbook.LastReviewedAt, &p.Playbook.UpdatedBy,
 		&p.Playbook.PublishedAt, &p.Playbook.UpdatedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug, &p.Jurisdiction.ParentSlug,
