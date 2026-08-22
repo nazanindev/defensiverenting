@@ -1437,7 +1437,9 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		s.autosaveOK(w, r, id, notes)
 		return
 	}
-	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(saveFlash(notes))), http.StatusSeeOther)
+	// Fixed "/view/{id}" path; the form-derived notes only reach the
+	// query-escaped msg parameter, so the destination cannot be steered.
+	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(saveFlash(notes))), http.StatusSeeOther) //nolint:gosec // G710: see above
 }
 
 // autosaveOK answers a successful autosave with where the draft lives and what
@@ -2017,7 +2019,9 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		s.autosaveOK(w, r, id, notes)
 		return
 	}
-	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(saveFlash(notes))), http.StatusSeeOther)
+	// Fixed "/view/{id}" path; the form-derived notes only reach the
+	// query-escaped msg parameter, so the destination cannot be steered.
+	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(saveFlash(notes))), http.StatusSeeOther) //nolint:gosec // G710: see above
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -2115,11 +2119,13 @@ func (qv *quoteVerifier) checkQuote(ctx context.Context, url, quote string) quot
 	if err != nil {
 		return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
 			"could not open %s to check the quote (%v). "+
-				"Check \"I verified this quote myself\" below to save it anyway.", url, err)}
+				"The citation saves either way but stays unverified, which blocks publishing — "+
+				"check \"I verified this quote myself\" to attest to it.", url, err)}
 	}
 	if !drafting.QuoteAppearsIn(text, quote) {
 		return quoteCheckResult{Msg: fmt.Sprintf("that quote does not appear in %s. "+
-			"Copy the wording from the source exactly, without editing it.", url)}
+			"Copy the wording from the source exactly, without editing it. "+
+			"It saves either way but cannot be published until it matches.", url)}
 	}
 	return quoteCheckResult{Verified: true}
 }
@@ -2239,6 +2245,13 @@ type preloadStmt struct {
 	// the source at all. Round-trips so a manual override survives a
 	// validation-error re-render and an edit of an already-saved draft.
 	Verified map[string]bool `json:"verified"`
+	// Checked marks a citation whose quote carries a confirmation stamp
+	// (checked_at, or a pre-stamp manual attestation). A stored quote is no
+	// longer necessarily verified (ADR-013) — a draft may hold text nobody
+	// confirmed — so the form must be told which quotes were, rather than
+	// assume storage implies verification. Only buildPreload fills this;
+	// a form re-render makes no claim and lets the blur check speak.
+	Checked map[string]bool `json:"checked"`
 }
 
 // preloadFromForm rebuilds the preload structure from a submitted form rather
@@ -2279,6 +2292,7 @@ func preloadFromForm(r *http.Request) preloadData {
 			Locators:  map[string]string{},
 			Quotes:    map[string]string{},
 			Verified:  map[string]bool{},
+			Checked:   map[string]bool{},
 		}
 		for _, srcID := range srcIDs {
 			if r.FormValue(fmt.Sprintf("cite_%d_%d", id, srcID)) == "on" {
@@ -2343,7 +2357,7 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 		case stmt.TopicRefSlug != "":
 			tag = "t:" + stmt.TopicRefSlug
 		}
-		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Tag: tag, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}}
+		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Tag: tag, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}, Checked: map[string]bool{}}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true
@@ -2357,6 +2371,9 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 				}
 				if c.ManuallyVerified {
 					ps.Verified[strconv.Itoa(m.idx)] = true
+				}
+				if c.CheckedAt != nil || c.ManuallyVerified {
+					ps.Checked[strconv.Itoa(m.idx)] = true
 				}
 			}
 		}

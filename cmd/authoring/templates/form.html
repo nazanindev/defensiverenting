@@ -478,11 +478,12 @@ if (PRELOAD && PRELOAD.sources) {
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
     Object.entries(s.verified || {}).forEach(([k, v]) => { st.verified[+k] = v; });
-    // A stored quote already passed the check when it was saved — that's
-    // exactly what saving enforces — so it starts "known good" rather than
-    // "unchecked": only an edit from here should trigger a fresh live check.
+    // A stored quote is only "known good" if something actually confirmed it
+    // (ADR-013: a draft may hold quotes nobody checked). Confirmed ones start
+    // green and skip a pointless re-check; the rest carry no verdict until the
+    // blur check runs — the issues list is what says they block publishing.
     Object.entries(s.quotes || {}).forEach(([k, q]) => {
-      if (!q) return;
+      if (!q || !(s.checked || {})[k]) return;
       const key = st.id + '_' + k;
       checkStatus[key] = { state: (s.verified || {})[k] ? 'manual' : 'ok' };
       lastChecked[key] = q;
