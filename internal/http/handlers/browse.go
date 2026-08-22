@@ -256,7 +256,7 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		var terms []store.Term
 		if all, terr := db.ListTerms(r.Context(), "en"); terr == nil {
 			for _, t := range all {
-				if t.HasNational() {
+				if t.HasNational {
 					terms = append(terms, t)
 				}
 			}
@@ -305,14 +305,20 @@ func conceptPage(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 		page := tmpl.ConceptPage{
-			Slug:      data.Concept.Slug,
-			Name:      data.Concept.Name,
-			TopicSlug: data.Concept.TopicSlug,
+			Slug:       data.Concept.Slug,
+			Name:       data.Concept.Name,
+			TopicSlug:  data.Concept.TopicSlug,
+			Definition: data.Concept.Definition,
 		}
 		if data.National != nil {
 			page.National = buildConceptEntry(*data.National)
+		}
+		switch {
+		case data.Concept.Definition != "":
+			page.Description = data.Concept.Definition + " See the rule in every place we cover."
+		case data.National != nil:
 			page.Description = metaDescription(data.National.Statement.BodyMD, data.Concept.Name, "renters anywhere in the United States")
-		} else {
+		default:
 			page.Description = data.Concept.Name + ": what it means for renters, with the rule in every place we cover."
 		}
 		for _, inst := range data.Local {

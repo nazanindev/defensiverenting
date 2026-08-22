@@ -546,8 +546,8 @@ func TestConceptPage_definitionAndLocalAnswers(t *testing.T) {
 func TestTermsIndexAndHomepageSection(t *testing.T) {
 	stub := &stubStore{
 		terms: []store.Term{
-			{Slug: "notice-to-quit", Name: "Notice to quit", TopicSlug: "eviction-defense", Blurb: "The letter that starts an eviction.", Localized: 3},
-			{Slug: "small-claims-court", Name: "Small claims court", TopicSlug: "renting-fundamentals", Localized: 2},
+			{Slug: "notice-to-quit", Name: "Notice to quit", TopicSlug: "eviction-defense", Blurb: "The letter that starts an eviction.", HasNational: true, Localized: 3},
+			{Slug: "small-claims-court", Name: "Small claims court", TopicSlug: "renting-fundamentals", Blurb: "A low cost court for money disputes.", Localized: 2},
 		},
 	}
 	r := chi.NewRouter()

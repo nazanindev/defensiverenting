@@ -171,9 +171,11 @@ type TermsPage struct {
 // and answered by every covered place, assembled from published verified
 // statements (ADR-012 D1).
 type ConceptPage struct {
-	Slug        string
-	Name        string
-	TopicSlug   string
+	Slug      string
+	Name      string
+	TopicSlug string
+	// Definition is the registry's plain-language gloss, shown as the lede.
+	Definition  string
 	Description string
 	National    *ConceptEntry
 	Local       []ConceptEntry

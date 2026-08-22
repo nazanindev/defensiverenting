@@ -218,7 +218,7 @@ func (pg *PG) ConceptHubTopics(ctx context.Context, language string) (map[string
 // carries are absent — a reference page never renders an empty shell.
 func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT co.slug, co.name, t.slug,
+		SELECT co.slug, co.name, co.definition, t.slug,
 		       COALESCE((
 		           SELECT s.body_md
 		           FROM statements s
@@ -245,12 +245,16 @@ func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
 	var out []Term
 	for rows.Next() {
 		var t Term
-		var nationalBody string
-		if err := rows.Scan(&t.Slug, &t.Name, &t.TopicSlug, &nationalBody, &t.Localized); err != nil {
+		var definition, nationalBody string
+		if err := rows.Scan(&t.Slug, &t.Name, &definition, &t.TopicSlug, &nationalBody, &t.Localized); err != nil {
 			return nil, err
 		}
-		t.Blurb = firstSentence(nationalBody)
-		if t.Blurb == "" && t.Localized == 0 {
+		t.HasNational = nationalBody != ""
+		t.Blurb = definition
+		if t.Blurb == "" {
+			t.Blurb = firstSentence(nationalBody)
+		}
+		if !t.HasNational && t.Localized == 0 {
 			continue
 		}
 		out = append(out, t)
@@ -265,10 +269,10 @@ func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
 func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error) {
 	var d ConceptPageData
 	err := pg.pool.QueryRow(ctx, `
-		SELECT co.id, co.slug, co.name, co.topic_id, t.slug
+		SELECT co.id, co.slug, co.name, co.definition, co.topic_id, t.slug
 		FROM concepts co JOIN topics t ON t.id = co.topic_id
 		WHERE co.slug = $1`, slug,
-	).Scan(&d.Concept.ID, &d.Concept.Slug, &d.Concept.Name, &d.Concept.TopicID, &d.Concept.TopicSlug)
+	).Scan(&d.Concept.ID, &d.Concept.Slug, &d.Concept.Name, &d.Concept.Definition, &d.Concept.TopicID, &d.Concept.TopicSlug)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return d, ErrNotFound
 	}

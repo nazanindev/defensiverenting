@@ -133,6 +133,11 @@ type Concept struct {
 	Name      string
 	TopicID   int64
 	TopicSlug string
+	// Definition is the registry's plain-language gloss of the term
+	// (migration 000024): what the word means, free of jurisdictional claims
+	// — the law stays in statements. Populated by the reference-layer
+	// queries; may be empty elsewhere.
+	Definition string
 }
 
 // ConceptCoverageRow is one concept's standing across covered places
@@ -153,17 +158,17 @@ type Term struct {
 	Slug      string
 	Name      string
 	TopicSlug string
-	// Blurb is the first sentence of the national tagged statement, "" when
-	// no national page states the claim yet.
+	// Blurb is the registry definition (migration 000024), falling back to
+	// the first sentence of the national tagged statement for any concept the
+	// registry has not glossed yet.
 	Blurb string
+	// HasNational reports whether the national page states the claim — the
+	// condition for appearing on the homepage's reference list (ADR-012 D3).
+	HasNational bool
 	// Localized counts the non-national places whose published page carries
 	// the concept.
 	Localized int
 }
-
-// HasNational reports whether the national page defines this term — the
-// condition for appearing on the homepage's reference list (ADR-012 D3).
-func (t Term) HasNational() bool { return t.Blurb != "" }
 
 // ConceptInstance is one place's published statement for a concept, with
 // enough context to link back to the statement's own page at its anchor.
