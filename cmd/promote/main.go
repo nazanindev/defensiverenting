@@ -331,6 +331,7 @@ func promote(ctx context.Context, srcPG, dstPG *store.PG, p plan) error {
 		PageKind:       full.Playbook.PageKind,
 		Status:         full.Playbook.Status,
 		Statements:     stmts,
+		UpdatedBy:      "promote",
 	})
 }
 

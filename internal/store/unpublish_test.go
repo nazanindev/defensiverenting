@@ -16,7 +16,7 @@ func TestUnpublish_makesALivePageTheDraftAgain(t *testing.T) {
 	ctx := context.Background()
 	id := seedPlaybook(t, pg, jID, tID, "published", "Live")
 
-	if err := pg.AuthorUnpublishPlaybook(ctx, id, false); err != nil {
+	if err := pg.AuthorUnpublishPlaybook(ctx, id, false, "test"); err != nil {
 		t.Fatalf("unpublish: %v", err)
 	}
 
@@ -41,7 +41,7 @@ func TestUnpublish_keepsTheStatementsAndCitations(t *testing.T) {
 		`SELECT count(*) FROM playbook_statements WHERE playbook_id = $1`, id).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if err := pg.AuthorUnpublishPlaybook(ctx, id, false); err != nil {
+	if err := pg.AuthorUnpublishPlaybook(ctx, id, false, "test"); err != nil {
 		t.Fatalf("unpublish: %v", err)
 	}
 	var after int
@@ -63,7 +63,7 @@ func TestUnpublish_asksBeforeDisplacingAWaitingDraft(t *testing.T) {
 	pubID := seedPlaybook(t, pg, jID, tID, "published", "Live")
 	draftID := seedPlaybook(t, pg, jID, tID, "draft", "Proposed revision")
 
-	err := pg.AuthorUnpublishPlaybook(ctx, pubID, false)
+	err := pg.AuthorUnpublishPlaybook(ctx, pubID, false, "test")
 	if !errors.Is(err, store.ErrDraftExists) {
 		t.Fatalf("want ErrDraftExists, got %v", err)
 	}
@@ -88,7 +88,7 @@ func TestUnpublish_retiresTheWaitingDraftWhenConfirmed(t *testing.T) {
 	pubID := seedPlaybook(t, pg, jID, tID, "published", "Live")
 	draftID := seedPlaybook(t, pg, jID, tID, "draft", "Proposed revision")
 
-	if err := pg.AuthorUnpublishPlaybook(ctx, pubID, true); err != nil {
+	if err := pg.AuthorUnpublishPlaybook(ctx, pubID, true, "test"); err != nil {
 		t.Fatalf("confirmed unpublish: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestUnpublish_retiredDraftKeepsItsContent(t *testing.T) {
 		`SELECT count(*) FROM playbook_statements WHERE playbook_id = $1`, draftID).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if err := pg.AuthorUnpublishPlaybook(ctx, pubID, true); err != nil {
+	if err := pg.AuthorUnpublishPlaybook(ctx, pubID, true, "test"); err != nil {
 		t.Fatal(err)
 	}
 	var after, cites int
@@ -146,14 +146,14 @@ func TestUnpublish_refusesAPageThatIsNotLive(t *testing.T) {
 	pg, jID, tID := revisionFixture(t)
 	id := seedPlaybook(t, pg, jID, tID, "draft", "Not live")
 
-	if err := pg.AuthorUnpublishPlaybook(context.Background(), id, false); !errors.Is(err, store.ErrNotPublished) {
+	if err := pg.AuthorUnpublishPlaybook(context.Background(), id, false, "test"); !errors.Is(err, store.ErrNotPublished) {
 		t.Fatalf("want ErrNotPublished, got %v", err)
 	}
 }
 
 func TestUnpublish_reportsAMissingPage(t *testing.T) {
 	pg, _, _ := revisionFixture(t)
-	if err := pg.AuthorUnpublishPlaybook(context.Background(), 987654321, false); !errors.Is(err, store.ErrNotFound) {
+	if err := pg.AuthorUnpublishPlaybook(context.Background(), 987654321, false, "test"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
 }
@@ -165,10 +165,10 @@ func TestUnpublish_thenPublishAgainRoundTrips(t *testing.T) {
 	ctx := context.Background()
 	id := seedPlaybook(t, pg, jID, tID, "published", "Live")
 
-	if err := pg.AuthorUnpublishPlaybook(ctx, id, false); err != nil {
+	if err := pg.AuthorUnpublishPlaybook(ctx, id, false, "test"); err != nil {
 		t.Fatalf("unpublish: %v", err)
 	}
-	if err := pg.AuthorPublishPlaybook(ctx, id); err != nil {
+	if err := pg.AuthorPublishPlaybook(ctx, id, "test"); err != nil {
 		t.Fatalf("republish: %v", err)
 	}
 

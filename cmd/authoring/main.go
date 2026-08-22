@@ -1,6 +1,10 @@
 // cmd/authoring is a small internal service for authoring new city playbooks.
 // It writes directly to the shared Postgres DB.
-// Auth: HTTP Basic Auth. Set AUTHORING_USER and AUTHORING_PASSWORD env vars.
+// Auth: HTTP Basic Auth, one login per person. Set AUTHORING_USERS to
+// comma-separated "Name:password" pairs (e.g. "Nazanin:...,Cameron:..."). The old
+// AUTHORING_USER/AUTHORING_PASSWORD pair is still accepted as one extra login
+// while it remains set. The signed-in name is stamped into updated_by and
+// checked_by on every write.
 // Run: authoring -addr :8081 -db $DATABASE_URL
 package main
 
@@ -92,17 +96,69 @@ func noindex(next http.Handler) http.Handler {
 	})
 }
 
-func basicAuth(user, pass string, next http.Handler) http.Handler {
+// portalUser is one person's login. name is the short handle ("Nazanin",
+// "Cameron") that auth puts in the request context and every write stamps into
+// updated_by and checked_by. First names or role names only, never full
+// names: these strings end up in the database and on the dashboard.
+type portalUser struct {
+	name string
+	pass string
+}
+
+// parsePortalUsers reads AUTHORING_USERS: comma-separated "Name:password"
+// pairs. A password may contain a colon (only the first one splits) but not a
+// comma. A malformed entry is an error rather than a skip, because a login
+// that silently fails to parse looks identical to a wrong password.
+func parsePortalUsers(env string) ([]portalUser, error) {
+	var out []portalUser
+	for _, pair := range strings.Split(env, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		name, pass, ok := strings.Cut(pair, ":")
+		name = strings.TrimSpace(name)
+		if !ok || name == "" || pass == "" {
+			return nil, fmt.Errorf("AUTHORING_USERS entry %q is not Name:password", pair)
+		}
+		out = append(out, portalUser{name: name, pass: pass})
+	}
+	return out, nil
+}
+
+// actorCtxKey carries the signed-in name from basicAuth to the handlers.
+type actorCtxKey struct{}
+
+// actor returns the signed-in person's name. Every handler runs behind
+// basicAuth, so this is always set; the empty fallback exists so a
+// misconfiguration stamps nothing rather than something invented.
+func actor(r *http.Request) string {
+	name, _ := r.Context().Value(actorCtxKey{}).(string)
+	return name
+}
+
+func basicAuth(users []portalUser, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, p, ok := r.BasicAuth()
-		if !ok ||
-			subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
-			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
+		matched := ""
+		if ok {
+			// Every candidate is compared on both fields so a request with a
+			// known name and a wrong password takes the same time as one with
+			// an unknown name.
+			for _, cand := range users {
+				nameOK := subtle.ConstantTimeCompare([]byte(u), []byte(cand.name)) == 1
+				passOK := subtle.ConstantTimeCompare([]byte(p), []byte(cand.pass)) == 1
+				if nameOK && passOK && matched == "" {
+					matched = cand.name
+				}
+			}
+		}
+		if matched == "" {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Defensive Renting Authoring"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorCtxKey{}, matched)))
 	})
 }
 
@@ -118,10 +174,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	authUser := os.Getenv("AUTHORING_USER")
-	authPass := os.Getenv("AUTHORING_PASSWORD")
-	if authUser == "" || authPass == "" {
-		log.Error("AUTHORING_USER and AUTHORING_PASSWORD env vars are required")
+	users, err := parsePortalUsers(os.Getenv("AUTHORING_USERS"))
+	if err != nil {
+		log.Error("parse AUTHORING_USERS", slog.Any("err", err))
+		os.Exit(1)
+	}
+	// The old shared credential stays valid while its env vars remain set, so
+	// the check-sources workflow that authenticates with it keeps working
+	// through the changeover. Its writes stamp whatever AUTHORING_USER says.
+	if u, p := os.Getenv("AUTHORING_USER"), os.Getenv("AUTHORING_PASSWORD"); u != "" && p != "" {
+		users = append(users, portalUser{name: u, pass: p})
+	}
+	if len(users) == 0 {
+		log.Error(`no logins configured — set AUTHORING_USERS to "Name:password,Name:password"`)
 		os.Exit(1)
 	}
 
@@ -181,7 +246,7 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
 	})
-	outer.Handle("/", noindex(basicAuth(authUser, authPass, mux)))
+	outer.Handle("/", noindex(basicAuth(users, mux)))
 
 	httpSrv := &http.Server{Addr: *addr, Handler: outer, ReadHeaderTimeout: 5 * time.Second}
 
@@ -461,6 +526,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	})
 
 	s.render(w, "dashboard.html", map[string]any{
+		"Actor":           actor(r),
 		"Playbooks":       playbooks,
 		"Cities":          cities,
 		"ReviewCounts":    counts,
@@ -945,7 +1011,7 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 				vs.Cites = append(vs.Cites, viewCite{
 					Num: m.Idx + 1, Locator: c.Locator,
 					Quote: c.Quote, URL: c.SourceURL, Domain: hostOf(c.SourceURL),
-					CheckedAt: c.CheckedAt,
+					CheckedAt: c.CheckedAt, CheckedBy: c.CheckedBy,
 				})
 			}
 		}
@@ -992,6 +1058,7 @@ type viewCite struct {
 	URL       string
 	Domain    string
 	CheckedAt *time.Time // when the quote was last confirmed at the source; nil = never
+	CheckedBy string     // who confirmed it then; "" on rows from before actor stamps
 }
 
 type viewStmt struct {
@@ -1213,6 +1280,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 					// reviewer attested to it by hand just now. A known-quote
 					// skip is neither, and inherits its earlier stamp.
 					CheckedNow: res.Verified || overridden,
+					CheckedBy:  actor(r),
 				})
 			}
 		}
@@ -1252,6 +1320,7 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 		PageKind:       r.FormValue("page_kind"),
 		Statements:     statements,
 		Status:         "draft",
+		UpdatedBy:      actor(r),
 	}); err != nil {
 		s.formError(w, r, "Failed to save playbook: "+err.Error())
 		return
@@ -1266,7 +1335,7 @@ func (s *srv) publish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if err := s.pg.AuthorPublishPlaybook(r.Context(), id); err != nil {
+	if err := s.pg.AuthorPublishPlaybook(r.Context(), id, actor(r)); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -1504,7 +1573,7 @@ func (s *srv) unpublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	retire := r.FormValue("retire_draft") == "1"
-	switch err := s.pg.AuthorUnpublishPlaybook(r.Context(), id, retire); {
+	switch err := s.pg.AuthorUnpublishPlaybook(r.Context(), id, retire, actor(r)); {
 	case err == nil:
 		http.Redirect(w, r, fmt.Sprintf("/view/%d", id), http.StatusSeeOther)
 	case errors.Is(err, store.ErrDraftExists):
@@ -1621,6 +1690,7 @@ func (s *srv) editFormData(ctx context.Context, pw store.PlaybookWithStatements,
 		"Title":                 pw.Playbook.Title,
 		"Intro":                 pw.Playbook.IntroMD,
 		"AuthorNotes":           pw.Playbook.AuthorNotes,
+		"UpdatedBy":             pw.Playbook.UpdatedBy,
 		"ConceptsJSON":          s.conceptsJSON(ctx),
 		"Error":                 errMsg,
 		"ImportGroups":          s.importablePages(ctx, pw.Playbook.ID, pw.Jurisdiction.Name),
@@ -1815,6 +1885,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 					Quote:            quote,
 					ManuallyVerified: overridden,
 					CheckedNow:       res.Verified || overridden, // see submitForm
+					CheckedBy:        actor(r),
 				})
 			}
 		}
@@ -1854,6 +1925,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		IntroMD:        strings.TrimSpace(r.FormValue("intro")),
 		PageKind:       r.FormValue("page_kind"),
 		AuthorNotes:    strings.TrimSpace(r.FormValue("author_notes")),
+		UpdatedBy:      actor(r),
 		Statements:     statements,
 	}); err != nil {
 		editErr("Failed to save playbook: " + err.Error())

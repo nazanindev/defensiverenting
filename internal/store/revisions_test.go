@@ -88,7 +88,7 @@ func TestRevision_publishingSwapsAndRetainsTheOldPage(t *testing.T) {
 	live := seedPlaybook(t, pg, jID, tID, "published", "Live version")
 	draft := seedPlaybook(t, pg, jID, tID, "draft", "Proposed revision")
 
-	if err := pg.AuthorPublishPlaybook(ctx, draft); err != nil {
+	if err := pg.AuthorPublishPlaybook(ctx, draft, "test"); err != nil {
 		t.Fatalf("publish revision: %v", err)
 	}
 

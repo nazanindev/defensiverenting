@@ -47,7 +47,7 @@ func TestPublish_refusesACitationWithNoVerbatimQuote(t *testing.T) {
 	pg, jID, tID := revisionFixture(t)
 	id := seedUnquoted(t, pg, jID, tID, "statute")
 
-	err := pg.AuthorPublishPlaybook(context.Background(), id)
+	err := pg.AuthorPublishPlaybook(context.Background(), id, "test")
 	if err == nil {
 		t.Fatal("published a page whose citation carries no verbatim quote; the source checker could never verify it")
 	}
@@ -72,7 +72,7 @@ func TestPublish_allowsAnEditorialCitationWithNoQuote(t *testing.T) {
 	// Editorial sources cite no external text by design (ADR-003), so there is
 	// nothing to quote and nothing for the checker to verify. They must not be
 	// caught by a rule aimed at unverifiable statutory claims.
-	if err := pg.AuthorPublishPlaybook(context.Background(), id); err != nil {
+	if err := pg.AuthorPublishPlaybook(context.Background(), id, "test"); err != nil {
 		t.Fatalf("editorial citation should not block publishing: %v", err)
 	}
 }
@@ -81,7 +81,7 @@ func TestPublish_allowsAQuotedCitation(t *testing.T) {
 	pg, jID, tID := revisionFixture(t)
 	id := seedPlaybook(t, pg, jID, tID, "draft", "Quoted")
 
-	if err := pg.AuthorPublishPlaybook(context.Background(), id); err != nil {
+	if err := pg.AuthorPublishPlaybook(context.Background(), id, "test"); err != nil {
 		t.Fatalf("a properly quoted page must still publish: %v", err)
 	}
 }

@@ -118,9 +118,13 @@ type CitationWithSource struct {
 	Quote            string // verbatim line from the source backing this citation
 	ManuallyVerified bool
 	CheckedAt        *time.Time // see Citation.CheckedAt
-	SourceURL        string
-	Publisher        string
-	SourceKind       string // statute|regulation|gov_guidance|nonprofit|editorial
+	// CheckedBy names who confirmed the quote at CheckedAt — a person's first
+	// name, or an Actor* constant. Shown in the authoring portal only; no
+	// public template prints it. Empty when CheckedAt is nil.
+	CheckedBy  string
+	SourceURL  string
+	Publisher  string
+	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial
 }
 
 // Concept names a claim that recurs across jurisdictions, from the closed
@@ -223,6 +227,10 @@ type Playbook struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	PublishedAt    *time.Time
+	// UpdatedBy names who last touched this row — saved, published or took it
+	// down. Authoring-only, like AuthorNotes; empty on rows from before the
+	// portal had per-person logins.
+	UpdatedBy string
 }
 
 // StatementRow is a row returned by the GetPlaybookStatements query.
@@ -341,8 +349,10 @@ type AuthorPlaybookRow struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	PublishedAt      *time.Time
-	StatementCount   int
-	SourceCount      int
+	// UpdatedBy names who last touched the page; see Playbook.UpdatedBy.
+	UpdatedBy      string
+	StatementCount int
+	SourceCount    int
 	// RevisesPublished marks a draft whose slot already holds a live page.
 	// Publishing it replaces that page and retires the old version, which is a
 	// different act from publishing a new one.

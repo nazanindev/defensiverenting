@@ -117,7 +117,7 @@
     </div>
     <h1>{{.Playbook.Playbook.Title}}</h1>
     {{if .Playbook.Playbook.IntroMD}}<p class="intro">{{.Playbook.Playbook.IntroMD}}</p>{{end}}
-    <p style="font-size:.78rem;color:#9a7878;margin-top:8px">Created {{date .Playbook.Playbook.CreatedAt}} · Last edited {{date .Playbook.Playbook.UpdatedAt}}{{if .Playbook.Playbook.PublishedAt}} · Published {{date .Playbook.Playbook.PublishedAt}}{{end}}</p>
+    <p style="font-size:.78rem;color:#9a7878;margin-top:8px">Created {{date .Playbook.Playbook.CreatedAt}} · Last edited {{date .Playbook.Playbook.UpdatedAt}}{{if .Playbook.Playbook.UpdatedBy}} by {{.Playbook.Playbook.UpdatedBy}}{{end}}{{if .Playbook.Playbook.PublishedAt}} · Published {{date .Playbook.Playbook.PublishedAt}}{{end}}</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
       {{if eq .Playbook.Playbook.Status "draft"}}
       <form method="post" action="/publish/{{.Playbook.Playbook.ID}}" style="display:inline" onsubmit="return confirm('Publish this playbook to the live site?')">
@@ -209,7 +209,7 @@
           <span class="cite-quote-num">{{.Num}}</span>
           <span class="cite-quote-text">“{{.Quote}}”</span>
           <a class="cite-quote-src" href="{{.URL}}" target="_blank" rel="noopener">{{if .Locator}}{{.Locator}} · {{end}}{{.Domain}} ↗</a>
-          <span class="cite-quote-checked">{{if .CheckedAt}}Confirmed at the source {{date .CheckedAt}}{{else}}Not yet confirmed at the source{{end}}</span>
+          <span class="cite-quote-checked">{{if .CheckedAt}}Confirmed at the source {{date .CheckedAt}}{{if .CheckedBy}} by {{.CheckedBy}}{{end}}{{else}}Not yet confirmed at the source{{end}}</span>
         </blockquote>
         {{end}}{{end}}
       </div>

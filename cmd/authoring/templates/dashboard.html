@@ -103,6 +103,7 @@
     <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
     <div style="display:flex;align-items:center;gap:16px">
       <a href="https://defensiverenting.fly.dev" target="_blank" rel="noopener" style="color:#fff;text-decoration:none;font-size:.82rem;font-weight:600;font-family:'Space Grotesk',sans-serif;background:rgba(255,255,255,.15);padding:.25rem .7rem;border-radius:5px">View live site ↗</a>
+      {{if .Actor}}<span style="color:rgba(255,255,255,.85);font-size:.8rem">Signed in as {{.Actor}}</span>{{end}}
       <span class="header-badge">Authoring</span>
     </div>
   </div>
@@ -284,7 +285,7 @@
           {{if $.ShowLanguage}}<td class="meta-cell">{{.Language}}</td>{{end}}
           <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}</td>
           <td class="meta-cell num" title="{{.StatementCount}} statements, {{.SourceCount}} sources">{{.StatementCount}}/{{.SourceCount}}</td>
-          <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}</td>
+          <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}{{if .UpdatedBy}} · {{.UpdatedBy}}{{end}}</td>
           <td>
             <div class="actions">
               <a href="/view/{{.ID}}" class="btn btn-view btn-xs">View</a>

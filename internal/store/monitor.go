@@ -123,8 +123,8 @@ func (pg *PG) MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []st
 		return nil
 	}
 	_, err := pg.pool.Exec(ctx, `
-		UPDATE citations SET checked_at = NOW()
-		WHERE source_id = $1 AND quote = ANY($2)`, sourceID, quotes)
+		UPDATE citations SET checked_at = NOW(), checked_by = $3
+		WHERE source_id = $1 AND quote = ANY($2)`, sourceID, quotes, ActorSourceCheck)
 	return err
 }
 

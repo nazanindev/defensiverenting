@@ -180,6 +180,7 @@ func ingestFile(ctx context.Context, pg *store.PG, path string, editorialSourceI
 		IntroMD:        pb.Intro,
 		Statements:     statements,
 		Status:         "published",
+		UpdatedBy:      "ingest",
 	}); err != nil {
 		return fmt.Errorf("ingest playbook: %w", err)
 	}

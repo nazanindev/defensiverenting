@@ -388,7 +388,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
 			s.id, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
-			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
+			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
@@ -804,17 +804,28 @@ func (pg *PG) GetEditorialSource(ctx context.Context) (Source, error) {
 // and the identical text carries its confirmation with it. Rows from before
 // migration 000017 have no stamp to inherit and stay NULL — claiming a time we
 // did not record would be the same lie retrieved_at already tells.
+// checked_by follows checked_at through the same three arms: nobody for a
+// never-confirmed quote, the current actor ($7) for a confirmation made by
+// this save, and otherwise whoever made the newest stamp being inherited —
+// the inherited time and name must describe the same confirmation.
 const insertCitationSQL = `
-	INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified, checked_at)
+	INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified, checked_at, checked_by)
 	VALUES ($1, $2, $3, $4, $5,
 		CASE WHEN btrim($4) = '' THEN NULL
 		     WHEN $6 THEN NOW()
 		     ELSE (SELECT max(c2.checked_at) FROM citations c2
 		           WHERE c2.source_id = $2 AND c2.quote = $4)
+		END,
+		CASE WHEN btrim($4) = '' THEN ''
+		     WHEN $6 THEN $7
+		     ELSE COALESCE((SELECT c2.checked_by FROM citations c2
+		           WHERE c2.source_id = $2 AND c2.quote = $4 AND c2.checked_at IS NOT NULL
+		           ORDER BY c2.checked_at DESC LIMIT 1), '')
 		END)
 	ON CONFLICT (statement_id, source_id) DO UPDATE SET
 		locator = EXCLUDED.locator, quote = EXCLUDED.quote,
-		manually_verified = EXCLUDED.manually_verified, checked_at = EXCLUDED.checked_at`
+		manually_verified = EXCLUDED.manually_verified,
+		checked_at = EXCLUDED.checked_at, checked_by = EXCLUDED.checked_by`
 
 // insertStatement writes one statement row, resolving its concept slug against
 // the registry. An unknown slug is an error, not a silently dropped tag: the
@@ -886,23 +897,23 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			err = tx.QueryRow(ctx, `
-				INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind, updated_at, published_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(),
+				INSERT INTO playbooks (jurisdiction_id, topic_id, language, slug, title, intro_md, status, page_kind, updated_by, updated_at, published_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(),
 				        CASE WHEN $7 = 'published' THEN NOW() ELSE NULL END)
 				RETURNING id`,
 				params.JurisdictionID, params.TopicID, params.Language,
-				params.Slug, params.Title, params.IntroMD, status, pageKind,
+				params.Slug, params.Title, params.IntroMD, status, pageKind, params.UpdatedBy,
 			).Scan(&playbookID)
 		case err != nil:
 			return fmt.Errorf("find playbook slot: %w", err)
 		default:
 			_, err = tx.Exec(ctx, `
 				UPDATE playbooks
-				   SET slug = $2, title = $3, intro_md = $4, page_kind = $5, updated_at = NOW(),
+				   SET slug = $2, title = $3, intro_md = $4, page_kind = $5, updated_by = $6, updated_at = NOW(),
 				       published_at = CASE WHEN status = 'published'
 				                           THEN COALESCE(published_at, NOW()) ELSE published_at END
 				 WHERE id = $1`,
-				playbookID, params.Slug, params.Title, params.IntroMD, pageKind)
+				playbookID, params.Slug, params.Title, params.IntroMD, pageKind, params.UpdatedBy)
 		}
 		if err != nil {
 			return fmt.Errorf("upsert playbook: %w", err)
@@ -924,7 +935,7 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 
 			for _, cite := range sp.Sources {
 				if _, err := tx.Exec(ctx, insertCitationSQL,
-					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow,
+					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow, cite.CheckedBy,
 				); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}
@@ -984,7 +995,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		)
 		if err := rows.Scan(
 			&stmtID, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
-			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt,
+			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt, &c.CheckedBy,
 			&c.SourceURL, &c.Publisher, &c.SourceKind,
 		); err != nil {
 			continue
@@ -1015,7 +1026,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		SELECT
 			pb.id, pb.jurisdiction_id, pb.topic_id, pb.language,
 			pb.slug, pb.title, pb.intro_md, pb.status, pb.page_kind, pb.author_notes, pb.last_reviewed_at,
-			pb.created_at, pb.updated_at, pb.published_at,
+			pb.created_at, pb.updated_at, pb.published_at, pb.updated_by,
 			j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''),
 			t.id, t.slug, t.name
 		FROM playbooks pb
@@ -1027,7 +1038,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		&p.Playbook.ID, &p.Playbook.JurisdictionID, &p.Playbook.TopicID,
 		&p.Playbook.Language, &p.Playbook.Slug, &p.Playbook.Title,
 		&p.Playbook.IntroMD, &p.Playbook.Status, &p.Playbook.PageKind, &p.Playbook.AuthorNotes, &p.Playbook.LastReviewedAt,
-		&p.Playbook.CreatedAt, &p.Playbook.UpdatedAt, &p.Playbook.PublishedAt,
+		&p.Playbook.CreatedAt, &p.Playbook.UpdatedAt, &p.Playbook.PublishedAt, &p.Playbook.UpdatedBy,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug, &p.Jurisdiction.ParentSlug,
 		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
@@ -1041,7 +1052,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
 			s.id, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
-			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
+			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
@@ -1074,11 +1085,11 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			UPDATE playbooks
 			SET jurisdiction_id = $2, topic_id = $3, language = $4,
 			    slug = $5, title = $6, intro_md = $7, page_kind = $8,
-			    author_notes = $9, updated_at = NOW()
+			    author_notes = $9, updated_by = $10, updated_at = NOW()
 			WHERE id = $1`,
 			params.ID, params.JurisdictionID, params.TopicID,
 			params.Language, params.Slug, params.Title, params.IntroMD, pageKind,
-			params.AuthorNotes,
+			params.AuthorNotes, params.UpdatedBy,
 		); err != nil {
 			return fmt.Errorf("update playbook: %w", err)
 		}
@@ -1097,7 +1108,7 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			}
 			for _, cite := range sp.Sources {
 				if _, err := tx.Exec(ctx, insertCitationSQL,
-					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow,
+					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow, cite.CheckedBy,
 				); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}
@@ -1117,7 +1128,7 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id, pb.title, j.name, j.slug, t.slug, pb.language, pb.status, pb.page_kind,
-		       pb.created_at, pb.updated_at, pb.published_at,
+		       pb.created_at, pb.updated_at, pb.published_at, pb.updated_by,
 		       (SELECT count(*) FROM playbook_statements ps WHERE ps.playbook_id = pb.id),
 		       (SELECT count(DISTINCT c.source_id)
 		          FROM playbook_statements ps JOIN citations c ON c.statement_id = ps.statement_id
@@ -1143,7 +1154,7 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 		var r AuthorPlaybookRow
 		if err := rows.Scan(&r.ID, &r.Title, &r.JurisdictionName, &r.JurisdictionSlug,
 			&r.TopicSlug, &r.Language, &r.Status, &r.PageKind, &r.CreatedAt, &r.UpdatedAt,
-			&r.PublishedAt, &r.StatementCount, &r.SourceCount, &r.RevisesPublished); err != nil {
+			&r.PublishedAt, &r.UpdatedBy, &r.StatementCount, &r.SourceCount, &r.RevisesPublished); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -1151,8 +1162,9 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 	return out, rows.Err()
 }
 
-// AuthorPublishPlaybook sets a playbook's status to "published".
-func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
+// AuthorPublishPlaybook sets a playbook's status to "published", recording
+// actor as the person who signed it off.
+func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64, actor string) error {
 	// Publishing is the review sign-off: nothing reaches the public site
 	// without a human clicking this. Stamping last_reviewed_at here is what
 	// backs the reviewedBy claim the page emits in its JSON-LD, and what the
@@ -1180,17 +1192,17 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64) error {
 		}
 
 		if _, err := tx.Exec(ctx, `
-			UPDATE playbooks SET status = 'superseded', updated_at = NOW()
+			UPDATE playbooks SET status = 'superseded', updated_by = $5, updated_at = NOW()
 			 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3
 			   AND status = 'published' AND id <> $4`,
-			jurisdictionID, topicID, language, id); err != nil {
+			jurisdictionID, topicID, language, id, actor); err != nil {
 			return fmt.Errorf("retire the page being replaced: %w", err)
 		}
 
 		if _, err := tx.Exec(ctx, `
-			UPDATE playbooks SET status = 'published', updated_at = NOW(),
+			UPDATE playbooks SET status = 'published', updated_by = $2, updated_at = NOW(),
 			     published_at = COALESCE(published_at, NOW()), last_reviewed_at = NOW()
-			 WHERE id = $1`, id); err != nil {
+			 WHERE id = $1`, id, actor); err != nil {
 			return fmt.Errorf("publish playbook %d: %w", id, err)
 		}
 		return nil
@@ -1245,7 +1257,7 @@ var ErrNotPublished = errors.New("playbook is not published")
 // published_at is deliberately left set. It records that this page was live
 // once, which is what the sitemap's lastmod and the "Published" line in the
 // dashboard read; clearing it would erase that history to no benefit.
-func (pg *PG) AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool) error {
+func (pg *PG) AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool, actor string) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var jurisdictionID, topicID int64
 		var language, status string
@@ -1283,16 +1295,16 @@ func (pg *PG) AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExist
 			// and quotes and stays readable under Replaced. Superseded rows
 			// carry no unique index, so several may accumulate in a slot.
 			if _, err := tx.Exec(ctx, `
-				UPDATE playbooks SET status = 'superseded', updated_at = NOW()
+				UPDATE playbooks SET status = 'superseded', updated_by = $5, updated_at = NOW()
 				 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3
 				   AND status = 'draft' AND id <> $4`,
-				jurisdictionID, topicID, language, id); err != nil {
+				jurisdictionID, topicID, language, id, actor); err != nil {
 				return fmt.Errorf("retire the waiting draft: %w", err)
 			}
 		}
 
 		if _, err := tx.Exec(ctx, `
-			UPDATE playbooks SET status = 'draft', updated_at = NOW() WHERE id = $1`, id); err != nil {
+			UPDATE playbooks SET status = 'draft', updated_by = $2, updated_at = NOW() WHERE id = $1`, id, actor); err != nil {
 			return fmt.Errorf("unpublish playbook %d: %w", id, err)
 		}
 		return nil

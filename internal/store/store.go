@@ -81,10 +81,23 @@ type Store interface {
 	AuthorCoverage(ctx context.Context) ([]CoverageRow, error)
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
 	AuthorUpdatePlaybook(ctx context.Context, p AuthorUpdatePlaybookParams) error
-	AuthorPublishPlaybook(ctx context.Context, id int64) error
-	AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool) error
+	AuthorPublishPlaybook(ctx context.Context, id int64, actor string) error
+	AuthorUnpublishPlaybook(ctx context.Context, id int64, retireExistingDraft bool, actor string) error
 	AuthorDeletePlaybook(ctx context.Context, id int64) error
 }
+
+// Actor names for the non-human write paths, recorded in updated_by and
+// checked_by beside the people's first names. Constants so the same path
+// cannot stamp two spellings of itself.
+const (
+	// ActorDraftingAgent marks writes from the AI drafting pipeline — the MCP
+	// save_draft_playbook tool and the portal's generate button both save
+	// through it.
+	ActorDraftingAgent = "drafting agent"
+	// ActorSourceCheck marks quote confirmations stamped by the automated
+	// check-sources run, as opposed to a person saving or attesting.
+	ActorSourceCheck = "source check"
+)
 
 type AuthorUpdatePlaybookParams struct {
 	ID             int64
@@ -96,7 +109,11 @@ type AuthorUpdatePlaybookParams struct {
 	IntroMD        string
 	PageKind       string
 	AuthorNotes    string
-	Statements     []IngestStatementParams
+	// UpdatedBy is who is saving: the signed-in person's first name, or an
+	// Actor* constant. Overwrites the previous value — "last edited by", not
+	// a history.
+	UpdatedBy  string
+	Statements []IngestStatementParams
 }
 
 type UpsertJurisdictionParams struct {
@@ -128,6 +145,8 @@ type IngestPlaybookParams struct {
 	PageKind       string // "playbook"|"directory"|"faq"|"checklist"; defaults to "playbook"
 	Statements     []IngestStatementParams
 	Status         string // "draft" | "published"; defaults to "published" if empty
+	// UpdatedBy is who is saving; see AuthorUpdatePlaybookParams.UpdatedBy.
+	UpdatedBy string
 }
 
 type IngestStatementParams struct {
@@ -160,4 +179,9 @@ type IngestCitationParams struct {
 	// same (source, quote) — a stored identical quote got there through a
 	// verified path, but the verification happened then, not now.
 	CheckedNow bool
+	// CheckedBy is who confirmed the quote when CheckedNow is set: the person
+	// saving, or an Actor* constant. When CheckedNow is false it is ignored —
+	// the insert inherits checked_by along with checked_at, naming whoever
+	// actually confirmed the quote back then.
+	CheckedBy string
 }

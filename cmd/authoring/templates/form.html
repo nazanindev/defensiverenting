@@ -176,6 +176,7 @@
 <div class="page">
   <a href="/" class="back">← Back</a>
   <h1>{{if .EditMode}}Edit Playbook{{else}}New Playbook{{end}}</h1>
+  {{if and .EditMode .UpdatedBy}}<p style="font-size:.78rem;color:#9a7878;margin-top:-6px">Last edited by {{.UpdatedBy}}</p>{{end}}
 
   {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 

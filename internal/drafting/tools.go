@@ -291,6 +291,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 				// fetch_source returned in this session, so the citation is
 				// checked as of this save.
 				CheckedNow: true,
+				CheckedBy:  store.ActorDraftingAgent,
 			})
 		}
 		stmts = append(stmts, store.IngestStatementParams{
@@ -312,6 +313,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		PageKind:       pageKind,
 		Status:         "draft",
 		Statements:     stmts,
+		UpdatedBy:      store.ActorDraftingAgent,
 	}); err != nil {
 		return SaveDraftOutput{}, err
 	}
