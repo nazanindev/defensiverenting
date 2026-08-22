@@ -509,6 +509,8 @@ func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmt
 		topicOK[t.Slug] = true
 		topicChoices = append(topicChoices, t.Slug)
 	}
+	seenConcept := map[string]int{}
+	seenTopicRef := map[string]int{}
 	for si, st := range stmts {
 		concept := strings.TrimSpace(st.Concept)
 		topicRef := strings.TrimSpace(st.TopicRef)
@@ -523,6 +525,23 @@ func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmt
 		if topicRef != "" && (!topicOK[topicRef] || topicRef == topicSlug) {
 			return reject("statement %d topic_ref %q must be a registry topic other than this page's own (%q). Valid: [%s].",
 				si+1, topicRef, topicSlug, strings.Join(topicChoices, ", "))
+		}
+		// One statement per tag per page. A concept is the claim's public
+		// anchor, and only one element can own an anchor; a second whole-topic
+		// summary to the same hub is a repeated link, not more coverage.
+		if concept != "" {
+			if first, dup := seenConcept[concept]; dup {
+				return reject("statements %d and %d both carry concept %q. Tag exactly one statement per concept per page — the tag marks the single statement making the claim and becomes its anchor. Pick the best one and drop the other.",
+					first+1, si+1, concept)
+			}
+			seenConcept[concept] = si
+		}
+		if topicRef != "" {
+			if first, dup := seenTopicRef[topicRef]; dup {
+				return reject("statements %d and %d both reference topic %q. One whole-topic summary per page is enough — drop one.",
+					first+1, si+1, topicRef)
+			}
+			seenTopicRef[topicRef] = si
 		}
 	}
 	return nil

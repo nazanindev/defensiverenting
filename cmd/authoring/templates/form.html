@@ -126,9 +126,10 @@
   .no-items { font-size: .8rem; color: #c8a8a8; font-style: italic; padding: 4px 0 8px; }
 
   /* statement concept tag (ADR-011) */
-  .concept-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+  .concept-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
   .concept-row label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #b08080; flex-shrink: 0; }
   .concept-row select { width: auto; max-width: 320px; font-size: .78rem; padding: 4px 7px; }
+  .tag-dup-warn { flex-basis: 100%; font-size: .72rem; font-weight: 600; color: #c05621; }
 
   /* kind tags */
   .kind-tag { display: inline-block; padding: .1rem .4rem; border-radius: 3px; font-size: .68rem; font-weight: 700; background: #fde8eb; color: #9b2335; margin-left: 5px; vertical-align: middle; }
@@ -1012,9 +1013,21 @@ function conceptRow(st) {
   });
   const topics = (TAGS.topics || []).filter(function(t) { return t.slug !== topic; });
   if (!concepts.length && !topics.length) return '';
+  // One statement per tag per page: a concept is the claim's public anchor,
+  // and only one element can own an anchor. The warning is advisory — the
+  // reviewer's save still wins — but the drafting agent is hard-rejected for
+  // the same duplication.
+  let dupWarn = '';
+  if (st.tag) {
+    const other = stmts.find(function(o) { return o.id !== st.id && o.tag === st.tag; });
+    if (other) {
+      const n = stmts.indexOf(other) + 1;
+      dupWarn = '<span class="tag-dup-warn">⚠ Statement ' + n + ' carries this tag too. Tag one statement per page and untag the other.</span>';
+    }
+  }
   return '<div class="concept-row">' +
     '<label for="tag_' + st.id + '">Tag</label>' +
-    '<select name="tag_' + st.id + '" id="tag_' + st.id + '">' +
+    '<select name="tag_' + st.id + '" id="tag_' + st.id + '" onchange="onTagSelChange()">' +
       '<option value="">— no tag —</option>' +
       (concepts.length ?
         '<optgroup label="Concept — this claim varies by place">' +
@@ -1033,7 +1046,16 @@ function conceptRow(st) {
         }).join('') + '</optgroup>'
       : '') +
     '</select>' +
+    dupWarn +
   '</div>';
+}
+
+// onTagSelChange re-renders the statement cards so duplicate-tag warnings
+// appear and clear as selects change. sync() first, as everywhere a re-render
+// happens: anything typed since the last sync would be thrown away without it.
+function onTagSelChange() {
+  sync();
+  renderStmts();
 }
 
 // moveStmt shifts one statement by one position. sync() first so text typed

@@ -684,3 +684,34 @@ func TestSaveDraft_ConceptTags(t *testing.T) {
 		}
 	})
 }
+
+// A concept is the claim's public anchor, so two statements on one page may
+// not share one: the agent is hard-rejected with both statement numbers named
+// (the human form gets an advisory warning for the same duplication instead).
+func TestSaveDraft_RejectsDuplicateConceptOnOnePage(t *testing.T) {
+	const quote = "within thirty days after the termination of the tenancy, return the security deposit"
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	})
+	mustFetch(t, tb, depositURL)
+
+	st1 := stmt("Your landlord must return your deposit within 30 days.", depositURL, quote)
+	st1.Concept = "deposit-return-deadline"
+	st2 := stmt("The 30 days start when you hand the home back.", depositURL, quote)
+	st2.Concept = "deposit-return-deadline"
+
+	_, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits",
+		Title: "T", IntroMD: "I", Statements: []StatementInput{st1, st2},
+	})
+	if !isRejection(err) {
+		t.Fatalf("want rejection for duplicate concept, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "statements 1 and 2") {
+		t.Errorf("rejection must name both statements, got: %v", err)
+	}
+	if fs.ingested != nil {
+		t.Error("nothing may be written on rejection")
+	}
+}
