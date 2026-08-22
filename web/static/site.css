@@ -370,6 +370,15 @@ h1 {
 
 .statement-body p { margin: 0; }
 
+/* The per-statement trust line: quiet, factual, and only present when every
+   quoted source was confirmed live. It reads as provenance, not decoration. */
+.statement-checked {
+  margin-top: 10px;
+  font-size: .8rem;
+  color: var(--ink-soft, #6b5555);
+  letter-spacing: .01em;
+}
+
 /* ADR-011 D4: the links a national statement offers in place of "check your
    state". A quiet single line under the chips, not a second content block. */
 .statement-specifics {
@@ -438,10 +447,21 @@ h1 {
   font-weight: 600;
   letter-spacing: .03em;
   text-decoration: none;
-  transition: opacity .15s;
+  transition: box-shadow .15s, transform .15s;
 }
 
-.chip:hover { opacity: .8; text-decoration: underline; }
+/* A chip is a door to the source, and it has to read that way at rest, not
+   only under the cursor: the trailing arrow says "this opens somewhere" the
+   way a bare pill never did. Hover lifts instead of fading — dimming a link
+   on hover reads as disabling it. */
+.chip::after { content: "↗"; font-size: .82em; opacity: .55; }
+.chip:hover {
+  text-decoration: underline;
+  box-shadow: 0 1px 4px rgba(20, 10, 12, .22);
+  transform: translateY(-1px);
+}
+.chip:hover::after { opacity: 1; }
+.chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 /* One variant per sources.kind value. A kind without its own variant would
    inherit another kind's colour and glyph and so misstate what backs a claim;

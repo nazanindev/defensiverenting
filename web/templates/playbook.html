@@ -105,6 +105,9 @@
               {{range .Statements}}
               <div class="directory-body">{{.BodyHTML}}</div>
               {{end}}
+              {{with .CheckedOn}}
+              <p class="statement-checked">✓ Details checked {{.}}</p>
+              {{end}}
               {{/* No per-entry report link. Repeated under every organisation it
                    read as part of each entry rather than as a page action, and
                    on a directory trimmed to three entries it was three
@@ -130,6 +133,7 @@
                 </a>
                 {{end}}
               </div>
+              {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
             </div>
             {{end}}
           </dl>
@@ -153,6 +157,7 @@
                     </a>
                     {{end}}
                   </div>
+                  {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
                 </div>
               </label>
             </li>
@@ -175,6 +180,13 @@
                 </a>
                 {{end}}
               </div>
+              {{/* The trust line: when every quoted source backing this
+                   statement was last confirmed live. Absent unless fully
+                   earned — a statement with any unconfirmed quote shows
+                   nothing rather than a half-attestation. */}}
+              {{if .CheckedOn}}
+              <p class="statement-checked">✓ Sources checked {{.CheckedOn}}</p>
+              {{end}}
               {{/* ADR-011 D4 (amended): a national statement that can only
                    outline the rule sends the reader to the topic hub, where
                    every covered state and city is listed. One link that

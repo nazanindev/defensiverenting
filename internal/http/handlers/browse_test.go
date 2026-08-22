@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nazanindev/defensiverenting/internal/http/handlers"
@@ -412,5 +413,51 @@ func TestPlaybookHandler_nationalStatementTagLinks(t *testing.T) {
 	}
 	if !strings.Contains(body, "We have full guides on this.") {
 		t.Error("topic-referencing statement must render the full-guides line")
+	}
+}
+
+// The per-statement trust line is an attestation, so it renders fully earned
+// or not at all: every non-editorial citation confirmed live, dated by the
+// stalest confirmation. A statement with one unconfirmed quote shows nothing.
+func TestPlaybookHandler_statementTrustLine(t *testing.T) {
+	older := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	stub := &stubStore{
+		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}},
+		topics:        []store.Topic{{ID: 1, Slug: "security-deposits", Name: "Security Deposits"}},
+		playbook: store.PlaybookWithStatements{
+			Playbook:     store.Playbook{ID: 1, Title: "T", Slug: "security-deposits", Language: "en"},
+			Jurisdiction: store.Jurisdiction{Name: "Boston", Slug: "boston"},
+			Topic:        store.Topic{Name: "Security Deposits", Slug: "security-deposits"},
+			Statements: []store.CitedStatement{
+				{
+					ID: 1, BodyMD: "Fully confirmed statement.",
+					Citations: []store.CitationWithSource{
+						{SourceID: 1, SourceURL: "https://a.gov", Publisher: "A", SourceKind: "statute", CheckedAt: &newer},
+						{SourceID: 2, SourceURL: "https://b.gov", Publisher: "B", SourceKind: "statute", CheckedAt: &older},
+					},
+				},
+				{
+					ID: 2, BodyMD: "Partially confirmed statement.",
+					Citations: []store.CitationWithSource{
+						{SourceID: 3, SourceURL: "https://c.gov", Publisher: "C", SourceKind: "statute"},
+					},
+				},
+			},
+		},
+	}
+
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+	req := httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/security-deposits", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "Sources checked August 1, 2026") {
+		t.Error("fully confirmed statement must show the trust line dated by its stalest confirmation")
+	}
+	if got := strings.Count(body, "Sources checked"); got != 1 {
+		t.Errorf("trust line rendered %d times, want exactly 1 — a statement with an unconfirmed quote must show nothing", got)
 	}
 }

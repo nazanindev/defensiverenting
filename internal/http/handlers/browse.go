@@ -609,6 +609,32 @@ func NotFound() http.HandlerFunc {
 // rendering markdown and enforcing the citation invariant. Shared with the
 // authoring tool's draft preview so previews match the live site exactly.
 //
+// statementCheckedAt derives a statement's public trust stamp: the oldest
+// moment at which every one of its quoted sources was confirmed live —
+// the statement is only as current as its stalest evidence. Editorial
+// citations are out of scope by design (they quote no external text,
+// ADR-003); a statement citing only editorial gets no stamp, and so does
+// any statement with even one unconfirmed quote. The line is an attestation
+// renters are asked to trust, so it renders fully earned or not at all.
+func statementCheckedAt(citations []store.CitationWithSource) (*time.Time, string) {
+	var oldest *time.Time
+	for _, c := range citations {
+		if c.SourceKind == "editorial" {
+			continue
+		}
+		if c.CheckedAt == nil {
+			return nil, ""
+		}
+		if oldest == nil || c.CheckedAt.Before(*oldest) {
+			oldest = c.CheckedAt
+		}
+	}
+	if oldest == nil {
+		return nil, ""
+	}
+	return oldest, oldest.Format("January 2, 2006")
+}
+
 // hubByConcept maps a concept slug to the topic hub where that claim is
 // localized (ADR-011 D4, amended); a national page's tagged statements link
 // there. publishedTopics maps topic slug to display name for topics with
@@ -654,12 +680,15 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 				topicRefName = name
 			}
 		}
+		checkedAt, checkedOn := statementCheckedAt(s.Citations)
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:      content.RenderMarkdown(s.BodyMD),
 			Anchor:        s.ConceptSlug,
 			SpecificsPath: stmtSpecifics,
 			TopicRefPath:  topicRefPath,
 			TopicRefName:  topicRefName,
+			CheckedAt:     checkedAt,
+			CheckedOn:     checkedOn,
 			Citations:     chips,
 		})
 	}

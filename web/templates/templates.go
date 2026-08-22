@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -289,7 +290,15 @@ type RenderedStatement struct {
 	// national pages' topic-referencing statements.
 	TopicRefPath string
 	TopicRefName string
-	Citations    []CitationChip
+	// CheckedOn is the renter-facing trust line: the date this statement's
+	// quoted sources were all last confirmed live (the oldest confirmation,
+	// since the statement is only as current as its stalest evidence). Empty
+	// when any checkable citation lacks a confirmation — the line is an
+	// attestation, so it renders fully earned or not at all. CheckedAt is the
+	// same instant as a time, for grouped layouts to compare.
+	CheckedOn string
+	CheckedAt *time.Time
+	Citations []CitationChip
 }
 
 // CitationChip is a rendered citation link shown inline after each statement.
@@ -329,6 +338,25 @@ func (g OrgGroup) Anchor() string {
 		}
 	}
 	return ""
+}
+
+// CheckedOn is the group's trust line: the oldest source confirmation across
+// the organisation's statements, and only when every statement has one — the
+// same fully-earned-or-absent rule the per-statement line keeps.
+func (g OrgGroup) CheckedOn() string {
+	var oldest *time.Time
+	for _, s := range g.Statements {
+		if s.CheckedAt == nil {
+			return ""
+		}
+		if oldest == nil || s.CheckedAt.Before(*oldest) {
+			oldest = s.CheckedAt
+		}
+	}
+	if oldest == nil {
+		return ""
+	}
+	return oldest.Format("January 2, 2006")
 }
 
 // groupByOrg collapses consecutive statements sharing a first citation into one
