@@ -42,10 +42,10 @@ func (pg *PG) ListConcepts(ctx context.Context) ([]Concept, error) {
 // topic matrix: a statement sitting in review is not a gap to re-research.
 // English only — translations mirror English content (ADR-007), so counting
 // both would double every place.
-func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error) {
+func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, []string, error) {
 	concepts, err := pg.ListConcepts(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Every (place, concept) pair with a tagged statement on a live page.
@@ -58,7 +58,7 @@ func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 		WHERE s.concept_id IS NOT NULL
 		  AND pb.status IN ('published', 'draft') AND pb.language = 'en'`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer tagRows.Close()
 	type jc struct {
@@ -71,7 +71,7 @@ func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 		var jID, cID int64
 		var kind string
 		if err := tagRows.Scan(&jID, &kind, &cID); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if kind == "country" {
 			nationalHas[cID] = true
@@ -80,7 +80,7 @@ func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 		}
 	}
 	if err := tagRows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Every non-national place with a live page, and per topic.
@@ -91,7 +91,7 @@ func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 		WHERE pb.status IN ('published', 'draft') AND pb.language = 'en'
 		  AND j.kind IN ('city', 'state')`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer pageRows.Close()
 	nameOf := map[int64]string{}
@@ -101,7 +101,7 @@ func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 		var jID, tID int64
 		var name string
 		if err := pageRows.Scan(&jID, &name, &tID); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		nameOf[jID] = name
 		anyPage[jID] = true
@@ -111,35 +111,39 @@ func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 		byTopic[tID][jID] = true
 	}
 	if err := pageRows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+
+	// The matrix's columns: every covered place, in one stable order.
+	allPlaces := make([]string, 0, len(nameOf))
+	for _, n := range nameOf {
+		allPlaces = append(allPlaces, n)
+	}
+	sort.Strings(allPlaces)
 
 	out := make([]ConceptCoverageRow, 0, len(concepts))
 	for _, c := range concepts {
-		row := ConceptCoverageRow{Concept: c, National: nationalHas[c.ID]}
+		row := ConceptCoverageRow{Concept: c, National: nationalHas[c.ID], Status: map[string]string{}}
 		// Cross-cutting concepts can be localized on any of a place's pages,
 		// so every covered place is in scope; a topic-owned concept is only
 		// expected where its topic's page exists.
-		places := byTopic[c.TopicID]
+		scope := byTopic[c.TopicID]
 		if c.TopicSlug == "renting-fundamentals" {
-			places = anyPage
+			scope = anyPage
 		}
-		for jID := range places {
+		for jID := range scope {
 			switch {
 			case tagged[jc{jID, c.ID}]:
-				row.Localized = append(row.Localized, nameOf[jID])
+				row.Status[nameOf[jID]] = "localized"
 			case row.National:
-				row.GenericOnly = append(row.GenericOnly, nameOf[jID])
+				row.Status[nameOf[jID]] = "generic"
 			default:
-				row.Missing = append(row.Missing, nameOf[jID])
+				row.Status[nameOf[jID]] = "missing"
 			}
 		}
-		sort.Strings(row.Localized)
-		sort.Strings(row.GenericOnly)
-		sort.Strings(row.Missing)
 		out = append(out, row)
 	}
-	return out, nil
+	return out, allPlaces, nil
 }
 
 // ListSourceUsage returns each source's citation structure across live pages

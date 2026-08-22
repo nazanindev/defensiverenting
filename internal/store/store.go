@@ -70,7 +70,9 @@ type Store interface {
 
 	// Concepts (ADR-011) and the reference layer built on them (ADR-012)
 	ListConcepts(ctx context.Context) ([]Concept, error)
-	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
+	// ConceptCoverage also returns the ordered place names that form the
+	// matrix's columns, so the template never derives them from row maps.
+	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, []string, error)
 	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
 	ListTerms(ctx context.Context, language string) ([]Term, error)
 	GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error)

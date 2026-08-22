@@ -460,7 +460,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	conceptCoverage, err := s.pg.ConceptCoverage(ctx)
+	conceptCoverage, conceptPlaces, err := s.pg.ConceptCoverage(ctx)
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -558,6 +558,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"ShowLanguage":    len(langs) > 1,
 		"Coverage":        coverage,
 		"ConceptCoverage": conceptCoverage,
+		"ConceptPlaces":   conceptPlaces,
 		"CoreTopics":      coreTopics,
 		"DraftCount":      draftCount,
 		"PublishedCount":  publishedCount,
