@@ -397,11 +397,14 @@ h1 {
 .concept-place { font-family: 'Fraunces', serif; font-size: 1.1rem; margin-bottom: 8px; }
 
 /* The per-statement trust line: quiet, factual, and only present when every
-   quoted source was confirmed live. It reads as provenance, not decoration. */
+   quoted source was confirmed live. It reads as provenance, not decoration —
+   the smallest thing on the card on purpose, because it matters but never
+   more than the claim, the sources, or the links above it. */
 .statement-checked {
   margin-top: 10px;
-  font-size: .8rem;
+  font-size: .72rem;
   color: var(--ink-soft, #6b5555);
+  opacity: .75;
   letter-spacing: .01em;
 }
 
