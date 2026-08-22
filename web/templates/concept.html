@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Name}} · RenterLaw</title>
+  <meta name="description" content="{{.Description}}" />
+  <link rel="canonical" href="{{absURL (printf "/c/%s" .Slug)}}"/>
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:url" content="{{absURL (printf "/c/%s" .Slug)}}" />
+  <meta property="og:title" content="{{.Name}} · RenterLaw" />
+  <meta property="og:description" content="{{.Description}}" />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="{{.Name}} · RenterLaw" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <a href="/terms">Legal terms</a> <span aria-hidden="true">›</span> {{.Name}}
+    </nav>
+
+    <h1>{{.Name}}</h1>
+
+    {{if .National}}
+    <section aria-labelledby="definition-heading">
+      <h2 id="definition-heading" class="section-title">What it means</h2>
+      <div class="statement-item">
+        <div class="statement-body">{{.National.BodyHTML}}</div>
+        <div class="citation-chips" aria-label="Sources">
+          {{range .National.Citations}}
+          <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
+             title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">{{chipLabel .Label .Locator}}</a>
+          {{end}}
+        </div>
+        {{with .National.CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
+        <p class="statement-specifics"><a href="{{.National.PagePath}}">Read the full nationwide guide.</a></p>
+      </div>
+    </section>
+    {{end}}
+
+    {{if .Local}}
+    <section aria-labelledby="local-heading">
+      <h2 id="local-heading" class="section-title">The rule where you live</h2>
+      {{range .Local}}
+      <div class="statement-item">
+        <h3 class="concept-place">{{.PlaceName}}</h3>
+        <div class="statement-body">{{.BodyHTML}}</div>
+        <div class="citation-chips" aria-label="Sources">
+          {{range .Citations}}
+          <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
+             title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">{{chipLabel .Label .Locator}}</a>
+          {{end}}
+        </div>
+        {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
+        <p class="statement-specifics"><a href="{{.PagePath}}">Read the full guide for {{.PlaceName}}.</a></p>
+      </div>
+      {{end}}
+    </section>
+    {{end}}
+
+    <p class="report-link">
+      Is something on this page wrong or out of date?
+      <a href="/report?url=/c/{{.Slug}}">Tell us</a>.
+    </p>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

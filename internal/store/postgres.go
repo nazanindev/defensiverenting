@@ -479,6 +479,37 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 	defer stmtRows.Close()
 
 	var results []SearchResult
+
+	// Registry terms first (ADR-012 D4): a query naming a concept routes to
+	// the reference page that defines it and lists every jurisdiction's
+	// answer, above whichever statement's prose happened to rank. The
+	// registry is a few dozen rows, so a substring match suffices; gated on
+	// the page existing (some published tagged statement carries it).
+	termRows, terr := pg.pool.Query(ctx, `
+		SELECT co.slug, co.name FROM concepts co
+		WHERE (co.name ILIKE '%' || $1 || '%' OR replace(co.slug, '-', ' ') ILIKE '%' || $1 || '%')
+		  AND EXISTS (
+			SELECT 1 FROM statements s
+			JOIN playbook_statements ps ON ps.statement_id = s.id
+			JOIN playbooks pb ON pb.id = ps.playbook_id
+			WHERE s.concept_id = co.id AND pb.status = 'published' AND pb.language = $2)
+		ORDER BY co.name LIMIT 3`, strings.TrimSpace(query), language)
+	if terr != nil {
+		return nil, terr
+	}
+	defer termRows.Close()
+	for termRows.Next() {
+		var r SearchResult
+		if err := termRows.Scan(&r.TermSlug, &r.TermName); err != nil {
+			return nil, err
+		}
+		r.Type = "term"
+		results = append(results, r)
+	}
+	if err := termRows.Err(); err != nil {
+		return nil, err
+	}
+
 	for stmtRows.Next() {
 		var r SearchResult
 		var sid int64

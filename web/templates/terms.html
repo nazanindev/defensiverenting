@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Legal terms, explained · RenterLaw</title>
+  <meta name="description" content="Plain-language explanations of the legal terms renters run into, with the actual rule in every place we cover." />
+  <link rel="canonical" href="{{absURL "/terms"}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:url" content="{{absURL "/terms"}}" />
+  <meta property="og:title" content="Legal terms, explained · RenterLaw" />
+  <meta property="og:description" content="Plain-language explanations of the legal terms renters run into, with the actual rule in every place we cover." />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="Legal terms, explained · RenterLaw" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span> Legal terms
+    </nav>
+
+    <h1>Legal terms, explained</h1>
+    <p class="lede">The words leases, notices, and landlords use, in plain language. Each term links to what it means and to the actual rule in every place we cover.</p>
+
+    {{if .Terms}}
+    <ul class="term-list">
+      {{range .Terms}}
+      <li class="term-item">
+        <a href="/c/{{.Slug}}" class="term-name">{{.Name}}</a>
+        {{if .Blurb}}<span class="term-blurb">{{.Blurb}}</span>{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="empty-state">No terms published yet. Check back soon.</p>
+    {{end}}
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

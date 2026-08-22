@@ -28,6 +28,7 @@ type sitemapStore interface {
 	ListPublishedHubJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListSitemapURLs(ctx context.Context) ([]store.SitemapEntry, error)
 	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
+	ListTerms(ctx context.Context, language string) ([]store.Term, error)
 }
 
 // Sitemap serves /sitemap.xml listing all jurisdiction and playbook pages.
@@ -56,6 +57,16 @@ func Sitemap(db sitemapStore, siteURL string) http.HandlerFunc {
 		// a noindex of its own.
 		for _, p := range []string{"/about", "/support", "/editorial", "/report", "/contact", ReviewerPath} {
 			fmt.Fprintf(w, "  <url><loc>%s%s</loc><changefreq>yearly</changefreq></url>\n", siteURL, p)
+		}
+
+		// The reference layer (ADR-012 D2): /terms spreads link equity to the
+		// concept pages the way /locations does to city hubs, and each
+		// concept page exists only while something published carries it.
+		if terms, terr := db.ListTerms(r.Context(), "en"); terr == nil && len(terms) > 0 {
+			fmt.Fprintf(w, "  <url><loc>%s/terms</loc><changefreq>weekly</changefreq></url>\n", siteURL)
+			for _, t := range terms {
+				fmt.Fprintf(w, "  <url><loc>%s/c/%s</loc><changefreq>weekly</changefreq></url>\n", siteURL, t.Slug)
+			}
 		}
 
 		// Topic hubs (ADR-007 D7): one entry per language that has at least

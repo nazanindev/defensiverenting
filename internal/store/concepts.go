@@ -2,7 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"sort"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Concepts — ADR-011. The registry itself is written only by migration; these
@@ -205,4 +209,142 @@ func (pg *PG) ConceptHubTopics(ctx context.Context, language string) (map[string
 		}
 	}
 	return out, rows.Err()
+}
+
+// ListTerms returns the reference layer's index (ADR-012 D2): every concept
+// with at least one published tagged statement in the language, its blurb
+// (first sentence of the national definition, when a national page states the
+// claim), and how many places localized it. Concepts nothing published
+// carries are absent — a reference page never renders an empty shell.
+func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT co.slug, co.name, t.slug,
+		       COALESCE((
+		           SELECT s.body_md
+		           FROM statements s
+		           JOIN playbook_statements ps ON ps.statement_id = s.id
+		           JOIN playbooks pb ON pb.id = ps.playbook_id
+		           JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		           WHERE s.concept_id = co.id AND pb.status = 'published'
+		             AND pb.language = $1 AND j.kind = 'country'
+		           LIMIT 1), ''),
+		       (SELECT count(DISTINCT pb.jurisdiction_id)
+		           FROM statements s
+		           JOIN playbook_statements ps ON ps.statement_id = s.id
+		           JOIN playbooks pb ON pb.id = ps.playbook_id
+		           JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		           WHERE s.concept_id = co.id AND pb.status = 'published'
+		             AND pb.language = $1 AND j.kind <> 'country')
+		FROM concepts co
+		JOIN topics t ON t.id = co.topic_id
+		ORDER BY co.name`, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Term
+	for rows.Next() {
+		var t Term
+		var nationalBody string
+		if err := rows.Scan(&t.Slug, &t.Name, &t.TopicSlug, &nationalBody, &t.Localized); err != nil {
+			return nil, err
+		}
+		t.Blurb = firstSentence(nationalBody)
+		if t.Blurb == "" && t.Localized == 0 {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// GetConceptPage assembles /c/{slug} (ADR-012 D1): the concept, its national
+// definition when published, and every published localized instance with full
+// citations. ErrNotFound both for an unknown slug and for a concept nothing
+// published carries — either way there is no page.
+func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error) {
+	var d ConceptPageData
+	err := pg.pool.QueryRow(ctx, `
+		SELECT co.id, co.slug, co.name, co.topic_id, t.slug
+		FROM concepts co JOIN topics t ON t.id = co.topic_id
+		WHERE co.slug = $1`, slug,
+	).Scan(&d.Concept.ID, &d.Concept.Slug, &d.Concept.Name, &d.Concept.TopicID, &d.Concept.TopicSlug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return d, ErrNotFound
+	}
+	if err != nil {
+		return d, err
+	}
+
+	rows, err := pg.pool.Query(ctx, `
+		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, ''),
+		       t.slug, s.id, s.body_md,
+		       c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
+		       src.url, src.publisher, src.kind
+		FROM statements s
+		JOIN playbook_statements ps ON ps.statement_id = s.id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN topics t ON t.id = pb.topic_id
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
+		JOIN citations c ON c.statement_id = s.id
+		JOIN sources src ON src.id = c.source_id
+		WHERE s.concept_id = $1 AND pb.status = 'published' AND pb.language = $2
+		ORDER BY (j.kind <> 'country'), j.name, s.id, c.source_id`,
+		d.Concept.ID, language)
+	if err != nil {
+		return d, err
+	}
+	defer rows.Close()
+
+	byStmt := map[int64]int{} // statement id -> index into instances
+	var instances []ConceptInstance
+	for rows.Next() {
+		var inst ConceptInstance
+		var cit CitationWithSource
+		var stmtID int64
+		var bodyMD string
+		if err := rows.Scan(
+			&inst.Jurisdiction.ID, &inst.Jurisdiction.ParentID, &inst.Jurisdiction.Kind,
+			&inst.Jurisdiction.Name, &inst.Jurisdiction.Slug, &inst.Jurisdiction.ParentSlug, &inst.Jurisdiction.ParentName,
+			&inst.TopicSlug, &stmtID, &bodyMD,
+			&cit.SourceID, &cit.Locator, &cit.Quote, &cit.ManuallyVerified, &cit.CheckedAt,
+			&cit.SourceURL, &cit.Publisher, &cit.SourceKind,
+		); err != nil {
+			return d, err
+		}
+		i, ok := byStmt[stmtID]
+		if !ok {
+			inst.Statement = CitedStatement{ID: stmtID, BodyMD: bodyMD, ConceptSlug: d.Concept.Slug}
+			i = len(instances)
+			byStmt[stmtID] = i
+			instances = append(instances, inst)
+		}
+		instances[i].Statement.Citations = append(instances[i].Statement.Citations, cit)
+	}
+	if err := rows.Err(); err != nil {
+		return d, err
+	}
+	if len(instances) == 0 {
+		return d, ErrNotFound
+	}
+	for i := range instances {
+		if instances[i].Jurisdiction.Kind == "country" && d.National == nil {
+			d.National = &instances[i]
+		} else {
+			d.Local = append(d.Local, instances[i])
+		}
+	}
+	return d, nil
+}
+
+// firstSentence trims a statement body to its opening sentence for index
+// blurbs. Statements follow the editorial voice (short factual sentences), so
+// the first period is a reliable boundary.
+func firstSentence(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, ". "); i > 0 {
+		return s[:i+1]
+	}
+	return s
 }

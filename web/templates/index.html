@@ -71,6 +71,24 @@
     <p class="empty-state">No guides published yet. Check back soon.</p>
     {{end}}
 
+    {{/* The reference intent (ADR-012 D3): terms the national pages define,
+         as a list — never a card grid. Grows only as national guides are
+         published, so the homepage stays a fixed size. */}}
+    {{if .Terms}}
+    <section class="situations" aria-labelledby="terms-heading">
+      <h2 id="terms-heading" class="section-title">Legal terms, explained</h2>
+      <ul class="term-list">
+        {{range .Terms}}
+        <li class="term-item">
+          <a href="/c/{{.Slug}}" class="term-name">{{.Name}}</a>
+          {{if .Blurb}}<span class="term-blurb">{{.Blurb}}</span>{{end}}
+        </li>
+        {{end}}
+      </ul>
+      <p class="term-all"><a href="/terms">All terms →</a></p>
+    </section>
+    {{end}}
+
     <div class="support-banner">
       This site is free, ad-free, and every claim cites its source, so you can check the law yourself. <a href="/support">Support our work →</a>
     </div>

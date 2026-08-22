@@ -33,6 +33,8 @@ type browseStore interface {
 	ResolveJurisdictionAlias(ctx context.Context, alias string) (store.Jurisdiction, error)
 	ResolveTopicAlias(ctx context.Context, alias string) (store.Topic, error)
 	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
+	ListTerms(ctx context.Context, language string) ([]store.Term, error)
+	GetConceptPage(ctx context.Context, slug, language string) (store.ConceptPageData, error)
 }
 
 // Reviewer is the human who verifies every playbook before publishing.
@@ -64,6 +66,11 @@ const (
 func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
 	r.Get("/", index(db, logger))
 	r.Get("/locations", locations(db, logger))
+	// The reference layer (ADR-012): English-only like the rest of the site
+	// chrome (ADR-007 D2); Spanish pages assemble themselves the same way
+	// once Spanish statements carry tags.
+	r.Get("/terms", termsIndex(db, logger))
+	r.Get("/c/{concept}", conceptPage(db, logger))
 	r.Get("/api/coverage", coverage(db, logger))
 	r.Get(ReviewerPath, author)
 
@@ -242,12 +249,100 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		// The reference section lists terms the national pages define
+		// (ADR-012 D3), so its size is governed by editorial output. A
+		// lookup failure degrades the section away rather than 500ing the
+		// homepage.
+		var terms []store.Term
+		if all, terr := db.ListTerms(r.Context(), "en"); terr == nil {
+			for _, t := range all {
+				if t.HasNational() {
+					terms = append(terms, t)
+				}
+			}
+		} else {
+			logger.ErrorContext(r.Context(), "list terms", slog.Any("err", terr))
+		}
 		render(w, r, http.StatusOK, tmpl.IndexPage{
 			LocationGroups: tmpl.GroupByState(jurisdictions),
 			CityCount:      len(jurisdictions),
 			Topics:         topics,
+			Terms:          terms,
 			StructuredData: siteSchema(),
 		})
+	}
+}
+
+// termsIndex serves /terms: every concept the published corpus carries, with
+// its blurb — the crawlable index of the reference layer (ADR-012 D2), as
+// /locations is for places.
+func termsIndex(db browseStore, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		terms, err := db.ListTerms(r.Context(), "en")
+		if err != nil {
+			logger.ErrorContext(r.Context(), "list terms", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		render(w, r, http.StatusOK, tmpl.TermsPage{Terms: terms})
+	}
+}
+
+// conceptPage serves /c/{slug}: the definition of one legal term and every
+// covered jurisdiction's own answer, assembled entirely from published,
+// verified statements (ADR-012 D1).
+func conceptPage(db browseStore, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := chi.URLParam(r, "concept")
+		data, err := db.GetConceptPage(r.Context(), slug, "en")
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				render(w, r, http.StatusNotFound, tmpl.NotFoundPage{Language: "en"})
+				return
+			}
+			logger.ErrorContext(r.Context(), "get concept page", slog.Any("err", err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		page := tmpl.ConceptPage{
+			Slug:      data.Concept.Slug,
+			Name:      data.Concept.Name,
+			TopicSlug: data.Concept.TopicSlug,
+		}
+		if data.National != nil {
+			page.National = buildConceptEntry(*data.National)
+			page.Description = metaDescription(data.National.Statement.BodyMD, data.Concept.Name, "renters anywhere in the United States")
+		} else {
+			page.Description = data.Concept.Name + ": what it means for renters, with the rule in every place we cover."
+		}
+		for _, inst := range data.Local {
+			page.Local = append(page.Local, *buildConceptEntry(inst))
+		}
+		render(w, r, http.StatusOK, page)
+	}
+}
+
+// buildConceptEntry renders one place's statement for a concept page: body,
+// chips, and the same fully-earned-or-absent trust line playbook pages carry.
+func buildConceptEntry(inst store.ConceptInstance) *tmpl.ConceptEntry {
+	s := inst.Statement
+	chips := make([]tmpl.CitationChip, 0, len(s.Citations))
+	for _, c := range s.Citations {
+		chips = append(chips, tmpl.CitationChip{
+			URL:        c.SourceURL + anchorFragment(c.Locator),
+			Label:      c.Publisher,
+			Locator:    c.Locator,
+			SourceKind: c.SourceKind,
+		})
+	}
+	_, checkedOn := statementCheckedAt(s.Citations)
+	return &tmpl.ConceptEntry{
+		PlaceName: inst.Jurisdiction.Name,
+		PlaceKind: inst.Jurisdiction.Kind,
+		PagePath:  inst.Jurisdiction.TopicPathIn("en", inst.TopicSlug) + "#" + s.ConceptSlug,
+		BodyHTML:  content.RenderMarkdown(s.BodyMD),
+		Citations: chips,
+		CheckedOn: checkedOn,
 	}
 }
 

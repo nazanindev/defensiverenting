@@ -156,7 +156,39 @@ type IndexPage struct {
 	LocationGroups []StateGroup
 	CityCount      int
 	Topics         []store.Topic // topics with >=1 published playbook, shown as situations
-	StructuredData template.JS   // JSON-LD WebSite + Organization schema, pre-marshaled
+	// Terms is the homepage's reference section (ADR-012 D3): concepts the
+	// national pages define, so the list grows with editorial output.
+	Terms          []store.Term
+	StructuredData template.JS // JSON-LD WebSite + Organization schema, pre-marshaled
+}
+
+// TermsPage is /terms: the crawlable index of the reference layer (ADR-012 D2).
+type TermsPage struct {
+	Terms []store.Term
+}
+
+// ConceptPage is /c/{slug}: one legal term defined by the national statement
+// and answered by every covered place, assembled from published verified
+// statements (ADR-012 D1).
+type ConceptPage struct {
+	Slug        string
+	Name        string
+	TopicSlug   string
+	Description string
+	National    *ConceptEntry
+	Local       []ConceptEntry
+}
+
+// ConceptEntry is one place's statement on a concept page, carrying the same
+// chips and trust line the statement shows on its own page, plus the link
+// back to it at its anchor.
+type ConceptEntry struct {
+	PlaceName string
+	PlaceKind string // country|state|city
+	PagePath  string // the statement's home page, at its concept anchor
+	BodyHTML  template.HTML
+	Citations []CitationChip
+	CheckedOn string
 }
 
 // ScopeSearch is the model for the shared search-with-location control.
@@ -501,6 +533,10 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "playbook.html", p)
 	case SearchPage:
 		return tmpl.ExecuteTemplate(w, "search.html", p)
+	case TermsPage:
+		return tmpl.ExecuteTemplate(w, "terms.html", p)
+	case ConceptPage:
+		return tmpl.ExecuteTemplate(w, "concept.html", p)
 	case EditorialPage:
 		return tmpl.ExecuteTemplate(w, "editorial.html", p)
 	case AboutPage:

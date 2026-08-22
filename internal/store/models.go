@@ -146,6 +146,41 @@ type ConceptCoverageRow struct {
 	Missing     []string // place display names with no statement anywhere up the chain
 }
 
+// Term is one row of the reference layer (ADR-012): a concept that has at
+// least one published tagged statement, with a blurb derived from its
+// national definition when one exists.
+type Term struct {
+	Slug      string
+	Name      string
+	TopicSlug string
+	// Blurb is the first sentence of the national tagged statement, "" when
+	// no national page states the claim yet.
+	Blurb string
+	// Localized counts the non-national places whose published page carries
+	// the concept.
+	Localized int
+}
+
+// HasNational reports whether the national page defines this term — the
+// condition for appearing on the homepage's reference list (ADR-012 D3).
+func (t Term) HasNational() bool { return t.Blurb != "" }
+
+// ConceptInstance is one place's published statement for a concept, with
+// enough context to link back to the statement's own page at its anchor.
+type ConceptInstance struct {
+	Jurisdiction Jurisdiction
+	TopicSlug    string
+	Statement    CitedStatement
+}
+
+// ConceptPageData is everything /c/{slug} renders (ADR-012 D1): the national
+// definition when published, and every published localized instance.
+type ConceptPageData struct {
+	Concept  Concept
+	National *ConceptInstance
+	Local    []ConceptInstance
+}
+
 // SourceUsage is one source's citation structure across the whole site
 // (ADR-011 D6): the same page cited under different statutes is one source
 // with several locators, and this row is what makes that visible.
@@ -221,7 +256,11 @@ type CitedStatement struct {
 }
 
 type SearchResult struct {
-	Type             string // "statement"|"playbook"
+	Type string // "statement"|"playbook"|"term"
+	// TermSlug/TermName carry a "term" result: a registry concept whose
+	// reference page answers the query (ADR-012 D4).
+	TermSlug         string
+	TermName         string
 	StatementID      *int64
 	PlaybookSlug     string
 	PlaybookTitle    string

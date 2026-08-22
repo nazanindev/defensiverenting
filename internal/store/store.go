@@ -68,10 +68,12 @@ type Store interface {
 	ListUnusedSources(ctx context.Context) ([]Source, error)
 	DismissSourceFlag(ctx context.Context, id int64) error
 
-	// Concepts (ADR-011)
+	// Concepts (ADR-011) and the reference layer built on them (ADR-012)
 	ListConcepts(ctx context.Context) ([]Concept, error)
 	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
 	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
+	ListTerms(ctx context.Context, language string) ([]Term, error)
+	GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error)
 	ListSourceUsage(ctx context.Context) ([]SourceUsage, error)
 
 	// Authoring

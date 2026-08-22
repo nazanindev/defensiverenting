@@ -15,6 +15,11 @@ type sitemapStub struct {
 	jurisdictions []store.Jurisdiction
 	entries       []store.SitemapEntry
 	topicsByLang  map[string][]store.Topic
+	terms         []store.Term
+}
+
+func (s *sitemapStub) ListTerms(_ context.Context, _ string) ([]store.Term, error) {
+	return s.terms, nil
 }
 
 func (s *sitemapStub) ListPublishedHubJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {

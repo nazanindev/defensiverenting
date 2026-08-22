@@ -37,6 +37,10 @@ type stubStore struct {
 	// topic hub where that claim is localized (ADR-011 D4, amended).
 	conceptHubTopics map[string]string
 
+	// terms and conceptPage feed the reference layer (ADR-012).
+	terms       []store.Term
+	conceptPage store.ConceptPageData
+
 	// topicCoverage, when non-nil, restricts which jurisdiction IDs
 	// GetNearestTopicJurisdiction treats as having a published guide. Nil (the
 	// zero value) means every jurisdiction in the stub has one, which keeps
@@ -73,6 +77,17 @@ func (s *stubStore) ResolveTopicAlias(_ context.Context, alias string) (store.To
 
 func (s *stubStore) ConceptHubTopics(_ context.Context, _ string) (map[string]string, error) {
 	return s.conceptHubTopics, nil
+}
+
+func (s *stubStore) ListTerms(_ context.Context, _ string) ([]store.Term, error) {
+	return s.terms, nil
+}
+
+func (s *stubStore) GetConceptPage(_ context.Context, slug, _ string) (store.ConceptPageData, error) {
+	if s.conceptPage.Concept.Slug != slug {
+		return store.ConceptPageData{}, store.ErrNotFound
+	}
+	return s.conceptPage, nil
 }
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
@@ -459,5 +474,108 @@ func TestPlaybookHandler_statementTrustLine(t *testing.T) {
 	}
 	if got := strings.Count(body, "Sources checked"); got != 1 {
 		t.Errorf("trust line rendered %d times, want exactly 1 — a statement with an unconfirmed quote must show nothing", got)
+	}
+}
+
+// The reference layer (ADR-012): /c/{slug} assembles the national definition
+// and every place's answer from published statements, each linking home at
+// its concept anchor; /terms indexes them; the homepage lists terms the
+// national pages define.
+func TestConceptPage_definitionAndLocalAnswers(t *testing.T) {
+	checked := time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
+	stub := &stubStore{
+		conceptPage: store.ConceptPageData{
+			Concept: store.Concept{Slug: "notice-to-quit", Name: "Notice to quit", TopicSlug: "eviction-defense"},
+			National: &store.ConceptInstance{
+				Jurisdiction: store.Jurisdiction{Kind: "country", Name: "United States", Slug: "united-states"},
+				TopicSlug:    "eviction-defense",
+				Statement: store.CitedStatement{
+					ID: 1, BodyMD: "Before an eviction, your landlord must give you a notice to quit.",
+					ConceptSlug: "notice-to-quit",
+					Citations: []store.CitationWithSource{{
+						SourceID: 1, SourceURL: "https://example.gov", Publisher: "HUD", SourceKind: "gov_guidance", CheckedAt: &checked,
+					}},
+				},
+			},
+			Local: []store.ConceptInstance{{
+				Jurisdiction: store.Jurisdiction{Kind: "city", Name: "Pittsburgh", Slug: "pittsburgh", ParentSlug: "pennsylvania"},
+				TopicSlug:    "eviction-defense",
+				Statement: store.CitedStatement{
+					ID: 2, BodyMD: "The notice must give you 10 days to move out.",
+					ConceptSlug: "notice-to-quit",
+					Citations: []store.CitationWithSource{{
+						SourceID: 2, SourceURL: "https://pa.gov/law", Publisher: "PA General Assembly", SourceKind: "statute", CheckedAt: &checked,
+					}},
+				},
+			}},
+		},
+	}
+
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+	req := httptest.NewRequest(http.MethodGet, "/c/notice-to-quit", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "What it means") || !strings.Contains(body, "notice to quit") {
+		t.Error("page must lead with the national definition")
+	}
+	if !strings.Contains(body, "Pittsburgh") || !strings.Contains(body, "10 days") {
+		t.Error("page must carry each place's own answer")
+	}
+	if !strings.Contains(body, `/j/pennsylvania/pittsburgh/eviction-defense#notice-to-quit`) {
+		t.Error("each answer must link home at its concept anchor")
+	}
+	if !strings.Contains(body, "Sources checked August 21, 2026") {
+		t.Error("entries must carry the trust line they earn on their own pages")
+	}
+
+	// An unknown or content-less concept has no page.
+	req = httptest.NewRequest(http.MethodGet, "/c/no-such-term", nil)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("unknown concept: status = %d, want 404", rec.Code)
+	}
+}
+
+func TestTermsIndexAndHomepageSection(t *testing.T) {
+	stub := &stubStore{
+		terms: []store.Term{
+			{Slug: "notice-to-quit", Name: "Notice to quit", TopicSlug: "eviction-defense", Blurb: "The letter that starts an eviction.", Localized: 3},
+			{Slug: "small-claims-court", Name: "Small claims court", TopicSlug: "renting-fundamentals", Localized: 2},
+		},
+	}
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+
+	req := httptest.NewRequest(http.MethodGet, "/terms", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/terms status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `href="/c/notice-to-quit"`) || !strings.Contains(body, "The letter that starts an eviction.") {
+		t.Error("/terms must list every term with its blurb")
+	}
+	if !strings.Contains(body, `href="/c/small-claims-court"`) {
+		t.Error("/terms must include terms without a national definition")
+	}
+
+	// The homepage lists only terms a national page defines (ADR-012 D3).
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	body = rec.Body.String()
+	if !strings.Contains(body, "Legal terms, explained") || !strings.Contains(body, `href="/c/notice-to-quit"`) {
+		t.Error("homepage must carry the reference section with nationally defined terms")
+	}
+	if strings.Contains(body, `href="/c/small-claims-court"`) {
+		t.Error("homepage must not list terms with no national definition")
 	}
 }

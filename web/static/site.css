@@ -370,6 +370,19 @@ h1 {
 
 .statement-body p { margin: 0; }
 
+/* ── Reference layer (ADR-012): term lists and concept pages ───── */
+
+/* Terms are a list, not a card grid: one term per row, name leading, the
+   blurb trailing in the quiet ink so scanning the names stays fast. */
+.term-list { list-style: none; padding: 0; margin: 0; }
+.term-item { padding: 10px 0; border-bottom: 1px solid var(--line, #e8dede); }
+.term-item:last-child { border-bottom: none; }
+.term-name { font-weight: 600; color: var(--brand, #9b2335); text-decoration: none; }
+.term-name:hover { text-decoration: underline; }
+.term-blurb { display: block; margin-top: 2px; font-size: .92rem; color: var(--ink-soft, #6b5555); max-width: 70ch; }
+.term-all { margin-top: 12px; }
+.concept-place { font-family: 'Fraunces', serif; font-size: 1.1rem; margin-bottom: 8px; }
+
 /* The per-statement trust line: quiet, factual, and only present when every
    quoted source was confirmed live. It reads as provenance, not decoration. */
 .statement-checked {

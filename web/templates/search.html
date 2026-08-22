@@ -39,7 +39,10 @@
     <ul class="search-results">
       {{range .Results}}
       <li class="search-result">
-        {{if eq .Type "playbook"}}
+        {{if eq .Type "term"}}
+          <a class="result-title" href="/c/{{.TermSlug}}">{{.TermName}}</a>
+          <span class="result-meta">Legal term</span>
+        {{else if eq .Type "playbook"}}
           <a class="result-title" href="{{.Path}}">{{.PlaybookTitle}}</a>
           <span class="result-meta">Playbook · {{.JurisdictionSlug}}</span>
           {{if .Snippet}}<p class="result-snippet">{{.Snippet}}</p>{{end}}
