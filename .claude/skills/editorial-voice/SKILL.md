@@ -17,13 +17,15 @@ Write so this reader gets the point on the first read. If a word would send anyo
 
 1. **No em dashes.** Never use the — character. Use a period, a comma, or a colon instead.
 2. **Short sentences. One fact per sentence.** If a sentence has two claims, split it.
-3. **Plain words.** Prefer the common word: "use" not "utilize", "ask for" not "request", "before" not "prior to". Formal legal words count too: not "void" or "unenforceable" but "the court will not enforce it"; not "waive" but "give up"; not "remedy" but "what you can do about it".
+3. **Plain words.** Prefer the common word: "use" not "utilize", "ask for" not "request", "before" not "prior to". Formal legal words count too: not "void" or "unenforceable" but "the court will not enforce it"; not "waive" but "give up"; not "remedy" but "what you can do about it"; not "shall" but "must"; not "terminate" but "end"; not "premises" or "dwelling" but "the home"; not "habitable" but "fit to live in" (naming the warranty of habitability once, with a plain explanation, stays legal).
 4. **Easy to translate.** Avoid idioms, metaphors, and figures of speech. They break in translation. Banned examples: "mental model", "navigate the process", "landscape", "leverage", "empower", "journey", "keep in mind", "rule of thumb".
 5. **Active voice. Talk to the reader as "you".** Name the actor: your landlord, the court, the city. Not "it is required that".
 6. **Concrete and factual.** State what the law says, who must do what, and by when. No filler, no reassurance padding, no fear language, no exclamation marks.
 7. **Honest about variation.** If a rule differs by state or city, say so plainly: "in most states", "New York law requires". Never overclaim.
 8. **Legal terms: explain once, then use the plain term.** Example: "a notice to quit (a letter saying you must move out)". After that, "the notice".
 9. **Numbers as digits.** "14 days", not "fourteen days".
+10. **Do the reader's math.** Any percentage or multiplied money amount carries a worked dollar example: "5% of $1,000 rent is $50"; "3 times a $1,500 deposit is $4,500". Never leave arithmetic to someone reading at 2am.
+11. **One deadline per statement, in order.** Say what starts each clock ("counted from the day you hand the keys back"). When steps happen in sequence, write the order out: first, then, after that. Never pile three day-counts into one paragraph; if the periods are separate cases rather than a sequence, split them into separate statements.
 
 ## Before and after
 
