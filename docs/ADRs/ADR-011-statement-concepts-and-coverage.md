@@ -43,6 +43,12 @@ Rendering national statements onto city pages that lack a concept would eliminat
 
 One URL is one source row (`sources.url` is UNIQUE); citing three sections of one statute page is one source with three citation locators. The portal now surfaces that rollup — per source: how many statements cite it, across which locators and pages — so "the same page under different statutes" reads as the structure it already is rather than as apparent duplicates. Near-duplicate *rows* (the same document typed as slightly different URLs, the failure the import picker's comment names) are a separate cleanup with a merge path, out of scope here.
 
+### D7. A statement may reference a whole topic instead of a concept *(added 2026-08-21)*
+
+Two relationships were hiding in "this statement generalizes something", and the first tagging pass surfaced the second. A concept marks a claim whose localized counterpart is another *statement*. But some statements — most of the national fundamentals page — are one-paragraph summaries of subjects the site covers as entire *pages*: "your home must be safe and fit to live in" is the repairs-and-habitability topic in miniature. Forcing those through concepts is what the ownership rule correctly refused: they are not claims, they are tables of contents.
+
+So statements carry at most one of two tags, enforced by a CHECK constraint: a `concept` (claim-level, D1's registry) or a `topic_ref` (subject-level, pointing at the existing topic registry — no new vocabulary). They render differently and honestly on national pages: a concept-tagged statement links to the hub of the topic where the claim is localized ("This rule depends on where you live"), which for cross-cutting concepts may not be the page's own topic; a topic-referencing statement links to the referenced topic's hub ("We have full guides on this"), gated on that topic having published pages and never pointing at the page's own topic. Coverage stays single-bookkept: concept coverage is D3's matrix, topic-reference coverage is the topic matrix that already exists.
+
 ## Consequences
 
 - Bootstrap order is part of the design: tag the national pages first and the concept vocabulary largely writes itself; the D3 matrix lights up city gaps immediately after.

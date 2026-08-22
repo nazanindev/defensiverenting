@@ -71,6 +71,7 @@ type Store interface {
 	// Concepts (ADR-011)
 	ListConcepts(ctx context.Context) ([]Concept, error)
 	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, error)
+	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
 	ListSourceUsage(ctx context.Context) ([]SourceUsage, error)
 
 	// Authoring
@@ -134,7 +135,11 @@ type IngestStatementParams struct {
 	// leaves it untagged. An unknown slug fails the save — the registry is
 	// closed, and silently dropping a tag would hide the mistake.
 	ConceptSlug string
-	Sources     []IngestCitationParams
+	// TopicRefSlug marks the statement as a whole-topic summary (ADR-011 D7),
+	// pointing at a registry topic. Mutually exclusive with ConceptSlug; the
+	// save fails when both are set rather than picking one silently.
+	TopicRefSlug string
+	Sources      []IngestCitationParams
 }
 
 // IngestCitationParams pairs a source row (already upserted) with its locator

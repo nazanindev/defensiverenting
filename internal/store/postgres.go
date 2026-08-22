@@ -387,12 +387,13 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	// Fetch statement rows; each row is one citation, so multiple rows per statement
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.body_md, COALESCE(co.slug, ''), ps.position,
+			s.id, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
 		LEFT JOIN concepts co ON co.id = s.concept_id
+		LEFT JOIN topics   tr ON tr.id = s.topic_ref
 		JOIN citations  c   ON c.statement_id = s.id
 		JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1
@@ -783,6 +784,9 @@ const insertCitationSQL = `
 // registry is closed (ADR-011 D1), both tagging paths validate before save,
 // and a tag that vanished quietly would surface later as a coverage lie.
 func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp IngestStatementParams) (int64, error) {
+	if sp.ConceptSlug != "" && sp.TopicRefSlug != "" {
+		return 0, fmt.Errorf("statement carries both concept %q and topic reference %q: a statement is one claim or one summary, never both (ADR-011 D7)", sp.ConceptSlug, sp.TopicRefSlug)
+	}
 	var conceptID *int64
 	if sp.ConceptSlug != "" {
 		var id int64
@@ -795,11 +799,23 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 		}
 		conceptID = &id
 	}
+	var topicRefID *int64
+	if sp.TopicRefSlug != "" {
+		var id int64
+		err := tx.QueryRow(ctx, `SELECT id FROM topics WHERE slug = $1`, sp.TopicRefSlug).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, fmt.Errorf("unknown topic reference %q: topics are a closed registry (ADR-005 D5)", sp.TopicRefSlug)
+		}
+		if err != nil {
+			return 0, err
+		}
+		topicRefID = &id
+	}
 	var stmtID int64
 	err := tx.QueryRow(ctx, `
-		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id)
-		VALUES ($1, $2, $3, $4) RETURNING id`,
-		jurisdictionID, sp.Language, sp.BodyMD, conceptID,
+		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id, topic_ref)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID,
 	).Scan(&stmtID)
 	return stmtID, err
 }
@@ -921,14 +937,16 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 
 	for rows.Next() {
 		var (
-			stmtID      int64
-			bodyMD      string
-			conceptSlug string
-			position    int
-			c           CitationWithSource
+			stmtID       int64
+			bodyMD       string
+			conceptSlug  string
+			topicRefSlug string
+			topicRefName string
+			position     int
+			c            CitationWithSource
 		)
 		if err := rows.Scan(
-			&stmtID, &bodyMD, &conceptSlug, &position,
+			&stmtID, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
 			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt,
 			&c.SourceURL, &c.Publisher, &c.SourceKind,
 		); err != nil {
@@ -938,7 +956,10 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		i, ok := idx[k]
 		if !ok {
 			i = len(out)
-			out = append(out, CitedStatement{ID: stmtID, BodyMD: bodyMD, ConceptSlug: conceptSlug})
+			out = append(out, CitedStatement{
+				ID: stmtID, BodyMD: bodyMD, ConceptSlug: conceptSlug,
+				TopicRefSlug: topicRefSlug, TopicRefName: topicRefName,
+			})
 			idx[k] = i
 			order = append(order, k)
 		}
@@ -982,12 +1003,13 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	}
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.body_md, COALESCE(co.slug, ''), ps.position,
+			s.id, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
 		LEFT JOIN concepts co ON co.id = s.concept_id
+		LEFT JOIN topics   tr ON tr.id = s.topic_ref
 		JOIN citations  c   ON c.statement_id = s.id
 		JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1

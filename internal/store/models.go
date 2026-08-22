@@ -212,7 +212,12 @@ type CitedStatement struct {
 	ID          int64
 	BodyMD      string
 	ConceptSlug string // "" when untagged; doubles as the public anchor (ADR-011 D4)
-	Citations   []CitationWithSource
+	// TopicRefSlug/Name mark a statement that summarizes a whole topic rather
+	// than making one claim (ADR-011 D7). Mutually exclusive with ConceptSlug,
+	// enforced by the statements_one_tag_check constraint.
+	TopicRefSlug string
+	TopicRefName string
+	Citations    []CitationWithSource
 }
 
 type SearchResult struct {

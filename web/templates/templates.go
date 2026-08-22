@@ -283,7 +283,13 @@ type RenderedStatement struct {
 	// on national pages' tagged statements (ADR-011 D4, amended: one hub link
 	// listing every covered jurisdiction, not a per-place link row).
 	SpecificsPath string
-	Citations     []CitationChip
+	// TopicRefPath/Name render the whole-topic line (ADR-011 D7): this
+	// statement is a one-paragraph summary of a subject the site covers as
+	// its own pages, and the link goes to that topic's hub. Set only on
+	// national pages' topic-referencing statements.
+	TopicRefPath string
+	TopicRefName string
+	Citations    []CitationChip
 }
 
 // CitationChip is a rendered citation link shown inline after each statement.

@@ -97,8 +97,11 @@ type CitationInput struct {
 }
 
 type StatementInput struct {
-	BodyMD    string          `json:"body_md" jsonschema:"one atomic, plain-language claim in Markdown"`
-	Concept   string          `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Tag statements whose claim varies by place; leave page-specific procedure untagged. Only registry slugs for this page's topic (or the cross-cutting renting-fundamentals set) are accepted."`
+	BodyMD  string `json:"body_md" jsonschema:"one atomic, plain-language claim in Markdown"`
+	Concept string `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Tag statements whose claim varies by place; leave page-specific procedure untagged. Only registry slugs for this page's topic (or the cross-cutting renting-fundamentals set) are accepted."`
+	// TopicRef marks a statement that summarizes a whole subject the site
+	// covers as its own pages, rather than making one claim.
+	TopicRef  string          `json:"topic_ref,omitempty" jsonschema:"optional topic slug from list_topics, for a statement that is a one-paragraph summary of an entire subject (e.g. a fundamentals statement about safe housing points at repairs-and-habitability). Mutually exclusive with concept. Never set it to this page's own topic."`
 	Citations []CitationInput `json:"citations" jsonschema:"at least one citation quoting a fetched source"`
 }
 
@@ -285,10 +288,11 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			})
 		}
 		stmts = append(stmts, store.IngestStatementParams{
-			BodyMD:      st.BodyMD,
-			Language:    lang,
-			ConceptSlug: strings.TrimSpace(st.Concept),
-			Sources:     cites,
+			BodyMD:       st.BodyMD,
+			Language:     lang,
+			ConceptSlug:  strings.TrimSpace(st.Concept),
+			TopicRefSlug: strings.TrimSpace(st.TopicRef),
+			Sources:      cites,
 		})
 	}
 
@@ -468,14 +472,14 @@ func savedMessage(revises bool) string {
 // subjects, per ADR-011 D1.
 const crossCuttingTopic = "renting-fundamentals"
 
-// validateConcepts checks every statement's concept tag against the closed
-// registry before anything is written. The rejection lists the slugs valid for
-// this page so the agent's retry is a choice, not a guess — the same contract
-// the topic-slug check keeps.
+// validateConcepts checks every statement's concept tag and topic reference
+// against their closed registries before anything is written. The rejection
+// lists the valid choices so the agent's retry is a choice, not a guess — the
+// same contract the topic-slug check keeps.
 func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmts []StatementInput) error {
 	var tagged bool
 	for _, st := range stmts {
-		if strings.TrimSpace(st.Concept) != "" {
+		if strings.TrimSpace(st.Concept) != "" || strings.TrimSpace(st.TopicRef) != "" {
 			tagged = true
 			break
 		}
@@ -495,13 +499,31 @@ func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmt
 			choices = append(choices, c.Slug)
 		}
 	}
+	topics, err := tb.db.ListTopicRegistry(ctx)
+	if err != nil {
+		return err
+	}
+	topicOK := map[string]bool{}
+	var topicChoices []string
+	for _, t := range topics {
+		topicOK[t.Slug] = true
+		topicChoices = append(topicChoices, t.Slug)
+	}
 	for si, st := range stmts {
-		slug := strings.TrimSpace(st.Concept)
-		if slug == "" || allowed[slug] {
-			continue
+		concept := strings.TrimSpace(st.Concept)
+		topicRef := strings.TrimSpace(st.TopicRef)
+		if concept != "" && topicRef != "" {
+			return reject("statement %d sets both concept %q and topic_ref %q. A statement is one claim or one whole-topic summary, never both (ADR-011 D7). Drop one.",
+				si+1, concept, topicRef)
 		}
-		return reject("statement %d concept %q is not in the registry for topic %q. Concepts are a closed registry (ADR-011): pick one of [%s] or omit the field. Do not invent concepts.",
-			si+1, slug, topicSlug, strings.Join(choices, ", "))
+		if concept != "" && !allowed[concept] {
+			return reject("statement %d concept %q is not in the registry for topic %q. Concepts are a closed registry (ADR-011): pick one of [%s] or omit the field. Do not invent concepts.",
+				si+1, concept, topicSlug, strings.Join(choices, ", "))
+		}
+		if topicRef != "" && (!topicOK[topicRef] || topicRef == topicSlug) {
+			return reject("statement %d topic_ref %q must be a registry topic other than this page's own (%q). Valid: [%s].",
+				si+1, topicRef, topicSlug, strings.Join(topicChoices, ", "))
+		}
 	}
 	return nil
 }

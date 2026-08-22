@@ -32,6 +32,7 @@ type browseStore interface {
 	ListJurisdictionsByTopic(ctx context.Context, topicID int64, language string) ([]store.Jurisdiction, error)
 	ResolveJurisdictionAlias(ctx context.Context, alias string) (store.Jurisdiction, error)
 	ResolveTopicAlias(ctx context.Context, alias string) (store.Topic, error)
+	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
 }
 
 // Reviewer is the human who verifies every playbook before publishing.
@@ -392,28 +393,36 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		return
 	}
 
-	// A national page links each tagged statement to the topic hub, where
-	// every covered jurisdiction is listed (ADR-011 D4, amended): the reader
-	// picks their place rather than scanning a per-place link row that would
-	// outgrow the statement it hangs under. Offered only when somewhere other
-	// than the national page itself covers the topic — a hub listing only the
-	// page the reader is already on is a link to nowhere. Best-effort like
-	// the cross-links below.
-	specificsPath := ""
+	// A national page links each tagged statement to a topic hub, where every
+	// covered jurisdiction is listed (ADR-011 D4, amended): the reader picks
+	// their place rather than scanning a per-place link row that would outgrow
+	// the statement it hangs under. The hub is chosen per concept — the topic
+	// where the claim is actually localized — because a cross-cutting claim on
+	// the fundamentals page has its local instances on other topics' pages,
+	// and the fundamentals hub itself will never list a city. A concept
+	// localized nowhere gets no link. Best-effort like the cross-links below.
+	var hubByConcept map[string]string
+	var publishedTopics map[string]string
 	if pb.Jurisdiction.Kind == "country" {
-		if hubJs, herr := db.ListJurisdictionsByTopic(r.Context(), pb.Topic.ID, pb.Playbook.Language); herr == nil {
-			for _, hj := range hubJs {
-				if hj.Kind != "country" {
-					specificsPath = store.LangPrefix(pb.Playbook.Language) + "/t/" + pb.Topic.Slug
-					break
-				}
+		var herr error
+		hubByConcept, herr = db.ConceptHubTopics(r.Context(), pb.Playbook.Language)
+		if herr != nil {
+			logger.ErrorContext(r.Context(), "concept hub topics", slog.Any("err", herr))
+		}
+		// Whole-topic references (ADR-011 D7) link to the referenced topic's
+		// hub, which is only worth offering when that topic has published
+		// pages in this language at all.
+		if pts, terr := db.ListPublishedTopics(r.Context(), pb.Playbook.Language); terr == nil {
+			publishedTopics = map[string]string{}
+			for _, pt := range pts {
+				publishedTopics[pt.Slug] = pt.Name
 			}
 		} else {
-			logger.ErrorContext(r.Context(), "list topic jurisdictions", slog.Any("err", herr))
+			logger.ErrorContext(r.Context(), "list published topics", slog.Any("err", terr))
 		}
 	}
 
-	page := BuildPlaybookPage(r.Context(), pb, specificsPath, logger)
+	page := BuildPlaybookPage(r.Context(), pb, hubByConcept, publishedTopics, logger)
 
 	// Cross-links: other topics in this jurisdiction, and this topic elsewhere
 	// — both scoped to this playbook's own language (ADR-007 D5), so every
@@ -600,10 +609,12 @@ func NotFound() http.HandlerFunc {
 // rendering markdown and enforcing the citation invariant. Shared with the
 // authoring tool's draft preview so previews match the live site exactly.
 //
-// specificsPath is the topic-hub path a national page's tagged statements
-// link to (ADR-011 D4, amended); pass "" for non-country pages or when no
-// other jurisdiction covers the topic, and no link renders.
-func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, specificsPath string, logger *slog.Logger) tmpl.PlaybookPage {
+// hubByConcept maps a concept slug to the topic hub where that claim is
+// localized (ADR-011 D4, amended); a national page's tagged statements link
+// there. publishedTopics maps topic slug to display name for topics with
+// published pages in this language, gating whole-topic reference links
+// (ADR-011 D7). Pass nil for both on non-country pages, and no links render.
+func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hubByConcept, publishedTopics map[string]string, logger *slog.Logger) tmpl.PlaybookPage {
 	// Render markdown intro to HTML
 	introHTML := content.RenderMarkdown(pb.IntroMD)
 
@@ -633,13 +644,22 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, spe
 			}
 		}
 		stmtSpecifics := ""
-		if s.ConceptSlug != "" {
-			stmtSpecifics = specificsPath
+		if hubTopic, ok := hubByConcept[s.ConceptSlug]; ok && s.ConceptSlug != "" {
+			stmtSpecifics = store.LangPrefix(pb.Playbook.Language) + "/t/" + hubTopic
+		}
+		topicRefPath, topicRefName := "", ""
+		if s.TopicRefSlug != "" && s.TopicRefSlug != pb.Topic.Slug {
+			if name, ok := publishedTopics[s.TopicRefSlug]; ok {
+				topicRefPath = store.LangPrefix(pb.Playbook.Language) + "/t/" + s.TopicRefSlug
+				topicRefName = name
+			}
 		}
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:      content.RenderMarkdown(s.BodyMD),
 			Anchor:        s.ConceptSlug,
 			SpecificsPath: stmtSpecifics,
+			TopicRefPath:  topicRefPath,
+			TopicRefName:  topicRefName,
 			Citations:     chips,
 		})
 	}

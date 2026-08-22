@@ -183,6 +183,11 @@
               {{if .SpecificsPath}}
               <p class="statement-specifics">This rule depends on where you live. <a href="{{.SpecificsPath}}">See the states and cities we cover.</a></p>
               {{end}}
+              {{/* ADR-011 D7: this statement is a whole subject in miniature,
+                   and the site covers that subject as its own pages. */}}
+              {{if .TopicRefPath}}
+              <p class="statement-specifics">We have full guides on this. <a href="{{.TopicRefPath}}">See our {{.TopicRefName}} guides.</a></p>
+              {{end}}
             </li>
             {{end}}
           </ol>

@@ -195,6 +195,9 @@
           {{if .Concept}}
           <span class="cite-chip cite-chip-concept" title="Concept tag (ADR-011): connects this claim to its versions on other pages, and is the statement's public anchor">◈ {{.Concept}}</span>
           {{end}}
+          {{if .TopicRef}}
+          <span class="cite-chip cite-chip-concept" title="Whole-topic reference (ADR-011 D7): this statement summarizes a subject the site covers as its own pages">⇒ {{.TopicRef}}</span>
+          {{end}}
           {{if .Unchecked}}
           <span class="check-stamp check-stamp-missing" title="At least one citation has never been confirmed against its live source">Not checked yet</span>
           {{else if .CheckedAt}}

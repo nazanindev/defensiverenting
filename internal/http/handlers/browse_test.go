@@ -32,6 +32,10 @@ type stubStore struct {
 	// specifically probes language-toggle/hreflang logic.
 	otherLangPlaybooks map[string]store.PlaybookWithStatements
 
+	// conceptHubTopics is returned by ConceptHubTopics: concept slug -> the
+	// topic hub where that claim is localized (ADR-011 D4, amended).
+	conceptHubTopics map[string]string
+
 	// topicCoverage, when non-nil, restricts which jurisdiction IDs
 	// GetNearestTopicJurisdiction treats as having a published guide. Nil (the
 	// zero value) means every jurisdiction in the stub has one, which keeps
@@ -64,6 +68,10 @@ func (s *stubStore) ResolveTopicAlias(_ context.Context, alias string) (store.To
 		}
 	}
 	return store.Topic{Slug: live}, nil
+}
+
+func (s *stubStore) ConceptHubTopics(_ context.Context, _ string) (map[string]string, error) {
+	return s.conceptHubTopics, nil
 }
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
@@ -341,29 +349,44 @@ func TestPlaybookHandler_localHelpPageDoesNotLinkToItself(t *testing.T) {
 }
 
 // A national statement tagged with a concept renders its anchor and points
-// the reader at the topic hub, where every covered jurisdiction is listed
-// (ADR-011 D4, amended) — the follow-up "check your state" never had. The
-// stub lists a state alongside the country, so the hub has somewhere to send
-// the reader.
-func TestPlaybookHandler_nationalStatementLinksToTopicHub(t *testing.T) {
+// the reader at the hub of the topic where that claim is localized (ADR-011
+// D4, amended) — the follow-up "check your state" never had. A statement
+// referencing a whole topic (D7) instead links to that topic's hub with the
+// full-guides line. A statement with neither gets no link.
+func TestPlaybookHandler_nationalStatementTagLinks(t *testing.T) {
 	stub := &stubStore{
 		jurisdictions: []store.Jurisdiction{
 			{ID: 9, Kind: "country", Name: "United States", Slug: "united-states"},
 			{ID: 2, Kind: "state", Name: "Massachusetts", Slug: "massachusetts"},
 		},
-		topics: []store.Topic{{ID: 4, Slug: "security-deposits", Name: "Security Deposits"}},
+		topics: []store.Topic{
+			{ID: 4, Slug: "security-deposits", Name: "Security Deposits"},
+			{ID: 5, Slug: "repairs-and-habitability", Name: "Repairs and Unsafe Conditions"},
+		},
+		conceptHubTopics: map[string]string{"retaliation-protection": "security-deposits"},
 		playbook: store.PlaybookWithStatements{
 			Playbook:     store.Playbook{ID: 1, Title: "Security Deposits", Slug: "security-deposits", Language: "en"},
 			Jurisdiction: store.Jurisdiction{ID: 9, Kind: "country", Name: "United States", Slug: "united-states"},
 			Topic:        store.Topic{ID: 4, Name: "Security Deposits", Slug: "security-deposits"},
-			Statements: []store.CitedStatement{{
-				ID:          1,
-				BodyMD:      "Your landlord cannot punish you for using your rights.",
-				ConceptSlug: "retaliation-protection",
-				Citations: []store.CitationWithSource{{
-					SourceID: 1, SourceURL: "https://example.gov/law", Publisher: "HUD", SourceKind: "gov_guidance",
-				}},
-			}},
+			Statements: []store.CitedStatement{
+				{
+					ID:          1,
+					BodyMD:      "Your landlord cannot punish you for using your rights.",
+					ConceptSlug: "retaliation-protection",
+					Citations: []store.CitationWithSource{{
+						SourceID: 1, SourceURL: "https://example.gov/law", Publisher: "HUD", SourceKind: "gov_guidance",
+					}},
+				},
+				{
+					ID:           2,
+					BodyMD:       "Your home must be safe and fit to live in.",
+					TopicRefSlug: "repairs-and-habitability",
+					TopicRefName: "Repairs and Unsafe Conditions",
+					Citations: []store.CitationWithSource{{
+						SourceID: 1, SourceURL: "https://example.gov/law", Publisher: "HUD", SourceKind: "gov_guidance",
+					}},
+				},
+			},
 		},
 	}
 
@@ -379,9 +402,15 @@ func TestPlaybookHandler_nationalStatementLinksToTopicHub(t *testing.T) {
 	}
 	body := rec.Body.String()
 	if !strings.Contains(body, `id="retaliation-protection"`) {
-		t.Error("tagged statement must render its concept slug as an anchor")
+		t.Error("concept-tagged statement must render its concept slug as an anchor")
 	}
 	if !strings.Contains(body, `href="/t/security-deposits"`) {
-		t.Error("tagged national statement must link to the topic hub")
+		t.Error("concept-tagged national statement must link to the hub where the claim is localized")
+	}
+	if !strings.Contains(body, `href="/t/repairs-and-habitability"`) {
+		t.Error("topic-referencing statement must link to the referenced topic's hub")
+	}
+	if !strings.Contains(body, "We have full guides on this.") {
+		t.Error("topic-referencing statement must render the full-guides line")
 	}
 }

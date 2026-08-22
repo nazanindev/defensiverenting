@@ -165,3 +165,44 @@ func (pg *PG) ListSourceUsage(ctx context.Context) ([]SourceUsage, error) {
 	}
 	return out, rows.Err()
 }
+
+// ConceptHubTopics maps each concept to the topic hub that answers "where is
+// this claim localized": the topic whose published, non-national pages carry
+// tagged statements for it, in that language. Usually that is the concept's
+// own topic, but a cross-cutting concept tagged on a national fundamentals
+// page has its local instances on other topics' pages entirely — retaliation
+// lives on eviction and repairs pages — and linking the fundamentals reader
+// to a fundamentals hub no city will ever have would be a link to nowhere.
+// When instances span topics the one covering the most places wins, with the
+// topic slug as a deterministic tie-break. A concept with no published local
+// instance is absent from the map, and its statements get no link — the
+// original D4 rule, kept: never render an empty shell of the feature.
+func (pg *PG) ConceptHubTopics(ctx context.Context, language string) (map[string]string, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT co.slug, t.slug, count(DISTINCT pb.jurisdiction_id) AS places
+		FROM statements s
+		JOIN concepts co ON co.id = s.concept_id
+		JOIN playbook_statements ps ON ps.statement_id = s.id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN topics t ON t.id = pb.topic_id
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		WHERE pb.status = 'published' AND pb.language = $1 AND j.kind <> 'country'
+		GROUP BY co.slug, t.slug
+		ORDER BY co.slug, places DESC, t.slug`, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var conceptSlug, topicSlug string
+		var places int
+		if err := rows.Scan(&conceptSlug, &topicSlug, &places); err != nil {
+			return nil, err
+		}
+		if _, seen := out[conceptSlug]; !seen {
+			out[conceptSlug] = topicSlug
+		}
+	}
+	return out, rows.Err()
+}

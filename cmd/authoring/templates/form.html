@@ -392,10 +392,11 @@
 // ── State ──────────────────────────────────────────────────────────────────
 
 const PRELOAD = {{.PreloadJSON}};
-// The concept registry (ADR-011): [{slug, name, topic}]. Closed — the select
-// below offers it, nothing here extends it.
-const CONCEPTS = {{.ConceptsJSON}};
-// Fallback topic for the concept filter when the topic select is locked
+// The tag registries (ADR-011): {concepts: [{slug, name, topic}], topics:
+// [{slug, name}]}. Both closed — the select below offers them, nothing here
+// extends them.
+const TAGS = {{.ConceptsJSON}};
+// Fallback topic for the tag filter when the topic select is locked
 // (published edits render no topic-sel, so curTopicKey never gets set).
 const PAGE_TOPIC = '{{.TopicSlug}}';
 
@@ -464,7 +465,7 @@ if (PRELOAD && PRELOAD.sources) {
     sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
   });
   PRELOAD.stmts.forEach(s => {
-    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, concept: s.concept || '', cites: {}, locators: {}, quotes: {}, verified: {} };
+    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, tag: s.tag || '', cites: {}, locators: {}, quotes: {}, verified: {} };
     (s.cites || []).forEach(i => { st.cites[i] = true; });
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
@@ -593,7 +594,7 @@ function rmSource(id) {
 
 function addStmt() {
   sync();
-  stmts.push({ id: nextStmtId++, body: '', editorial: false, concept: '', cites: {}, locators: {}, quotes: {}, verified: {} });
+  stmts.push({ id: nextStmtId++, body: '', editorial: false, tag: '', cites: {}, locators: {}, quotes: {}, verified: {} });
   render();
 }
 
@@ -747,7 +748,7 @@ function sync() {
   stmts.forEach(function(st) {
     st.body      = v('stmt_' + st.id);
     st.editorial = c('edit_' + st.id);
-    st.concept   = v('concept_' + st.id);
+    st.tag       = v('tag_' + st.id);
     sources.forEach(function(src) {
       st.cites[src.id]    = c('cite_' + st.id + '_' + src.id);
       st.locators[src.id] = v('loc_' + st.id + '_' + src.id);
@@ -999,24 +1000,38 @@ function renderStmts() {
   }).join('');
 }
 
-// conceptRow renders the statement's concept select (ADR-011): the registry
-// concepts for the page's topic plus the cross-cutting renting-fundamentals
-// set. A statement whose claim varies by place gets tagged; page-specific
-// procedure stays on "No concept".
+// conceptRow renders the statement's tag select (ADR-011). Two different
+// relationships, one select: a concept marks a claim whose localized
+// counterpart is another statement; a topic reference marks a statement that
+// summarizes a whole subject the site covers as pages (D7). Page-specific
+// procedure stays on "no tag".
 function conceptRow(st) {
   const topic = curTopicKey || PAGE_TOPIC;
-  const opts = CONCEPTS.filter(function(co) {
+  const concepts = (TAGS.concepts || []).filter(function(co) {
     return co.topic === topic || co.topic === 'renting-fundamentals';
   });
-  if (!opts.length) return '';
+  const topics = (TAGS.topics || []).filter(function(t) { return t.slug !== topic; });
+  if (!concepts.length && !topics.length) return '';
   return '<div class="concept-row">' +
-    '<label for="concept_' + st.id + '">Concept</label>' +
-    '<select name="concept_' + st.id + '" id="concept_' + st.id + '">' +
-      '<option value="">— no concept —</option>' +
-      opts.map(function(co) {
-        return '<option value="' + esc(co.slug) + '"' + (st.concept === co.slug ? ' selected' : '') + '>' +
-          esc(co.name) + '</option>';
-      }).join('') +
+    '<label for="tag_' + st.id + '">Tag</label>' +
+    '<select name="tag_' + st.id + '" id="tag_' + st.id + '">' +
+      '<option value="">— no tag —</option>' +
+      (concepts.length ?
+        '<optgroup label="Concept — this claim varies by place">' +
+        concepts.map(function(co) {
+          const val = 'c:' + co.slug;
+          return '<option value="' + esc(val) + '"' + (st.tag === val ? ' selected' : '') + '>' +
+            esc(co.name) + '</option>';
+        }).join('') + '</optgroup>'
+      : '') +
+      (topics.length ?
+        '<optgroup label="Whole topic — this statement summarizes a subject">' +
+        topics.map(function(t) {
+          const val = 't:' + t.slug;
+          return '<option value="' + esc(val) + '"' + (st.tag === val ? ' selected' : '') + '>' +
+            esc(t.name) + '</option>';
+        }).join('') + '</optgroup>'
+      : '') +
     '</select>' +
   '</div>';
 }

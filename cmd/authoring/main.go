@@ -791,28 +791,56 @@ func (s *srv) showForm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "form.html", data)
 }
 
-// conceptsJSON renders the concept registry (ADR-011) for the form's
-// per-statement selects: [{slug, name, topic}]. A read failure degrades to an
-// empty list — the form then simply offers no concept select — rather than
-// blocking authoring on a registry lookup.
+// conceptsJSON renders both tag registries (ADR-011) for the form's
+// per-statement selects: {"concepts": [{slug, name, topic}], "topics":
+// [{slug, name}]}. A read failure degrades to empty lists — the form then
+// simply offers no tag select — rather than blocking authoring on a registry
+// lookup.
 func (s *srv) conceptsJSON(ctx context.Context) template.JS {
-	type row struct {
+	type conceptRow struct {
 		Slug  string `json:"slug"`
 		Name  string `json:"name"`
 		Topic string `json:"topic"`
 	}
-	concepts, err := s.pg.ListConcepts(ctx)
-	if err != nil {
+	type topicRow struct {
+		Slug string `json:"slug"`
+		Name string `json:"name"`
+	}
+	payload := struct {
+		Concepts []conceptRow `json:"concepts"`
+		Topics   []topicRow   `json:"topics"`
+	}{Concepts: []conceptRow{}, Topics: []topicRow{}}
+	if concepts, err := s.pg.ListConcepts(ctx); err == nil {
+		for _, c := range concepts {
+			payload.Concepts = append(payload.Concepts, conceptRow{Slug: c.Slug, Name: c.Name, Topic: c.TopicSlug})
+		}
+	} else {
 		s.log.Error("list concepts", slog.Any("err", err))
-		return template.JS("[]")
 	}
-	rows := make([]row, 0, len(concepts))
-	for _, c := range concepts {
-		rows = append(rows, row{Slug: c.Slug, Name: c.Name, Topic: c.TopicSlug})
+	if topics, err := s.pg.ListTopicRegistry(ctx); err == nil {
+		for _, t := range topics {
+			payload.Topics = append(payload.Topics, topicRow{Slug: t.Slug, Name: t.Name})
+		}
+	} else {
+		s.log.Error("list topic registry", slog.Any("err", err))
 	}
-	b, _ := json.Marshal(rows)
+	b, _ := json.Marshal(payload)
 	//nolint:gosec // json.Marshal output of registry rows, not user input
 	return template.JS(b)
+}
+
+// parseStatementTag splits the form's combined tag value — "c:{slug}" for a
+// concept, "t:{slug}" for a whole-topic reference (ADR-011 D7), "" for
+// neither — into the two store params.
+func parseStatementTag(v string) (conceptSlug, topicRefSlug string) {
+	v = strings.TrimSpace(v)
+	switch {
+	case strings.HasPrefix(v, "c:"):
+		return v[2:], ""
+	case strings.HasPrefix(v, "t:"):
+		return "", v[2:]
+	}
+	return "", ""
 }
 
 // fmtDate renders a timestamp (time.Time or *time.Time) for the authoring UI;
@@ -909,7 +937,7 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 
 	var stmts []viewStmt
 	for i, stmt := range pw.Statements {
-		vs := viewStmt{Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug}
+		vs := viewStmt{Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, TopicRef: stmt.TopicRefSlug}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorial.ID {
 				vs.Editorial = true
@@ -970,6 +998,7 @@ type viewStmt struct {
 	Num       int
 	Body      string
 	Concept   string // registry concept slug (ADR-011); "" untagged
+	TopicRef  string // whole-topic reference slug (ADR-011 D7); "" when none
 	Cites     []viewCite
 	Editorial bool
 	// CheckedAt is when the statement was last fully checked: the oldest
@@ -1046,18 +1075,17 @@ func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
 	// Match the live renderer: a national page previews with its topic-hub
 	// links on tagged statements (ADR-011 D4, amended), so publishing holds
 	// no surprises.
-	specificsPath := ""
+	var hubByConcept, publishedTopics map[string]string
 	if pw.Jurisdiction.Kind == "country" {
-		if hubJs, herr := s.pg.ListJurisdictionsByTopic(r.Context(), pw.Topic.ID, pw.Playbook.Language); herr == nil {
-			for _, hj := range hubJs {
-				if hj.Kind != "country" {
-					specificsPath = store.LangPrefix(pw.Playbook.Language) + "/t/" + pw.Topic.Slug
-					break
-				}
+		hubByConcept, _ = s.pg.ConceptHubTopics(r.Context(), pw.Playbook.Language)
+		if pts, terr := s.pg.ListPublishedTopics(r.Context(), pw.Playbook.Language); terr == nil {
+			publishedTopics = map[string]string{}
+			for _, pt := range pts {
+				publishedTopics[pt.Slug] = pt.Name
 			}
 		}
 	}
-	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, specificsPath, s.log)
+	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, hubByConcept, publishedTopics, s.log)
 	page.Preview = true
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := sitetmpl.Render(w, page); err != nil {
@@ -1195,10 +1223,12 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 			s.formError(w, r, fmt.Sprintf("Statement %d needs at least one citation", ji+1))
 			return
 		}
+		conceptSlug, topicRefSlug := parseStatementTag(r.FormValue(fmt.Sprintf("tag_%d", ji)))
 		statements = append(statements, store.IngestStatementParams{
 			BodyMD: body, Language: lang,
-			ConceptSlug: strings.TrimSpace(r.FormValue(fmt.Sprintf("concept_%d", ji))),
-			Sources:     cites,
+			ConceptSlug:  conceptSlug,
+			TopicRefSlug: topicRefSlug,
+			Sources:      cites,
 		})
 	}
 	if len(statements) == 0 {
@@ -1795,10 +1825,12 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 			editErr(fmt.Sprintf("Statement %d needs at least one citation", ji+1))
 			return
 		}
+		conceptSlug, topicRefSlug := parseStatementTag(r.FormValue(fmt.Sprintf("tag_%d", ji)))
 		statements = append(statements, store.IngestStatementParams{
 			BodyMD: body, Language: lang,
-			ConceptSlug: strings.TrimSpace(r.FormValue(fmt.Sprintf("concept_%d", ji))),
-			Sources:     cites,
+			ConceptSlug:  conceptSlug,
+			TopicRefSlug: topicRefSlug,
+			Sources:      cites,
 		})
 	}
 	if len(statements) == 0 {
@@ -2025,7 +2057,7 @@ type preloadStmt struct {
 	ID        int               `json:"id"`
 	Body      string            `json:"body"`
 	Editorial bool              `json:"editorial"`
-	Concept   string            `json:"concept"`  // registry slug (ADR-011); "" untagged
+	Tag       string            `json:"tag"`      // "c:{concept}" | "t:{topic}" | "" (ADR-011)
 	Cites     []int             `json:"cites"`    // indices into sources slice
 	Locators  map[string]string `json:"locators"` // "srcIdx" -> locator override
 	// Quotes carries the verbatim source text backing each citation, keyed the
@@ -2074,7 +2106,7 @@ func preloadFromForm(r *http.Request) preloadData {
 			ID:        i,
 			Body:      r.FormValue(fmt.Sprintf("stmt_%d", id)),
 			Editorial: r.FormValue(fmt.Sprintf("edit_%d", id)) == "on",
-			Concept:   strings.TrimSpace(r.FormValue(fmt.Sprintf("concept_%d", id))),
+			Tag:       strings.TrimSpace(r.FormValue(fmt.Sprintf("tag_%d", id))),
 			Locators:  map[string]string{},
 			Quotes:    map[string]string{},
 			Verified:  map[string]bool{},
@@ -2135,7 +2167,14 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 
 	stmts := make([]preloadStmt, 0, len(pw.Statements))
 	for i, stmt := range pw.Statements {
-		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}}
+		tag := ""
+		switch {
+		case stmt.ConceptSlug != "":
+			tag = "c:" + stmt.ConceptSlug
+		case stmt.TopicRefSlug != "":
+			tag = "t:" + stmt.TopicRefSlug
+		}
+		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Tag: tag, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true
