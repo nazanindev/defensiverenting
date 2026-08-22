@@ -48,19 +48,24 @@
            generally. "The general rule" pairs with "The rule where you live". */}}
       <h2 id="general-rule-heading" class="section-title">The general rule</h2>
       {{/* statement-list supplies the grid gap; a bare statement-item has no
-           outer margin of its own and the cards collide without it. */}}
+           outer margin of its own and the cards collide without it. Tags may
+           be shared, so the national page can state the general rule in more
+           than one statement — all of them belong here, never under "where
+           you live". */}}
       <div class="statement-list">
+        {{range .National}}
         <div class="statement-item">
-          <div class="statement-body">{{.National.BodyHTML}}</div>
+          <div class="statement-body">{{.BodyHTML}}</div>
           <div class="citation-chips" aria-label="Sources">
-            {{range .National.Citations}}
+            {{range .Citations}}
             <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
                title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">{{chipLabel .Label .Locator}}</a>
             {{end}}
           </div>
-          {{with .National.CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
-          <p class="statement-specifics"><a href="{{.National.PagePath}}">Read the full nationwide guide.</a></p>
+          {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
+          <p class="statement-specifics"><a href="{{.PagePath}}">Read the full nationwide guide.</a></p>
         </div>
+        {{end}}
       </div>
     </section>
     {{end}}

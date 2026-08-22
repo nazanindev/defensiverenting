@@ -486,15 +486,30 @@ func TestConceptPage_definitionAndLocalAnswers(t *testing.T) {
 	stub := &stubStore{
 		conceptPage: store.ConceptPageData{
 			Concept: store.Concept{Slug: "notice-to-quit", Name: "Notice to quit", TopicSlug: "eviction-defense"},
-			National: &store.ConceptInstance{
-				Jurisdiction: store.Jurisdiction{Kind: "country", Name: "United States", Slug: "united-states"},
-				TopicSlug:    "eviction-defense",
-				Statement: store.CitedStatement{
-					ID: 1, BodyMD: "Before an eviction, your landlord must give you a notice to quit.",
-					ConceptSlug: "notice-to-quit",
-					Citations: []store.CitationWithSource{{
-						SourceID: 1, SourceURL: "https://example.gov", Publisher: "HUD", SourceKind: "gov_guidance", CheckedAt: &checked,
-					}},
+			// Two national statements share the tag: both belong under the
+			// general rule, never under "where you live".
+			National: []store.ConceptInstance{
+				{
+					Jurisdiction: store.Jurisdiction{Kind: "country", Name: "United States", Slug: "united-states"},
+					TopicSlug:    "eviction-defense",
+					Statement: store.CitedStatement{
+						ID: 1, BodyMD: "Before an eviction, your landlord must give you a notice to quit.",
+						ConceptSlug: "notice-to-quit",
+						Citations: []store.CitationWithSource{{
+							SourceID: 1, SourceURL: "https://example.gov", Publisher: "HUD", SourceKind: "gov_guidance", CheckedAt: &checked,
+						}},
+					},
+				},
+				{
+					Jurisdiction: store.Jurisdiction{Kind: "country", Name: "United States", Slug: "united-states"},
+					TopicSlug:    "eviction-defense",
+					Statement: store.CitedStatement{
+						ID: 3, BodyMD: "The notice must say why the landlord wants you out.",
+						ConceptSlug: "notice-to-quit",
+						Citations: []store.CitationWithSource{{
+							SourceID: 1, SourceURL: "https://example.gov", Publisher: "HUD", SourceKind: "gov_guidance", CheckedAt: &checked,
+						}},
+					},
 				},
 			},
 			Local: []store.ConceptInstance{{
@@ -532,6 +547,12 @@ func TestConceptPage_definitionAndLocalAnswers(t *testing.T) {
 	}
 	if !strings.Contains(body, "Sources checked August 21, 2026") {
 		t.Error("entries must carry the trust line they earn on their own pages")
+	}
+	if !strings.Contains(body, "why the landlord wants you out") {
+		t.Error("a second national statement sharing the tag must render under the general rule")
+	}
+	if got := strings.Count(body, `class="concept-place"`); got != 1 {
+		t.Errorf("%d place headings under the local section, want 1 — a national statement must never appear under where-you-live", got)
 	}
 
 	// An unknown or content-less concept has no page.

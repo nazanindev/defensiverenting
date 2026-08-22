@@ -333,14 +333,14 @@ func conceptPage(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			TopicSlug:  data.Concept.TopicSlug,
 			Definition: data.Concept.Definition,
 		}
-		if data.National != nil {
-			page.National = buildConceptEntry(*data.National)
+		for i := range data.National {
+			page.National = append(page.National, *buildConceptEntry(data.National[i]))
 		}
 		switch {
 		case data.Concept.Definition != "":
 			page.Description = data.Concept.Definition + " See the rule in every place we cover."
-		case data.National != nil:
-			page.Description = metaDescription(data.National.Statement.BodyMD, data.Concept.Name, "renters anywhere in the United States")
+		case len(data.National) > 0:
+			page.Description = metaDescription(data.National[0].Statement.BodyMD, data.Concept.Name, "renters anywhere in the United States")
 		default:
 			page.Description = data.Concept.Name + ": what it means for renters, with the rule in every place we cover."
 		}

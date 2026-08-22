@@ -333,8 +333,8 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 		return d, ErrNotFound
 	}
 	for i := range instances {
-		if instances[i].Jurisdiction.Kind == "country" && d.National == nil {
-			d.National = &instances[i]
+		if instances[i].Jurisdiction.Kind == "country" {
+			d.National = append(d.National, instances[i])
 		} else {
 			d.Local = append(d.Local, instances[i])
 		}

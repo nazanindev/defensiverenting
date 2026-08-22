@@ -177,8 +177,11 @@ type ConceptPage struct {
 	// Definition is the registry's plain-language gloss, shown as the lede.
 	Definition  string
 	Description string
-	National    *ConceptEntry
-	Local       []ConceptEntry
+	// National holds every national statement carrying the concept — tags may
+	// be shared, and a second national statement is more of the general rule,
+	// never a "where you live" entry.
+	National []ConceptEntry
+	Local    []ConceptEntry
 }
 
 // ConceptEntry is one place's statement on a concept page, carrying the same

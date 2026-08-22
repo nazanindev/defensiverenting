@@ -182,11 +182,14 @@ type ConceptInstance struct {
 	Statement    CitedStatement
 }
 
-// ConceptPageData is everything /c/{slug} renders (ADR-012 D1): the national
-// definition when published, and every published localized instance.
+// ConceptPageData is everything /c/{slug} renders (ADR-012 D1): every
+// published national statement carrying the concept (statements may share a
+// tag, so this is a slice — a second national statement is more of the
+// general rule, never a "where you live" entry), and every published
+// localized instance.
 type ConceptPageData struct {
 	Concept  Concept
-	National *ConceptInstance
+	National []ConceptInstance
 	Local    []ConceptInstance
 }
 
