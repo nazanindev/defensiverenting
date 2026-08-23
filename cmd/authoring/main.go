@@ -1032,6 +1032,7 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 				vs.Cites = append(vs.Cites, viewCite{
 					Num: m.Idx + 1, Locator: c.Locator,
 					Quote: c.Quote, URL: c.SourceURL, Domain: hostOf(c.SourceURL),
+					Publisher: c.Publisher,
 					CheckedAt: c.CheckedAt, CheckedBy: c.CheckedBy,
 				})
 			}
@@ -1088,6 +1089,7 @@ type viewCite struct {
 	Quote     string
 	URL       string
 	Domain    string
+	Publisher string     // tooltip identity, so the chip needs no cross-reference
 	CheckedAt *time.Time // when the quote was last confirmed at the source; nil = never
 	CheckedBy string     // who confirmed it then; "" on rows from before actor stamps
 }

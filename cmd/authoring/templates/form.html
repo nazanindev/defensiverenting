@@ -75,6 +75,8 @@
   .cite-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
   .cite-row input[type=checkbox] { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; accent-color: #9b2335; }
   .cite-name { flex: 1; font-size: .82rem; color: #2d3748; }
+  .cite-open { flex-shrink: 0; color: #9b2335; text-decoration: none; font-weight: 700; padding: 0 4px; }
+  .cite-open:hover { text-decoration: underline; }
   .cite-sub { font-size: .72rem; color: #b08080; }
   .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
 
@@ -999,6 +1001,9 @@ function renderStmts() {
           srcLabel +
           (!isDir && src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
         '</label>' +
+        // Outside the label so clicking it opens the source instead of
+        // toggling the citation checkbox.
+        (src.url ? '<a class="cite-open" href="' + esc(src.url) + '" target="_blank" rel="noopener" title="Open the source">↗</a>' : '') +
         locInput +
         quoteField +
       '</div>' + quoteRow;
