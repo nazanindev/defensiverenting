@@ -26,7 +26,8 @@ import (
 type PageIssue struct {
 	// Code names the invariant, stable across wording changes:
 	// no-title, no-statements, empty-statement, uncited-statement,
-	// missing-quote, unverified-quote, statute-locator, source-no-publisher.
+	// missing-quote, unverified-quote, source-unreachable, statute-locator,
+	// source-no-publisher.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -174,17 +175,31 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 	// would put unverified words in front of renters. checked_at is stamped by
 	// every path that actually looks (a live fetch that found the quote, a
 	// reviewer's attestation, a check-sources run), so NULL here is honest.
+	//
+	// Reported per SOURCE, not per statement: one blocked source behind five
+	// statements used to read as five separate complaints the reviewer had to
+	// work backwards from. A source the checker has never managed to examine
+	// (last_checked_at NULL, despite the periodic runs) gets its own code —
+	// the fix there is opening the source yourself, not re-checking.
 	if err := scanIssueRows(ctx, q, `
-		SELECT pb.id, (ps.position + 1)::text, src.url
+		SELECT pb.id, src.url,
+		       string_agg((ps.position + 1)::text, ', ' ORDER BY ps.position),
+		       (src.last_checked_at IS NULL)::text
 		FROM playbook_statements ps
 		JOIN playbooks pb ON pb.id = ps.playbook_id
 		JOIN citations c ON c.statement_id = ps.statement_id
 		JOIN sources src ON src.id = c.source_id
 		WHERE `+cond+` AND src.kind <> 'editorial'
 		  AND btrim(c.quote) <> '' AND c.checked_at IS NULL AND NOT c.manually_verified
-		ORDER BY pb.id, ps.position, src.url`, args,
+		GROUP BY pb.id, src.url, src.last_checked_at
+		ORDER BY pb.id, src.url`, args,
 		func(id int64, f []string) {
-			add(id, pos(f[0]), "unverified-quote", fmt.Sprintf("statement %s: the quote from %s was never confirmed at the source — re-check it in the editor, or attest to it by hand", f[0], f[1]))
+			first := pos(strings.SplitN(f[1], ",", 2)[0])
+			if f[2] == "true" {
+				add(id, first, "source-unreachable", fmt.Sprintf("the checker has never managed to read %s; it may block automated fetching. Statement(s) %s cite it with unconfirmed quotes — open the source yourself and attest each quote in the editor", f[0], f[1]))
+				return
+			}
+			add(id, first, "unverified-quote", fmt.Sprintf("quotes from %s were never confirmed at the source (statement(s) %s) — re-check them in the editor, or attest by hand", f[0], f[1]))
 		},
 	); err != nil {
 		return nil, err

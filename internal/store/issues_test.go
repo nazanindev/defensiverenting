@@ -59,7 +59,11 @@ func TestAuthorUpdate_savesAnIncompleteDraftAndFlagsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := issueCodes(issues)
-	for _, want := range []string{"no-title", "uncited-statement", "empty-statement", "unverified-quote", "statute-locator"} {
+	// The unconfirmed quote reports as source-unreachable, not
+	// unverified-quote: the fixture's source has never been examined by the
+	// checker (last_checked_at NULL), and the gate now groups unconfirmed
+	// quotes by source and says when the source itself is the problem.
+	for _, want := range []string{"no-title", "uncited-statement", "empty-statement", "source-unreachable", "statute-locator"} {
 		if !got[want] {
 			t.Errorf("issue %q not reported; got %v", want, issues)
 		}
@@ -179,8 +183,8 @@ func TestPublish_refusesAQuoteNobodyConfirmed(t *testing.T) {
 	if err == nil {
 		t.Fatal("published a page whose quote was never confirmed at its source")
 	}
-	if !strings.Contains(err.Error(), "never confirmed") {
-		t.Fatalf("error should say the quote was never confirmed, got: %v", err)
+	if !strings.Contains(err.Error(), "unconfirmed quotes") {
+		t.Fatalf("error should say the quotes are unconfirmed, got: %v", err)
 	}
 
 	// A reviewer's attestation is a confirmation, so it unblocks.
