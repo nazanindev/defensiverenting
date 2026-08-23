@@ -77,6 +77,13 @@
   .cite-name { flex: 1; font-size: .82rem; color: #2d3748; }
   .cite-open { flex-shrink: 0; color: #9b2335; text-decoration: none; font-weight: 700; padding: 0 4px; }
   .cite-open:hover { text-decoration: underline; }
+  .cite-srcnum { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; background: #9b2335; color: #fff;
+                 border: none; border-radius: 50%; font-size: .68rem; font-weight: 700; cursor: pointer;
+                 display: inline-flex; align-items: center; justify-content: center; font-family: inherit; }
+  .cite-srcnum:hover { background: #7a1c2a; }
+  .quote-src-link { color: #9b2335; text-decoration: none; font-weight: 600; }
+  .quote-src-link:hover { text-decoration: underline; }
+  .card-flash { outline: 2px solid #9b2335; outline-offset: 2px; transition: outline-color .3s; }
   .cite-sub { font-size: .72rem; color: #b08080; }
   .cite-row input[type=text] { width: 140px; flex-shrink: 0; font-size: .78rem; padding: 4px 7px; }
 
@@ -837,7 +844,8 @@ function renderSources() {
         '<p class="hint">Specific section or chapter shown next to the citation link.</p>' +
       '</div>';
     const railInfo = railStatusInfo(s.id);
-    return '<div class="card">' +
+    // id so a statement's cite row can jump straight to this card.
+    return '<div class="card" id="srccard_' + s.id + '">' +
       '<div class="card-hd">' +
         '<span class="card-num">' + srcLabel + '</span>' +
         '<span>' +
@@ -876,6 +884,16 @@ function renderSources() {
       '<pre class="src-text" id="srctext_' + s.id + '" hidden></pre>' +
     '</div>';
   }).join('');
+}
+
+// jumpToSource scrolls a source's rail card into view and flashes it, so a
+// cite row's numbered badge answers "which card is this" without scanning.
+function jumpToSource(id) {
+  const card = document.getElementById('srccard_' + id);
+  if (!card) return;
+  card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  card.classList.add('card-flash');
+  setTimeout(function() { card.classList.remove('card-flash'); }, 1500);
 }
 
 // onSrcUrlInput keeps the "open ↗" link beside the URL field pointing at what
@@ -984,6 +1002,7 @@ function renderStmts() {
           '<div class="quote-hint">' + (quote
             ? 'Checked against the source as soon as you leave this field.'
             : 'No quote yet. This citation cannot be published until one is added.') +
+          (src.url ? ' <a class="quote-src-link" href="' + esc(src.url) + '" target="_blank" rel="noopener">Open the source ↗</a>' : '') +
           '</div>' +
           '<span class="check-status' + (csInfo.cls ? ' ' + csInfo.cls : '') + '" id="cs_' + st.id + '_' + src.id + '">' + csInfo.text + '</span>' +
           verifyRow +
@@ -997,6 +1016,12 @@ function renderStmts() {
         '<input type="checkbox" name="cite_' + st.id + '_' + src.id + '" id="cb_' + st.id + '_' + src.id + '"' +
           (st.cites[src.id] ? ' checked' : '') +
           ' onchange="onCiteToggle(this,\'' + qid + '\')">' +
+        // The numbered badge ties this row to its rail card — several sources
+        // often share a publisher (three sections of one statute all read
+        // "Massachusetts Legislature"), and the number is what tells them
+        // apart. Clicking it scrolls the card into view.
+        '<button type="button" class="cite-srcnum" title="Source ' + (si + 1) + ' in the rail — click to show its card"' +
+          ' onclick="jumpToSource(' + src.id + ')">' + (si + 1) + '</button>' +
         '<label class="cite-name" for="cb_' + st.id + '_' + src.id + '">' +
           srcLabel +
           (!isDir && src.kind ? '<span class="kind-tag">' + src.kind.replace(/_/g, ' ') + '</span>' : '') +
