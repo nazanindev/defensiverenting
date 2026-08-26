@@ -186,3 +186,85 @@ func TestLint_newBannedWords(t *testing.T) {
 		t.Errorf("naming the warranty of habitability must stay legal, got %v", v)
 	}
 }
+
+// The jargon bans added 2026-08-26: damages, eligibility, collections,
+// partial payment, "period of".
+func TestLint_jargonBans2026_08(t *testing.T) {
+	for _, bad := range []string{
+		"The landlord can deduct for damages.",
+		"You may be eligible for help.",
+		"The debt can be sent to collections.",
+		"Your landlord may refuse a partial payment.",
+		"You have a period of 30 days to respond.",
+	} {
+		if v := Lint("en", bad); len(v) == 0 {
+			t.Errorf("expected a violation for %q", bad)
+		}
+	}
+	// The harm-to-the-home sense is "damage", no s, and stays legal.
+	if v := Lint("en", "You do not pay for damage you did not cause."); len(v) != 0 {
+		t.Errorf("singular 'damage' must pass, got %v", v)
+	}
+	if v := Lint("es", "El propietario debe pagar daños y perjuicios."); len(v) == 0 {
+		t.Error("expected a violation for 'daños y perjuicios'")
+	}
+	if v := Lint("es", "Usted puede ser elegible para esta ayuda."); len(v) == 0 {
+		t.Error("expected a violation for 'elegible'")
+	}
+}
+
+// Official terms (judgment, mediation, rental assistance, wear and tear,
+// harassment, grace period) may be named, but the same text block must
+// explain them: a parenthetical right after, or "<term> means ...".
+func TestLint_explainRequired(t *testing.T) {
+	bare := []string{
+		"The court can enter a judgment against you.",
+		"You can ask the court for mediation.",
+		"Apply for rental assistance today.",
+		"Your landlord cannot charge you for normal wear and tear.",
+		"This counts as harassment.",
+		"Your lease may give you a grace period.",
+	}
+	for _, s := range bare {
+		v := Lint("en", s)
+		found := false
+		for _, msg := range v {
+			if strings.Contains(msg, "plain-words explanation") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("Lint(en, %q) = %v, want an explain-required violation", s, v)
+		}
+	}
+
+	explained := []string{
+		"The court can enter a judgment (its final decision in your case) against you.",
+		"Mediation means a meeting with a neutral person. You can ask the court for it.",
+		"Apply for rental assistance (money to help pay rent) today.",
+		"Normal wear and tear (normal use over time, like faded paint) is not damage you pay for.",
+		"Harassment means repeated pressure to make you move out. Write down each time it happens.",
+		"A grace period (extra days to pay before late fees start) is not required by law.",
+	}
+	for _, s := range explained {
+		if v := Lint("en", s); len(v) != 0 {
+			t.Errorf("Lint(en, %q) = %v, want none", s, v)
+		}
+	}
+}
+
+func TestLint_explainRequired_spanish(t *testing.T) {
+	if v := Lint("es", "Puede pedir mediación al tribunal."); len(v) == 0 {
+		t.Error("bare 'mediación' must be flagged")
+	}
+	ok := "Puede pedir mediación (una reunión con una persona neutral que ayuda a llegar a un acuerdo)."
+	if v := Lint("es", ok); len(v) != 0 {
+		t.Errorf("explained 'mediación' must pass, got %v", v)
+	}
+	if v := Lint("es", "El desgaste normal no es su responsabilidad."); len(v) == 0 {
+		t.Error("bare 'desgaste normal' must be flagged")
+	}
+	if v := Lint("es", "Usted puede pedir asistencia de renta hoy."); len(v) == 0 {
+		t.Error("bare 'asistencia de renta' must be flagged")
+	}
+}

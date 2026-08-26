@@ -28,6 +28,9 @@ The reader may not have strong reading skills. They are stressed, short on time,
 - No idioms, metaphors, or figures of speech ("mental model", "navigate the process", "landscape"). The text must translate cleanly into other languages.
 - Active voice. Talk to the reader as "you". Name the actor: your landlord, the court, the city.
 - Explain a legal term once in plain words, then use the plain term.
+- Official terms a renter will meet on court papers, program applications, or a lease (a judgment, mediation, rental assistance, normal wear and tear, harassment, a grace period) may be named, but the SAME statement must explain them in plain words right after the term: "mediation (a meeting with a neutral person who helps you and your landlord reach an agreement)". A statement is shown alone on other pages, so an explanation elsewhere in the playbook does not count.
+- "Damages" hides two meanings, pick one: money a court awards is "money the landlord must pay you"; harm to the home is "damage" (no s).
+- When a statement first mentions utilities, say which: "utilities (water, electric, gas)".
 - Numbers as digits: "14 days", not "fourteen days".
 - Honest about variation: say "in most states" or "New York law requires" when a rule is not universal. Never overclaim.
 
