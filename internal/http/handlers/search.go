@@ -12,6 +12,7 @@ import (
 type searchStore interface {
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
 	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	ListPublishedStateJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	Search(ctx context.Context, query string, jurisdictionID *int64, language string) ([]store.SearchResult, error)
 }
 
@@ -38,6 +39,11 @@ func Search(db searchStore, logger *slog.Logger) http.HandlerFunc {
 		var groups []tmpl.StateGroup
 		if cities, cerr := db.ListPublishedCityJurisdictions(r.Context()); cerr == nil {
 			groups = tmpl.GroupByState(cities)
+			if states, serr := db.ListPublishedStateJurisdictions(r.Context()); serr == nil {
+				groups = tmpl.MarkStatewide(groups, states)
+			} else {
+				logger.ErrorContext(r.Context(), "list state jurisdictions for scope picker", slog.Any("err", serr))
+			}
 		} else {
 			logger.ErrorContext(r.Context(), "list jurisdictions for scope picker", slog.Any("err", cerr))
 		}

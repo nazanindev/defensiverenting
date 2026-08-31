@@ -73,9 +73,20 @@
     {{if .Local}}
     <section aria-labelledby="local-heading">
       <h2 id="local-heading" class="section-title">The rule where you live</h2>
+      {{/* Progressive enhancement only: with JS off the input never renders
+           and the full list stands. Client-side on purpose, like scope-script:
+           these pages are shared-cache, so the HTML must not personalise. */}}
+      <div class="concept-filter" data-concept-filter hidden>
+        <label for="concept-place-filter">Find your place</label>
+        <input id="concept-place-filter" type="search"
+               placeholder="Type a city or state" autocomplete="off" />
+        <p class="concept-filter-empty" data-filter-empty hidden>
+          No match. Clear the box to see every place, or read the general rule above.
+        </p>
+      </div>
       <div class="statement-list">
         {{range .Local}}
-        <div class="statement-item">
+        <div class="statement-item" data-place-name="{{.PlaceName}}" data-place-slug="{{.PlaceSlug}}">
           <h3 class="concept-place">{{.PlaceName}}</h3>
           <div class="statement-body">{{.BodyHTML}}</div>
           <div class="citation-chips" aria-label="Sources">
@@ -99,5 +110,43 @@
   </main>
 
   {{template "site-footer" .}}
+  <script>
+  (function () {
+    var box = document.querySelector('[data-concept-filter]');
+    if (!box) return;
+    var input = document.getElementById('concept-place-filter');
+    var empty = box.querySelector('[data-filter-empty]');
+    var items = document.querySelectorAll('.statement-item[data-place-name]');
+    if (!input || items.length < 2) return;
+    box.hidden = false;
+
+    function apply() {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      for (var i = 0; i < items.length; i++) {
+        var name = (items[i].getAttribute('data-place-name') || '').toLowerCase();
+        var hit = !q || name.indexOf(q) !== -1;
+        items[i].hidden = !hit;
+        if (hit) shown++;
+      }
+      if (empty) empty.hidden = shown !== 0;
+    }
+
+    // Start from the location the renter picked elsewhere on the site, when
+    // one of the listed places matches it. Same key scope-script writes.
+    try {
+      var saved = localStorage.getItem('renterlaw.location');
+      for (var i = 0; saved && i < items.length; i++) {
+        if (items[i].getAttribute('data-place-slug') === saved) {
+          input.value = items[i].getAttribute('data-place-name') || '';
+          break;
+        }
+      }
+    } catch (e) {}
+
+    input.addEventListener('input', apply);
+    apply();
+  })();
+  </script>
 </body>
 </html>

@@ -20,6 +20,7 @@ import (
 
 type browseStore interface {
 	ListPublishedCityJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
+	ListPublishedStateJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListPublishedHubJurisdictions(ctx context.Context) ([]store.Jurisdiction, error)
 	ListPublishedChildCities(ctx context.Context, parentID int64) ([]store.Jurisdiction, error)
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
@@ -286,8 +287,17 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		} else {
 			logger.ErrorContext(r.Context(), "list terms", slog.Any("err", terr))
 		}
+		// States with statewide guides of their own become selectable scope
+		// choices. Best-effort like the terms lookup: losing them costs the
+		// statewide options, not the homepage.
+		groups := tmpl.GroupByState(jurisdictions)
+		if states, serr := db.ListPublishedStateJurisdictions(r.Context()); serr == nil {
+			groups = tmpl.MarkStatewide(groups, states)
+		} else {
+			logger.ErrorContext(r.Context(), "list state jurisdictions", slog.Any("err", serr))
+		}
 		render(w, r, http.StatusOK, tmpl.IndexPage{
-			LocationGroups: tmpl.GroupByState(jurisdictions),
+			LocationGroups: groups,
 			CityCount:      len(jurisdictions),
 			Topics:         topics,
 			Terms:          terms,
@@ -368,6 +378,7 @@ func buildConceptEntry(inst store.ConceptInstance) *tmpl.ConceptEntry {
 	return &tmpl.ConceptEntry{
 		PlaceName: inst.Jurisdiction.Name,
 		PlaceKind: inst.Jurisdiction.Kind,
+		PlaceSlug: inst.Jurisdiction.Slug,
 		PagePath:  inst.Jurisdiction.TopicPathIn("en", inst.TopicSlug) + "#" + s.ConceptSlug,
 		BodyHTML:  content.RenderMarkdown(s.BodyMD),
 		Citations: chips,

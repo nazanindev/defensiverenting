@@ -23,6 +23,32 @@ func scopeStub() *stubStore {
 	}
 }
 
+// A state with published statewide guides of its own is a real choice on the
+// scope picker, labeled so it cannot be mistaken for city coverage — including
+// a state that has no covered cities yet, which has no optgroup to live in
+// otherwise. A state whose only coverage is its cities stays an unselectable
+// label, because scoping there would silently exclude the renter's city.
+func TestIndex_statewideOptionOnlyForStatesWithOwnGuides(t *testing.T) {
+	st := scopeStub()
+	st.stateHubs = []store.Jurisdiction{
+		{ID: 20, Kind: "state", Name: "Pennsylvania", Slug: "pennsylvania"},
+	}
+	rec := serve(t, st, "/")
+	body := rec.Body.String()
+
+	for _, want := range []string{
+		`<option value="pennsylvania"`,
+		`All of Pennsylvania (statewide)`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("homepage missing %q", want)
+		}
+	}
+	if strings.Contains(body, `All of Massachusetts`) {
+		t.Errorf("state without statewide guides rendered as a selectable scope")
+	}
+}
+
 var cityCardRe = regexp.MustCompile(`class="card card--link" href="/j/`)
 
 // The homepage must not grow a box per city. Cities reach it only as options on

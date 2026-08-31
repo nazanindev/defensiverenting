@@ -13,8 +13,10 @@
 
   The location is a <select name="j"> submitted with the query, so it costs no
   server-side session and nothing personalises the cached HTML. Cities are
-  grouped into <optgroup> by state: optgroup labels are unselectable natively,
-  which is what we want, because scoping a search to a state searches state law
+  grouped into <optgroup> by state. A state with published statewide guides of
+  its own gets an explicit "All of {state} (statewide)" option, for renters in
+  a town without a city page. A state whose only coverage is its cities stays
+  an unselectable optgroup label: scoping a search there searches state law
   only and would silently exclude the city the renter lives in.
 */}}
 {{define "scope-search"}}
@@ -30,6 +32,7 @@
       {{range .Groups}}
         {{if .Name}}
         <optgroup label="{{.Name}}">
+          {{if .Selectable}}<option value="{{.Slug}}"{{if eq .Slug $sel}} selected{{end}}>All of {{.Name}} (statewide)</option>{{end}}
           {{range .Cities}}<option value="{{.Slug}}"{{if eq .Slug $sel}} selected{{end}}>{{.Name}}</option>{{end}}
         </optgroup>
         {{else}}

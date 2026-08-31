@@ -18,7 +18,10 @@ import (
 // stubStore implements browseStore with in-memory data for handler tests.
 type stubStore struct {
 	jurisdictions []store.Jurisdiction
-	topics        []store.Topic
+	// stateHubs are the states with published statewide playbooks of their
+	// own, as ListPublishedStateJurisdictions would report them.
+	stateHubs []store.Jurisdiction
+	topics    []store.Topic
 	playbook      store.PlaybookWithStatements
 	playbookErr   error
 	// retired slug -> live slug, for the alias-driven 301s
@@ -92,6 +95,12 @@ func (s *stubStore) GetConceptPage(_ context.Context, slug, _ string) (store.Con
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
 	return s.jurisdictions, nil
+}
+
+// stateHubs backs ListPublishedStateJurisdictions: only states with published
+// statewide pages of their own belong here, mirroring the real query.
+func (s *stubStore) ListPublishedStateJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {
+	return s.stateHubs, nil
 }
 
 func (s *stubStore) ListPublishedHubJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -105,6 +106,12 @@ type StateGroup struct {
 	Name   string // display name, e.g. "Massachusetts"
 	Slug   string // URL slug, e.g. "massachusetts"
 	Cities []store.Jurisdiction
+	// Selectable marks a state with published statewide pages of its own, so
+	// the scope picker offers it as an "All of {state}" choice. A state whose
+	// only coverage is its cities stays an unselectable optgroup label:
+	// scoping there would search state law only and silently exclude the
+	// renter's city.
+	Selectable bool
 }
 
 // Path is the state hub URL, or empty when the city has no parent state.
@@ -145,6 +152,27 @@ func GroupByState(cities []store.Jurisdiction) []StateGroup {
 		out[i].Cities = append(out[i].Cities, c)
 	}
 	return out
+}
+
+// MarkStatewide flags the groups whose state has published statewide pages of
+// its own and appends a group for any such state with no covered cities yet,
+// which would otherwise never reach the picker at all. Groups come back in
+// name order (the order GroupByState preserves from the store), with the
+// no-state group, when present, first.
+func MarkStatewide(groups []StateGroup, states []store.Jurisdiction) []StateGroup {
+	idx := make(map[string]int, len(groups))
+	for i, g := range groups {
+		idx[g.Slug] = i
+	}
+	for _, s := range states {
+		if i, ok := idx[s.Slug]; ok {
+			groups[i].Selectable = true
+			continue
+		}
+		groups = append(groups, StateGroup{Name: s.Name, Slug: s.Slug, Selectable: true})
+	}
+	sort.SliceStable(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
+	return groups
 }
 
 // IndexPage is the landing page: search, situations, and a location scope.
@@ -190,6 +218,7 @@ type ConceptPage struct {
 type ConceptEntry struct {
 	PlaceName string
 	PlaceKind string // country|state|city
+	PlaceSlug string // jurisdiction slug, for the client-side place filter
 	PagePath  string // the statement's home page, at its concept anchor
 	BodyHTML  template.HTML
 	Citations []CitationChip

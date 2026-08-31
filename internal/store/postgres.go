@@ -102,6 +102,28 @@ func (pg *PG) ListPublishedCityJurisdictions(ctx context.Context) ([]Jurisdictio
 	return scanJurisdictions(rows)
 }
 
+// ListPublishedStateJurisdictions returns state-level jurisdictions that have
+// at least one published playbook of their own. The scope picker offers these
+// as statewide choices: a renter in a town with no city page can scope to
+// state law instead of settling for "Every location". A state whose only
+// coverage is its cities is deliberately absent, matching the picker's
+// long-standing rule that a choice must never silently exclude the renter's
+// city.
+func (pg *PG) ListPublishedStateJurisdictions(ctx context.Context) ([]Jurisdiction, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
+		FROM jurisdictions j
+		JOIN playbooks p ON p.jurisdiction_id = j.id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
+		WHERE j.kind = 'state' AND p.status = 'published'
+		ORDER BY j.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJurisdictions(rows)
+}
+
 // ListPublishedChildCities returns the cities under one parent (a state) that
 // have at least one published playbook. A state hub had no way to list the
 // cities beneath it, so /j/massachusetts rendered as a dead end even though

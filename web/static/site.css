@@ -1251,3 +1251,25 @@ input:focus-visible,
 
 .report-link a { color: var(--accent); }
 
+
+/* Concept-page place filter (progressive enhancement; hidden until JS runs) */
+.concept-filter { margin: 0 0 16px; }
+.concept-filter label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.concept-filter input[type="search"] {
+  width: 100%;
+  max-width: 340px;
+  padding: 10px 16px;
+  border: 2px solid #e8d0d4;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: #fff;
+  outline: none;
+}
+.concept-filter input[type="search"]:focus { border-color: #1b1f3b; }
+.concept-filter-empty { margin: 10px 0 0; color: #6b6f8a; }
