@@ -314,10 +314,19 @@ func promote(ctx context.Context, srcPG, dstPG *store.PG, p plan) error {
 		for _, c := range st.Citations {
 			cites = append(cites, store.IngestCitationParams{
 				SourceID: srcIDByURL[c.SourceURL], Locator: c.Locator, Quote: c.Quote,
+				ManuallyVerified: c.ManuallyVerified,
+				// The quote was verified against fetched source text when the
+				// source row was saved; this write copies it byte-identical,
+				// so the destination keeps the verification rather than
+				// landing 250 quotes back in the unchecked queue.
+				CheckedNow: c.CheckedAt != nil,
+				CheckedBy:  c.CheckedBy,
 			})
 		}
 		stmts = append(stmts, store.IngestStatementParams{
 			BodyMD: st.BodyMD, Language: full.Playbook.Language, Sources: cites,
+			ConceptSlug:  st.ConceptSlug,
+			TopicRefSlug: st.TopicRefSlug,
 		})
 	}
 
