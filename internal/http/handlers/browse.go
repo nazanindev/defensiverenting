@@ -808,9 +808,21 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 				sourceURLs = append(sourceURLs, c.SourceURL)
 			}
 		}
+		// A tagged statement on a national page points the reader at the
+		// term's own reference page, which states the rule per place inline
+		// (ADR-012 supersedes the ADR-011 D4 hub link for English: the hub
+		// made the reader hunt for the claim inside their city's guide, and
+		// its "most-localized topic" pick was arbitrary for cross-cutting
+		// claims). The hub map still gates the link — a claim localized
+		// nowhere gets none — and Spanish keeps the hub until /c/ pages
+		// exist in Spanish.
 		stmtSpecifics := ""
 		if hubTopic, ok := hubByConcept[s.ConceptSlug]; ok && s.ConceptSlug != "" {
-			stmtSpecifics = store.LangPrefix(pb.Playbook.Language) + "/t/" + hubTopic
+			if pb.Playbook.Language == "en" {
+				stmtSpecifics = "/c/" + s.ConceptSlug
+			} else {
+				stmtSpecifics = store.LangPrefix(pb.Playbook.Language) + "/t/" + hubTopic
+			}
 		}
 		topicRefPath, topicRefName := "", ""
 		if s.TopicRefSlug != "" && s.TopicRefSlug != pb.Topic.Slug {

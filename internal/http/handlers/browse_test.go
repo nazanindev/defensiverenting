@@ -374,10 +374,11 @@ func TestPlaybookHandler_localHelpPageDoesNotLinkToItself(t *testing.T) {
 }
 
 // A national statement tagged with a concept renders its anchor and points
-// the reader at the hub of the topic where that claim is localized (ADR-011
-// D4, amended) — the follow-up "check your state" never had. A statement
-// referencing a whole topic (D7) instead links to that topic's hub with the
-// full-guides line. A statement with neither gets no link.
+// the reader at the term's own reference page, which states the claim per
+// place inline (ADR-012, superseding the ADR-011 D4 hub link for English).
+// The link still renders only when the claim is localized somewhere. A
+// statement referencing a whole topic (D7) instead links to that topic's hub
+// with the full-guides line. A statement with neither gets no link.
 func TestPlaybookHandler_nationalStatementTagLinks(t *testing.T) {
 	stub := &stubStore{
 		jurisdictions: []store.Jurisdiction{
@@ -429,8 +430,8 @@ func TestPlaybookHandler_nationalStatementTagLinks(t *testing.T) {
 	if !strings.Contains(body, `id="retaliation-protection"`) {
 		t.Error("concept-tagged statement must render its concept slug as an anchor")
 	}
-	if !strings.Contains(body, `href="/t/security-deposits"`) {
-		t.Error("concept-tagged national statement must link to the hub where the claim is localized")
+	if !strings.Contains(body, `href="/c/retaliation-protection"`) {
+		t.Error("concept-tagged national statement must link to the term's reference page")
 	}
 	if !strings.Contains(body, `href="/t/repairs-and-habitability"`) {
 		t.Error("topic-referencing statement must link to the referenced topic's hub")

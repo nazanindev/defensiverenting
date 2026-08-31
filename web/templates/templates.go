@@ -347,10 +347,11 @@ type RenderedStatement struct {
 	// element id so other pages can deep-link to this exact claim. "" for
 	// untagged statements: no id, no links.
 	Anchor string
-	// SpecificsPath is the topic hub the statement points a reader at for
-	// their own place's rules, instead of a bare "check your state". Set only
-	// on national pages' tagged statements (ADR-011 D4, amended: one hub link
-	// listing every covered jurisdiction, not a per-place link row).
+	// SpecificsPath points a reader at their own place's rules, instead of a
+	// bare "check your state": the term's /c/ reference page for English
+	// (ADR-012), the localized topic hub for other languages (ADR-011 D4).
+	// Set only on national pages' tagged statements whose claim is localized
+	// somewhere.
 	SpecificsPath string
 	// TopicRefPath/Name render the whole-topic line (ADR-011 D7): this
 	// statement is a one-paragraph summary of a subject the site covers as
