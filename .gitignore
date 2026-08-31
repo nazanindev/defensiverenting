@@ -8,3 +8,5 @@
 # Wrangler / Cloudflare Worker
 cloudflare/forms/node_modules/
 cloudflare/forms/.wrangler/
+
+.env.local
