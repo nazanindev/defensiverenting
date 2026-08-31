@@ -177,7 +177,9 @@ func repoint(ctx context.Context, pool *pgxpool.Pool, snapID int64, live string)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	// Rollback after a successful Commit is a documented no-op error; there
+	// is nothing to do with it either way.
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var liveID int64
 	err = tx.QueryRow(ctx, `SELECT id FROM sources WHERE url = $1`, live).Scan(&liveID)

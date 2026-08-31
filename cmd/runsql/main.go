@@ -23,7 +23,9 @@ func main() {
 	if dsn == "" {
 		log.Fatal("DATABASE_URL is not set")
 	}
-	script, err := os.ReadFile(os.Args[1])
+	// Reading the file named on the command line is this tool's entire job,
+	// like psql -f; there is no traversal boundary to protect.
+	script, err := os.ReadFile(os.Args[1]) // #nosec G703
 	if err != nil {
 		log.Fatal(err)
 	}
