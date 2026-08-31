@@ -55,6 +55,9 @@ func funcMap() template.FuncMap {
 		},
 		"groupByOrg": groupByOrg,
 		"langPrefix": store.LangPrefix,
+		"ui":         UIString,
+		"uif":        UIStringf,
+		"pageLang":   pageLang,
 	}
 }
 

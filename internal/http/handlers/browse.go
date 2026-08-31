@@ -374,7 +374,7 @@ func buildConceptEntry(inst store.ConceptInstance) *tmpl.ConceptEntry {
 			SourceKind: c.SourceKind,
 		})
 	}
-	_, checkedOn := statementCheckedAt(s.Citations)
+	_, checkedOn := statementCheckedAt("en", s.Citations)
 	return &tmpl.ConceptEntry{
 		PlaceName: inst.Jurisdiction.Name,
 		PlaceKind: inst.Jurisdiction.Kind,
@@ -751,7 +751,7 @@ func NotFound() http.HandlerFunc {
 // ADR-003); a statement citing only editorial gets no stamp, and so does
 // any statement with even one unconfirmed quote. The line is an attestation
 // renters are asked to trust, so it renders fully earned or not at all.
-func statementCheckedAt(citations []store.CitationWithSource) (*time.Time, string) {
+func statementCheckedAt(lang string, citations []store.CitationWithSource) (*time.Time, string) {
 	var oldest *time.Time
 	for _, c := range citations {
 		if c.SourceKind == "editorial" {
@@ -767,7 +767,7 @@ func statementCheckedAt(citations []store.CitationWithSource) (*time.Time, strin
 	if oldest == nil {
 		return nil, ""
 	}
-	return oldest, oldest.Format("January 2, 2006")
+	return oldest, tmpl.UIDate(lang, *oldest)
 }
 
 // hubByConcept maps a concept slug to the topic hub where that claim is
@@ -836,7 +836,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 			seenAnchors[s.ConceptSlug] = true
 			anchor = s.ConceptSlug
 		}
-		checkedAt, checkedOn := statementCheckedAt(s.Citations)
+		checkedAt, checkedOn := statementCheckedAt(pb.Playbook.Language, s.Citations)
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:      content.RenderMarkdown(s.BodyMD),
 			Anchor:        anchor,
@@ -854,9 +854,9 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 	var reviewedOn string
 	switch {
 	case pb.Playbook.LastReviewedAt != nil:
-		reviewedOn = pb.Playbook.LastReviewedAt.Format("January 2, 2006")
+		reviewedOn = tmpl.UIDate(pb.Playbook.Language, *pb.Playbook.LastReviewedAt)
 	case !pb.Playbook.UpdatedAt.IsZero():
-		reviewedOn = pb.Playbook.UpdatedAt.Format("January 2, 2006")
+		reviewedOn = tmpl.UIDate(pb.Playbook.Language, pb.Playbook.UpdatedAt)
 	}
 
 	// The fallback description reads "...guide for {name}", which works for a

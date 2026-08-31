@@ -186,15 +186,16 @@
 
 {{define "site-footer"}}
 <footer class="site-footer">
+  {{$l := pageLang .}}
   <div class="wrap">
-    <p class="disclaimer"><strong>Not legal advice.</strong> This site provides general information and is not a substitute for a lawyer. Every claim links to its primary source so you can verify it yourself.</p>
+    <p class="disclaimer"><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "footer-disclaimer"}}</p>
     <p class="footer-links">
-      <a href="/locations">All locations</a> ·
-      <a href="/about">About</a> ·
-      <a href="/support">Support this project</a> ·
-      <a href="/editorial">Editorial guidance</a> ·
-      <a href="/report">Report a problem</a> ·
-      <a href="/contact">Contact us</a>
+      <a href="/locations">{{ui $l "footer-locations"}}</a> ·
+      <a href="/about">{{ui $l "footer-about"}}</a> ·
+      <a href="/support">{{ui $l "footer-support"}}</a> ·
+      <a href="/editorial">{{ui $l "footer-editorial"}}</a> ·
+      <a href="/report">{{ui $l "footer-report"}}</a> ·
+      <a href="/contact">{{ui $l "footer-contact"}}</a>
     </p>
   </div>
 </footer>

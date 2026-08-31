@@ -33,13 +33,14 @@
   {{if .Preview}}
   <div role="status" style="background:#92400e;color:#fef3c7;text-align:center;font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.45rem 1rem">Draft preview. This page is not published. Links here lead to the real site.</div>
   {{end}}
+  {{$l := .Playbook.Language}}
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
       <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
         <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
-        <button type="submit">Search</button>
+        <button type="submit">{{ui $l "search"}}</button>
       </form>
     </div>
   </header>
@@ -52,35 +53,35 @@
       <aside class="sidebar" aria-label="Site navigation">
         <nav class="sidebar-card">
           <span class="sidebar-label">{{.Jurisdiction.Name}} · {{.Topic.Name}}</span>
-          <a class="sidebar-back" href="{{.Jurisdiction.PathIn .Playbook.Language}}">← All topics</a>
+          <a class="sidebar-back" href="{{.Jurisdiction.PathIn .Playbook.Language}}">{{ui $l "all-topics"}}</a>
           {{if .OtherLangPath}}<a class="sidebar-lang" href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a>{{end}}
         </nav>
       </aside>
 
       <div class="page-content">
         <nav class="breadcrumb" aria-label="breadcrumb">
-          <a href="/">Home</a> <span aria-hidden="true">›</span>
+          <a href="/">{{ui $l "home"}}</a> <span aria-hidden="true">›</span>
           <a href="{{.Jurisdiction.PathIn .Playbook.Language}}">{{.Jurisdiction.Name}}</a> <span aria-hidden="true">›</span>
           <span aria-current="page">{{.Topic.Name}}</span>
         </nav>
 
         <header class="playbook-header">
-          <span class="city-badge">{{if eq .Jurisdiction.Kind "country"}}Nationwide{{else}}{{.Jurisdiction.Name}}{{end}}</span>
+          <span class="city-badge">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide"}}{{else}}{{.Jurisdiction.Name}}{{end}}</span>
           <h1>{{.Playbook.Title}}</h1>
-          <p class="byline">Last reviewed by <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · Last verified {{.ReviewedOn}}{{end}}</p>
+          <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{ui $l "last-verified"}} {{.ReviewedOn}}{{end}}</p>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
         </header>
 
         <main aria-label="Playbook content">
           {{if .LocalHelpPath}}
           <a class="help-bar" href="{{.LocalHelpPath}}">
-            <span class="help-bar-lead">Need help now?</span>
-            <span class="help-bar-text">{{.LocalHelpName}} in {{.Jurisdiction.Name}}: legal aid, rent assistance, and who to call</span>
+            <span class="help-bar-lead">{{ui $l "need-help-now"}}</span>
+            <span class="help-bar-text">{{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}}: {{ui $l "help-bar-tail"}}</span>
           </a>
           {{end}}
 
           <div class="disclaimer-box" role="note">
-            <strong>Not legal advice.</strong> Every statement below links to its primary source. Read the source before relying on this information.{{if not .LocalHelpPath}} If you need legal help, contact your local legal aid organization.{{end}}
+            <strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}
           </div>
 
           {{if .Statements}}
@@ -106,7 +107,7 @@
               <div class="directory-body">{{.BodyHTML}}</div>
               {{end}}
               {{with .CheckedOn}}
-              <p class="statement-checked">✓ Details checked {{.}}</p>
+              <p class="statement-checked">✓ {{ui $l "details-checked"}} {{.}}</p>
               {{end}}
               {{/* No per-entry report link. Repeated under every organisation it
                    read as part of each entry rather than as a page action, and
@@ -122,7 +123,7 @@
             {{range .Statements}}
             <div class="faq-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="faq-body">{{.BodyHTML}}</div>
-              <div class="citation-chips" aria-label="Sources">
+              <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                 {{range .Citations}}
                 <a class="{{chipClass .SourceKind}}"
                    href="{{.URL}}"
@@ -133,7 +134,7 @@
                 </a>
                 {{end}}
               </div>
-              {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
+              {{with .CheckedOn}}<p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.}}</p>{{end}}
             </div>
             {{end}}
           </dl>
@@ -146,7 +147,7 @@
                 <input type="checkbox" class="checklist-check">
                 <div class="checklist-body">
                   <div class="statement-body">{{.BodyHTML}}</div>
-                  <div class="citation-chips" aria-label="Sources">
+                  <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                     {{range .Citations}}
                     <a class="{{chipClass .SourceKind}}"
                        href="{{.URL}}"
@@ -157,7 +158,7 @@
                     </a>
                     {{end}}
                   </div>
-                  {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
+                  {{with .CheckedOn}}<p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.}}</p>{{end}}
                 </div>
               </label>
             </li>
@@ -169,7 +170,7 @@
             {{range .Statements}}
             <li class="statement-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="statement-body">{{.BodyHTML}}</div>
-              <div class="citation-chips" aria-label="Sources">
+              <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                 {{range .Citations}}
                 <a class="{{chipClass .SourceKind}}"
                    href="{{.URL}}"
@@ -185,7 +186,7 @@
                    earned — a statement with any unconfirmed quote shows
                    nothing rather than a half-attestation. */}}
               {{if .CheckedOn}}
-              <p class="statement-checked">✓ Sources checked {{.CheckedOn}}</p>
+              <p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.CheckedOn}}</p>
               {{end}}
               {{/* ADR-011 D4 (amended): a national statement that can only
                    outline the rule sends the reader to the topic hub, where
@@ -193,12 +194,12 @@
                    scales, instead of a per-place row that grows with every
                    city shipped. */}}
               {{if .SpecificsPath}}
-              <p class="statement-specifics">This rule depends on where you live. <a href="{{.SpecificsPath}}">See the rule in every place we cover.</a></p>
+              <p class="statement-specifics">{{ui $l "rule-depends"}} <a href="{{.SpecificsPath}}">{{ui $l "rule-everywhere"}}</a></p>
               {{end}}
               {{/* ADR-011 D7: this statement is a whole subject in miniature,
                    and the site covers that subject as its own pages. */}}
               {{if .TopicRefPath}}
-              <p class="statement-specifics">We have full guides on this. <a href="{{.TopicRefPath}}">See our {{.TopicRefName}} guides.</a></p>
+              <p class="statement-specifics">{{ui $l "full-guides"}} <a href="{{.TopicRefPath}}">{{uif $l "see-guides" .TopicRefName}}</a></p>
               {{end}}
             </li>
             {{end}}
@@ -206,18 +207,18 @@
           {{end}}
 
           {{else}}
-          <p class="empty-state">No statements available for this playbook yet.</p>
+          <p class="empty-state">{{ui $l "no-statements"}}</p>
           {{end}}
 
           <p class="report-link">
-            Is something on this page wrong or out of date?
-            <a href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">Tell us</a>.
+            {{ui $l "report-question"}}
+            <a href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">{{ui $l "report-tell-us"}}</a>.
           </p>
         </main>
 
         {{if .SiblingTopics}}
         <section class="related-section" aria-labelledby="related-city-heading">
-          <h2 id="related-city-heading" class="section-title">{{if eq .Jurisdiction.Kind "country"}}More nationwide tenant rights guides{{else}}More tenant rights in {{.Jurisdiction.Name}}{{end}}</h2>
+          <h2 id="related-city-heading" class="section-title">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "more-nationwide"}}{{else}}{{uif $l "more-rights-in" .Jurisdiction.Name}}{{end}}</h2>
           <ul class="situation-list">
             {{$j := .Jurisdiction}}
             {{range .SiblingTopics}}
@@ -234,14 +235,14 @@
 
         {{if .OtherCities}}
         <section class="related-section" aria-labelledby="related-topic-heading">
-          <h2 id="related-topic-heading" class="section-title">{{if eq .Jurisdiction.Kind "country"}}{{.Topic.Name}} in your state or city{{else}}{{.Topic.Name}} in other cities{{end}}</h2>
+          <h2 id="related-topic-heading" class="section-title">{{if eq .Jurisdiction.Kind "country"}}{{uif $l "topic-your-state" .Topic.Name}}{{else}}{{uif $l "topic-elsewhere" .Topic.Name}}{{end}}</h2>
           <ul class="city-list city-list--wide">
             {{$t := .Topic}}
             {{range .OtherCities}}
             <li><a href="{{.TopicPathIn $.Playbook.Language $t.Slug}}">{{.Name}}</a></li>
             {{end}}
           </ul>
-          <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">All cities for this topic →</a></p>
+          <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
         </section>
         {{end}}
       </div>

@@ -22,12 +22,13 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body class="has-hero-search">
+  {{$l := .Language}}
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
       <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
-        <button type="submit">Search</button>
+        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
+        <button type="submit">{{ui $l "search"}}</button>
       </form>
     </div>
   </header>
@@ -36,25 +37,25 @@
     <div class="halo" aria-hidden="true"></div>
 
     <nav class="breadcrumb" aria-label="breadcrumb">
-      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <a href="/">{{ui $l "home"}}</a> <span aria-hidden="true">›</span>
       <span aria-current="page">{{.Topic.Name}}</span>
     </nav>
 
     <section class="hero">
       <h1>{{.Topic.Name}}</h1>
-      <p class="lede">Tenant rights on this topic vary by city and state. Pick your city for a step-by-step guide. Every claim cites the law it comes from.</p>
+      <p class="lede">{{ui $l "topic-hub-lede"}}</p>
     </section>
 
     <section class="city-section" aria-labelledby="cities-heading">
       <h2 id="cities-heading" class="section-title">
-        Choose your city{{if .CityCount}} <span class="count-note">({{.CityCount}} covered)</span>{{end}}
+        {{ui $l "choose-your-city"}}{{if .CityCount}} <span class="count-note">{{uif $l "covered-count" .CityCount}}</span>{{end}}
       </h2>
       <div class="state-index">
         {{$topic := .Topic}}
         {{range .Groups}}
         <section class="state-group">
           <h3 class="state-name">
-            {{if .Path}}<a href="{{.PathIn $.Language}}">{{.Name}}</a>{{else}}Other{{end}}
+            {{if .Path}}<a href="{{.PathIn $.Language}}">{{.Name}}</a>{{else}}{{ui $.Language "other-group"}}{{end}}
           </h3>
           <ul class="city-list">
             {{range .Cities}}
@@ -64,12 +65,12 @@
         </section>
         {{end}}
       </div>
-      <p class="empty-state-hint">Don't see your city? We add new cities regularly. Statewide rules often still apply; check the guide for the nearest covered city in your state to see which laws are cited.</p>
+      <p class="empty-state-hint">{{ui $l "dont-see-city"}}</p>
     </section>
 
     {{if .Statewide}}
     <section class="city-section" aria-labelledby="statewide-heading">
-      <h2 id="statewide-heading" class="section-title">Statewide guides</h2>
+      <h2 id="statewide-heading" class="section-title">{{ui $l "statewide-guides"}}</h2>
       {{$topic := .Topic}}
       <ul class="city-list city-list--wide">
         {{range .Statewide}}
@@ -81,14 +82,14 @@
 
     {{if .National}}
     <section class="city-section" aria-labelledby="national-heading">
-      <h2 id="national-heading" class="section-title">Nationwide guide</h2>
+      <h2 id="national-heading" class="section-title">{{ui $l "national-guide"}}</h2>
       {{$topic := .Topic}}
       <ul class="city-list city-list--wide">
         {{range .National}}
         <li><a href="{{.TopicPathIn $.Language $topic.Slug}}">{{.Name}}</a></li>
         {{end}}
       </ul>
-      <p class="empty-state-hint">This guide explains the rules that apply in every state. Your state and city can add more protections on top.</p>
+      <p class="empty-state-hint">{{ui $l "national-applies"}}</p>
     </section>
     {{end}}
   </main>

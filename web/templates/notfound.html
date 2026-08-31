@@ -12,12 +12,13 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body class="has-hero-search">
+  {{$l := .Language}}
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
       <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
-        <button type="submit">Search</button>
+        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
+        <button type="submit">{{ui $l "search"}}</button>
       </form>
     </div>
   </header>
@@ -28,53 +29,50 @@
     <section class="hero">
       {{if .Topic.Slug}}
         {{if .Place.Slug}}
-        <h1>No {{.Topic.Name}} guide for {{.Place.Name}} yet</h1>
-        <p class="lede">We have other guides for {{.Place.Name}}, but not this one yet.</p>
+        <h1>{{uif $l "nf-no-guide-for" .Topic.Name .Place.Name}}</h1>
+        <p class="lede">{{uif $l "nf-other-guides" .Place.Name}}</p>
         {{else}}
-        <h1>No {{.Topic.Name}} guides yet</h1>
-        <p class="lede">No guides are published for this topic yet.</p>
+        <h1>{{uif $l "nf-no-topic-guides" .Topic.Name}}</h1>
+        <p class="lede">{{ui $l "nf-none-published"}}</p>
         {{end}}
       {{else if .UncoveredPlace}}
-      <h1>We don't cover this place yet</h1>
-      <p class="lede">RenterLaw adds new places one at a time.</p>
+      <h1>{{ui $l "nf-uncovered"}}</h1>
+      <p class="lede">{{ui $l "nf-one-at-a-time"}}</p>
       {{else}}
-      <h1>We can't find that page</h1>
-      <p class="lede">The link may be wrong, or the page may have moved.</p>
+      <h1>{{ui $l "nf-not-found"}}</h1>
+      <p class="lede">{{ui $l "nf-moved"}}</p>
       {{end}}
       <form class="hero-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search by situation" autofocus />
-        <button type="submit">Search</button>
+        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" autofocus />
+        <button type="submit">{{ui $l "search"}}</button>
       </form>
     </section>
 
     {{if .NearestPath}}
     <section class="city-section" aria-labelledby="nearest-heading">
-      <h2 id="nearest-heading" class="section-title">The {{.NearestName}} guide covers this</h2>
-      <p class="empty-state-hint">{{.NearestName}} law applies in {{.Place.Name}}. Start there until we write the {{.Place.Name}} guide.</p>
+      <h2 id="nearest-heading" class="section-title">{{uif $l "nf-nearest-covers" .NearestName}}</h2>
+      <p class="empty-state-hint">{{uif $l "nf-nearest-applies" .NearestName .Place.Name .Place.Name}}</p>
       <ul class="city-list city-list--wide">
-        <li><a href="{{.NearestPath}}">{{.Topic.Name}} in {{.NearestName}}</a></li>
+        <li><a href="{{.NearestPath}}">{{uif $l "nf-topic-in" .Topic.Name .NearestName}}</a></li>
       </ul>
     </section>
     {{end}}
 
     <section class="city-section" aria-labelledby="next-heading">
-      <h2 id="next-heading" class="section-title">Where to go instead</h2>
+      <h2 id="next-heading" class="section-title">{{ui $l "nf-where-instead"}}</h2>
       <ul class="city-list city-list--wide">
-        {{if .Place.Slug}}<li><a href="{{.Place.PathIn .Language}}">Everything we have for {{.Place.Name}}</a></li>{{end}}
-        {{if .Parent.Slug}}<li><a href="{{.Parent.PathIn .Language}}">Everything we have for {{.Parent.Name}}</a></li>{{end}}
-        <li><a href="/locations">All the places we cover</a></li>
-        <li><a href="/">Search from the homepage</a></li>
+        {{if .Place.Slug}}<li><a href="{{.Place.PathIn .Language}}">{{uif $l "nf-everything-for" .Place.Name}}</a></li>{{end}}
+        {{if .Parent.Slug}}<li><a href="{{.Parent.PathIn .Language}}">{{uif $l "nf-everything-for" .Parent.Name}}</a></li>{{end}}
+        <li><a href="/locations">{{ui $l "nf-all-places"}}</a></li>
+        <li><a href="/">{{ui $l "nf-search-home"}}</a></li>
       </ul>
     </section>
 
     <section class="city-section" aria-labelledby="why-heading">
-      <h2 id="why-heading" class="section-title">Why some pages are missing</h2>
+      <h2 id="why-heading" class="section-title">{{ui $l "nf-why-missing"}}</h2>
       <p class="empty-state-hint">
-        Every guide on this site is researched, and a person checks every citation before we publish it.
-        We publish nothing without that check.
-        That is why coverage grows one place and one topic at a time.
-        If we do not cover your city yet, your state's guide and the nationwide guides still apply to you.
-        <a href="/contact">Ask us to cover your city →</a>
+        {{ui $l "nf-why-body"}}
+        <a href="/contact">{{ui $l "nf-ask-cover"}}</a>
       </p>
     </section>
   </main>

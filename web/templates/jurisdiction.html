@@ -29,13 +29,14 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body class="has-hero-search">
+  {{$l := .Language}}
   <header class="site-header">
     <div class="wrap">
       <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
       <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
         <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
-        <button type="submit">Search</button>
+        <button type="submit">{{ui $l "search"}}</button>
       </form>
     </div>
   </header>
@@ -43,26 +44,26 @@
   <main class="wrap">
     <div class="halo" aria-hidden="true"></div>
     <nav class="breadcrumb" aria-label="breadcrumb">
-      <a href="/">Home</a> <span aria-hidden="true">›</span>
+      <a href="/">{{ui $l "home"}}</a> <span aria-hidden="true">›</span>
       {{if .Jurisdiction.ParentSlug}}<a href="{{langPrefix .Language}}/j/{{.Jurisdiction.ParentSlug}}">{{.Jurisdiction.ParentName}}</a> <span aria-hidden="true">›</span> {{end}}
       <span aria-current="page">{{.Jurisdiction.Name}}</span>
     </nav>
 
     <section class="hero">
       <span class="city-badge">{{.Jurisdiction.Name}}</span>
-      <h1>What's your situation?</h1>
-      <p class="lede">Describe what is happening and get a step by step tenant rights playbook. Every statement is backed by a primary source.</p>
+      <h1>{{ui $l "whats-your-situation"}}</h1>
+      <p class="lede">{{ui $l "hub-lede"}}</p>
       <form class="hero-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="e.g. heat stopped working…" aria-label="Search by situation" autofocus />
+        <input type="search" name="q" placeholder="{{ui $l "hub-search-placeholder"}}" aria-label="{{ui $l "search"}}" autofocus />
         <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
-        <button type="submit">Search</button>
+        <button type="submit">{{ui $l "search"}}</button>
       </form>
     </section>
 
     {{if .Topics}}
     <section aria-labelledby="topics-heading">
       <h2 id="topics-heading" class="section-title">
-        {{if eq .Jurisdiction.Kind "country"}}Nationwide guides{{else if .Cities}}{{.Jurisdiction.Name}} statewide rules{{else}}Or pick a topic{{end}}
+        {{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide-guides"}}{{else if .Cities}}{{uif $l "statewide-rules" .Jurisdiction.Name}}{{else}}{{ui $l "pick-a-topic"}}{{end}}
       </h2>
       <ul class="situation-list">
         {{range .Topics}}
@@ -79,18 +80,18 @@
 
     {{if .Cities}}
     <section class="city-section" aria-labelledby="cities-heading">
-      <h2 id="cities-heading" class="section-title">Cities in {{.Jurisdiction.Name}}</h2>
+      <h2 id="cities-heading" class="section-title">{{uif $l "cities-in" .Jurisdiction.Name}}</h2>
       <ul class="city-list city-list--wide">
         {{range .Cities}}
         <li><a href="{{.PathIn $.Language}}">{{.Name}}</a></li>
         {{end}}
       </ul>
-      <p class="empty-state-hint">Local ordinances stack on top of {{.Jurisdiction.Name}} law, so start with your city where we cover it.</p>
+      <p class="empty-state-hint">{{uif $l "ordinances-stack" .Jurisdiction.Name}}</p>
     </section>
     {{end}}
 
     {{if and (not .Topics) (not .Cities)}}
-    <p class="empty-state">No playbooks available for {{.Jurisdiction.Name}} yet. <a href="/locations">See all locations →</a></p>
+    <p class="empty-state">{{uif $l "no-playbooks-yet" .Jurisdiction.Name}} <a href="/locations">{{ui $l "see-all-locations"}}</a></p>
     {{end}}
   </main>
 

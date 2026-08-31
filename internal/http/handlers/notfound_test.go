@@ -23,7 +23,7 @@ func TestNotFound_fallbackExplainsManualCuration(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"We can't find that page", whyMissing, `href="/locations"`, `href="/contact"`} {
+	for _, want := range []string{"We can’t find that page", whyMissing, `href="/locations"`, `href="/contact"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("fallback 404 missing %q", want)
 		}
@@ -39,7 +39,7 @@ func TestNotFound_uncoveredPlace(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"We don't cover this place yet", whyMissing, `href="/locations"`} {
+	for _, want := range []string{"We don’t cover this place yet", whyMissing, `href="/locations"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("uncovered-place 404 missing %q", want)
 		}
@@ -55,7 +55,7 @@ func TestNotFound_uncoveredPlaceUnderState(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "We don't cover this place yet") {
+	if !strings.Contains(body, "We don’t cover this place yet") {
 		t.Error("expected the uncovered-place story")
 	}
 	if !strings.Contains(body, `href="/j/massachusetts"`) {

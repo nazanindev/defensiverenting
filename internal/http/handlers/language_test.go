@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -119,5 +120,67 @@ func TestSpanishPlaybook_noToggleWhenEnglishDoesNotExist(t *testing.T) {
 	}
 	if strings.Contains(body, `hreflang="en"`) {
 		t.Error("must not advertise an English alternate that doesn't exist")
+	}
+}
+
+// A Spanish page must not wrap Spanish law in English chrome: the disclaimer,
+// trust lines, byline, report link, and dates all follow the page's language
+// (usted register, matching the translated statements). The English page keeps
+// its English chrome untouched.
+func TestSpanishPlaybook_chromeSpeaksSpanish(t *testing.T) {
+	checked := time.Date(2026, 8, 30, 0, 0, 0, 0, time.UTC)
+	stub := hierarchyStub()
+	stub.playbook = store.PlaybookWithStatements{
+		Playbook:     store.Playbook{ID: 1, Title: "Depósitos de seguridad en Austin", Slug: "security-deposits", Language: "es"},
+		Jurisdiction: store.Jurisdiction{ID: 3, Kind: "city", Name: "Austin", Slug: "austin", ParentSlug: "texas"},
+		Topic:        store.Topic{ID: 1, Name: "Security Deposits", Slug: "security-deposits"},
+		Statements: []store.CitedStatement{{
+			ID:     1,
+			BodyMD: "Un depósito de seguridad es dinero que usted paga por adelantado.",
+			Citations: []store.CitationWithSource{{
+				SourceID: 1, SourceURL: "https://example.gov/law", Publisher: "Texas Legislature",
+				SourceKind: "statute", CheckedAt: &checked, CheckedBy: "drafting-agent",
+			}},
+		}},
+	}
+
+	rec := serve(t, stub, "/es/j/texas/austin/security-deposits")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"Esto no es asesoría legal.",
+		"Fuentes verificadas el 30 de agosto de 2026",
+		"Última revisión por",
+		"Avísenos",
+		"Busque su situación…",
+		"Todos los lugares", // footer follows the page language too
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Spanish page missing %q", want)
+		}
+	}
+	for _, banned := range []string{"Sources checked", "Not legal advice.", "Tell us"} {
+		if strings.Contains(body, banned) {
+			t.Errorf("Spanish page still renders English chrome %q", banned)
+		}
+	}
+}
+
+// The Spanish 404 explains itself in Spanish, including the search box and
+// the where-to-go links.
+func TestSpanishRoutes_notFoundSpeaksSpanish(t *testing.T) {
+	stub := hierarchyStub()
+	stub.playbookErr = store.ErrNotFound
+	rec := serve(t, stub, "/es/j/texas/austin/rent-increase")
+	body := rec.Body.String()
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	for _, want := range []string{"A dónde ir mientras tanto", "Por qué faltan algunas páginas", "Todos los lugares que cubrimos"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Spanish 404 missing %q", want)
+		}
 	}
 }
