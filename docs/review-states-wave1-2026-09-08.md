@@ -118,3 +118,113 @@ by mail). Stmt 13 omits the once-per-12-months limit in § 1942.5(b). Statements
 Markdown bullets for lists; check rendering in the playbook layout. Left out: § 1942.3
 60-day presumption, § 1941.3 locks, attorney fees, local ordinances.
 
+## New York
+
+### Systemic
+- find_sources has no new-york seeds. nysenate.gov fetched for some sections live and for
+  others only via archive.org snapshot; check snapshot dates on any statute quote.
+- The AG "Changes in NYS Rent Law" PDF carries hidden control characters around
+  ligatures, so some quotes fail the verbatim check; agents worked around it.
+
+### Per-page flags
+
+**new-york / security-deposits** (13 stmts, 30 citations) — Statute vs guidance: the AG
+HTML guide still says the 14-day return and inspection rules apply only to non-regulated
+units; GOL § 7-107 as amended (nysenate.gov revision dated 2025-11-21) and HCR Fact Sheet
+#9 extend them to rent-stabilized tenants from 2025-11-15. Stmt 2 follows statute + HCR;
+confirm the amendment is in force. Stmt 2 uses topic_ref "rent-stabilization" (a
+registered topic with no page yet); drop if that page will not exist. Time-sensitive:
+small-claims limits ($10,000 NYC; $5,000 Nassau/western Suffolk and city courts; $3,000
+town/village). Soft advice: "give your new address in writing" (stmt 8), "first write to
+your landlord" (stmt 13). Stmt 4 presents the 1% admin fee inside the 6-plus-unit rule;
+strictly it is conditioned on the deposit actually being in an interest-bearing account.
+Left out: § 7-108(1-a) exclusions (rent-controlled, seasonal, senior/assisted living,
+owner-occupied co-ops), interest payment options, NYC rules (pointer).
+
+**new-york / resource-directory** (14 entries, 34 citations) — Stmt 4 ORA coverage: the
+quote lists Nassau, Rockland, Westchester, Ulster; "New York City" is inferred from the
+page's borough office list. Stmt 6 DHR protected-trait list is editorial gloss, not
+quoted. Stmt 7 Emergency Assistance: "shelter arrears / utility arrears" is on the page
+but not in the quote; "(in New York City, HRA)" is not on the page. Time-sensitive: HEAP
+1-person income limit $3,473 is the 2025-2026 figure from an archive snapshot; DHR 3-year
+filing deadline applies to acts from 2024-02-15. LSNYC hours (9:30 to 4) taken from its
+own site; LawHelpNY says 10 to 4. TPU entry is URL-only (no phone on page). HEAP and DPS
+both tagged utility-shutoff-protection; HEAP may fit rent-assistance-programs better.
+HUD counselor phone rests on the CFPB page. Fetched but unused: lasnny.org (swap in for
+LSNYC if upstate coverage preferred); housingjusticeforall.org excluded (campaigns, no
+concrete help).
+
+**new-york / rent-increase** (14 stmts, 34 citations) — Time-sensitive Good Cause figures
+(stmts 8, 9): CPI 3.38% downstate / 3.15% rest, from the HCR notice posted 2026-07-16 and
+reposted 2026-08-17; the FMR table is captioned FFY 2025 and one header still reads
+"Effective [Month, Day] 2026" (HCR placeholder). Page hard-codes 8.38% / 8.15% and
+$7,130; refresh every August. Stmt 7 opted-in locality list is "as of 2026-05-04";
+Poughkeepsie and Newburgh listed as Good Cause opt-ins even though their ETPA adoptions
+were voided (independent laws, but confirm). Statute vs guidance: § 226-c says "equal to
+or greater than 5%"; AG guide says "more than 5%"; statute followed. Stmt 6 combines
+§ 226-c non-renewal notice with the AG's month-to-month line (AG cites §§ 232-a/232-b).
+Stmts 1 and 2 (no cap; lease locked mid-term) rest only on the AG guide. Stmt 12
+paraphrases the § 223-b burden; the (3) money/fees quote is not cited. Stmt 9 "most
+opted-in localities set it at 1 unit" read off the HCR table. rent-control tagged on
+stmts 1 and 13. Left out: rent control (pre-1947), MCI/IAI, manufactured-home 3% cap,
+NYC stabilization detail (pointer).
+
+**new-york / cant-pay-rent** (14 stmts, 32 citations) — Time-sensitive: ERAP closure
+dates (2023-01-20; portal 2025-11-17) and the HEAP "2025-2026 emergency benefit opened
+2026-01-02" line come from archive snapshots; the ERAP citation URL is a web.archive.org
+URL, not otda.ny.gov. Stmt 4: Good Cause rider "until 2034-06-15" comes from the NB
+marker on RPAPL 711(2); "a phone call or text is not a rent demand" inferred from
+"written demand". Stmt 9 merges 749(2)(a) and 749(3); RPAPL 751 deposit-plus-costs left
+out. Stmt 10 "call the police and ask for a court order" is practical advice; the
+$1,000-$10,000 figure is the civil penalty, not money to the renter (RPAPL 853 treble
+damages not included). Stmt 11 calls a utility shutoff a "violation" without saying it
+is a petty offense. Stmt 7 no-late-fees-for-pay-and-stay rests on 702(1)'s rent
+definition. Stmt 13 Emergency Assistance + 211 rests on OTDA guidance only. Left out:
+bounced-check fee limit, RPAPL 753 one-year stay, RPAPL 732 answer window (on
+eviction-defense), NYC and stabilization specifics.
+
+**new-york / eviction-defense** (14 stmts, 39 citations) — No sealing statement: no
+official source frames the absence of a sealing statute, so the page covers only RPL
+§ 227-f (screening-based denial); add a "no sealing law" sentence only with a source.
+Answer deadline: RPAPL § 732's 10 days applies only where Appellate Division rules adopt
+it; stated as the statewide nonpayment rule without that caveat; NYC guidance confirms 10
+days there. Holdover answer: NYC guidance allows an answer demand 3 days before the
+hearing if served 8+ days out; statement says "at the hearing date" only. Good Cause:
+exemptions summarised (15 categories in § 214); "very high-rent units" glosses the 245%
+FMR threshold; "(2024)" comes from the revision date; the § 214 quote is only the
+owner-occupied line. Time-sensitive: § 711(2) rent-demand text and § 226-c are the
+"until 2034-06-15" versions. Single-source: "accepted rent after the move-out date"
+defense and "landlord presents proof first" rest only on the 2019 nycourts holdover PDF.
+Retaliation statement summarises § 223-b(1)(a)-(c) broadly. § 753 stay: statute "may",
+statement "can also stay"; deposit requirement from § 753(2) not separately quoted. Left
+out: RPL § 227-a, § 232-b, NYC stabilization and marshal rules, mobile-home notices.
+
+**new-york / repairs-and-habitability** (14 stmts, 52 citations) — Heat statement rests on
+a Westchester County health page restating Property Maintenance Code 602.3 (no primary
+code text fetched: ICC 403s, DOS PDFs fail or truncate); the 2025 PMCNYS took effect
+2025-12-31 and its draft moved the 65°F exception into 602.2; confirm the Sept 15 to May
+31 rule survived. MDL scope written as "cities with 325,000 or more people (New York
+City)"; Buffalo is now under 325,000; decide whether to name it. Stmt 2 says "apartment
+building" without the 3-or-more-families definition. RPAPL 7-D "since January 2024"
+dating from LawNY plus the nysenate revision date; Nassau and Suffolk are excluded and no
+alternative route given. Negative claims "no set right to stop paying rent" and "no
+statewide repair-and-deduct statute" rest on AG and legal-aid framing. Utilities
+statement: RPL 235-a(1) quote covers water; electric/gas deduction comes from the Public
+Service Law cross-reference not in the quote. Park West fetched at static.case.law/ny-2d.
+Left out: MDL § 302-a rent-impairing violations (NYC-only), HPD violation classes (NYC
+page).
+
+**new-york / landlord-entry** (14 stmts, 32 citations) — Stmt 1 negative claim "no
+statewide law sets a notice period" is framed by the AG guide's reasonable-notice line
+plus Cornell's Tenants Advocacy Program; no source says "no statute". The AG guide is
+cited from a City of Beacon-hosted copy because ag.ny.gov's page truncates at 60k before
+the privacy section (nyc.gov also hosts the same PDF). Stmt 3 (what "reasonable" means)
+rests only on Cornell Law's clinic page; confirm it counts as legal aid. Stmt 12 "outside
+the city, the local court can do the same" inferred from RPAPL § 768(1)(b). Stmt 7 ties
+quiet enjoyment to § 235-b, which is a gloss (quiet enjoyment is common law). Stmt 8
+Barash is a 1970 commercial-lease case. Stmts 5 and 14 are NYC-only rules (5-day showing
+rule, 24-hour/1-week rule) stated as such; NYC ABCs dated 2024-01. Small claims limits
+from a 2025-01 archived page. AG PDF quotes embed a cp1252 apostrophe (U+0092) verbatim;
+HCR Fact Sheet #14 quotes trimmed around ligature control chars. Left out: RPL § 235-d,
+§ 227-e, tenant-changes-own-lock (single soft source).
+
