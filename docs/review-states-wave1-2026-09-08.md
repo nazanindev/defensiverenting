@@ -228,3 +228,109 @@ from a 2025-01 archived page. AG PDF quotes embed a cp1252 apostrophe (U+0092) v
 HCR Fact Sheet #14 quotes trimmed around ligature control chars. Left out: RPL § 235-d,
 § 227-e, tenant-changes-own-lock (single soft source).
 
+## Texas
+
+### Systemic
+- **statutes.capitol.texas.gov serves whole chapters**, and every section anchor and
+  GetStatute.aspx URL returns the full Chapter 92 page, which fetch_source truncates at
+  60,000 characters inside § 92.016, before Subchapter C. The archive.org snapshot
+  truncates identically. So Texas statute quotes largely rest on the texas.public.law
+  mirror (publisher field says "mirror" so it is visible). Toolbelt follow-up: raise or
+  anchor-window the 60k cap so the official site can be cited; then repoint.
+- Texas AG tenant-rights page 404s; the State Law Library guides (guides.sll.texas.gov)
+  and TJCTC self-represented pages stand in.
+
+### Per-page flags
+
+**texas / security-deposits** (14 stmts, 30 citations) — Statute quotes rest on the
+public.law mirror except § 92.001(4); spot-check against the official site. Stmt 1 "no
+cap" is a negative claim backed only by two nonprofit pages; the "unless public or
+subsidized housing" carve-out is from texaslawhelp only. Stmt 7 "later of move-out or
+forwarding address" combines §§ 92.103 and 92.107 as texaslawhelp reads them; the statute
+does not say "whichever is later". Stmt 9 second citation quotes only the "tenant owes
+rent" prong. Stmt 13 evidence list is editorial. Stmt 2 fee-in-lieu "usually not
+refunded" simplifies the statute's insurance-only condition. Time-sensitive: fee-in-lieu
+effective 2021-09-01; justice court limit $20,000. Left out: § 92.1031 (never moved in),
+§ 92.106 records duty, reletting fees.
+
+**texas / cant-pay-rent** (13 stmts, 35 citations) — § 92.019 late-fee quotes come from
+the enrolled S.B. 1414 (2019) bill text because the live section would not fetch; the
+quotes carry bracketed struck-through redline text ("[charge]", "[one]") verbatim; swap
+the URL once the section fetches. Stmt 7 pay-and-stay is new law (S.B. 38, eff.
+2026-01-01); statute keys on "not late before the month the notice is given";
+texaslawhelp reads it as "first time late this lease term"; statute wording used. The old
+"landlord need not accept late rent after notice" rule was repealed § 24.005(i) and is not
+used. Late-fee caps apply only to leases entered or renewed from 2019-09-01 (not stated).
+Utility submeter exception compressed to "notice at least 5 days before". Stmt 5 partial
+payments inferred from "any portion / at least part" wording; no statute addresses it
+directly. Writ of reentry "the same day" is a gloss on "ex parte". Time-sensitive: Texas
+Rent Relief closed summer 2023; CEAP and Help for Texans; two assistance statements
+included per the assignment, cut one if it duplicates Local Help. Left out: § 92.019(d)
+waiver rule, rent acceleration.
+
+**texas / resource-directory** (14 entries, 33 citations) — TLSC eviction line 855-270-7655
+is cited from TDHCA's page (TLSC's own site does not list it; TDHCA calls it a
+"pandemic-related" line, may be stale). Disability Rights Texas page carries a "network
+disruption, phone lines closed" banner; verify before publish. Lone Star Legal Aid county
+list and LANWT/TRLA example cities are inferred from the TexasLawHelp referral directory,
+not the orgs' own pages. PUC entry's "does not regulate landlords who resell utilities" and
+"wrongful shutoffs" are not on the fetched page; trim. TWC entry omits the "more than three
+properties" threshold and uses the agency general line. TexasLawHelp live-chat hours come
+from tlsc.org. TDHCA merged into one entry tagged rent-assistance-programs though CEAP is
+LIHEAP. AG entry's "does not represent you in court" is editorial. TJCTC "answering an
+eviction case" packet inferred from a nav link. Texas Tenants' Union fetched but dropped
+(members-only appointments).
+
+**texas / eviction-defense** (14 stmts, 36 citations) — Retaliation statement rests on the
+State Law Library page (quotes § 92.331 verbatim) plus texaslawhelp; the statute itself is
+past the 60k truncation; "$500 penalty" from the SLL summary of § 92.333. Records
+statement "no Texas law lets you seal or erase it" is a negative claim on one texaslawhelp
+article (reviewed 2023-07), which says "no way to expunge". CARES Act statement phrased
+"may require" because texaslawhelp notes disagreement on whether it still applies;
+§ 24.005(c-1) (2026) only delays writ service. Time-sensitive: SB 38 changes (delivery,
+notice to pay or vacate, appeal affirmation, summary disposition) apply to cases filed
+from 2026-01-01; dated on the notice and pay-and-stay statements, not on summary
+disposition or appeal; consider adding. "Many Texas leases set only 1 day" is from
+texaslawhelp. Default-judgment motion 5-day deadline from texaslawhelp only (Rule 510 PDF
+truncated after 510.15(c)). Lockout statement collapses § 92.0081 notice rules; penalty
+math ignores the "less any delinquent rent" offset. Rule 510 cited as kind "regulation"
+(Supreme Court of Texas Misc. Docket 25-9096). Left out: § 24.006 attorney's fees,
+foreclosure notice, subsidized-housing good cause, supersedeas appeal, writ expiry.
+
+**texas / landlord-entry** (14 stmts, 37 citations) — Stmt 14 criminal trespass: "not
+settled" and "depends on what your lease allows" are agent framing, unsourced; cut to a
+bare pointer or drop. Stmt 6 Clark v. Sumner (1977, 559 S.W.2d 914): the $1,735 / $1,200
+figures are in the opinion but the cited quote is the holding sentence; the entry there
+was letting a dog in. Stmts 7, 8, 9, 13: every Subchapter D and § 92.331 claim (rekey in
+7 days, 7/3-day compliance, 1 month + $500, 6-month window) rests on AG / State Law
+Library / legal-aid restatements because the statute page truncates; sections named in
+body. Stmt 13 "a written complaint about entry counts" inferred from the "right under the
+lease" clause. Stmt 3 "24 hours is what renters usually ask for" from a texaslawhelp
+example. Stmts 2, 3, 5 describe the TAA lease as the common form via texaslawhelp. No
+Austin pointer (no Austin entry ordinance found).
+
+**texas / rent-increase** (13 stmts, 27 citations) — Stmt 2 rent-control ban (Local Gov't
+Code § 214.902) is cited only to two State Law Library pages (one mislabels it as
+Property Code; body names the right code). §§ 92.331(b)-92.334 cited via SLL, AG, and
+texaslawhelp; the enrolled S.B. 630 (2013) bill text covers § 92.331(a) only. Stmt 4
+"30 days before a rent change" on month-to-month is texaslawhelp's reading of § 91.001
+(which governs ending the tenancy); body says so. Stmt 8 "an increase your lease already
+allows" is broader than § 92.332(a)(1). Stmt 13 "tell your housing authority before you
+pay more" is advice. Stmt 6 LIHTC good-cause rests on one nonprofit source. Time-sensitive:
+justice court $20,000 limit (form dated 2022-05). §§ 92.3515 and 92.0135 were off-topic
+and dropped.
+
+**texas / repairs-and-habitability** (14 stmts, 58 citations) — Subchapter B statute
+citations point at enrolled bill texts on capitol.texas.gov (SB 1259 2023, SB 1367 2015,
+HB 177 2007, SB 1678 1997, SB 630 2013), not the codified page; SB 1678 quotes carry
+page-line prefixes ("11-20") verbatim. §§ 92.052(b)-(d), 92.056(e), 92.0561(e)-(k),
+92.0563(a)-(d), 92.331(b), 92.054, 92.058, 92.333 rest on guidance only. Justice court
+cap: statute ($20,000, SB 1259 eff. 2023-09-01, Gov't Code § 27.031) taken over the 2021
+TJCTC packet and AG page which still say $10,000. Stmt 9 carries three waits (none / 3
+days / 7 days), backed only by the Austin Tenants Council brochure. Stmt 11 "trial 10 to
+21 days after you file" (TJCTC packet, TRCP 509) vs § 92.0563(d) "hearing 6 to 10 days
+after service"; pick one. Stmt 1 "no general warranty of habitability" inferred from
+the § 92.052 health-or-safety standard. Stmt 7 "behind on rent ends the repair duty" via
+SLL guidance. Austin pointers (3-1-1, 68°F heat) from the city page and a brochure with
+2022 archive links. Left out: § 92.0562, § 92.055, § 92.334, § 92.062.
+
