@@ -334,3 +334,59 @@ the § 92.052 health-or-safety standard. Stmt 7 "behind on rent ends the repair 
 SLL guidance. Austin pointers (3-1-1, 68°F heat) from the city page and a brochure with
 2022 archive links. Left out: § 92.0562, § 92.055, § 92.334, § 92.062.
 
+## Illinois
+
+### Systemic
+- find_sources has no illinois seeds. Old-style ilga.gov URLs (ilcs3.asp, fulltext.asp)
+  404 since the 2025 redesign, and the archive.org fallback returned the wrong act; the
+  working patterns are `/Legislation/ILCS/Articles?ActID=..&Print=True` and
+  `/Documents/legislation/ilcs/documents/{code}.htm`. Seed these.
+- The Illinois AG Landlord and Tenant Rights PDF is dated 2024-01 and still names the
+  repealed Retaliatory Eviction Act; it predates the 2025 Landlord Retaliation Act.
+
+### Per-page flags
+
+**illinois / rent-increase** (14 stmts, 27 citations) — Stmt 4 "month-to-month = 30 days"
+rests on 735 ILCS 5/9-207, a termination statute; "landlord raises rent by ending the
+tenancy" is the AG's and ILAO's reading; ILAO's newer page says "often at least one full
+rent period". Stmt 6 "no statewide renewal-notice law outside Cook County" is a negative
+claim on ILAO alone. Stmt 14 renewal-fee ban (765 ILCS 705/35, P.A. 104-479) has a delayed
+effective date of 2027-01-01; consider holding the statement until then. Stmt 1 "no cap"
+rests only on the 2024-01 AG PDF. Stmt 12 voucher 60-day rule rests on ILAO; the HUD
+quote covers only the 30% income share. Stmt 13 names Chicago, suburban Cook, Evanston,
+Oak Park, Mt. Prospect from ILAO. Left out: week-to-week 7-day notice, § 9-211 delivery,
+mobile home park 90-day rules.
+
+**illinois / landlord-entry** (14 stmts, 34 citations) — Stmt 1 "no statewide law sets
+notice" is framed by ILAO (access by agreement or lease, list of local rules) and the AG
+(check municipal ordinances); neither says "no state law"; 765 ILCS 705 confirmed to have
+no entry provision. Case law fit: Blue Cross (100 Ill. App. 3d 647) is a commercial lease
+case for the quiet-enjoyment rule; Home Rentals and Applegate are constructive-eviction
+cases about conditions, not entry. Stmt 12 "Cook County" supplied for "counties over
+3,000,000". Stmt 2 "such as 24 hours" is editorial. Stmts 2, 5, 6 rest on ILAO only.
+Time-sensitive: Retaliation Act effective 2025-01-01 (sec. 20 amended 2025-08-15). The
+Retaliation Act does not list entry as a retaliatory act and the page does not claim it.
+Safe Homes Act and 765 ILCS 705 fetched via archive.org snapshot. Left out: IDHR's Safe
+Homes summary-of-rights lease page (from 2026-01-01), the suburban Cook unlawful-entry
+defense, sec. 15(c) rekey liability (stated, only (b), (e), (f) quoted).
+
+**illinois / security-deposits** (14 stmts, 36 citations) — Statute vs guidance on
+coverage: the AG sheet and older ILAO text say the Return Act covers buildings of 5+
+units; the current 765 ILCS 710/1 text (P.A. 103-224, eff. 2024-01-01, fetched via
+archive snapshot) has no unit threshold and ILAO's newer text agrees. Stmt 3 follows the
+statute ("since 2024-01-01 every landlord"); confirm against P.A. 103-224 before publish.
+Stmt 1 "no statewide law limits the amount" rests on AG + ILAO framing. Time-sensitive:
+interest rate 0.01% for 2017 to 2024 leases from ILAO's table (2023-11); 2025+ rates not
+listed; small-claims $10,000 from 2020 court PDFs. Stmts 11, 12, 14 rest on ILAO only.
+Stmt 14 "usually cancel it" paraphrases "in almost all circumstances"; stmt 12's 45-day
+demand-letter framing is ILAO practice. One ILAO quote trimmed around an inline glossary
+insert. Left out: Chicago-only 30-day limitation note, 705/16, 705/5(b).
+
+
+## Run stopped 2026-09-08
+
+Nazanin stopped the run for usage cost during Illinois. Illinois eviction-defense,
+repairs-and-habitability, and resource-directory agents were killed; cant-pay-rent
+reported a save just before the kill. Check the prod queue for which Illinois cells exist.
+Washington was never started. Remaining cells for wave 1: the Illinois gaps plus all 7
+Washington topics.
