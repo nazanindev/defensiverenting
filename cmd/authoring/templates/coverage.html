@@ -63,7 +63,7 @@
     <span class="metric"><b>{{len .Coverage}}</b> cities</span>
     <a class="metric {{if .DraftCount}}metric-warn{{end}}" href="/?status=draft"><b>{{.DraftCount}}</b> drafts to review</a>
     <span class="metric {{if .IssueCount}}metric-bad{{end}}" title="Drafts carrying an issue the publish gate refuses — marked ⚠ on the dashboard"><b>{{.IssueCount}}</b> drafts not yet publishable</span>
-    <a class="metric {{if .Proposals}}metric-warn{{end}}" href="/queue" title="Changes waiting for a decision in the review queue"><b>{{.Proposals}}</b> proposals waiting</a>
+    <a class="metric {{if .Proposals}}metric-warn{{end}}" href="/queue" title="Statement and source changes waiting for a decision"><b>{{.Proposals}}</b> proposals waiting</a>
   </div>
 
   <div class="panel">

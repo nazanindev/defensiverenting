@@ -72,7 +72,7 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		return Result{Skipped: skipped}, fmt.Errorf("file unused sources: %w", err)
 	}
 	if unused > 0 {
-		logf("○ %d source(s) no page cites — filed for deletion on the review queue", unused)
+		logf("○ %d source(s) no page cites — filed for deletion under Proposed changes", unused)
 	}
 	rows, err := db.ListCitationsForCheck(ctx)
 	if err != nil {
