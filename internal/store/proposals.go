@@ -436,3 +436,60 @@ func (pg *PG) LanguageOfStatementKey(ctx context.Context, key string) (string, e
 	}
 	return lang, err
 }
+
+// StatementByKey returns the statement carrying this key (a draft is
+// preferred over the live page, as everywhere in the queue) as a
+// ProposedStatement, or ErrNotFound.
+func (pg *PG) StatementByKey(ctx context.Context, key string) (ProposedStatement, error) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return ProposedStatement{}, ErrNotFound
+	}
+	var out ProposedStatement
+	var citations []byte
+	err := pg.pool.QueryRow(ctx, `
+		SELECT s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''),
+		       COALESCE((SELECT json_agg(json_build_object(
+		            'url', src.url, 'publisher', src.publisher, 'kind', src.kind,
+		            'locator', c.locator, 'quote', c.quote,
+		            'checked', c.checked_at IS NOT NULL OR c.manually_verified,
+		            'editorial', src.kind = 'editorial') ORDER BY c.source_id)
+		          FROM citations c JOIN sources src ON src.id = c.source_id
+		         WHERE c.statement_id = s.id), '[]'::json)
+		FROM playbook_statements ps
+		JOIN statements s ON s.id = ps.statement_id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		LEFT JOIN concepts co ON co.id = s.concept_id
+		LEFT JOIN topics tr ON tr.id = s.topic_ref
+		WHERE s.key = $1::uuid AND pb.status IN ('draft', 'published')
+		ORDER BY (pb.status = 'draft') DESC LIMIT 1`, key,
+	).Scan(&out.BodyMD, &out.Concept, &out.TopicRef, &citations)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out, ErrNotFound
+	}
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(citations, &out.Citations); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// DriftAlreadyFiled is true when a source-drift proposal for this key is
+// pending or snoozed (a person will see it), or was rejected for the same
+// missing quote (a person decided the source is fine as it is).
+func (pg *PG) DriftAlreadyFiled(ctx context.Context, key, missingQuote string) (bool, error) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return false, nil
+	}
+	var exists bool
+	err := pg.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM statement_proposals
+			WHERE statement_key = $1::uuid AND reason = 'source-drift'
+			  AND (status IN ('pending', 'snoozed')
+			       OR (status = 'rejected' AND evidence->>'old_quote' = $2)))`, key, missingQuote).Scan(&exists)
+	return exists, err
+}

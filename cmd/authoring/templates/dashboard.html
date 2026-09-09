@@ -139,19 +139,7 @@
   <div class="panel">
     <h2>Source monitoring <span class="badge-free">free · no AI</span></h2>
     <form method="post" action="/check-sources"><button class="btn btn-primary" type="submit">Re-check all sources for changes</button></form>
-    {{if .Flagged}}
-    <div class="review-links" style="flex-direction:column;align-items:stretch;gap:10px">
-      <span><strong>{{len .Flagged}}</strong> source(s) where a quote we cited no longer appears — the law may have been amended; re-verify the guides that cite them:</span>
-      {{range .Flagged}}
-      <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-        <span>⚑ <a href="{{.URL}}" target="_blank" rel="noopener">{{.Publisher}}</a> <span style="color:#9a7878;font-size:.76rem;word-break:break-all">{{.URL}}</span> <span style="color:#9a7878;font-size:.76rem">flagged {{date .FlaggedAt}} · last checked {{date .LastCheckedAt}}</span></span>
-        <form method="post" action="/sources/{{.ID}}/dismiss-flag" style="margin:0"><button class="btn btn-view" type="submit">Dismiss</button></form>
-      </div>
-      {{end}}
-    </div>
-    {{else}}
-    <p class="gen-note">Re-fetches every cited source and flags any where the exact text we quoted no longer appears — the precise signal that a statute was amended. Dynamic page content (dates, banners) won't trigger it.</p>
-    {{end}}
+    <p class="gen-note">Re-fetches every cited source and confirms the exact text we quoted still appears. Where it does not, the statement that cites it gets a proposal in the <a href="/queue">review queue</a>, with the nearest passage from the new fetch attached. Dynamic page content (dates, banners) won't trigger it.</p>
     {{if .Unused}}
     <details style="margin-top:14px">
       <summary style="cursor:pointer;font-size:.82rem;color:#7a5555"><strong>{{len .Unused}}</strong> source(s) no page cites — candidates for cleanup, and each one still costs a fetch every check run</summary>
@@ -170,7 +158,6 @@
       <span class="metric"><b>{{len .Coverage}}</b> cities</span>
       <span class="metric {{if .DraftCount}}metric-warn{{end}}"><b>{{.DraftCount}}</b> drafts to review</span>
       <span class="metric {{if .Issues}}metric-bad{{end}}" title="Drafts carrying an issue the publish gate refuses — marked ⚠ in the list below"><b>{{len .Issues}}</b> drafts not yet publishable</span>
-      <span class="metric {{if .Flagged}}metric-bad{{end}}"><b>{{len .Flagged}}</b> flagged sources</span>
       <a class="metric {{if .Proposals}}metric-warn{{end}}" href="/queue" style="text-decoration:none" title="Statement changes waiting for a decision in the review queue"><b>{{.Proposals}}</b> proposals waiting</a>
     </div>
 

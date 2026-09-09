@@ -308,3 +308,43 @@ func TestProposal_approvalKeepsUncitedDraftStatements(t *testing.T) {
 		t.Errorf("after approval the page has %d statements; the uncited one was dropped", len(pw.Statements))
 	}
 }
+
+// The checker's two lookups (ADR-014 D4): the statement as a proposal would
+// carry it, and whether a drift for this statement has already been seen.
+func TestProposal_checkerLookups(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	page := seedPlaybook(t, pg, jID, tID, "published", "Props")
+	key := firstKey(t, pg, page)
+
+	st, err := pg.StatementByKey(ctx, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.BodyMD != "A claim. Props" || len(st.Citations) != 1 || st.Citations[0].Quote != "verbatim" || !st.Citations[0].Checked {
+		t.Errorf("StatementByKey = %+v, want the seeded statement with its checked citation", st)
+	}
+	if _, err := pg.StatementByKey(ctx, "44444444-4444-4444-4444-444444444444"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("unknown key err = %v, want ErrNotFound", err)
+	}
+
+	if seen, _ := pg.DriftAlreadyFiled(ctx, key, "verbatim"); seen {
+		t.Error("nothing filed yet, but DriftAlreadyFiled says seen")
+	}
+	id, err := pg.FileProposal(ctx, store.FileProposalParams{StatementKey: key, Reason: "source-drift", ProposedBy: store.ActorSourceCheck, Evidence: []byte(`{"old_quote":"verbatim"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen, _ := pg.DriftAlreadyFiled(ctx, key, "verbatim"); !seen {
+		t.Error("pending drift not reported as already filed")
+	}
+	if err := pg.DecideProposal(ctx, id, "rejected", "Nazanin", "source is fine", nil); err != nil {
+		t.Fatal(err)
+	}
+	if seen, _ := pg.DriftAlreadyFiled(ctx, key, "verbatim"); !seen {
+		t.Error("a drift rejected for this same quote must not be refiled")
+	}
+	if seen, _ := pg.DriftAlreadyFiled(ctx, key, "a different quote that vanished later"); seen {
+		t.Error("a rejection for one quote must not silence a later, different drift")
+	}
+}

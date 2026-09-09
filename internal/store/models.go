@@ -72,7 +72,6 @@ type Source struct {
 	Kind           string // statute|regulation|gov_guidance|nonprofit|editorial
 	RetrievedAt    *time.Time
 	ContentHash    *string
-	FlaggedAt      *time.Time // set when a cited quote no longer appears at the source
 	// LastCheckedAt is when the checker last fetched this source and examined
 	// its cited quotes. RetrievedAt cannot carry that meaning: UpsertSource
 	// bumps it on every save without fetching anything.
@@ -86,6 +85,11 @@ type CitationCheckRow struct {
 	URL       string
 	Publisher string
 	Quote     string
+	// StatementKey and Locator identify the citing statement and the
+	// citation, so a quote that went missing can be filed as a source-drift
+	// proposal against that statement (ADR-014 D4).
+	StatementKey string
+	Locator      string
 }
 
 type Statement struct {

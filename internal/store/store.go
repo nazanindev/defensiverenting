@@ -59,15 +59,13 @@ type Store interface {
 	ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error)
 	CountUncheckableCitations(ctx context.Context) (int, error)
 	CitationQuoteExists(ctx context.Context, url, quote string) (bool, error)
-	MarkSourceReviewed(ctx context.Context, id int64, changed bool) error
+	MarkSourceReviewed(ctx context.Context, id int64) error
 	// MarkQuotesChecked stamps checked_at on every citation of this source
 	// whose quote is in quotes — the ones a check run confirmed are still
 	// present at the URL. Quotes that went missing are not stamped: their last
 	// confirmation stays at the run that last actually saw them.
 	MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []string) error
-	ListFlaggedSources(ctx context.Context) ([]Source, error)
 	ListUnusedSources(ctx context.Context) ([]Source, error)
-	DismissSourceFlag(ctx context.Context, id int64) error
 
 	// Concepts (ADR-011) and the reference layer built on them (ADR-012)
 	ListConcepts(ctx context.Context) ([]Concept, error)
@@ -101,6 +99,15 @@ type Store interface {
 	DecideProposal(ctx context.Context, id int64, status, by, note string, snoozedUntil *time.Time) error
 	ApproveProposal(ctx context.Context, p ApproveProposalParams) error
 	LanguageOfStatementKey(ctx context.Context, key string) (string, error)
+	// StatementByKey reads the statement as it currently stands, in the
+	// shape a proposal carries, so a proposer can file "the same statement
+	// with one thing changed".
+	StatementByKey(ctx context.Context, key string) (ProposedStatement, error)
+	// DriftAlreadyFiled reports whether a source-drift proposal for this
+	// statement and missing quote is already waiting, snoozed, or was
+	// rejected, so repeated check runs do not refile what a person has
+	// already seen or decided.
+	DriftAlreadyFiled(ctx context.Context, key, missingQuote string) (bool, error)
 }
 
 // Actor names for the non-human write paths, recorded in updated_by and

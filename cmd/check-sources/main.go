@@ -38,7 +38,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("check-sources: %v", err)
 	}
-	fmt.Printf("checked %d sources — %d flagged (cited quote missing), %d failed\n", res.Sources, res.Flagged, res.Failed)
+	fmt.Printf("checked %d sources — %d with a cited quote missing (%d proposal(s) filed for review), %d failed\n", res.Sources, res.Drifted, res.Proposed, res.Failed)
 	if res.Skipped > 0 {
 		// Reported on its own line, and last, because it is the number that
 		// silently made previous runs look clean: these citations were never

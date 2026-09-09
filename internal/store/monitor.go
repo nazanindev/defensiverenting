@@ -19,9 +19,10 @@ import (
 // nothing published depends on.
 func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT s.id, s.url, s.publisher, c.quote
+		SELECT s.id, s.url, s.publisher, c.quote, st.key::text, c.locator
 		FROM citations c
 		JOIN sources s ON s.id = c.source_id
+		JOIN statements st ON st.id = c.statement_id
 		WHERE s.kind <> 'editorial' AND btrim(c.quote) <> ''
 		  AND EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = c.statement_id)
 		ORDER BY s.id`)
@@ -32,7 +33,7 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 	var out []CitationCheckRow
 	for rows.Next() {
 		var r CitationCheckRow
-		if err := rows.Scan(&r.SourceID, &r.URL, &r.Publisher, &r.Quote); err != nil {
+		if err := rows.Scan(&r.SourceID, &r.URL, &r.Publisher, &r.Quote, &r.StatementKey, &r.Locator); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -105,19 +106,18 @@ func (pg *PG) CitationQuoteExists(ctx context.Context, url, quote string) (bool,
 	return exists, err
 }
 
-// MarkSourceReviewed stamps retrieved_at and last_checked_at and, when a cited
-// quote went missing, sets flagged_at. An existing flag is left intact when
-// changed is false — only a dismiss clears it. Only the checker calls this, so
-// last_checked_at means exactly "the checker fetched this source and examined
-// its quotes then" — unlike retrieved_at, which UpsertSource bumps on every
-// save without fetching.
-func (pg *PG) MarkSourceReviewed(ctx context.Context, id int64, changed bool) error {
+// MarkSourceReviewed stamps retrieved_at and last_checked_at. Only the
+// checker calls this, so last_checked_at means exactly "the checker fetched
+// this source and examined its quotes then" — unlike retrieved_at, which
+// UpsertSource bumps on every save without fetching. A quote that went
+// missing is no longer recorded here: it is filed as a source-drift proposal
+// against the statement citing it (ADR-014 D4).
+func (pg *PG) MarkSourceReviewed(ctx context.Context, id int64) error {
 	_, err := pg.pool.Exec(ctx, `
 		UPDATE sources
 		SET retrieved_at    = NOW(),
-		    last_checked_at = NOW(),
-		    flagged_at      = CASE WHEN $2 THEN NOW() ELSE flagged_at END
-		WHERE id = $1`, id, changed)
+		    last_checked_at = NOW()
+		WHERE id = $1`, id)
 	return err
 }
 
@@ -137,21 +137,6 @@ func (pg *PG) MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []st
 	return err
 }
 
-// ListFlaggedSources returns sources the checker flagged (a cited quote no longer
-// appears), newest first.
-func (pg *PG) ListFlaggedSources(ctx context.Context) ([]Source, error) {
-	rows, err := pg.pool.Query(ctx, `
-		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, flagged_at, last_checked_at
-		FROM sources
-		WHERE flagged_at IS NOT NULL
-		ORDER BY flagged_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanSources(rows)
-}
-
 // ListUnusedSources returns sources no page on the site cites: no citation
 // from any statement still linked to a playbook. Saves upsert a source row the
 // moment a URL is typed and never remove one, and re-saves orphan statements
@@ -161,7 +146,7 @@ func (pg *PG) ListFlaggedSources(ctx context.Context) ([]Source, error) {
 // permanent plumbing, not clutter, so it is excluded.
 func (pg *PG) ListUnusedSources(ctx context.Context) ([]Source, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, flagged_at, last_checked_at
+		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, last_checked_at
 		FROM sources s
 		WHERE s.url <> '/editorial'
 		  AND NOT EXISTS (
@@ -176,18 +161,12 @@ func (pg *PG) ListUnusedSources(ctx context.Context) ([]Source, error) {
 	return scanSources(rows)
 }
 
-// DismissSourceFlag clears a source's change flag after the author reviews it.
-func (pg *PG) DismissSourceFlag(ctx context.Context, id int64) error {
-	_, err := pg.pool.Exec(ctx, `UPDATE sources SET flagged_at = NULL WHERE id = $1`, id)
-	return err
-}
-
 func scanSources(rows pgx.Rows) ([]Source, error) {
 	var out []Source
 	for rows.Next() {
 		var s Source
 		if err := rows.Scan(&s.ID, &s.URL, &s.Publisher, &s.JurisdictionID, &s.Kind,
-			&s.RetrievedAt, &s.ContentHash, &s.FlaggedAt, &s.LastCheckedAt); err != nil {
+			&s.RetrievedAt, &s.ContentHash, &s.LastCheckedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

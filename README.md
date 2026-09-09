@@ -95,7 +95,7 @@ erDiagram
 ## Roadmap
 
 ### Source change monitoring
-A scheduled crawler re-fetches all cited sources on a cadence (weekly or on-demand). If the content hash changes, the source is flagged in the authoring dashboard for the author to review. The author can dismiss the flag (no material change) or open the diff and update affected statements. Government statute pages do change — rent control thresholds, notice periods, penalty amounts — and this is the mechanism that keeps the site accurate over time.
+A checker re-fetches all cited sources on a cadence (weekly or on-demand) and confirms that each verbatim quote we cited still appears. Where one does not, the statement citing it gets a source-drift proposal in the authoring review queue (ADR-014), with the nearest passage from the new fetch offered as the replacement quote when the text merely moved and as evidence when it did not. The author approves, edits, or rejects it with a note. Government statute pages do change — rent control thresholds, notice periods, penalty amounts — and this is the mechanism that keeps the site accurate over time.
 
 ### Jurisdiction expansion
 Adding cities is the main growth lever. The authoring tool already supports creating new jurisdictions; the bottleneck is research time, not infrastructure.

@@ -223,7 +223,6 @@ func main() {
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(webstatic.Files))))
 	mux.HandleFunc("POST /generate", s.generateDraft)
 	mux.HandleFunc("POST /check-sources", s.checkSources)
-	mux.HandleFunc("POST /sources/{id}/dismiss-flag", s.dismissSourceFlag)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
@@ -476,11 +475,6 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	flagged, err := s.pg.ListFlaggedSources(ctx)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
 	proposals, err := s.pg.CountPendingProposals(ctx)
 	if err != nil {
 		s.serverError(w, err)
@@ -603,7 +597,6 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Cities":          cities,
 		"ReviewCounts":    counts,
 		"Generating":      s.jobs.list(),
-		"Flagged":         flagged,
 		"Proposals":       proposals,
 		"Unused":          unused,
 		"View":            view,
@@ -715,23 +708,9 @@ func (s *srv) checkSources(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.log.Info("sourcecheck done",
-			slog.Int("sources", res.Sources), slog.Int("flagged", res.Flagged), slog.Int("failed", res.Failed))
+			slog.Int("sources", res.Sources), slog.Int("drifted", res.Drifted), slog.Int("proposals", res.Proposed), slog.Int("failed", res.Failed))
 	}()
 	http.Redirect(w, r, "/?msg="+url.QueryEscape("re-checking sources for changes — refresh in a moment"), http.StatusSeeOther)
-}
-
-// dismissSourceFlag clears a source's change flag after the author reviews it.
-func (s *srv) dismissSourceFlag(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	if err := s.pg.DismissSourceFlag(r.Context(), id); err != nil {
-		s.serverError(w, err)
-		return
-	}
-	http.Redirect(w, r, "/?msg="+url.QueryEscape("flag dismissed"), http.StatusSeeOther)
 }
 
 // ---- source discovery -------------------------------------------------------

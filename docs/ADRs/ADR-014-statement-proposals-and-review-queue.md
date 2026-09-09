@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted (D1, D2, D3, D5 shipped 2026-09-08; D4 checker change pending) |
+| Status | Accepted, shipped 2026-09-08 (quality scorer deferred to its own ADR) |
 | Date | 2026-09-08 |
 
 ## Context
