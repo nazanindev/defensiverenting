@@ -158,7 +158,7 @@ func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.queueRedirect(w, r, "", "Not applied: "+err.Error())
 	default:
-		s.queueRedirect(w, r, fmt.Sprintf("Applied to %s.", p.Title), "")
+		s.queueRedirect(w, r, fmt.Sprintf("Applied to %s · %s.", p.JurisdictionName, p.TopicName), "")
 	}
 }
 

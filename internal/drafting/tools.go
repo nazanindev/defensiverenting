@@ -644,7 +644,7 @@ func (tb *Toolbelt) ProposeStatement(ctx context.Context, in ProposeStatementInp
 	if proposed == nil {
 		msg = "Filed as a finding with no replacement. Nothing changed on the page."
 	}
-	return ProposeStatementOutput{ProposalID: id, Page: row.Title, Message: msg}, nil
+	return ProposeStatementOutput{ProposalID: id, Page: row.JurisdictionName + " · " + row.TopicName, Message: msg}, nil
 }
 
 // languageOfKey finds the language of the page carrying a statement key, so

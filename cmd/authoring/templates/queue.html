@@ -32,6 +32,7 @@
   .group-hd h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; }
   .group-hd a { color: #9b2335; text-decoration: none; font-size: .82rem; }
   .group-hd a:hover { text-decoration: underline; }
+  .group-title { flex-basis: 100%; color: #9a7878; font-size: .78rem; font-style: italic; }
   .tag { display: inline-block; padding: .15rem .5rem; border-radius: 6px; font-size: .72rem; font-weight: 600; }
   .tag-draft { background: #fef3c7; color: #92400e; }
   .tag-published { background: #d1fae5; color: #065f46; }
@@ -109,12 +110,14 @@
   {{if .Groups}}
     {{range .Groups}}
     <section class="group">
+      {{/* Place and topic name the page; the title is an SEO question now
+           and reads as copy, not identity, so it is demoted to a caption. */}}
       <div class="group-hd">
-        <h2>{{.Title}}</h2>
+        <h2>{{.JurisdictionName}} · {{.TopicName}}</h2>
         <span class="tag tag-{{.TargetStatus}}">{{.TargetStatus}}</span>
         <span class="tag tag-lang">{{.Language}}</span>
-        <span style="color:#7a5c5c;font-size:.82rem">{{.JurisdictionName}} · {{.TopicName}}</span>
         <a href="/edit/{{.TargetPlaybookID}}" target="_blank" rel="noopener">Open in editor ↗</a>
+        <span class="group-title">{{.Title}}</span>
       </div>
       {{range .Items}}
       <details class="item" id="p{{.ID}}" tabindex="0">
