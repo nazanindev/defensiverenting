@@ -390,3 +390,24 @@ repairs-and-habitability, and resource-directory agents were killed; cant-pay-re
 reported a save just before the kill. Check the prod queue for which Illinois cells exist.
 Washington was never started. Remaining cells for wave 1: the Illinois gaps plus all 7
 Washington topics.
+
+## Resumed pass (2 agents at a time, Sonnet, 20-call cap, 12 statements)
+
+**illinois / eviction-defense** (12 stmts, 15 citations, all statute) — Stmt 6
+habitability defense cites § 9-106's general "raise any defense" clause; the warranty
+itself is case law (Jack Spring), not quoted. Stmt 11 Chicago pointer reuses § 9-101 to
+frame the absence of a statewide lockout penalty; no ordinance cited. § 9-118 and § 9-110
+fetched and discarded (narrow special cases). No utility-shutoff statement (not verified
+within budget). ilga.gov ActID URL for 765 ILCS 721 returned HTTP 500; per-section
+documents URLs worked. Working payload.json predates the lint fixes.
+
+**illinois / repairs-and-habitability** (12 stmts, 16 citations) — Repair-and-deduct
+(765 ILCS 742: $500 or half a month, 14-day notice, exclusions) and utility-shutoff
+protection (765 ILCS 735) rest entirely on ILAO guidance: every ilga.gov
+"Articles?ActID=" full-text URL returned HTTP 500 this pass; only the per-section
+documents pattern worked (used for 721/95). "No statewide habitability statute" sourced
+to Glasoe v. Trinkle's own language. Retaliation "within 1 year" presumption is stated
+but not quoted (only the prohibition and the 2025-01-01 date are cited). $900 rent →
+$450 cap example is agent math. Case-law page locators read off static.case.law
+page-break markers; spot-check. Title changed to "Rental Repairs in Illinois" (lint
+rejects "Habitability" in titles).
