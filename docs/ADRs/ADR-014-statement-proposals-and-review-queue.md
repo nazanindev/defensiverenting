@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed |
+| Status | Accepted (D1 shipped 2026-09-08; D2 onward pending) |
 | Date | 2026-09-08 |
 
 ## Context

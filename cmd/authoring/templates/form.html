@@ -509,7 +509,7 @@ if (PRELOAD && PRELOAD.sources) {
     sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
   });
   PRELOAD.stmts.forEach(s => {
-    const st = { id: nextStmtId++, body: s.body, editorial: !!s.editorial, tag: s.tag || '', cites: {}, locators: {}, quotes: {}, verified: {} };
+    const st = { id: nextStmtId++, key: s.key || '', body: s.body, editorial: !!s.editorial, tag: s.tag || '', cites: {}, locators: {}, quotes: {}, verified: {} };
     (s.cites || []).forEach(i => { st.cites[i] = true; });
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
@@ -645,7 +645,7 @@ function rmSource(id) {
 
 function addStmt() {
   sync();
-  stmts.push({ id: nextStmtId++, body: '', editorial: false, tag: '', cites: {}, locators: {}, quotes: {}, verified: {} });
+  stmts.push({ id: nextStmtId++, key: '', body: '', editorial: false, tag: '', cites: {}, locators: {}, quotes: {}, verified: {} });
   render();
 }
 
@@ -1068,6 +1068,10 @@ function renderStmts() {
           (i === stmts.length - 1 ? ' disabled' : '') + ' onclick="moveStmt(' + i + ',1)">↓</button>' +
         '<button type="button" class="btn btn-rm" onclick="rmStmt(' + st.id + ')">Remove</button>' +
       '</div>' +
+      // The key is the statement's identity across saves (ADR-014 D1). It is
+      // never edited here, only carried, so the server can keep it on the row
+      // that replaces this one even when the body changed.
+      '<input type="hidden" name="key_' + st.id + '" value="' + esc(st.key || '') + '">' +
       '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '"' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
       conceptRow(st) +

@@ -1391,6 +1391,7 @@ func (s *srv) parsePageContent(ctx context.Context, r *http.Request, lang, actor
 		conceptSlug, topicRefSlug := parseStatementTag(r.FormValue(fmt.Sprintf("tag_%d", ji)))
 		statements = append(statements, store.IngestStatementParams{
 			BodyMD: body, Language: lang,
+			Key:          r.FormValue(fmt.Sprintf("key_%d", ji)),
 			ConceptSlug:  conceptSlug,
 			TopicRefSlug: topicRefSlug,
 			Sources:      cites,
@@ -2321,7 +2322,11 @@ type preloadSrc struct {
 }
 
 type preloadStmt struct {
-	ID        int               `json:"id"`
+	ID int `json:"id"`
+	// Key is the statement's durable identity (ADR-014 D1). It rides along
+	// as a hidden field so an edited body keeps its key; a card added on the
+	// form has none and the save mints one.
+	Key       string            `json:"key"`
 	Body      string            `json:"body"`
 	Editorial bool              `json:"editorial"`
 	Tag       string            `json:"tag"`      // "c:{concept}" | "t:{topic}" | "" (ADR-011)
@@ -2378,6 +2383,7 @@ func preloadFromForm(r *http.Request) preloadData {
 	for i, id := range stmtIDs {
 		ps := preloadStmt{
 			ID:        i,
+			Key:       r.FormValue(fmt.Sprintf("key_%d", id)),
 			Body:      r.FormValue(fmt.Sprintf("stmt_%d", id)),
 			Editorial: r.FormValue(fmt.Sprintf("edit_%d", id)) == "on",
 			Tag:       strings.TrimSpace(r.FormValue(fmt.Sprintf("tag_%d", id))),
@@ -2449,7 +2455,7 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 		case stmt.TopicRefSlug != "":
 			tag = "t:" + stmt.TopicRefSlug
 		}
-		ps := preloadStmt{ID: i, Body: stmt.BodyMD, Tag: tag, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}, Checked: map[string]bool{}}
+		ps := preloadStmt{ID: i, Key: stmt.Key, Body: stmt.BodyMD, Tag: tag, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}, Checked: map[string]bool{}}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true

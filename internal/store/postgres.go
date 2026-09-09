@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -409,7 +410,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	// Fetch statement rows; each row is one citation, so multiple rows per statement
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
+			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
@@ -857,7 +858,7 @@ const insertCitationSQL = `
 // the registry. An unknown slug is an error, not a silently dropped tag: the
 // registry is closed (ADR-011 D1), both tagging paths validate before save,
 // and a tag that vanished quietly would surface later as a coverage lie.
-func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp IngestStatementParams) (int64, error) {
+func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp IngestStatementParams, key string) (int64, error) {
 	if sp.ConceptSlug != "" && sp.TopicRefSlug != "" {
 		return 0, fmt.Errorf("statement carries both concept %q and topic reference %q: a statement is one claim or one summary, never both (ADR-011 D7)", sp.ConceptSlug, sp.TopicRefSlug)
 	}
@@ -887,11 +888,86 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 	}
 	var stmtID int64
 	err := tx.QueryRow(ctx, `
-		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id, topic_ref)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID,
+		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id, topic_ref, key)
+		VALUES ($1, $2, $3, $4, $5, COALESCE(NULLIF($6, '')::uuid, gen_random_uuid())) RETURNING id`,
+		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID, key,
 	).Scan(&stmtID)
 	return stmtID, err
+}
+
+// uuidRE accepts the textual form statements.key is read back in. An explicit
+// key that is not one is a caller bug, refused by name rather than as a cast
+// error from inside the insert.
+var uuidRE = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// slotKeys returns the keys of every statement currently linked to a page in
+// this playbook's slot (same jurisdiction, topic, and language — that is, the
+// page itself and, for a draft revision, the live page beside it), indexed by
+// body text. Called before the save unlinks the page's old rows, it is what
+// lets a save that carries no explicit keys keep the keys of every statement
+// whose body did not change.
+//
+// The page's own rows win over the sibling's, and a published sibling over a
+// draft one, so the key stays with the version the author is looking at.
+func slotKeys(ctx context.Context, tx pgx.Tx, playbookID int64) (map[string]string, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT s.body_md, s.key::text
+		FROM playbook_statements ps
+		JOIN statements s ON s.id = ps.statement_id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN playbooks me ON me.id = $1
+		WHERE pb.jurisdiction_id = me.jurisdiction_id
+		  AND pb.topic_id = me.topic_id
+		  AND pb.language = me.language
+		ORDER BY (pb.id = $1) DESC, (pb.status = 'published') DESC, ps.position`, playbookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var body, key string
+		if err := rows.Scan(&body, &key); err != nil {
+			return nil, err
+		}
+		if _, seen := out[body]; !seen {
+			out[body] = key
+		}
+	}
+	return out, rows.Err()
+}
+
+// keyChooser hands each statement in one save its key (ADR-014 D1): the
+// explicit key when the caller passed one, else the key of the statement in
+// this slot with the same body, else "" so the insert mints one. A key is
+// handed out once per save — two statements sharing a key would make the
+// identity ambiguous, so the second identical body gets a fresh one.
+type keyChooser struct {
+	byBody map[string]string
+	used   map[string]bool
+}
+
+func newKeyChooser(ctx context.Context, tx pgx.Tx, playbookID int64) (*keyChooser, error) {
+	byBody, err := slotKeys(ctx, tx, playbookID)
+	if err != nil {
+		return nil, fmt.Errorf("read statement keys: %w", err)
+	}
+	return &keyChooser{byBody: byBody, used: map[string]bool{}}, nil
+}
+
+func (kc *keyChooser) choose(i int, sp IngestStatementParams) (string, error) {
+	key := strings.ToLower(strings.TrimSpace(sp.Key))
+	if key != "" && !uuidRE.MatchString(key) {
+		return "", fmt.Errorf("statement %d: key %q is not a statement key", i, sp.Key)
+	}
+	if key == "" {
+		key = kc.byBody[sp.BodyMD]
+	}
+	if key == "" || kc.used[key] {
+		return "", nil
+	}
+	kc.used[key] = true
+	return key, nil
 }
 
 // IngestPlaybook writes a full playbook atomically. The transaction is rolled
@@ -955,6 +1031,10 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 			return fmt.Errorf("upsert playbook: %w", err)
 		}
 
+		keys, err := newKeyChooser(ctx, tx, playbookID)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `DELETE FROM playbook_statements WHERE playbook_id = $1`, playbookID); err != nil {
 			return fmt.Errorf("clear playbook_statements: %w", err)
 		}
@@ -964,7 +1044,11 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 				return fmt.Errorf("statement %d has no citations — ingest aborted", i)
 			}
 
-			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp)
+			key, err := keys.choose(i, sp)
+			if err != nil {
+				return err
+			}
+			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp, key)
 			if err != nil {
 				return fmt.Errorf("insert statement %d: %w", i, err)
 			}
@@ -1022,6 +1106,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 	for rows.Next() {
 		var (
 			stmtID       int64
+			stmtKey      string
 			bodyMD       string
 			conceptSlug  string
 			topicRefSlug string
@@ -1030,7 +1115,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			c            CitationWithSource
 		)
 		if err := rows.Scan(
-			&stmtID, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
+			&stmtID, &stmtKey, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
 			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt, &c.CheckedBy,
 			&c.SourceURL, &c.Publisher, &c.SourceKind,
 		); err != nil {
@@ -1041,7 +1126,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		if !ok {
 			i = len(out)
 			out = append(out, CitedStatement{
-				ID: stmtID, BodyMD: bodyMD, ConceptSlug: conceptSlug,
+				ID: stmtID, Key: stmtKey, BodyMD: bodyMD, ConceptSlug: conceptSlug,
 				TopicRefSlug: topicRefSlug, TopicRefName: topicRefName,
 			})
 			idx[k] = i
@@ -1087,7 +1172,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	}
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
+			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind
 		FROM playbook_statements ps
@@ -1142,12 +1227,20 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			return fmt.Errorf("update playbook: %w", err)
 		}
 
+		keys, err := newKeyChooser(ctx, tx, params.ID)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `DELETE FROM playbook_statements WHERE playbook_id = $1`, params.ID); err != nil {
 			return fmt.Errorf("clear playbook_statements: %w", err)
 		}
 
 		for i, sp := range params.Statements {
-			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp)
+			key, err := keys.choose(i, sp)
+			if err != nil {
+				return err
+			}
+			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp, key)
 			if err != nil {
 				return fmt.Errorf("insert statement %d: %w", i, err)
 			}

@@ -265,7 +265,10 @@ type PlaybookWithStatements struct {
 // CitedStatement is an atomic claim paired with its citation chips.
 // Citations must be non-empty — the store constructor enforces this.
 type CitedStatement struct {
-	ID          int64
+	ID int64
+	// Key is the claim's durable identity (ADR-014 D1): unlike ID, it survives
+	// a save. Round-trip it on edits so the replacement row keeps it.
+	Key         string
 	BodyMD      string
 	ConceptSlug string // "" when untagged; doubles as the public anchor (ADR-011 D4)
 	// TopicRefSlug/Name mark a statement that summarizes a whole topic rather

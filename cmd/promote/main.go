@@ -325,6 +325,9 @@ func promote(ctx context.Context, srcPG, dstPG *store.PG, p plan) error {
 		}
 		stmts = append(stmts, store.IngestStatementParams{
 			BodyMD: st.BodyMD, Language: full.Playbook.Language, Sources: cites,
+			// The key crosses environments with the page, so a statement
+			// promoted twice is the same claim on both sides (ADR-014 D1).
+			Key:          st.Key,
 			ConceptSlug:  st.ConceptSlug,
 			TopicRefSlug: st.TopicRefSlug,
 		})

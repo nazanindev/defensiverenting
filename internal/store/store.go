@@ -165,6 +165,12 @@ type IngestPlaybookParams struct {
 type IngestStatementParams struct {
 	BodyMD   string
 	Language string
+	// Key carries the statement's durable identity (ADR-014 D1) onto the row
+	// this save writes. "" lets the save choose: a statement in the same slot
+	// with an identical body lends its key, and otherwise a fresh one is
+	// minted. Callers that edited the body must pass the key they read, or
+	// the edit reads as a new claim.
+	Key string
 	// ConceptSlug tags the statement with a registry concept (ADR-011); ""
 	// leaves it untagged. An unknown slug fails the save — the registry is
 	// closed, and silently dropping a tag would hide the mistake.

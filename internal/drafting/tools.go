@@ -97,7 +97,12 @@ type CitationInput struct {
 }
 
 type StatementInput struct {
-	BodyMD  string `json:"body_md" jsonschema:"one atomic, plain-language claim in Markdown"`
+	BodyMD string `json:"body_md" jsonschema:"one atomic, plain-language claim in Markdown"`
+	// Key ties a revised statement to the claim it replaces (ADR-014 D1), so
+	// a revision of a live page keeps the identity of every statement it
+	// kept or reworded. Unchanged bodies inherit it anyway; the field matters
+	// when the wording changed.
+	Key     string `json:"key,omitempty" jsonschema:"when revising an existing page, the key of the statement this one replaces, copied from get_playbook. Omit for a statement that is new to the page."`
 	Concept string `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Any registry slug is accepted on any page — tag the statement making the claim wherever it lives. Leave page-specific procedure untagged. Never invent slugs."`
 	// TopicRef marks a statement that summarizes a whole subject the site
 	// covers as its own pages, rather than making one claim.
@@ -296,6 +301,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		}
 		stmts = append(stmts, store.IngestStatementParams{
 			BodyMD:       st.BodyMD,
+			Key:          st.Key,
 			Language:     lang,
 			ConceptSlug:  strings.TrimSpace(st.Concept),
 			TopicRefSlug: strings.TrimSpace(st.TopicRef),
@@ -428,6 +434,9 @@ type GetPlaybookOutput struct {
 }
 
 type StatementOut struct {
+	// Key is the statement's durable identity; pass it back on
+	// save_draft_playbook when revising this statement.
+	Key       string        `json:"key"`
 	BodyMD    string        `json:"body_md"`
 	Citations []CitationOut `json:"citations"`
 }
@@ -453,7 +462,7 @@ func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPl
 	}
 	out := GetPlaybookOutput{Title: pb.Title, IntroMD: pb.IntroMD, Language: lang}
 	for _, st := range pb.Statements {
-		so := StatementOut{BodyMD: st.BodyMD}
+		so := StatementOut{Key: st.Key, BodyMD: st.BodyMD}
 		for _, c := range st.Citations {
 			so.Citations = append(so.Citations, CitationOut{
 				SourceURL: c.SourceURL, Publisher: c.Publisher, Locator: c.Locator, Quote: c.Quote,
