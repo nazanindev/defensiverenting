@@ -203,7 +203,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	tmpl, err := template.New("").Funcs(template.FuncMap{"date": fmtDate}).ParseFS(templateFS, "templates/*.html")
+	tmpl, err := template.New("").Funcs(template.FuncMap{"date": fmtDate, "inc": func(i int) int { return i + 1 }}).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		log.Error("parse templates", slog.Any("err", err))
 		os.Exit(1)
@@ -509,20 +509,9 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		issueBadges[pid] = &issueBadge{N: len(issues), Tooltip: strings.Join(issueDetails(issues), "\n")}
 	}
 
-	// Drafts and published pages share one table, so a review pass through a
-	// batch of drafts otherwise means scrolling past every live page.
-	var draftCount, publishedCount, supersededCount int
 	langs := map[string]bool{}
 	for _, p := range playbooks {
 		langs[p.Language] = true
-		switch p.Status {
-		case "draft":
-			draftCount++
-		case "superseded":
-			supersededCount++
-		default:
-			publishedCount++
-		}
 	}
 
 	view := readView(r)
@@ -549,15 +538,6 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		playbooks = kept
 	}
 
-	if view.Status != "all" {
-		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
-		for _, p := range playbooks {
-			if p.Status == view.Status {
-				kept = append(kept, p)
-			}
-		}
-		playbooks = kept
-	}
 	if view.Lang != "" && !langs[view.Lang] {
 		view.Lang = "" // a remembered language with no pages must not hide everything
 	}
@@ -565,6 +545,31 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
 		for _, p := range playbooks {
 			if p.Language == view.Lang {
+				kept = append(kept, p)
+			}
+		}
+		playbooks = kept
+	}
+
+	// Drafts and published pages share one table, so a review pass through a
+	// batch of drafts otherwise means scrolling past every live page. The tab
+	// counts are taken after the place and language filters so that they
+	// describe the list the tabs switch between, not the whole queue.
+	var draftCount, publishedCount, supersededCount int
+	for _, p := range playbooks {
+		switch p.Status {
+		case "draft":
+			draftCount++
+		case "superseded":
+			supersededCount++
+		default:
+			publishedCount++
+		}
+	}
+	if view.Status != "all" {
+		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
+		for _, p := range playbooks {
+			if p.Status == view.Status {
 				kept = append(kept, p)
 			}
 		}
