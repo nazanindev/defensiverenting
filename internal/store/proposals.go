@@ -239,11 +239,13 @@ func scanProposalRow(row pgx.Row) (ProposalRow, error) {
 // by page, then by the statement's position on it, then oldest first. The
 // "pending" listing also includes snoozed proposals whose date has come.
 func (pg *PG) ListProposals(ctx context.Context, status string) ([]ProposalRow, error) {
-	cond, args := `p.status = $1`, []any{status}
+	// Only targets in an active content language are listed (ADR-015 D3):
+	// a proposal against a parked translation has no reviewer.
+	cond, args := `p.status = $2`, []any{ContentLanguages, status}
 	if status == "pending" {
-		cond, args = `(p.status = 'pending' OR (p.status = 'snoozed' AND p.snoozed_until <= NOW()))`, nil
+		cond, args = `(p.status = 'pending' OR (p.status = 'snoozed' AND p.snoozed_until <= NOW()))`, []any{ContentLanguages}
 	}
-	rows, err := pg.pool.Query(ctx, proposalRowSQL+` WHERE `+cond+`
+	rows, err := pg.pool.Query(ctx, proposalRowSQL+` WHERE tgt.language = ANY($1) AND `+cond+`
 		ORDER BY j.name, t.name, tgt.language, COALESCE(cur.position, 1e9), p.created_at, p.id`, args...)
 	if err != nil {
 		return nil, err
@@ -273,7 +275,9 @@ func (pg *PG) CountPendingProposals(ctx context.Context) (int, error) {
 	var n int
 	err := pg.pool.QueryRow(ctx, `
 		SELECT count(*) FROM statement_proposals p
-		WHERE p.status = 'pending' OR (p.status = 'snoozed' AND p.snoozed_until <= NOW())`).Scan(&n)
+		JOIN playbooks obs ON obs.id = p.playbook_id
+		WHERE obs.language = ANY($1)
+		  AND (p.status = 'pending' OR (p.status = 'snoozed' AND p.snoozed_until <= NOW()))`, ContentLanguages).Scan(&n)
 	return n, err
 }
 

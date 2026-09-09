@@ -85,12 +85,17 @@ func TestRun_filesIntoTheRealQueue(t *testing.T) {
 		t.Errorf("row shows current %q at %d", found.CurrentBody, found.Position)
 	}
 
-	// Running again must not stack a second proposal on the same drift.
-	res2, err := sourcecheck.Run(ctx, pg, fetch, nil)
-	if err != nil {
+	// Running again must not stack a second proposal on the same drift. The
+	// assertion is scoped to this page's statement: other packages' tests
+	// share the database and seed pages of their own between the two runs.
+	if _, err := sourcecheck.Run(ctx, pg, fetch, nil); err != nil {
 		t.Fatal(err)
 	}
-	if res2.Proposed != 0 {
-		t.Errorf("second run filed %d proposal(s); the first is still waiting", res2.Proposed)
+	var n int
+	if err := pg.Pool().QueryRow(ctx, `SELECT count(*) FROM statement_proposals WHERE statement_key = $1::uuid AND reason = 'source-drift'`, found.StatementKey).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("%d drift proposals for the statement after two runs, want 1; the first is still waiting", n)
 	}
 }

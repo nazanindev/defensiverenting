@@ -544,15 +544,19 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	if view.Lang != "" && !langs[view.Lang] {
 		view.Lang = "" // a remembered language with no pages must not hide everything
 	}
-	if view.Lang != "" {
-		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
-		for _, p := range playbooks {
-			if p.Language == view.Lang {
-				kept = append(kept, p)
-			}
+	// Content in a deferred language (ADR-015 D3) is out of the working set:
+	// it shows only when the filter names that language, so the list and the
+	// draft count describe what an editor can act on.
+	kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
+	for _, p := range playbooks {
+		switch {
+		case view.Lang != "" && p.Language != view.Lang:
+		case view.Lang == "" && !store.LanguageActive(p.Language):
+		default:
+			kept = append(kept, p)
 		}
-		playbooks = kept
 	}
+	playbooks = kept
 
 	// Drafts and published pages share one table, so a review pass through a
 	// batch of drafts otherwise means scrolling past every live page. The tab

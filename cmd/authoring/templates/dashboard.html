@@ -261,9 +261,9 @@
     <span class="place-filter" style="margin-left:0">
       <label for="lang-sel">Language</label>
       <select id="lang-sel" onchange="location.href = this.value">
-        <option value="{{$v.LangLink ""}}"{{if not $v.Lang}} selected{{end}}>All</option>
+        <option value="{{$v.LangLink ""}}"{{if not $v.Lang}} selected{{end}}>Active (English)</option>
         <option value="{{$v.LangLink "en"}}"{{if eq $v.Lang "en"}} selected{{end}}>English</option>
-        <option value="{{$v.LangLink "es"}}"{{if eq $v.Lang "es"}} selected{{end}}>Spanish</option>
+        <option value="{{$v.LangLink "es"}}"{{if eq $v.Lang "es"}} selected{{end}}>Spanish (deferred, ADR-015)</option>
       </select>
     </span>
     {{end}}

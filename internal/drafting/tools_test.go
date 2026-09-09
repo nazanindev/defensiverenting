@@ -276,6 +276,7 @@ func TestSaveDraft_DefaultsToEnglishLanguage(t *testing.T) {
 // written in: the quote still has to match the fetched source (which stays
 // in whatever language it was actually published in, usually English).
 func TestSaveDraft_SpanishDraftKeepsVerbatimGuardrail(t *testing.T) {
+	activateSpanish(t)
 	fs := &fakeStore{}
 	tb := newTestToolbelt(fs, map[string]string{
 		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
@@ -339,6 +340,7 @@ func TestSaveDraft_RejectsUnknownLanguage(t *testing.T) {
 // The Spanish voice lint is a separate ruleset from the English one, and it
 // must actually run — not be silently skipped because the draft isn't English.
 func TestSaveDraft_SpanishVoiceLintCatchesBannedWord(t *testing.T) {
+	activateSpanish(t)
 	fs := &fakeStore{}
 	tb := newTestToolbelt(fs, map[string]string{depositURL: `<p>within thirty days</p>`})
 	mustFetch(t, tb, depositURL)
@@ -366,6 +368,7 @@ func TestSaveDraft_SpanishVoiceLintCatchesBannedWord(t *testing.T) {
 // otherwise a translate workflow could never check whether a Spanish version
 // already exists.
 func TestGetPlaybook_LanguageDefaultsAndThreadsThrough(t *testing.T) {
+	activateSpanish(t)
 	fs := &fakeStore{coveredLanguage: "en"}
 	tb := newTestToolbelt(fs, nil)
 
@@ -386,6 +389,7 @@ func TestGetPlaybook_LanguageDefaultsAndThreadsThrough(t *testing.T) {
 }
 
 func TestListTopics_LanguageControlsHasPage(t *testing.T) {
+	activateSpanish(t)
 	fs := &fakeStore{coveredLanguage: "en"}
 	tb := newTestToolbelt(fs, nil)
 
@@ -755,4 +759,14 @@ func TestSaveDraft_RejectsReferenceOnlyCitation(t *testing.T) {
 	if fs.ingested != nil {
 		t.Error("nothing may be written on rejection")
 	}
+}
+
+// activateSpanish turns the deferred language on for one test (ADR-015):
+// the translation tooling stays and must keep working for the day it is
+// switched back on, so its tests run with the registry as it will be then.
+func activateSpanish(t *testing.T) {
+	t.Helper()
+	prev := store.ContentLanguages
+	store.ContentLanguages = []string{"en", "es"}
+	t.Cleanup(func() { store.ContentLanguages = prev })
 }

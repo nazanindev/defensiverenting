@@ -11,7 +11,10 @@ import (
 // non-editorial source, for the checker to confirm each quote still appears at
 // the URL. Rows are ordered by source id so callers can group by source.
 //
-// Only citations reachable from a playbook count. Saving a playbook replaces its
+// Only citations reachable from a playbook in an active content language
+// count (ADR-015 D3): a deferred translation cites what its English page
+// cites, so checking it would fetch the same sources for a page nobody can
+// act on. Saving a playbook replaces its
 // rows in playbook_statements but never deletes the statements themselves, so
 // every re-save leaves its previous statements — and their citations — behind in
 // the tables. Without the EXISTS filter the checker re-fetches sources that no
@@ -24,8 +27,9 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 		JOIN sources s ON s.id = c.source_id
 		JOIN statements st ON st.id = c.statement_id
 		WHERE s.kind <> 'editorial' AND btrim(c.quote) <> ''
-		  AND EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = c.statement_id)
-		ORDER BY s.id`)
+		  AND EXISTS (SELECT 1 FROM playbook_statements ps JOIN playbooks pb ON pb.id = ps.playbook_id
+		              WHERE ps.statement_id = c.statement_id AND pb.language = ANY($1))
+		ORDER BY s.id`, ContentLanguages)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +70,8 @@ func (pg *PG) CountUncheckableCitations(ctx context.Context) (int, error) {
 		FROM citations c
 		JOIN sources s ON s.id = c.source_id
 		WHERE s.kind <> 'editorial' AND btrim(c.quote) = ''
-		  AND EXISTS (SELECT 1 FROM playbook_statements ps WHERE ps.statement_id = c.statement_id)`).Scan(&n)
+		  AND EXISTS (SELECT 1 FROM playbook_statements ps JOIN playbooks pb ON pb.id = ps.playbook_id
+		              WHERE ps.statement_id = c.statement_id AND pb.language = ANY($1))`, ContentLanguages).Scan(&n)
 	return n, err
 }
 

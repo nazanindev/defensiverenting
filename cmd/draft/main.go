@@ -54,6 +54,9 @@ func main() {
 	if *jurisdiction == "" {
 		log.Fatal("draft: -jurisdiction is required")
 	}
+	if !store.LanguageActive(*language) {
+		log.Fatalf("draft: content in %q is deferred (ADR-015); active languages: %s", *language, strings.Join(store.ContentLanguages, ", "))
+	}
 	if *dsn == "" {
 		log.Fatal("draft: DATABASE_URL (or -db) is required")
 	}

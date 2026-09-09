@@ -358,6 +358,9 @@ func ResolveLanguage(lang string) (string, error) {
 	}
 	for _, l := range voice.Supported() {
 		if l == lang {
+			if !store.LanguageActive(lang) {
+				return "", reject("content in %q is deferred (ADR-015): no new pages, drafts, or translations in it until that language is active again. Work in %s.", lang, strings.Join(store.ContentLanguages, ", "))
+			}
 			return lang, nil
 		}
 	}

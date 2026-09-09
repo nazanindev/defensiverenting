@@ -27,7 +27,7 @@ type PageIssue struct {
 	// Code names the invariant, stable across wording changes:
 	// no-title, no-statements, empty-statement, uncited-statement,
 	// missing-quote, unverified-quote, source-unreachable, statute-locator,
-	// source-no-publisher.
+	// source-no-publisher, language-deferred.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -220,6 +220,19 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 				return
 			}
 			add(id, pos(f[0]), "statute-locator", fmt.Sprintf("statement %s cites %s as a statute but its locator %q does not name a provision (for example %q or %q)", f[0], f[1], f[2], "§ 15B", "RCW 59.18.060"))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// Content in a deferred language is parked (ADR-015 D2): it can be edited
+	// but not published, since nobody can review what it says. The registry
+	// is passed as a parameter so the switch lives in one Go variable.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, pb.language FROM playbooks pb
+		WHERE `+cond+` AND NOT (pb.language = ANY($`+strconv.Itoa(len(args)+1)+`))`, append(append([]any{}, args...), ContentLanguages),
+		func(id int64, f []string) {
+			add(id, 0, "language-deferred", fmt.Sprintf("content in %q is deferred (ADR-015): the page can be edited but not published until that language is active again", f[0]))
 		},
 	); err != nil {
 		return nil, err
