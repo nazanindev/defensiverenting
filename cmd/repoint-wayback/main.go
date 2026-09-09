@@ -5,15 +5,21 @@
 //
 // A source is repointed only when the live page fetches and every non-empty
 // cited quote still appears in it verbatim — the same check the save guardrail
-// runs, via the same functions. A source whose live page cannot be fetched, or
-// where any quote has drifted, is left on its snapshot URL and reported for a
-// human to reconcile. Dry run by default; -apply writes.
+// runs, via the same functions. A source whose live page cannot be fetched is
+// left on its snapshot URL and reported. A source whose live page fetched but
+// where a quote has drifted is also held, and each drifted statement gets a
+// source-drift proposal in the review queue (ADR-014 D4): the statement with
+// that citation moved to the live URL and the nearest passage offered as the
+// replacement quote when the text merely moved. The snapshot never drifts, so
+// check-sources cannot see this; only a comparison against the live page can.
+// Dry run by default; -apply writes.
 //
 // DB: DATABASE_URL (or -db).
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -24,6 +30,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
+	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 // checkedBy is the actor handle stamped on citations this command confirms,
@@ -37,6 +45,7 @@ var reWayback = regexp.MustCompile(`^https?://web\.archive\.org/web/[^/]+/(https
 
 type citation struct {
 	statementID int64
+	key         string // the statement's durable key (ADR-014 D1)
 	quote       string
 }
 
@@ -55,6 +64,11 @@ func main() {
 		log.Fatalf("repoint-wayback: connect db: %v", err)
 	}
 	defer pool.Close()
+	db, err := store.New(ctx, *dsn)
+	if err != nil {
+		log.Fatalf("repoint-wayback: connect store: %v", err)
+	}
+	defer db.Close()
 
 	rows, err := pool.Query(ctx, `
 		SELECT id, url, publisher FROM sources
@@ -81,7 +95,7 @@ func main() {
 		return
 	}
 
-	repointed, held := 0, 0
+	repointed, held, proposed := 0, 0, 0
 	for _, s := range srcs {
 		m := reWayback.FindStringSubmatch(s.url)
 		if m == nil {
@@ -119,6 +133,11 @@ func main() {
 				s.id, s.pub, len(missing), len(cites), live)
 			for _, c := range missing {
 				fmt.Printf("    statement %d: %q\n", c.statementID, clip(c.quote, 90))
+				n, err := proposeDrift(ctx, db, s.url, live, s.pub, text, c, *apply)
+				if err != nil {
+					log.Fatalf("repoint-wayback: propose drift for statement %d: %v", c.statementID, err)
+				}
+				proposed += n
 			}
 			continue
 		}
@@ -142,14 +161,77 @@ func main() {
 	if *apply {
 		verb = "repointed"
 	}
-	fmt.Printf("%s %d of %d snapshot source(s); %d held for human review\n", verb, repointed, len(srcs), held)
-	if !*apply && repointed > 0 {
+	filed := "would file"
+	if *apply {
+		filed = "filed"
+	}
+	fmt.Printf("%s %d of %d snapshot source(s); %d held for human review; %s %d drift proposal(s) for the review queue\n",
+		verb, repointed, len(srcs), held, filed, proposed)
+	if !*apply && (repointed > 0 || proposed > 0) {
 		fmt.Println("dry run — re-run with -apply to write")
 	}
 }
 
+// proposeDrift files one source-drift proposal for a statement whose quote is
+// not on the live page: the statement as it stands, with this citation moved
+// from the snapshot URL to the live URL and its quote replaced by the nearest
+// passage when the match is close, or a finding when it is not. Approval on
+// the queue then performs the repoint for that statement. Returns 1 when a
+// proposal was (or in a dry run, would be) filed.
+func proposeDrift(ctx context.Context, db *store.PG, snapshotURL, liveURL, publisher, liveText string, c citation, apply bool) (int, error) {
+	if c.key == "" {
+		return 0, nil // orphaned statement, no page cites it
+	}
+	done, err := db.DriftAlreadyFiled(ctx, c.key, c.quote)
+	if err != nil || done {
+		return 0, err
+	}
+	passage, score := sourcecheck.Nearest(liveText, c.quote)
+	evidence := map[string]any{
+		"snapshot_url": snapshotURL, "source_url": liveURL, "publisher": publisher,
+		"old_quote": c.quote, "new_quote": passage, "similarity": score,
+	}
+	var proposed *store.ProposedStatement
+	if score >= 0.6 {
+		st, err := db.StatementByKey(ctx, c.key)
+		if err != nil {
+			if err == store.ErrNotFound {
+				return 0, nil
+			}
+			return 0, err
+		}
+		for i := range st.Citations {
+			if st.Citations[i].URL == snapshotURL && st.Citations[i].Quote == c.quote {
+				st.Citations[i].URL = liveURL
+				st.Citations[i].Quote = passage
+				st.Citations[i].Checked = true // verbatim in the live text just fetched
+			}
+		}
+		proposed = &st
+		evidence["note"] = "This citation points at an archive snapshot. On the live page the quoted text has changed; the nearest passage is offered as the replacement, citing the live URL. Check the statement is still true under it."
+	} else {
+		evidence["note"] = "This citation points at an archive snapshot, and the quoted text is not on the live page at all. The page was rewritten or reorganized; re-verify the statement by hand against the live URL."
+	}
+	if !apply {
+		fmt.Printf("      would file a source-drift proposal (similarity %.2f)\n", score)
+		return 1, nil
+	}
+	ev, _ := json.Marshal(evidence)
+	id, err := db.FileProposal(ctx, store.FileProposalParams{
+		StatementKey: c.key, Reason: "source-drift", Proposed: proposed, Evidence: ev, ProposedBy: checkedBy,
+	})
+	if err != nil {
+		return 0, err
+	}
+	fmt.Printf("      filed source-drift proposal %d (similarity %.2f)\n", id, score)
+	return 1, nil
+}
+
 func listCitations(ctx context.Context, pool *pgxpool.Pool, sourceID int64) ([]citation, error) {
-	rows, err := pool.Query(ctx, `SELECT statement_id, quote FROM citations WHERE source_id = $1 ORDER BY statement_id`, sourceID)
+	rows, err := pool.Query(ctx, `
+		SELECT c.statement_id, COALESCE(s.key::text, ''), c.quote
+		FROM citations c JOIN statements s ON s.id = c.statement_id
+		WHERE c.source_id = $1 ORDER BY c.statement_id`, sourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +239,7 @@ func listCitations(ctx context.Context, pool *pgxpool.Pool, sourceID int64) ([]c
 	var out []citation
 	for rows.Next() {
 		var c citation
-		if err := rows.Scan(&c.statementID, &c.quote); err != nil {
+		if err := rows.Scan(&c.statementID, &c.key, &c.quote); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
