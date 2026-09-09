@@ -294,6 +294,10 @@ type dashboardView struct {
 	// cities under it, not just pages scoped to the state itself, because
 	// "show me Massachusetts" means the work for Massachusetts.
 	Place string
+	// Lang narrows to one language ("" means every language). It exists so a
+	// review pass can ignore the Spanish translations until an editor who
+	// reads Spanish is doing that pass, without hiding them from the counts.
+	Lang string
 }
 
 const viewCookie = "authoring_view"
@@ -313,6 +317,9 @@ func (v dashboardView) normalize() dashboardView {
 	if !sortableColumns[v.Sort] {
 		v.Sort = "updated"
 	}
+	if v.Lang != "en" && v.Lang != "es" {
+		v.Lang = ""
+	}
 	if v.Dir != "asc" && v.Dir != "desc" {
 		// Dates default newest-first, which is what "what moved lately" means.
 		// Everything else defaults A to Z.
@@ -329,6 +336,9 @@ func (v dashboardView) query() string {
 	if v.Place != "" {
 		q.Set("place", v.Place)
 	}
+	if v.Lang != "" {
+		q.Set("lang", v.Lang)
+	}
 	return q.Encode()
 }
 
@@ -337,6 +347,22 @@ func (v dashboardView) query() string {
 func (v dashboardView) PlaceLink(slug string) template.URL {
 	next := v
 	next.Place = slug
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
+}
+
+// LangLink returns the href for narrowing to one language, keeping the current
+// status, sort and place. An empty code clears the filter.
+func (v dashboardView) LangLink(lang string) template.URL {
+	next := v
+	next.Lang = lang
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
+}
+
+// StatusLink returns the href for one status tab, carrying sort, place and
+// language along: switching to Drafts must not silently widen the list.
+func (v dashboardView) StatusLink(status string) template.URL {
+	next := v
+	next.Status = status
 	return template.URL("/?" + next.normalize().query()) // #nosec G203
 }
 
@@ -354,7 +380,7 @@ func (v dashboardView) PlaceLink(slug string) template.URL {
 // Place is carried through: sorting a filtered list must not silently widen it
 // back to every city.
 func (v dashboardView) SortLink(col string) template.URL {
-	next := dashboardView{Status: v.Status, Sort: col, Place: v.Place}
+	next := dashboardView{Status: v.Status, Sort: col, Place: v.Place, Lang: v.Lang}
 	if v.Sort == col {
 		next.Dir = "asc"
 		if v.Dir == "asc" {
@@ -377,8 +403,8 @@ func (v dashboardView) Arrow(col string) string {
 
 func readView(r *http.Request) dashboardView {
 	q := r.URL.Query()
-	v := dashboardView{Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir"), Place: q.Get("place")}
-	if v.Status == "" && v.Sort == "" && v.Dir == "" && q.Get("place") == "" {
+	v := dashboardView{Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir"), Place: q.Get("place"), Lang: q.Get("lang")}
+	if v.Status == "" && v.Sort == "" && v.Dir == "" && q.Get("place") == "" && q.Get("lang") == "" {
 		if c, err := r.Cookie(viewCookie); err == nil {
 			if remembered, err := url.ParseQuery(c.Value); err == nil {
 				v = dashboardView{
@@ -386,6 +412,7 @@ func readView(r *http.Request) dashboardView {
 					Sort:   remembered.Get("sort"),
 					Dir:    remembered.Get("dir"),
 					Place:  remembered.Get("place"),
+					Lang:   remembered.Get("lang"),
 				}
 			}
 		}
@@ -526,6 +553,18 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
 		for _, p := range playbooks {
 			if p.Status == view.Status {
+				kept = append(kept, p)
+			}
+		}
+		playbooks = kept
+	}
+	if view.Lang != "" && !langs[view.Lang] {
+		view.Lang = "" // a remembered language with no pages must not hide everything
+	}
+	if view.Lang != "" {
+		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
+		for _, p := range playbooks {
+			if p.Language == view.Lang {
 				kept = append(kept, p)
 			}
 		}

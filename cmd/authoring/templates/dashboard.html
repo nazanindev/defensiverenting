@@ -251,10 +251,10 @@
   {{/* place rides along on every status tab: narrowing to a city and then
        switching to Drafts must not silently widen back to every city. */}}
   <div class="tabs">
-    <a class="tab {{if eq .Status "all"}}active{{end}}" href="/?status=all&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}">All <b>{{.TotalCount}}</b></a>
-    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="/?status=draft&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}">Drafts to review <b>{{.DraftCount}}</b></a>
-    <a class="tab {{if eq .Status "published"}}active{{end}}" href="/?status=published&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}">Published <b>{{.PublishedCount}}</b></a>
-    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="/?status=superseded&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}&amp;place={{$v.Place}}" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
+    <a class="tab {{if eq .Status "all"}}active{{end}}" href="{{$v.StatusLink "all"}}">All <b>{{.TotalCount}}</b></a>
+    <a class="tab {{if eq .Status "draft"}}active{{end}}" href="{{$v.StatusLink "draft"}}">Drafts to review <b>{{.DraftCount}}</b></a>
+    <a class="tab {{if eq .Status "published"}}active{{end}}" href="{{$v.StatusLink "published"}}">Published <b>{{.PublishedCount}}</b></a>
+    {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="{{$v.StatusLink "superseded"}}" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
 
     {{if .Places}}
     <span class="place-filter">
@@ -264,6 +264,16 @@
         {{range .Places}}
         <option value="{{$v.PlaceLink .Slug}}"{{if eq $v.Place .Slug}} selected{{end}}>{{if eq .Kind "city"}}&nbsp;&nbsp;&nbsp;{{else if eq .Kind "state"}}&nbsp;{{end}}{{.Name}} ({{.Count}})</option>
         {{end}}
+      </select>
+    </span>
+    {{end}}
+    {{if .ShowLanguage}}
+    <span class="place-filter" style="margin-left:0">
+      <label for="lang-sel">Language</label>
+      <select id="lang-sel" onchange="location.href = this.value">
+        <option value="{{$v.LangLink ""}}"{{if not $v.Lang}} selected{{end}}>All</option>
+        <option value="{{$v.LangLink "en"}}"{{if eq $v.Lang "en"}} selected{{end}}>English</option>
+        <option value="{{$v.LangLink "es"}}"{{if eq $v.Lang "es"}} selected{{end}}>Spanish</option>
       </select>
     </span>
     {{end}}

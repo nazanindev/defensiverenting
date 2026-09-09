@@ -61,6 +61,36 @@ func TestSortLink_flipsOnlyTheColumnAlreadySorted(t *testing.T) {
 	}
 }
 
+func TestNormalize_boundsLanguageToTheTwoSupportedCodes(t *testing.T) {
+	if got := (dashboardView{Lang: "fr"}).normalize().Lang; got != "" {
+		t.Errorf("Lang = %q, want an unknown code cleared", got)
+	}
+	if got := (dashboardView{Lang: "es"}).normalize().Lang; got != "es" {
+		t.Errorf("Lang = %q, want es kept", got)
+	}
+}
+
+func TestLangLink_keepsPlaceStatusAndSort(t *testing.T) {
+	v := dashboardView{Status: "draft", Sort: "city", Dir: "asc", Place: "texas"}.normalize()
+	got := string(v.LangLink("en"))
+	for _, want := range []string{"lang=en", "place=texas", "status=draft", "sort=city"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("LangLink = %q, missing %s", got, want)
+		}
+	}
+	if got := string(v.StatusLink("published")); !strings.Contains(got, "place=texas") || strings.Contains(got, "lang=") {
+		t.Errorf("StatusLink = %q, want place carried and no lang when none is set", got)
+	}
+}
+
+func TestReadView_rememberedLanguageSurvivesABareRequest(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.AddCookie(&http.Cookie{Name: viewCookie, Value: "status=draft&sort=updated&dir=desc&lang=en"})
+	if got := readView(r); got.Lang != "en" {
+		t.Errorf("readView.Lang = %q, want the remembered en", got.Lang)
+	}
+}
+
 func TestReadView_queryBeatsTheRememberedCookie(t *testing.T) {
 	r := httptest.NewRequest("GET", "/?status=published&sort=title&dir=asc", nil)
 	r.AddCookie(&http.Cookie{Name: viewCookie, Value: "status=draft&sort=city&dir=desc"})
