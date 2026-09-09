@@ -203,7 +203,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	tmpl, err := template.New("").Funcs(template.FuncMap{"date": fmtDate, "inc": func(i int) int { return i + 1 }}).ParseFS(templateFS, "templates/*.html")
+	tmpl, err := template.New("").Funcs(templateFuncs).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		log.Error("parse templates", slog.Any("err", err))
 		os.Exit(1)
@@ -976,6 +976,13 @@ func parseStatementTag(v string) (conceptSlug, topicRefSlug string) {
 
 // fmtDate renders a timestamp (time.Time or *time.Time) for the authoring UI;
 // nil/zero shows an em dash.
+// templateFuncs is shared with the template tests so that a helper added here
+// cannot be missing where the templates are parsed for rendering checks.
+var templateFuncs = template.FuncMap{
+	"date": fmtDate,
+	"inc":  func(i int) int { return i + 1 }, // 1-based row numbers
+}
+
 func fmtDate(v any) string {
 	var t time.Time
 	switch x := v.(type) {
