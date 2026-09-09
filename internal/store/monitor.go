@@ -153,11 +153,7 @@ func (pg *PG) ListUnusedSources(ctx context.Context) ([]Source, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT id, url, publisher, jurisdiction_id, kind, retrieved_at, content_hash, last_checked_at
 		FROM sources s
-		WHERE s.url <> '/editorial'
-		  AND NOT EXISTS (
-			SELECT 1 FROM citations c
-			JOIN playbook_statements ps ON ps.statement_id = c.statement_id
-			WHERE c.source_id = s.id)
+		WHERE `+unusedSourceSQL+`
 		ORDER BY s.publisher, s.id`)
 	if err != nil {
 		return nil, err

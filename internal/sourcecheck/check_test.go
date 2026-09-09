@@ -19,6 +19,11 @@ type fakeStore struct {
 	statements  map[string]store.ProposedStatement // by key
 	alreadyOpen map[string]bool                    // key -> a drift proposal is already waiting
 	filed       []store.FileProposalParams
+	unusedFiled int
+}
+
+func (f *fakeStore) FileUnusedSourceProposals(context.Context, string) (int, error) {
+	return f.unusedFiled, nil
 }
 
 func (f *fakeStore) StatementByKey(_ context.Context, key string) (store.ProposedStatement, error) {

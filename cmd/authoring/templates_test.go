@@ -463,3 +463,67 @@ func TestQuoteSurvivesAnUnchangedSave(t *testing.T) {
 		t.Errorf("locator lost: %q", r.FormValue("loc_0_0"))
 	}
 }
+
+// The coverage matrices moved off the dashboard to their own page; both
+// tables and the empty concept case have to render.
+func TestCoverageTemplateRenders(t *testing.T) {
+	tmpl := parseTemplates(t)
+	data := map[string]any{
+		"Actor": "nazanin",
+		"Coverage": []store.CoverageRow{{
+			JurisdictionName: "Chicago", JurisdictionSlug: "chicago",
+			Status: map[string]string{"security-deposits": "published", "resource-directory": "draft"},
+		}},
+		"CoreTopics": []store.Topic{
+			{Slug: "security-deposits", Name: "Security Deposits", IsCore: true},
+			{Slug: "resource-directory", Name: "Local Help", IsCore: true},
+		},
+		"ConceptCoverage": []store.ConceptCoverageRow{{
+			Concept: store.Concept{Name: "Deposit cap", TopicSlug: "security-deposits"}, National: true,
+			Status: map[string]string{"Chicago": "localized", "Boston": "generic"},
+		}},
+		"ConceptPlaces": []string{"Chicago", "Boston"},
+		"DraftCount":    3, "IssueCount": 1, "Proposals": 2,
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "coverage.html", data); err != nil {
+		t.Fatalf("execute coverage.html: %v", err)
+	}
+	data["ConceptCoverage"] = nil
+	if err := tmpl.ExecuteTemplate(io.Discard, "coverage.html", data); err != nil {
+		t.Fatalf("execute coverage.html (no concepts): %v", err)
+	}
+}
+
+// Unused-source proposals share the queue page with statement proposals.
+// One that a page has come to cite again must offer no delete button.
+func TestQueueTemplateRendersSourceProposals(t *testing.T) {
+	sid := int64(7)
+	render := func(items []sourceItem) string {
+		var buf bytes.Buffer
+		err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
+			"Actor": "nazanin", "Status": "pending", "Groups": nil, "Sources": items, "Count": len(items), "Checking": false,
+		})
+		if err != nil {
+			t.Fatalf("execute queue.html: %v", err)
+		}
+		return buf.String()
+	}
+	html := render([]sourceItem{
+		{SourceProposal: store.SourceProposal{ID: 1, SourceID: &sid, URL: "https://example.gov/old", Publisher: "Example", Kind: "statute", Status: "pending", ProposedBy: "source check"}, Age: "1h ago"},
+	})
+	if !strings.Contains(html, `action="/queue/sources/1/approve"`) {
+		t.Error("an unused source has no delete button")
+	}
+	if strings.Contains(html, "Nothing pending") {
+		t.Error("the empty state shows although a source proposal is listed")
+	}
+	html = render([]sourceItem{
+		{SourceProposal: store.SourceProposal{ID: 2, SourceID: &sid, URL: "https://example.gov/back", Status: "pending", InUse: true}, Age: "1h ago"},
+	})
+	if strings.Contains(html, `action="/queue/sources/2/approve"`) {
+		t.Error("a source cited again still offers deletion, which the store would refuse")
+	}
+	if !strings.Contains(render(nil), "Nothing pending") {
+		t.Error("no empty state without any proposals")
+	}
+}

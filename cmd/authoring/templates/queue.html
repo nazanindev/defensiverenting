@@ -77,6 +77,17 @@
   .btn-link { background: transparent; color: #9b2335; text-decoration: underline; padding-left: 0; }
   .decision { font-size: .82rem; color: #7a5c5c; margin-top: 10px; }
   .empty { text-align: center; padding: 60px 24px; color: #b08080; background: #fff; border: 1px solid #e8dede; border-radius: 10px; }
+  .panel { background: #fff; border-radius: 10px; border: 1px solid #e8dede; padding: 14px 18px; margin-bottom: 22px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .panel form { margin: 0; }
+  .panel p { color: #7a5c5c; font-size: .8rem; line-height: 1.5; flex: 1 1 30ch; }
+  .btn-primary { background: #9b2335; color: #fff; }
+  .btn-primary:hover { background: #7a1c2a; }
+  .btn-primary[disabled] { background: #d9a0a8; cursor: default; }
+  .badge-free { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 6px; }
+  .chip-unused { background: #f0ebe8; color: #5c3a3a; }
+  .src summary { grid-template-columns: 9rem 1fr auto; }
+  .src .url { color: #9a7878; font-size: .76rem; word-break: break-all; }
+  .src .inuse { color: #b7791f; font-size: .85rem; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -92,10 +103,15 @@
 <div class="page">
   <div class="crumb"><a href="/">← Dashboard</a></div>
   <h1>Review queue</h1>
-  <p class="note">One statement per item, with what it says now beside what is proposed. Approve saves the page with that statement swapped, under your name. Edit the proposed text first if it needs it. Reject keeps your note as the record. A live page still has to pass the publish gate.</p>
+  <p class="note">One statement per item, with what it says now beside what is proposed. Approve saves the page with that statement swapped, under your name. Edit the proposed text first if it needs it. Reject keeps your note as the record. A live page still has to pass the publish gate. Sources no page cites are listed last, as proposals to delete them.</p>
 
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
+
+  <div class="panel">
+    <form method="post" action="/check-sources"><button class="btn btn-primary" type="submit" {{if .Checking}}disabled{{end}}>{{if .Checking}}Checking sources…{{else}}Re-check all sources for changes{{end}}</button></form>
+    <p><span class="badge-free" style="margin:0 6px 0 0">free · no AI</span>Re-fetches every cited source and confirms the exact text we quoted still appears. Where it does not, the statement citing it gets a proposal here with the nearest passage attached. Sources no page cites are filed for deletion. Dynamic page content (dates, banners) won't trigger it.</p>
+  </div>
 
   <div class="tabs">
     {{$st := .Status}}
@@ -106,7 +122,7 @@
     <a class="tab {{if eq $st "superseded"}}active{{end}}" href="/queue?status=superseded">superseded</a>
   </div>
 
-  {{if .Groups}}
+  {{if or .Groups .Sources}}
     {{range .Groups}}
     <section class="group">
       {{/* Place and topic name the page; the title is an SEO question now
@@ -156,6 +172,37 @@
             {{end}}
             <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger">Reject</button></form>
             <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute">Snooze</button></form>
+          </div>
+          {{else}}
+          <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
+          {{end}}
+        </div>
+      </details>
+      {{end}}
+    </section>
+    {{end}}
+
+    {{if .Sources}}
+    <section class="group">
+      <div class="group-hd">
+        <h2>Sources no page cites</h2>
+        <span class="group-title">Each one still costs a fetch on every check run and clutters the source picker. Approve deletes the row; reject with a note keeps it and stops it being asked about again.</span>
+      </div>
+      {{range .Sources}}
+      <details class="item src" id="s{{.ID}}">
+        <summary>
+          <span><span class="chip chip-unused">unused-source</span></span>
+          <span class="lead">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}} <span class="url">{{.URL}}</span></span>
+          <span class="meta">{{.ProposedBy}} · {{.Age}}</span>
+        </summary>
+        <div class="body">
+          {{if .InUse}}<p class="inuse">A page cites this source again. It cannot be deleted: reject this proposal.</p>{{end}}
+          <p class="stmt"><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>{{if .Kind}} <span class="url">· {{.Kind}}</span>{{end}}{{if .OrphanCitations}}<br><span class="url">{{.OrphanCitations}} citation(s) from statements no page carries any more go with it.</span>{{end}}</p>
+          {{if or (eq .Status "pending") (eq .Status "snoozed")}}
+          <div class="actions">
+            {{if and .SourceID (not .InUse)}}<form method="post" action="/queue/sources/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Delete source</button></form>{{end}}
+            <form method="post" action="/queue/sources/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why keep it (kept as the record)"><button class="btn btn-danger">Reject</button></form>
+            <form method="post" action="/queue/sources/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute">Snooze</button></form>
           </div>
           {{else}}
           <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>

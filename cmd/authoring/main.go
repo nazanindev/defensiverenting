@@ -78,6 +78,12 @@ func (j *jobSet) done(key string) {
 	j.mu.Unlock()
 }
 
+func (j *jobSet) has(key string) bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.m[key]
+}
+
 func (j *jobSet) list() []string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -238,6 +244,10 @@ func main() {
 	mux.HandleFunc("POST /queue/{id}/approve", s.approveProposal)
 	mux.HandleFunc("POST /queue/{id}/reject", s.rejectProposal)
 	mux.HandleFunc("POST /queue/{id}/snooze", s.snoozeProposal)
+	mux.HandleFunc("POST /queue/sources/{id}/approve", s.approveSourceProposal)
+	mux.HandleFunc("POST /queue/sources/{id}/reject", s.rejectSourceProposal)
+	mux.HandleFunc("POST /queue/sources/{id}/snooze", s.snoozeSourceProposal)
+	mux.HandleFunc("GET /coverage", s.coverage)
 
 	// /healthz is outside the auth wrapper so Fly's health check can reach it.
 	outer := http.NewServeMux()
@@ -475,27 +485,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	proposals, err := s.pg.CountPendingProposals(ctx)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	coverage, err := s.pg.AuthorCoverage(ctx)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	unused, err := s.pg.ListUnusedSources(ctx)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	conceptCoverage, conceptPlaces, err := s.pg.ConceptCoverage(ctx)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	coreTopics, err := s.pg.ListCoreTopics(ctx)
+	proposals, err := s.pendingProposalCount(ctx)
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -602,15 +592,10 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"ReviewCounts":    counts,
 		"Generating":      s.jobs.list(),
 		"Proposals":       proposals,
-		"Unused":          unused,
 		"View":            view,
 		"Places":          places.Opts(),
 		"Status":          view.Status,
 		"ShowLanguage":    len(langs) > 1,
-		"Coverage":        coverage,
-		"ConceptCoverage": conceptCoverage,
-		"ConceptPlaces":   conceptPlaces,
-		"CoreTopics":      coreTopics,
 		"DraftCount":      draftCount,
 		"PublishedCount":  publishedCount,
 		"TotalCount":      draftCount + publishedCount + supersededCount,
@@ -699,7 +684,7 @@ func (s *srv) generateDraft(w http.ResponseWriter, r *http.Request) {
 func (s *srv) checkSources(w http.ResponseWriter, r *http.Request) {
 	key := "sources-check"
 	if !s.jobs.start(key) {
-		http.Redirect(w, r, "/?msg="+url.QueryEscape("a source check is already running"), http.StatusSeeOther)
+		http.Redirect(w, r, "/queue?msg="+url.QueryEscape("a source check is already running"), http.StatusSeeOther)
 		return
 	}
 	go func() {
@@ -712,9 +697,10 @@ func (s *srv) checkSources(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.log.Info("sourcecheck done",
-			slog.Int("sources", res.Sources), slog.Int("drifted", res.Drifted), slog.Int("proposals", res.Proposed), slog.Int("failed", res.Failed))
+			slog.Int("sources", res.Sources), slog.Int("drifted", res.Drifted), slog.Int("proposals", res.Proposed),
+			slog.Int("unused", res.Unused), slog.Int("failed", res.Failed))
 	}()
-	http.Redirect(w, r, "/?msg="+url.QueryEscape("re-checking sources for changes — refresh in a moment"), http.StatusSeeOther)
+	http.Redirect(w, r, "/queue?msg="+url.QueryEscape("re-checking sources for changes — unused sources are filed now, drift as each fetch finishes; refresh in a moment"), http.StatusSeeOther)
 }
 
 // ---- source discovery -------------------------------------------------------

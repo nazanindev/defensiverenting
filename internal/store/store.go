@@ -108,6 +108,14 @@ type Store interface {
 	// rejected, so repeated check runs do not refile what a person has
 	// already seen or decided.
 	DriftAlreadyFiled(ctx context.Context, key, missingQuote string) (bool, error)
+	// Source proposals (ADR-014 D7): sources no page cites, filed for
+	// deletion and decided on the same queue.
+	FileUnusedSourceProposals(ctx context.Context, by string) (int, error)
+	ListSourceProposals(ctx context.Context, status string) ([]SourceProposal, error)
+	GetSourceProposal(ctx context.Context, id int64) (SourceProposal, error)
+	CountPendingSourceProposals(ctx context.Context) (int, error)
+	DecideSourceProposal(ctx context.Context, id int64, status, by, note string, snoozedUntil *time.Time) error
+	ApproveSourceProposal(ctx context.Context, id int64, by string) error
 }
 
 // Actor names for the non-human write paths, recorded in updated_by and

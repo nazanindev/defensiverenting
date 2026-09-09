@@ -77,26 +77,6 @@
   .review-links { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f5eded; font-size: .82rem; color: #7a5c5c; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   .review-links a { color: #9b2335; text-decoration: none; }
   .review-links a b { background: #fde8eb; color: #7a1c2a; border-radius: 8px; padding: 0 .4rem; margin-left: 2px; }
-  /* Coverage matrix: cities down, core topics across. Dense on purpose —
-     the question it answers ("who is missing what") is only answerable at a
-     glance if the whole grid fits on one screen. */
-  .metrics { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: .84rem; }
-  .metric { background: #fdf8f8; border: 1px solid #e8dede; border-radius: 7px; padding: .3rem .7rem; }
-  .metric b { font-size: 1rem; font-family: 'Fraunces', serif; }
-  .metric-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-  .metric-bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-  .cov { width: auto; margin-top: 14px; border-collapse: collapse; }
-  .cov th { position: static; padding: 6px 14px; font-size: .72rem; text-align: center; background: transparent; border: none; border-bottom: 1px solid #e8dede; color: #7a5c5c; letter-spacing: .02em; }
-  .cov th.city-col { text-align: left; }
-  .cov td { padding: 7px 14px; text-align: center; border-bottom: 1px solid #f5eded; font-size: 1.15rem; line-height: 1; }
-  .cov td.city-col { text-align: left; white-space: nowrap; font-size: .9rem; padding-right: 22px; }
-  .cov tbody tr:hover { background: #fffafa; }
-  .cov a { color: inherit; text-decoration: none; }
-  .dot-published { color: #2f855a; }
-  .dot-draft { color: #b45309; }
-  .dot-missing { color: #d9c2c2; }
-  .cov-legend { font-size: .74rem; color: #9a7878; margin-top: 10px; }
-  details.coverage summary { cursor: pointer; font-size: .84rem; color: #7a5c5c; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -115,6 +95,7 @@
     <h1>Pages</h1>
     <div style="display:flex;gap:10px">
       <a href="/queue" class="btn btn-view">Review queue{{if .Proposals}} · {{.Proposals}}{{end}}</a>
+      <a href="/coverage" class="btn btn-view">Coverage</a>
       <a href="/guidelines" class="btn btn-view">Content guidelines</a>
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
@@ -136,106 +117,8 @@
     is a matter of putting its panel back here.
   */}}
 
-  <div class="panel">
-    <h2>Source monitoring <span class="badge-free">free · no AI</span></h2>
-    <form method="post" action="/check-sources"><button class="btn btn-primary" type="submit">Re-check all sources for changes</button></form>
-    <p class="gen-note">Re-fetches every cited source and confirms the exact text we quoted still appears. Where it does not, the statement that cites it gets a proposal in the <a href="/queue">review queue</a>, with the nearest passage from the new fetch attached. Dynamic page content (dates, banners) won't trigger it.</p>
-    {{if .Unused}}
-    <details style="margin-top:14px">
-      <summary style="cursor:pointer;font-size:.82rem;color:#7a5555"><strong>{{len .Unused}}</strong> source(s) no page cites — candidates for cleanup, and each one still costs a fetch every check run</summary>
-      <div class="review-links" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px">
-        {{range .Unused}}
-        <span style="font-size:.8rem">○ <a href="{{.URL}}" target="_blank" rel="noopener">{{.Publisher}}</a> <span style="color:#9a7878;font-size:.74rem;word-break:break-all">{{.URL}}</span> <span style="color:#b08080;font-size:.7rem">{{.Kind}}</span></span>
-        {{end}}
-      </div>
-    </details>
-    {{end}}
-  </div>
-
-  <div class="panel">
-    <h2>Coverage</h2>
-    <div class="metrics">
-      <span class="metric"><b>{{len .Coverage}}</b> cities</span>
-      <span class="metric {{if .DraftCount}}metric-warn{{end}}"><b>{{.DraftCount}}</b> drafts to review</span>
-      <span class="metric {{if .Issues}}metric-bad{{end}}" title="Drafts carrying an issue the publish gate refuses — marked ⚠ in the list below"><b>{{len .Issues}}</b> drafts not yet publishable</span>
-      <a class="metric {{if .Proposals}}metric-warn{{end}}" href="/queue" style="text-decoration:none" title="Statement changes waiting for a decision in the review queue"><b>{{.Proposals}}</b> proposals waiting</a>
-    </div>
-
-    <details class="coverage" open>
-      <summary>Core topic coverage by city</summary>
-      <table class="cov">
-        <thead>
-          <tr>
-            <th class="city-col">City</th>
-            {{range .CoreTopics}}<th title="topic: {{.Slug}}">{{.Name}}</th>{{end}}
-          </tr>
-        </thead>
-        <tbody>
-          {{range $row := .Coverage}}
-          <tr>
-            <td class="city-col">{{$row.JurisdictionName}}</td>
-            {{range $t := $.CoreTopics}}
-              {{$state := index $row.Status $t.Slug}}
-              <td>
-                {{if eq $state "published"}}<span class="dot-published" title="{{$t.Name}} — published">●</span>
-                {{else if eq $state "draft"}}<span class="dot-draft" title="{{$t.Name}} — draft awaiting review">◐</span>
-                {{else}}<span class="dot-missing" title="{{$t.Name}} — nothing yet">·</span>{{end}}
-              </td>
-            {{end}}
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-      <p class="cov-legend">
-        <span class="dot-published">●</span> published · <span class="dot-draft">◐</span> draft · <span class="dot-missing">·</span> nothing yet.
-        Columns are <strong>topics</strong>, the subjects every city is expected to cover. "Local Help" is the
-        <code>resource-directory</code> topic, which is a different thing from the <code>directory</code> page
-        layout: a Local Help page is normally laid out as a directory, but any topic can use that layout and
-        this chart does not track it.
-      </p>
-    </details>
-
-    {{if .ConceptCoverage}}
-    <details class="coverage">
-      <summary>Statement concepts (ADR-011) — who localized which claim</summary>
-      {{/* Same dot-matrix language as the topic table above: one glyph per
-           cell. The earlier name-list columns collapsed under 40 concepts. */}}
-      <table class="cov">
-        <thead>
-          <tr>
-            <th class="city-col">Concept</th>
-            <th title="The national page states this claim">US</th>
-            {{range .ConceptPlaces}}<th>{{.}}</th>{{end}}
-          </tr>
-        </thead>
-        <tbody>
-          {{range $row := .ConceptCoverage}}
-          <tr>
-            <td class="city-col">{{$row.Concept.Name}} <span style="color:#9a7878;font-size:.7rem">· {{$row.Concept.TopicSlug}}</span></td>
-            <td>{{if $row.National}}<span class="dot-published" title="on the national page">●</span>{{else}}<span class="dot-missing" title="no national statement yet">·</span>{{end}}</td>
-            {{range $p := $.ConceptPlaces}}
-              {{$s := index $row.Status $p}}
-              <td>
-                {{- if eq $s "localized"}}<span class="dot-published" title="{{$p}} — own cited statement">●</span>
-                {{- else if eq $s "generic"}}<span class="dot-draft" title="{{$p}} — covered only by the national statement">◐</span>
-                {{- else if eq $s "missing"}}<span class="dot-missing" title="{{$p}} — no statement anywhere up the chain">✕</span>
-                {{- else}}<span style="color:#e8dede" title="{{$p}} — no page for this topic, not a gap">–</span>{{end -}}
-              </td>
-            {{end}}
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-      <p class="cov-legend">
-        <span class="dot-published">●</span> localized (own cited statement) ·
-        <span class="dot-draft">◐</span> generic (national covers it — the research queue) ·
-        <span class="dot-missing">✕</span> missing everywhere ·
-        <span style="color:#b0a0a0">–</span> place has no page for this topic.
-        Tag statements in the page editor; the vocabulary grows by migration.
-      </p>
-    </details>
-    {{end}}
-  </div>
+  {{/* Source monitoring lives on /queue beside the proposals it files;
+       the coverage matrices have their own page at /coverage. */}}
 
   {{$v := .View}}
   {{/* place rides along on every status tab: narrowing to a city and then

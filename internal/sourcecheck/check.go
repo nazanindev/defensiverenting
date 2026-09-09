@@ -24,6 +24,7 @@ type Result struct {
 	Proposed int // source-drift proposals filed for the review queue
 	Failed   int // sources that could not be fetched
 	Skipped  int // citations carrying no quote, so nothing could be verified
+	Unused   int // unused-source deletion proposals filed for the review queue
 }
 
 // FetchFunc returns the readable text of a URL (e.g. drafting.FetchExtract).
@@ -63,9 +64,19 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 	if skipped > 0 {
 		logf("⚠ %d citation(s) carry no verbatim quote and cannot be checked — they are not covered by this run", skipped)
 	}
+	// Sources no page cites cannot drift, but each still costs a fetch and
+	// clutters the picker. They are filed for deletion before the fetch loop
+	// so the queue shows them the moment a run starts (ADR-014 D7).
+	unused, err := db.FileUnusedSourceProposals(ctx, store.ActorSourceCheck)
+	if err != nil {
+		return Result{Skipped: skipped}, fmt.Errorf("file unused sources: %w", err)
+	}
+	if unused > 0 {
+		logf("○ %d source(s) no page cites — filed for deletion on the review queue", unused)
+	}
 	rows, err := db.ListCitationsForCheck(ctx)
 	if err != nil {
-		return Result{Skipped: skipped}, err
+		return Result{Skipped: skipped, Unused: unused}, err
 	}
 
 	// Group cited quotes by source, preserving first-seen order.
@@ -85,7 +96,7 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		a.rows = append(a.rows, r)
 	}
 
-	res := Result{Skipped: skipped}
+	res := Result{Skipped: skipped, Unused: unused}
 	for _, id := range order {
 		a := bySrc[id]
 		text, err := fetch(a.url)

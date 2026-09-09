@@ -76,6 +76,14 @@ The dashboard gets one metric, "N proposals waiting", and loses the flagged-sour
 
 A proposal targets one statement key, and keys are per language. A change approved on an English statement does not file anything against its Spanish counterpart. Cross-language follow-through needs a link between counterpart keys, which is the same link the translation tooling (ADR-008) needs and does not have yet. Out of scope here; the queue shows the page language so a reviewer knows which one they are editing.
 
+### D7. Unused sources are proposals too (amendment, 2026-09-08)
+
+A source row is upserted the moment a URL is typed into the editor and is never removed, so rows drift into disuse silently: the statement citing them is rewritten, or the page is deleted. Each unused row still costs a fetch on every check run and clutters the import picker. The dashboard listed them under "sources no page cites" with no action attached, which is the flagged-source block of D4 all over again: a list a person looks at and cannot act on.
+
+An unused source is filed as a proposal to delete it, reason `unused-source`, in its own table (`source_proposals`) because it names a source rather than a statement key and no page save is involved. It shares the queue page, the status vocabulary, and the three decisions. Approving deletes the source row outright, with any citations left on orphaned statements; the proposal keeps the URL and publisher so the record survives the deletion. Rejecting with a note means "keep this row", and since an unused source stays unused, it is never asked about again. Approval is refused if a page has come to cite the source while the proposal waited.
+
+The check run files them, before its fetch loop, so they appear the moment a run starts. The run's own button lives on the queue page now, beside what it files. The dashboard keeps the page list and one link each to the queue and to the coverage page, where the two matrices moved.
+
 ## Consequences
 
 - Agent passes stop producing whole-page revisions for statement-scale changes. Whole-page rewrites stay draft revisions; a seven-statement rewrite reviewed as seven disjoint approvals would lose page-level coherence.

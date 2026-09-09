@@ -30,6 +30,13 @@ type queueGroup struct {
 	Items            []queueItem
 }
 
+// sourceItem is one unused-source proposal (ADR-014 D7). Approving it
+// deletes the source row; there is no page to save.
+type sourceItem struct {
+	store.SourceProposal
+	Age string
+}
+
 type queueItem struct {
 	store.ProposalRow
 	EvidenceText string
@@ -50,6 +57,15 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	sources, err := s.pg.ListSourceProposals(ctx, status)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	sourceItems := make([]sourceItem, 0, len(sources))
+	for _, sp := range sources {
+		sourceItems = append(sourceItems, sourceItem{SourceProposal: sp, Age: ago(sp.CreatedAt)})
+	}
 	var groups []queueGroup
 	for _, row := range rows {
 		item := queueItem{ProposalRow: row, Age: ago(row.CreatedAt)}
@@ -66,12 +82,14 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		groups[len(groups)-1].Items = append(groups[len(groups)-1].Items, item)
 	}
 	s.render(w, "queue.html", map[string]any{
-		"Actor":  actor(r),
-		"Status": status,
-		"Groups": groups,
-		"Count":  len(rows),
-		"Msg":    r.URL.Query().Get("msg"),
-		"Err":    r.URL.Query().Get("err"),
+		"Actor":    actor(r),
+		"Status":   status,
+		"Groups":   groups,
+		"Sources":  sourceItems,
+		"Count":    len(rows) + len(sourceItems),
+		"Checking": s.jobs.has("sources-check"),
+		"Msg":      r.URL.Query().Get("msg"),
+		"Err":      r.URL.Query().Get("err"),
 	})
 }
 
@@ -182,6 +200,56 @@ func (s *srv) decideProposal(w http.ResponseWriter, r *http.Request, status stri
 		return
 	}
 	if err := s.pg.DecideProposal(r.Context(), id, status, actor(r), strings.TrimSpace(r.FormValue("note")), until); err != nil {
+		s.queueRedirect(w, r, "", err.Error())
+		return
+	}
+	s.queueRedirect(w, r, strings.ToUpper(status[:1])+status[1:]+".", "")
+}
+
+// approveSourceProposal deletes the source. The store refuses if a page has
+// come to cite it while the proposal waited.
+func (s *srv) approveSourceProposal(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	p, err := s.pg.GetSourceProposal(r.Context(), id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	err = s.pg.ApproveSourceProposal(r.Context(), id, actor(r))
+	switch {
+	case errors.Is(err, store.ErrSourceInUse):
+		s.queueRedirect(w, r, "", "Not deleted: "+err.Error()+" Reject the proposal instead.")
+	case err != nil:
+		s.queueRedirect(w, r, "", "Not deleted: "+err.Error())
+	default:
+		s.queueRedirect(w, r, fmt.Sprintf("Deleted source %s.", p.URL), "")
+	}
+}
+
+func (s *srv) rejectSourceProposal(w http.ResponseWriter, r *http.Request) {
+	s.decideSourceProposal(w, r, "rejected", nil)
+}
+
+func (s *srv) snoozeSourceProposal(w http.ResponseWriter, r *http.Request) {
+	days, _ := strconv.Atoi(r.FormValue("days"))
+	if days <= 0 {
+		days = 7
+	}
+	until := time.Now().Add(time.Duration(days) * 24 * time.Hour)
+	s.decideSourceProposal(w, r, "snoozed", &until)
+}
+
+func (s *srv) decideSourceProposal(w http.ResponseWriter, r *http.Request, status string, until *time.Time) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := s.pg.DecideSourceProposal(r.Context(), id, status, actor(r), strings.TrimSpace(r.FormValue("note")), until); err != nil {
 		s.queueRedirect(w, r, "", err.Error())
 		return
 	}
