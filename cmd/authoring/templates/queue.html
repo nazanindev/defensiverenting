@@ -20,7 +20,6 @@
   .crumb a { color: #9b2335; text-decoration: none; }
   h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
   .note { color: #7a5c5c; font-size: .85rem; margin-bottom: 18px; max-width: 70ch; }
-  .note kbd { font-family: inherit; font-size: .78rem; border: 1px solid #e0c8c8; border-bottom-width: 2px; border-radius: 4px; padding: 0 .35rem; background: #fff; }
   .flash { padding: 10px 14px; border-radius: 8px; font-size: .88rem; margin-bottom: 16px; }
   .flash-ok { background: #d1fae5; color: #065f46; }
   .flash-err { background: #fde8eb; color: #7a1c2a; }
@@ -40,7 +39,7 @@
   .item { border-bottom: 1px solid #f0e4e4; }
   .item summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 3.2rem 9rem 1fr auto; gap: 12px; align-items: baseline; padding: 10px 2px; font-size: .9rem; }
   .item summary::-webkit-details-marker { display: none; }
-  .item summary:hover, .item:focus-within summary { background: #fff5f6; }
+  .item summary:hover { background: #fff5f6; }
   .item[open] summary { background: #fff; }
   .pos { color: #9a7878; font-size: .8rem; font-variant-numeric: tabular-nums; }
   .chip { display: inline-block; padding: .12rem .5rem; border-radius: 10px; font-size: .7rem; font-weight: 600; background: #fde8eb; color: #7a1c2a; white-space: nowrap; }
@@ -93,7 +92,7 @@
 <div class="page">
   <div class="crumb"><a href="/">← Dashboard</a></div>
   <h1>Review queue</h1>
-  <p class="note">Each item is one statement somebody proposes to change. Approving saves the page with that statement swapped, under your name; a live page still has to pass the publish gate. <kbd>j</kbd>/<kbd>k</kbd> move, <kbd>o</kbd> opens, <kbd>a</kbd> approve, <kbd>r</kbd> reject, <kbd>s</kbd> snooze.</p>
+  <p class="note">One statement per item, with what it says now beside what is proposed. Approve saves the page with that statement swapped, under your name. Edit the proposed text first if it needs it. Reject keeps your note as the record. A live page still has to pass the publish gate.</p>
 
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
@@ -120,7 +119,7 @@
         <span class="group-title">{{.Title}}</span>
       </div>
       {{range .Items}}
-      <details class="item" id="p{{.ID}}" tabindex="0">
+      <details class="item" id="p{{.ID}}">
         <summary>
           <span class="pos">{{if .OnPage}}#{{.Position}}{{else}}—{{end}}</span>
           <span><span class="chip {{if eq .ReasonLabel "source-drift"}}chip-drift{{else if eq .ReasonLabel "source-quality"}}chip-quality{{end}}">{{.ReasonLabel}}</span>{{if .ReasonName}}<span class="chip-name">{{.ReasonName}}</span>{{end}}</span>
@@ -151,12 +150,12 @@
           {{if or (eq .Status "pending") (eq .Status "snoozed")}}
           <div class="actions">
             {{if .Proposed}}
-              {{if .OnPage}}<button class="btn btn-success" type="submit" form="approve{{.ID}}" data-key="a">Approve{{if eq .TargetStatus "published"}} &amp; publish{{end}}</button>{{end}}
+              {{if .OnPage}}<button class="btn btn-success" type="submit" form="approve{{.ID}}">Approve{{if eq .TargetStatus "published"}} &amp; publish{{end}}</button>{{end}}
             {{else}}
-              <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success" data-key="a">Resolved in editor</button></form>
+              <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Resolved in editor</button></form>
             {{end}}
-            <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger" data-key="r">Reject</button></form>
-            <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute" data-key="s">Snooze</button></form>
+            <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger">Reject</button></form>
+            <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute">Snooze</button></form>
           </div>
           {{else}}
           <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
@@ -170,34 +169,5 @@
     <div class="empty">Nothing {{.Status}}.</div>
   {{end}}
 </div>
-<script>
-// One item at a time, from the keyboard: j/k move between items, o toggles
-// the open one, a/r/s press the matching button of the open item.
-(function () {
-  const items = Array.from(document.querySelectorAll('.item'));
-  if (!items.length) return;
-  let cur = items.findIndex(i => i.open);
-  if (cur < 0) { cur = 0; items[0].open = true; }
-  items[cur].focus();
-  function go(n) {
-    if (n < 0 || n >= items.length) return;
-    items[cur].open = false;
-    cur = n; items[cur].open = true; items[cur].focus();
-    items[cur].scrollIntoView({ block: 'nearest' });
-  }
-  document.addEventListener('keydown', function (e) {
-    const t = e.target.tagName;
-    if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'j') { go(cur + 1); e.preventDefault(); }
-    else if (e.key === 'k') { go(cur - 1); e.preventDefault(); }
-    else if (e.key === 'o') { items[cur].open = !items[cur].open; e.preventDefault(); }
-    else if (e.key === 'a' || e.key === 'r' || e.key === 's') {
-      const b = items[cur].querySelector('[data-key="' + e.key + '"]');
-      if (b) { b.focus(); if (e.key === 'a') b.click(); }
-      e.preventDefault();
-    }
-  });
-})();
-</script>
 </body>
 </html>
