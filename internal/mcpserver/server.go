@@ -97,6 +97,21 @@ func New(db store.Store) *mcp.Server {
 		return result(tb.GetPlaybook(ctx, in))
 	})
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name: "propose_statement",
+		Description: "File a change to ONE existing statement into the author's review queue, instead of " +
+			"saving a whole page. Use it for statement-scale work on pages that are otherwise fine: " +
+			"a cited quote that moved or vanished (reason \"source-drift\"), a named bulk pass " +
+			"(reason \"agent-pass:<name>\"), or a structurally weak source (reason " +
+			"\"source-quality:<signal>\"). Take statement_key from get_playbook. The statement is the " +
+			"full replacement — body and citations — and every quote must be verbatim in text you " +
+			"fetched via fetch_source this session, or the call is rejected. Omit statement to file a " +
+			"finding you could not resolve. Nothing changes on any page: a person approves, edits, or " +
+			"rejects each proposal. For a rewrite touching most of a page, use save_draft_playbook.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.ProposeStatementInput) (*mcp.CallToolResult, drafting.ProposeStatementOutput, error) {
+		return result(tb.ProposeStatement(ctx, in))
+	})
+
 	return srv
 }
 

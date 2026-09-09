@@ -235,6 +235,10 @@ func main() {
 	mux.HandleFunc("POST /candidates/{id}/approve", s.approveCandidate)
 	mux.HandleFunc("POST /candidates/{id}/reject", s.rejectCandidate)
 	mux.HandleFunc("POST /candidates/{id}/snooze", s.snoozeCandidate)
+	mux.HandleFunc("GET /queue", s.queue)
+	mux.HandleFunc("POST /queue/{id}/approve", s.approveProposal)
+	mux.HandleFunc("POST /queue/{id}/reject", s.rejectProposal)
+	mux.HandleFunc("POST /queue/{id}/snooze", s.snoozeProposal)
 
 	// /healthz is outside the auth wrapper so Fly's health check can reach it.
 	outer := http.NewServeMux()
@@ -477,6 +481,11 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	proposals, err := s.pg.CountPendingProposals(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	coverage, err := s.pg.AuthorCoverage(ctx)
 	if err != nil {
 		s.serverError(w, err)
@@ -595,6 +604,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"ReviewCounts":    counts,
 		"Generating":      s.jobs.list(),
 		"Flagged":         flagged,
+		"Proposals":       proposals,
 		"Unused":          unused,
 		"View":            view,
 		"Places":          places.Opts(),

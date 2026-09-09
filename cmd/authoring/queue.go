@@ -1,0 +1,231 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/nazanindev/defensiverenting/internal/discover"
+	"github.com/nazanindev/defensiverenting/internal/store"
+)
+
+// The review queue (ADR-014 D5): every pending statement proposal, grouped
+// by page in reading order. Approving one is the reviewer's save of that
+// page with the statement swapped (D3), so it is subject to everything a
+// save is — the reference-only rule, live quote checks, the publish gate.
+
+type queueGroup struct {
+	Title            string
+	JurisdictionName string
+	TopicName        string
+	Language         string
+	TargetPlaybookID int64
+	TargetStatus     string
+	Items            []queueItem
+}
+
+type queueItem struct {
+	store.ProposalRow
+	EvidenceText string
+	Age          string
+	// ReasonLabel splits "agent-pass:rerun-sources" into a chip and a name.
+	ReasonLabel string
+	ReasonName  string
+}
+
+func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+	rows, err := s.pg.ListProposals(ctx, status)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	var groups []queueGroup
+	for _, row := range rows {
+		item := queueItem{ProposalRow: row, Age: ago(row.CreatedAt)}
+		item.ReasonLabel, item.ReasonName, _ = strings.Cut(row.Reason, ":")
+		if ev := strings.TrimSpace(string(row.Evidence)); ev != "" && ev != "{}" {
+			item.EvidenceText = prettyJSON(row.Evidence)
+		}
+		if n := len(groups); n == 0 || groups[n-1].TargetPlaybookID != row.TargetPlaybookID {
+			groups = append(groups, queueGroup{
+				Title: row.Title, JurisdictionName: row.JurisdictionName, TopicName: row.TopicName,
+				Language: row.Language, TargetPlaybookID: row.TargetPlaybookID, TargetStatus: row.TargetStatus,
+			})
+		}
+		groups[len(groups)-1].Items = append(groups[len(groups)-1].Items, item)
+	}
+	s.render(w, "queue.html", map[string]any{
+		"Actor":  actor(r),
+		"Status": status,
+		"Groups": groups,
+		"Count":  len(rows),
+		"Msg":    r.URL.Query().Get("msg"),
+		"Err":    r.URL.Query().Get("err"),
+	})
+}
+
+// approveProposal turns the proposed statement into a save. The body may
+// have been edited on the queue page; the citations are the proposal's,
+// resolved to source rows here, with each quote either taken on the
+// proposer's word (Checked) or fetched live the way a manual save does.
+func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	p, err := s.pg.GetProposal(ctx, id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if p.Proposed == nil {
+		// A work item carries no replacement: "approved" means the reviewer
+		// dealt with it in the editor.
+		if err := s.pg.DecideProposal(ctx, id, "approved", actor(r), strings.TrimSpace(r.FormValue("note")), nil); err != nil {
+			s.queueRedirect(w, r, "", err.Error())
+			return
+		}
+		s.queueRedirect(w, r, "Marked resolved.", "")
+		return
+	}
+	body := strings.TrimSpace(r.FormValue("body"))
+	if body == "" {
+		body = p.Proposed.BodyMD
+	}
+	stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: p.Proposed.Concept, TopicRefSlug: p.Proposed.TopicRef}
+	editorial, err := s.pg.GetEditorialSource(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	pw, err := s.pg.AuthorGetPlaybook(ctx, p.TargetPlaybookID)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
+	for i, c := range p.Proposed.Citations {
+		if c.Editorial || c.Kind == "editorial" {
+			stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
+			continue
+		}
+		u := strings.TrimSpace(c.URL)
+		if u == "" {
+			s.queueRedirect(w, r, "", fmt.Sprintf("citation %d has no URL; sources are stored by URL", i+1))
+			return
+		}
+		if discover.ReferenceOnly(u) {
+			s.queueRedirect(w, r, "", fmt.Sprintf("citation %d (%s) is reference-only and can never become a source; reject this proposal or edit the page by hand", i+1, u))
+			return
+		}
+		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
+			URL: u, Publisher: strings.TrimSpace(c.Publisher), Kind: sourceKindOrDefault(c.Kind), JurisdictionID: &pw.JurisdictionID,
+		})
+		if err != nil {
+			s.queueRedirect(w, r, "", fmt.Sprintf("citation %d: %v", i+1, err))
+			return
+		}
+		cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
+		if c.Checked {
+			cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
+		} else if strings.TrimSpace(c.Quote) != "" {
+			res := qv.check(ctx, p.Position, u, c.Quote)
+			cite.CheckedNow, cite.CheckedBy = res.Verified, actor(r)
+		}
+		stmt.Sources = append(stmt.Sources, cite)
+	}
+
+	err = s.pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: id, By: actor(r), Statement: stmt})
+	var npe *store.NotPublishableError
+	switch {
+	case errors.As(err, &npe):
+		s.queueRedirect(w, r, "", "Not applied: the page is live and this change would leave it unpublishable. "+npe.Error())
+	case errors.Is(err, store.ErrProposalTargetGone):
+		s.queueRedirect(w, r, "", "Not applied: "+err.Error()+". Reject it, or edit the page by hand.")
+	case err != nil:
+		s.queueRedirect(w, r, "", "Not applied: "+err.Error())
+	default:
+		s.queueRedirect(w, r, fmt.Sprintf("Applied to %s.", p.Title), "")
+	}
+}
+
+func (s *srv) rejectProposal(w http.ResponseWriter, r *http.Request) {
+	s.decideProposal(w, r, "rejected", nil)
+}
+
+func (s *srv) snoozeProposal(w http.ResponseWriter, r *http.Request) {
+	days, _ := strconv.Atoi(r.FormValue("days"))
+	if days <= 0 {
+		days = 7
+	}
+	until := time.Now().Add(time.Duration(days) * 24 * time.Hour)
+	s.decideProposal(w, r, "snoozed", &until)
+}
+
+func (s *srv) decideProposal(w http.ResponseWriter, r *http.Request, status string, until *time.Time) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := s.pg.DecideProposal(r.Context(), id, status, actor(r), strings.TrimSpace(r.FormValue("note")), until); err != nil {
+		s.queueRedirect(w, r, "", err.Error())
+		return
+	}
+	s.queueRedirect(w, r, strings.ToUpper(status[:1])+status[1:]+".", "")
+}
+
+func (s *srv) queueRedirect(w http.ResponseWriter, r *http.Request, msg, errMsg string) {
+	q := url.Values{}
+	if st := r.FormValue("status"); st != "" {
+		q.Set("status", st)
+	}
+	if msg != "" {
+		q.Set("msg", msg)
+	}
+	if errMsg != "" {
+		q.Set("err", errMsg)
+	}
+	http.Redirect(w, r, "/queue?"+q.Encode(), http.StatusSeeOther)
+}
+
+func sourceKindOrDefault(k string) string {
+	switch k {
+	case "statute", "regulation", "gov_guidance", "nonprofit", "court_ruling":
+		return k
+	}
+	return "gov_guidance"
+}
+
+func ago(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+}
+
+func prettyJSON(raw []byte) string {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, raw, "", "  "); err != nil {
+		return string(raw)
+	}
+	return buf.String()
+}

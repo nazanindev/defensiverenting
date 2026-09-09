@@ -2,6 +2,7 @@ package drafting
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -544,4 +545,117 @@ func (tb *Toolbelt) validateConcepts(ctx context.Context, topicSlug string, stmt
 	// from the day before). Only the first tagged statement renders the
 	// public anchor, so the HTML stays valid; see BuildPlaybookPage.
 	return nil
+}
+
+// ---- propose_statement -----------------------------------------------------
+
+// ProposeStatementInput files one per-statement change into the review queue
+// (ADR-014) instead of saving a page. The same guardrails as
+// save_draft_playbook apply to the replacement: voice lint on the body, and
+// every quote verbatim in text this session fetched.
+type ProposeStatementInput struct {
+	StatementKey string `json:"statement_key" jsonschema:"the key of the statement to change, from get_playbook"`
+	Reason       string `json:"reason" jsonschema:"why: \"agent-pass:<name>\" for a named bulk pass (e.g. agent-pass:rerun-sources), \"source-drift\" when a cited quote no longer appears at its source, \"source-quality:<signal>\" for a structurally weak source (guidance-not-statute, archive-url, no-locator, single-citation)"`
+	Note         string `json:"note" jsonschema:"one or two sentences for the reviewer: what you found and why this change follows. Stored as evidence."`
+	// Statement is the replacement. Omit it to file a finding with no
+	// replacement, which the reviewer handles in the editor.
+	Statement *StatementInput `json:"statement,omitempty" jsonschema:"the statement as it should read afterward: body_md, optional concept or topic_ref, and citations with verbatim quotes from sources fetched this session. Omit to file a finding only."`
+	Evidence  map[string]any  `json:"evidence,omitempty" jsonschema:"optional structured evidence, e.g. {\"old_quote\": \"…\", \"new_quote\": \"…\", \"source_url\": \"…\"}. Rendered to the reviewer as-is."`
+}
+
+type ProposeStatementOutput struct {
+	ProposalID int64  `json:"proposal_id"`
+	Page       string `json:"page"`
+	Message    string `json:"message"`
+}
+
+func (tb *Toolbelt) ProposeStatement(ctx context.Context, in ProposeStatementInput) (ProposeStatementOutput, error) {
+	if !store.ValidReason(in.Reason) {
+		return ProposeStatementOutput{}, reject("reason %q must be agent-pass:<name>, source-drift, or source-quality:<signal>", in.Reason)
+	}
+	if strings.TrimSpace(in.Note) == "" {
+		return ProposeStatementOutput{}, reject("note is required: tell the reviewer what you found")
+	}
+	var proposed *store.ProposedStatement
+	if st := in.Statement; st != nil {
+		if strings.TrimSpace(st.BodyMD) == "" {
+			return ProposeStatementOutput{}, reject("statement.body_md is empty; omit statement to file a finding only")
+		}
+		if len(st.Citations) == 0 {
+			return ProposeStatementOutput{}, reject("statement has no citations — every statement must cite a source")
+		}
+		// The language is the page's; the lint needs it. Look it up from
+		// the key rather than trusting a caller-supplied value.
+		lang, err := tb.languageOfKey(ctx, in.StatementKey)
+		if err != nil {
+			return ProposeStatementOutput{}, err
+		}
+		if violations := voice.LintAll(lang, map[string]string{"body_md": st.BodyMD}); len(violations) > 0 {
+			return ProposeStatementOutput{}, reject("rejected by the editorial-voice lint. Rewrite in plain language (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
+		}
+		proposed = &store.ProposedStatement{BodyMD: st.BodyMD, Concept: strings.TrimSpace(st.Concept), TopicRef: strings.TrimSpace(st.TopicRef)}
+		for ci, c := range st.Citations {
+			if c.Kind == "editorial" {
+				proposed.Citations = append(proposed.Citations, store.ProposedCitation{Editorial: true})
+				continue
+			}
+			u := strings.TrimSpace(c.URL)
+			if u == "" || strings.TrimSpace(c.Quote) == "" {
+				return ProposeStatementOutput{}, reject("citation %d needs both a url and a quote", ci+1)
+			}
+			if discover.ReferenceOnly(u) {
+				return ProposeStatementOutput{}, reject("citation %d cites %s, which is reference-only: lawyer marketing and content-mill sites are never sources. Cite the statute, regulation, or official guidance it summarizes.", ci+1, u)
+			}
+			cached, ok := tb.cache.get(u)
+			if !ok {
+				return ProposeStatementOutput{}, reject("citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", ci+1, u, u)
+			}
+			if !QuoteAppearsIn(cached, c.Quote) {
+				return ProposeStatementOutput{}, reject("citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", ci+1, u, truncate(c.Quote, 120))
+			}
+			proposed.Citations = append(proposed.Citations, store.ProposedCitation{
+				URL: u, Publisher: c.Publisher, Kind: defaultKind(c.Kind), Locator: c.Locator, Quote: c.Quote,
+				// Matched against this session's fetch, so the approval can
+				// stamp it on the proposer's word.
+				Checked: true,
+			})
+		}
+	}
+	evidence := map[string]any{"note": in.Note}
+	for k, v := range in.Evidence {
+		evidence[k] = v
+	}
+	evJSON, err := json.Marshal(evidence)
+	if err != nil {
+		return ProposeStatementOutput{}, err
+	}
+	id, err := tb.db.FileProposal(ctx, store.FileProposalParams{
+		StatementKey: in.StatementKey, Reason: in.Reason, Proposed: proposed,
+		Evidence: evJSON, ProposedBy: store.ActorDraftingAgent,
+	})
+	if err != nil {
+		return ProposeStatementOutput{}, reject("%v", err)
+	}
+	row, err := tb.db.GetProposal(ctx, id)
+	if err != nil {
+		return ProposeStatementOutput{}, err
+	}
+	msg := "Filed for review. Nothing changed on the page; a person decides on the review queue."
+	if proposed == nil {
+		msg = "Filed as a finding with no replacement. Nothing changed on the page."
+	}
+	return ProposeStatementOutput{ProposalID: id, Page: row.Title, Message: msg}, nil
+}
+
+// languageOfKey finds the language of the page carrying a statement key, so
+// the voice lint runs the right ruleset.
+func (tb *Toolbelt) languageOfKey(ctx context.Context, key string) (string, error) {
+	// A cheap probe through the proposal reader: file nothing, just resolve.
+	// FileProposal resolves the page itself; here the language is needed
+	// before filing, so ask the store for pages carrying the key.
+	lang, err := tb.db.LanguageOfStatementKey(ctx, key)
+	if errors.Is(err, store.ErrNotFound) {
+		return "", reject("no page carries a statement with key %q; take keys from get_playbook", key)
+	}
+	return lang, err
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/discover"
 )
@@ -91,6 +92,15 @@ type Store interface {
 	// drafts so the dashboard can mark what is not yet publishable.
 	AuthorPlaybookIssues(ctx context.Context, id int64) ([]PageIssue, error)
 	AuthorDraftIssues(ctx context.Context) (map[int64][]PageIssue, error)
+	// Statement proposals (ADR-014): per-statement changes waiting for a
+	// person's decision.
+	FileProposal(ctx context.Context, p FileProposalParams) (int64, error)
+	ListProposals(ctx context.Context, status string) ([]ProposalRow, error)
+	GetProposal(ctx context.Context, id int64) (ProposalRow, error)
+	CountPendingProposals(ctx context.Context) (int, error)
+	DecideProposal(ctx context.Context, id int64, status, by, note string, snoozedUntil *time.Time) error
+	ApproveProposal(ctx context.Context, p ApproveProposalParams) error
+	LanguageOfStatementKey(ctx context.Context, key string) (string, error)
 }
 
 // Actor names for the non-human write paths, recorded in updated_by and

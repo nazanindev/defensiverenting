@@ -1113,11 +1113,19 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			topicRefName string
 			position     int
 			c            CitationWithSource
+			// The citation columns are nullable: the authoring query LEFT
+			// JOINs citations so a draft's uncited statement (legal since
+			// ADR-013) still comes back, with no chips.
+			sourceID         *int64
+			locator, quote   *string
+			manuallyVerified *bool
+			checkedBy        *string
+			url, pub, kind   *string
 		)
 		if err := rows.Scan(
 			&stmtID, &stmtKey, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
-			&c.SourceID, &c.Locator, &c.Quote, &c.ManuallyVerified, &c.CheckedAt, &c.CheckedBy,
-			&c.SourceURL, &c.Publisher, &c.SourceKind,
+			&sourceID, &locator, &quote, &manuallyVerified, &c.CheckedAt, &checkedBy,
+			&url, &pub, &kind,
 		); err != nil {
 			continue
 		}
@@ -1132,10 +1140,25 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			idx[k] = i
 			order = append(order, k)
 		}
+		if sourceID == nil {
+			continue
+		}
+		c.SourceID = *sourceID
+		c.Locator, c.Quote = deref(locator), deref(quote)
+		c.ManuallyVerified = manuallyVerified != nil && *manuallyVerified
+		c.CheckedBy = deref(checkedBy)
+		c.SourceURL, c.Publisher, c.SourceKind = deref(url), deref(pub), deref(kind)
 		out[i].Citations = append(out[i].Citations, c)
 	}
 	_ = order
 	return out
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // ---- Authoring -------------------------------------------------------------
@@ -1179,8 +1202,8 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		JOIN statements s   ON s.id  = ps.statement_id
 		LEFT JOIN concepts co ON co.id = s.concept_id
 		LEFT JOIN topics   tr ON tr.id = s.topic_ref
-		JOIN citations  c   ON c.statement_id = s.id
-		JOIN sources    src ON src.id = c.source_id
+		LEFT JOIN citations  c   ON c.statement_id = s.id
+		LEFT JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1
 		ORDER BY ps.position, c.source_id`, p.Playbook.ID)
 	if err != nil {
@@ -1202,6 +1225,16 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 // a NotPublishableError and writes nothing.
 func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlaybookParams) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return authorUpdatePlaybookTx(ctx, tx, params)
+	})
+}
+
+// authorUpdatePlaybookTx is AuthorUpdatePlaybook inside a caller's
+// transaction. Approving a statement proposal (ADR-014 D3) is exactly this
+// save plus a status change on the proposal, and the two must land or fail
+// together.
+func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdatePlaybookParams) error {
+	{
 		var status string
 		err := tx.QueryRow(ctx, `SELECT status FROM playbooks WHERE id = $1`, params.ID).Scan(&status)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1279,7 +1312,7 @@ func (pg *PG) AuthorUpdatePlaybook(ctx context.Context, params AuthorUpdatePlayb
 			return fmt.Errorf("clean up detached statements: %w", err)
 		}
 		return nil
-	})
+	}
 }
 
 // AuthorListPlaybooks returns all playbooks (draft and published) for the authoring dashboard.

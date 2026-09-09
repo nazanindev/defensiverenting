@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted (D1 shipped 2026-09-08; D2 onward pending) |
+| Status | Accepted (D1, D2, D3, D5 shipped 2026-09-08; D4 checker change pending) |
 | Date | 2026-09-08 |
 
 ## Context
@@ -48,7 +48,7 @@ statement_proposals
 
 A proposal is the *whole* statement as it should read afterward: body, concept, citations with quotes. Not a patch. The reviewer sees old and proposed side by side and either approves, edits then approves, rejects with a note, or snoozes. A second proposal against a key with one still pending supersedes the first; the queue never shows two competing edits for one claim.
 
-Proposals are filed through the store (`FileProposal`), reached by a CLI (`cmd/propose`, reads JSON) and by an MCP tool (`propose_statement`) so both agent front-ends can file from day one. Neither path writes to `statements`.
+Proposals are filed through the store (`FileProposal`), reached by a CLI (`cmd/propose`, reads JSON) and by an MCP tool (`propose_statement`) so both agent front-ends can file from day one. Neither path writes to `statements`. The MCP tool holds the replacement to the same guardrails as `save_draft_playbook` (voice lint, verbatim quotes from this session's fetches, no reference-only sources) and files each verified quote as checked, so the approval can stamp it on the proposer's word.
 
 ### D3. Approval is a save, so the gates already built keep holding
 

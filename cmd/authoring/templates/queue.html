@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review queue — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 32px 24px 80px; }
+  .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
+  .crumb a { color: #9b2335; text-decoration: none; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+  .note { color: #7a5c5c; font-size: .85rem; margin-bottom: 18px; max-width: 70ch; }
+  .note kbd { font-family: inherit; font-size: .78rem; border: 1px solid #e0c8c8; border-bottom-width: 2px; border-radius: 4px; padding: 0 .35rem; background: #fff; }
+  .flash { padding: 10px 14px; border-radius: 8px; font-size: .88rem; margin-bottom: 16px; }
+  .flash-ok { background: #d1fae5; color: #065f46; }
+  .flash-err { background: #fde8eb; color: #7a1c2a; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
+  .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
+  .group { margin-bottom: 28px; }
+  .group-hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; border-bottom: 1px solid #e8dede; margin-bottom: 4px; }
+  .group-hd h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; }
+  .group-hd a { color: #9b2335; text-decoration: none; font-size: .82rem; }
+  .group-hd a:hover { text-decoration: underline; }
+  .tag { display: inline-block; padding: .15rem .5rem; border-radius: 6px; font-size: .72rem; font-weight: 600; }
+  .tag-draft { background: #fef3c7; color: #92400e; }
+  .tag-published { background: #d1fae5; color: #065f46; }
+  .tag-lang { background: #f0ebe8; color: #5c3a3a; }
+  .item { border-bottom: 1px solid #f0e4e4; }
+  .item summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 3.2rem 9rem 1fr auto; gap: 12px; align-items: baseline; padding: 10px 2px; font-size: .9rem; }
+  .item summary::-webkit-details-marker { display: none; }
+  .item summary:hover, .item:focus-within summary { background: #fff5f6; }
+  .item[open] summary { background: #fff; }
+  .pos { color: #9a7878; font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .chip { display: inline-block; padding: .12rem .5rem; border-radius: 10px; font-size: .7rem; font-weight: 600; background: #fde8eb; color: #7a1c2a; white-space: nowrap; }
+  .chip-drift { background: #fef3c7; color: #92400e; }
+  .chip-quality { background: #e8f4fd; color: #2c5282; }
+  .chip-name { color: #7a5c5c; font-size: .74rem; margin-left: 4px; }
+  .lead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { color: #9a7878; font-size: .78rem; white-space: nowrap; }
+  .body { padding: 6px 2px 18px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } .item summary { grid-template-columns: 3rem 1fr; } .meta, .lead { grid-column: 2; } }
+  .col h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; margin-bottom: 6px; }
+  .stmt { font-size: .92rem; line-height: 1.55; white-space: pre-wrap; }
+  .stmt.old { color: #5c3a3a; }
+  textarea.stmt { width: 100%; min-height: 7.5em; font-family: inherit; font-size: .92rem; line-height: 1.55; border: 1px solid #e0c8c8; border-radius: 6px; padding: 8px 10px; background: #fff; resize: vertical; }
+  .cites { list-style: none; margin-top: 8px; font-size: .8rem; }
+  .cites li { padding: 4px 0; border-top: 1px dashed #f0e4e4; }
+  .cites a { color: #9b2335; text-decoration: none; word-break: break-all; }
+  .cites .q { display: block; color: #5c3a3a; font-style: italic; margin-top: 2px; }
+  .cites .ok { color: #38a169; font-style: normal; }
+  .cites .unk { color: #b7791f; font-style: normal; }
+  .gone { color: #b7791f; font-size: .85rem; margin-bottom: 10px; }
+  .evidence { margin-top: 14px; }
+  .evidence summary { cursor: pointer; font-size: .78rem; color: #7a5c5c; }
+  .evidence pre { font-size: .76rem; background: #fff; border: 1px solid #e8dede; border-radius: 6px; padding: 10px; overflow-x: auto; margin-top: 6px; white-space: pre-wrap; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .actions form { display: flex; gap: 6px; align-items: center; margin: 0; }
+  .actions input[type=text] { font-family: inherit; font-size: .82rem; padding: .35rem .6rem; border: 1px solid #e0c8c8; border-radius: 6px; width: 16rem; max-width: 100%; }
+  .actions select { font-family: inherit; font-size: .82rem; padding: .35rem .4rem; border: 1px solid #e0c8c8; border-radius: 6px; background: #fff; }
+  .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .85rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
+  .btn-success { background: #38a169; color: #fff; }
+  .btn-success:hover { background: #2f855a; }
+  .btn-mute { background: #fdf0f2; color: #7a1c2a; border: 1px solid #f0c0c8; }
+  .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
+  .btn-link { background: transparent; color: #9b2335; text-decoration: underline; padding-left: 0; }
+  .decision { font-size: .82rem; color: #7a5c5c; margin-top: 10px; }
+  .empty { text-align: center; padding: 60px 24px; color: #b08080; background: #fff; border: 1px solid #e8dede; border-radius: 10px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      {{if .Actor}}<span style="color:rgba(255,255,255,.85);font-size:.8rem">Signed in as {{.Actor}}</span>{{end}}
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
+<div class="page">
+  <div class="crumb"><a href="/">← Dashboard</a></div>
+  <h1>Review queue</h1>
+  <p class="note">Each item is one statement somebody proposes to change. Approving saves the page with that statement swapped, under your name; a live page still has to pass the publish gate. <kbd>j</kbd>/<kbd>k</kbd> move, <kbd>o</kbd> opens, <kbd>a</kbd> approve, <kbd>r</kbd> reject, <kbd>s</kbd> snooze.</p>
+
+  {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+  {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
+
+  <div class="tabs">
+    {{$st := .Status}}
+    <a class="tab {{if eq $st "pending"}}active{{end}}" href="/queue?status=pending">pending</a>
+    <a class="tab {{if eq $st "snoozed"}}active{{end}}" href="/queue?status=snoozed">snoozed</a>
+    <a class="tab {{if eq $st "approved"}}active{{end}}" href="/queue?status=approved">approved</a>
+    <a class="tab {{if eq $st "rejected"}}active{{end}}" href="/queue?status=rejected">rejected</a>
+    <a class="tab {{if eq $st "superseded"}}active{{end}}" href="/queue?status=superseded">superseded</a>
+  </div>
+
+  {{if .Groups}}
+    {{range .Groups}}
+    <section class="group">
+      <div class="group-hd">
+        <h2>{{.Title}}</h2>
+        <span class="tag tag-{{.TargetStatus}}">{{.TargetStatus}}</span>
+        <span class="tag tag-lang">{{.Language}}</span>
+        <span style="color:#7a5c5c;font-size:.82rem">{{.JurisdictionName}} · {{.TopicName}}</span>
+        <a href="/edit/{{.TargetPlaybookID}}" target="_blank" rel="noopener">Open in editor ↗</a>
+      </div>
+      {{range .Items}}
+      <details class="item" id="p{{.ID}}" tabindex="0">
+        <summary>
+          <span class="pos">{{if .OnPage}}#{{.Position}}{{else}}—{{end}}</span>
+          <span><span class="chip {{if eq .ReasonLabel "source-drift"}}chip-drift{{else if eq .ReasonLabel "source-quality"}}chip-quality{{end}}">{{.ReasonLabel}}</span>{{if .ReasonName}}<span class="chip-name">{{.ReasonName}}</span>{{end}}</span>
+          <span class="lead">{{if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
+          <span class="meta">{{.ProposedBy}} · {{.Age}}</span>
+        </summary>
+        <div class="body">
+          {{if not .OnPage}}<p class="gone">No statement with this key is on the page any more. There is nothing to replace: reject this, or handle it in the editor.</p>{{end}}
+          <div class="cols">
+            <div class="col">
+              <h3>Now</h3>
+              {{if .OnPage}}<div class="stmt old">{{.CurrentBody}}</div>
+              <ul class="cites">{{range .CurrentCitations}}<li>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}}<span class="q">“{{.Quote}}”</span>{{end}}{{end}}</li>{{end}}</ul>
+              {{else}}<div class="stmt old">—</div>{{end}}
+            </div>
+            <div class="col">
+              <h3>{{if .Proposed}}Proposed{{else}}Finding{{end}}</h3>
+              {{if .Proposed}}
+              <form method="post" action="/queue/{{.ID}}/approve" id="approve{{.ID}}">
+                <input type="hidden" name="status" value="{{$st}}">
+                <textarea class="stmt" name="body">{{.Proposed.BodyMD}}</textarea>
+              </form>
+              <ul class="cites">{{range .Proposed.Citations}}<li>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}}<span class="q">“{{.Quote}}” {{if .Checked}}<span class="ok">✓ confirmed by proposer</span>{{else}}<span class="unk">will be checked live on approve</span>{{end}}</span>{{end}}{{end}}</li>{{end}}</ul>
+              {{else}}<div class="stmt">No replacement offered. The evidence below says what was found.</div>{{end}}
+            </div>
+          </div>
+          {{if .EvidenceText}}<details class="evidence"><summary>Evidence</summary><pre>{{.EvidenceText}}</pre></details>{{end}}
+          {{if or (eq .Status "pending") (eq .Status "snoozed")}}
+          <div class="actions">
+            {{if .Proposed}}
+              {{if .OnPage}}<button class="btn btn-success" type="submit" form="approve{{.ID}}" data-key="a">Approve{{if eq .TargetStatus "published"}} &amp; publish{{end}}</button>{{end}}
+            {{else}}
+              <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success" data-key="a">Resolved in editor</button></form>
+            {{end}}
+            <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger" data-key="r">Reject</button></form>
+            <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute" data-key="s">Snooze</button></form>
+          </div>
+          {{else}}
+          <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
+          {{end}}
+        </div>
+      </details>
+      {{end}}
+    </section>
+    {{end}}
+  {{else}}
+    <div class="empty">Nothing {{.Status}}.</div>
+  {{end}}
+</div>
+<script>
+// One item at a time, from the keyboard: j/k move between items, o toggles
+// the open one, a/r/s press the matching button of the open item.
+(function () {
+  const items = Array.from(document.querySelectorAll('.item'));
+  if (!items.length) return;
+  let cur = items.findIndex(i => i.open);
+  if (cur < 0) { cur = 0; items[0].open = true; }
+  items[cur].focus();
+  function go(n) {
+    if (n < 0 || n >= items.length) return;
+    items[cur].open = false;
+    cur = n; items[cur].open = true; items[cur].focus();
+    items[cur].scrollIntoView({ block: 'nearest' });
+  }
+  document.addEventListener('keydown', function (e) {
+    const t = e.target.tagName;
+    if (t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'j') { go(cur + 1); e.preventDefault(); }
+    else if (e.key === 'k') { go(cur - 1); e.preventDefault(); }
+    else if (e.key === 'o') { items[cur].open = !items[cur].open; e.preventDefault(); }
+    else if (e.key === 'a' || e.key === 'r' || e.key === 's') {
+      const b = items[cur].querySelector('[data-key="' + e.key + '"]');
+      if (b) { b.focus(); if (e.key === 'a') b.click(); }
+      e.preventDefault();
+    }
+  });
+})();
+</script>
+</body>
+</html>

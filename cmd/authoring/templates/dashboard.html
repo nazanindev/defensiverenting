@@ -114,6 +114,7 @@
   <div class="toolbar">
     <h1>Pages</h1>
     <div style="display:flex;gap:10px">
+      <a href="/queue" class="btn btn-view">Review queue{{if .Proposals}} · {{.Proposals}}{{end}}</a>
       <a href="/guidelines" class="btn btn-view">Content guidelines</a>
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
@@ -170,6 +171,7 @@
       <span class="metric {{if .DraftCount}}metric-warn{{end}}"><b>{{.DraftCount}}</b> drafts to review</span>
       <span class="metric {{if .Issues}}metric-bad{{end}}" title="Drafts carrying an issue the publish gate refuses — marked ⚠ in the list below"><b>{{len .Issues}}</b> drafts not yet publishable</span>
       <span class="metric {{if .Flagged}}metric-bad{{end}}"><b>{{len .Flagged}}</b> flagged sources</span>
+      <a class="metric {{if .Proposals}}metric-warn{{end}}" href="/queue" style="text-decoration:none" title="Statement changes waiting for a decision in the review queue"><b>{{.Proposals}}</b> proposals waiting</a>
     </div>
 
     <details class="coverage" open>
