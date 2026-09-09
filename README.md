@@ -12,7 +12,7 @@ Drafts are produced by an AI research agent and human-reviewed before publishing
 
 ## Design principles
 
-- **Citations enforced at the data level** — there is no path to publishing an uncited claim
+- **Citations enforced at the data level** — the drafting tool and the publish gate both refuse an uncited claim
 - **Structured legal data model** enables consistent, queryable guidance across jurisdictions
 - **Clear separation of statutory vs. editorial guidance**
 - **Designed for actionability**, not just legal completeness
@@ -23,9 +23,33 @@ Renters search by situation or browse by city. Each playbook provides step-by-st
 
 Content is authored through an internal tool that enforces citation at submission time. No statement goes live without a citation attached.
 
-## AI-assisted drafting
+## How a claim gets published
 
-Pick a city and topic, and a research agent finds authoritative primary sources, reads them, and drafts plain-language statements — each backed by a **verbatim quote** from a real fetched source. The pipeline rejects any citation whose quote isn't literally present in the source, so a fabricated citation can't be saved; every draft lands in the authoring tool for a human to verify and publish. The same tools run over MCP (`cmd/mcp`), so the loop can also be driven from an editor like Claude Code.
+The product is a pipeline and a data model. The pipeline turns a fetched primary source into a published claim. The data model is what makes the claim checkable after it is published.
+
+One rule holds the whole thing together. A claim reaches the public only if every citation carries a quote that is a verbatim substring of text the system itself fetched, a person confirmed that quote against its source, and a person published the page.
+
+```mermaid
+flowchart LR
+    subgraph untrusted [Untrusted]
+        D[Discover] --> M[Model drafts]
+    end
+    M -- fetch_source --> E[(Evidence)]
+    M -- save --> S[Verbatim check]
+    E --> S
+    S --> R[Draft]
+    R --> P[Person publishes]
+    P --> L[Public page]
+    L --> V[Re-verify]
+    V -- quote gone --> Q[Proposal]
+    Q --> R
+```
+
+The model is never believed. It sits above a trust boundary and the only thing that crosses is a tool call. The one tool that writes checks each quote against text the system fetched itself and refuses with a fix the model can act on. The same tools run in the Go loop (`cmd/draft`) and over MCP (`cmd/mcp`), so the loop can also be driven from Claude Code.
+
+Publishing is a human act. The authoring tool runs the gate inside the publish transaction: every statement cited, every quote confirmed by a named person. Drafts save freely and the gate refuses, so nothing is lost and nothing leaks.
+
+After publishing, a checker refetches every cited source and confirms each quote still appears. Where one does not, it files a proposal against the statement's durable key with the nearest passage as evidence. A person approves, edits, or rejects it. Approval is just a save, so the same gate holds.
 
 ## Stack
 
@@ -39,32 +63,15 @@ Pick a city and topic, and a research agent finds authoritative primary sources,
 
 ## Data model
 
-The schema uses a self-referential jurisdictions table so a query for Boston can inherit Massachusetts and federal rules. A nullable `embedding` column on statements leaves the door open for semantic search without a future migration.
+Seven tables carry that rule. A citation is a quote, not a link. A statement has a key that survives every save, so a proposal can name it. A playbook has one live row and at most one draft per slot. Jurisdictions are self-referential, so a query for Boston inherits Massachusetts and federal rules.
 
 ```mermaid
 erDiagram
     jurisdictions {
         bigint id PK
-        bigint parent_id FK
+        bigint parent_id FK "city inherits state inherits country"
         text kind "country|state|city"
         text slug
-    }
-    sources {
-        bigint id PK
-        text url UK
-        text kind "statute|regulation|editorial..."
-        text content_hash
-    }
-    statements {
-        bigint id PK
-        bigint jurisdiction_id FK
-        text body_md
-        tsvector body_tsv "generated, GIN indexed"
-    }
-    citations {
-        bigint statement_id FK
-        bigint source_id FK
-        text locator
     }
     topics {
         bigint id PK
@@ -75,27 +82,60 @@ erDiagram
         bigint jurisdiction_id FK
         bigint topic_id FK
         text language
-        tsvector body_tsv "generated, GIN indexed"
+        text status "draft|published|superseded"
+        text updated_by
     }
-    playbook_statements {
-        bigint playbook_id FK
+    statements {
+        bigint id PK
+        uuid key "survives saves"
+        bigint jurisdiction_id FK
+        bigint concept_id FK "closed registry"
+        text body_md
+    }
+    citations {
         bigint statement_id FK
-        int position
+        bigint source_id FK
+        text quote "verbatim substring of the source"
+        text locator
+        timestamptz checked_at
+        text checked_by
+    }
+    sources {
+        bigint id PK
+        text url UK
+        text kind "statute|regulation|gov_guidance|..."
+        text content_hash
+        timestamptz last_checked_at
+    }
+    statement_proposals {
+        bigint id PK
+        uuid statement_key "names the claim"
+        text reason "source-drift|agent-pass|source-quality"
+        jsonb proposed
+        jsonb evidence
+        text status "pending|approved|rejected|snoozed"
+        text decided_by
     }
 
-    jurisdictions ||--o{ statements : "scopes"
+    jurisdictions ||--o{ jurisdictions : "parent"
     jurisdictions ||--o{ playbooks : "scopes"
-    sources ||--o{ citations : ""
-    statements ||--o{ citations : ""
-    statements ||--o{ playbook_statements : ""
-    playbooks ||--o{ playbook_statements : ""
     topics ||--o{ playbooks : ""
+    playbooks ||--o{ statements : "orders (playbook_statements)"
+    statements ||--|{ citations : "at least one"
+    sources ||--o{ citations : ""
+    statements ||--o{ statement_proposals : "by key"
 ```
+
+Known gaps, stated plainly:
+
+- Fetched text is not persisted. It lives in memory for the run, so a checked_at stamp cannot yet show the text it was checked against.
+- The verbatim rule is implemented twice, in the drafting toolbelt and in the source checker.
+- Two maintenance commands, promote and ingest, write through the same save path but skip the publish gate.
 
 ## Roadmap
 
 ### Source change monitoring
-A checker re-fetches all cited sources on a cadence (weekly or on-demand) and confirms that each verbatim quote we cited still appears. Where one does not, the statement citing it gets a source-drift proposal in the authoring review queue (ADR-014), with the nearest passage from the new fetch offered as the replacement quote when the text merely moved and as evidence when it did not. The author approves, edits, or rejects it with a note. Government statute pages do change — rent control thresholds, notice periods, penalty amounts — and this is the mechanism that keeps the site accurate over time.
+Shipped as the re-verify loop above (ADR-014). What remains is a cadence: today the checker runs on demand from the command line or a dashboard button, not on a schedule.
 
 ### Jurisdiction expansion
 Adding cities is the main growth lever. The authoring tool already supports creating new jurisdictions; the bottleneck is research time, not infrastructure.
