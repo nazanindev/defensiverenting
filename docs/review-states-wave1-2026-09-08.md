@@ -411,3 +411,74 @@ but not quoted (only the prohibition and the 2025-01-01 date are cited). $900 re
 $450 cap example is agent math. Case-law page locators read off static.case.law
 page-break markers; spot-check. Title changed to "Rental Repairs in Illinois" (lint
 rejects "Habitability" in titles).
+
+## Washington
+
+### Systemic
+- app.leg.wa.gov per-section RCW pages fetch cleanly; every legal claim is statute-backed.
+- washingtonlawhelp.org article pages return site navigation only (JS shell); not cited.
+
+### Per-page flags
+
+**washington / landlord-entry** (12 stmts, 19 citations) — RCW 59.18.575(4) self-help
+lock-change right applies only when the perpetrator is the landlord or someone working
+for the landlord (sexual assault, stalking, harassment), not general domestic violence;
+statement written to the narrower statute text; check. Small-claims statement rests on
+the AG page's general small-claims line. No Seattle pointer (no fetched source mentions
+local rules).
+
+**washington / security-deposits** (12 stmts, 18 citations) — RCW 59.18.253 is the
+pre-move-in hold-fee rule (25% of first month cap), not a deposit alternative; written to
+the real text. The 2022 fee-in-lieu-of-deposit program (HB 2064) is NOT covered: its
+RCW section was not found within budget; gap. RCW 59.18.283 is about payment application
+order and installment defaults; the wear-and-tear bar lives in 260(4)/280(1)(c). Small
+claims $10,000 rests on one AG line. Seattle pointer sits in intro_md, not a statement.
+AG page dated 2026-09-02.
+
+**washington / eviction-defense** (12 stmts, 16 citations, all statute) — Stmt 1 says
+"written notice" but not that the 14-day notice must use the statutory form; that rule is
+in RCW 59.18.057, not fetched; verify. Stmt 9 right to counsel: the "$15,000/$30,000"
+figure is a labeled hypothetical, not the current poverty guideline; text notes the
+funding contingency. No statement on RCW 59.18.367 limited dissemination of eviction
+records (budget cap). No Seattle pointer. Brief mis-mapped .370 as the answer section;
+agent corrected to .380.
+
+**washington / cant-pay-rent** (12 stmts, 25 citations) — The 2025 HB 1217 late-fee cap
+($10/month) does NOT appear in the fetched RCW 59.18.170 text (which shows only the 2020
+5-day grace amendment); stmt 1 states only what the fetched text supports; check whether
+the cap was codified as a separate new section before publish (the rent-increase agent
+was asked to look). Rent-assistance status not asserted: RCW 43.185C.185 establishes the
+program; no Commerce status page found; statement points at 211 instead. Stmts 10
+(LIHEAP) and 11 (211) rest on one source each. payload.json predates the lint fixes.
+
+**washington / repairs-and-habitability** (12 stmts, 27 citations, all statute) — RCW
+59.18.100 needs one good-faith estimate, not two bids (brief was wrong; statute
+followed). Code-inspection statement uses "your city or county code office"; no Seattle
+pointer. $1,500 / $3,000 repair-and-deduct example is agent math from the 1-month /
+2-month caps. RCW 59.18.060 was amended in 2026 (c 234) with renumbered subsections;
+locators follow the fetched numbering. Constructive-eviction pointer reuses a 59.18.090
+quote.
+
+**washington / rent-increase** (12 stmts, 21 citations) — HB 1217 codified at RCW
+59.18.700 and .710. The $10 late-fee cap does not exist in RCW 59.18.170 or .700/.710;
+treat the cant-pay-rent brief's premise as wrong unless found elsewhere. Stmt on
+mid-lease increases written as a flat bar per RCW 59.18.140(3)(a), no "unless the lease
+allows" clause. Time-sensitive: Commerce's 9.683% cap is calendar 2026 only (published
+2025-07-18); the act sunsets 2040-07-01. Stmt 12 is the 5% manufactured-home lot-rent
+cap from the AG page (in place of a Seattle pointer, which no source supported).
+
+**washington / resource-directory** (11 entries, 22 citations) — Northwest Justice
+Project / CLEAR hotline is MISSING: nwjustice.org returned only a bare title (JS shell);
+the main statewide legal-aid line should be added by hand once the page can be fetched.
+No current Commerce rental-assistance page found (only stale ERAP/T-RAP pages), so
+Commerce appears once via LIHEAP. UTC entry quotes only a mission line and a menu label.
+OCLA Eviction Defense Screening Line number (1-855-657-8387) seen only in a search
+summary, omitted. Disability Rights Washington has no phone in the fetched text. AG
+figures dated 2026-09-02. Solid Ground not attempted.
+
+## Wave 1 complete 2026-09-08
+
+All 5 states × 7 core topics are in the prod review queue as drafts (35 pages), plus
+Pennsylvania's 9 from 2026-08-30. Resumed pass ran 9 pages on Sonnet with a 20-call cap at
+110k to 165k tokens each versus 120k to 290k on the first pass; quality held because
+Washington and Illinois statutes fetch cleanly per section.
