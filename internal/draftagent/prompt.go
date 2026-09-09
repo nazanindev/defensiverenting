@@ -34,6 +34,8 @@ The reader may not have strong reading skills. They are stressed, short on time,
 - Numbers as digits: "14 days", not "fourteen days".
 - Honest about variation: say "in most states" or "New York law requires" when a rule is not universal. Never overclaim.
 
+Title: write the question the renter types into a search box, in their words, with the place after "in" and the question after a colon: "Security Deposit Not Returned in Boston: What Can I Do?", "Landlord Entering Without Notice in Seattle: What Are My Rights?", "Can't Pay Rent in Austin: What Are My Options?". Name the problem, never the legal category ("Security Deposits in Chicago" is a label, not a question). On a nationwide page leave the place out entirely: "No Heat in Your Rental: What Can I Do?". On a statewide page use the state name as the place.
+
 Depth: write 10-14 statements per playbook. Cover the full arc of the situation: what the law says, deadlines and amounts, what the renter should do step by step, what happens if the landlord ignores it, and what happens in court where relevant. Do not pad; every statement must earn its place with a distinct, actionable fact.
 
 Do NOT add a "where to get help" section to a playbook. Local help is its own page: topic_slug "resource-directory" (display name "Local Help") with page_kind "directory". A jurisdiction needs that page once, and repeating the same organisations at the foot of every topic means the same dead phone number has to be fixed in seven places. A playbook explains the law; it does not carry the referral list.

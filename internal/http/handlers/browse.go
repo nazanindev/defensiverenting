@@ -859,20 +859,13 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 		reviewedOn = tmpl.UIDate(pb.Playbook.Language, pb.Playbook.UpdatedAt)
 	}
 
-	// The fallback description reads "...guide for {name}", which works for a
-	// place name but not for the bare country ("guide for United States").
-	descFor := pb.Jurisdiction.Name
-	if pb.Jurisdiction.Kind == "country" {
-		descFor = "renters anywhere in the United States"
-	}
-
 	return tmpl.PlaybookPage{
 		Playbook:       pb.Playbook,
 		Jurisdiction:   pb.Jurisdiction,
 		Topic:          pb.Topic,
 		IntroHTML:      introHTML,
 		Statements:     statements,
-		Description:    metaDescription(pb.IntroMD, pb.Playbook.Title, descFor),
+		Description:    playbookDescription(pb.IntroMD, pb.Playbook.Title, pb.Playbook.Language, pb.Jurisdiction),
 		Canonical:      canonical,
 		StructuredData: playbookSchema(pb, canonical, sourceURLs),
 		ReviewedOn:     reviewedOn,
@@ -920,8 +913,8 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		ReviewedBy    schemaOrg `json:"reviewedBy"`
 	}{
 		Type:        "Article",
-		Headline:    pb.Playbook.Title + " — " + pb.Jurisdiction.Name + " Tenant Rights",
-		Description: metaDescription(pb.IntroMD, pb.Playbook.Title, pb.Jurisdiction.Name),
+		Headline:    pb.Playbook.Title,
+		Description: playbookDescription(pb.IntroMD, pb.Playbook.Title, pb.Playbook.Language, pb.Jurisdiction),
 		URL:         canonical,
 		MainEntity:  canonical,
 		IsBasedOn:   sourceURLs,
@@ -994,13 +987,62 @@ func siteSchema() template.JS {
 var mdLinkRe = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
 var mdMarkupRe = regexp.MustCompile("[#*_`>]+")
 
+// playbookDescription is the meta description for a playbook page: the
+// opening of the intro, cut at a sentence end, followed by a fixed tail that
+// names the place the rules are for.
+//
+// The intro alone read as an explanation of the law, not an answer to the
+// query that surfaced the page. Search Console (2026-09-08) showed the
+// searcher almost never types a place, and does not know tenant law is set
+// by state; the tail tells them, in the snippet, that this page covers their
+// place (or, on a nationwide page, that they will pick it here).
+func playbookDescription(introMD, title, lang string, j store.Jurisdiction) string {
+	var tail string
+	switch {
+	case lang == "es" && j.Kind == "country":
+		tail = "Las reglas cambian según el estado. Elija el suyo en esta página."
+	case lang == "es":
+		tail = "Las reglas para " + j.Name + " y qué hacer después."
+	case j.Kind == "country":
+		tail = "Rules differ by state. Pick yours on this page."
+	default:
+		tail = "The rules for " + j.Name + " and what to do next."
+	}
+	const limit = 155
+	lead := plainIntro(introMD)
+	if lead == "" {
+		lead = title
+		if !strings.HasSuffix(lead, "?") && !strings.HasSuffix(lead, ".") {
+			lead += "."
+		}
+	}
+	room := limit - len(tail) - 1
+	if len(lead) > room {
+		// A whole sentence, even a short one, reads better in a snippet than
+		// a longer one cut mid-clause; fall back to a word boundary.
+		if cut := strings.LastIndex(lead[:room], ". "); cut > 20 {
+			lead = lead[:cut+1]
+		} else if cut := strings.LastIndex(lead[:room], " "); cut > 0 {
+			lead = lead[:cut] + "…"
+		} else {
+			lead = lead[:room] + "…"
+		}
+	}
+	return lead + " " + tail
+}
+
+// plainIntro flattens intro markdown to one line of plain text.
+func plainIntro(introMD string) string {
+	text := mdLinkRe.ReplaceAllString(introMD, "$1")
+	text = mdMarkupRe.ReplaceAllString(text, "")
+	return strings.Join(strings.Fields(text), " ")
+}
+
 // metaDescription derives a plain-text meta description from the playbook
 // intro, falling back to a templated line when there is no intro. Truncates
 // near 155 characters on a word boundary.
 func metaDescription(introMD, title, jurisdiction string) string {
-	text := mdLinkRe.ReplaceAllString(introMD, "$1")
-	text = mdMarkupRe.ReplaceAllString(text, "")
-	text = strings.Join(strings.Fields(text), " ")
+	text := plainIntro(introMD)
 	if text == "" {
 		return title + " — free, step-by-step tenant rights guide for " + jurisdiction + ", backed by primary sources."
 	}

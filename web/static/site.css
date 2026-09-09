@@ -1097,6 +1097,26 @@ input:focus-visible,
 .byline a { color: var(--accent); text-decoration: none; }
 .byline a:hover { text-decoration: underline; }
 .related-section { margin-top: 2.5rem; }
+
+/* Nationwide pages only: the state and city picker between the intro and the
+   statements. A box, not a card grid: it is one list of places under one
+   question. */
+.place-picker {
+  background: var(--mint);
+  border-radius: 14px;
+  padding: 18px 20px 14px;
+  margin: 24px 0 28px;
+}
+.place-picker-heading {
+  font-family: "Fraunces", serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--accent-dark);
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+.place-picker-lede { margin: 0 0 12px; font-size: .95rem; color: var(--ink-soft); max-width: 62ch; }
+.place-picker .city-list a { color: var(--accent-dark); }
 .related-more { margin-top: .9rem; font-size: .95rem; }
 .related-more a { color: var(--accent); text-decoration: none; }
 .related-more a:hover { text-decoration: underline; }
