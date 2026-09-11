@@ -109,6 +109,10 @@ type StatementInput struct {
 	// covers as its own pages, rather than making one claim.
 	TopicRef  string          `json:"topic_ref,omitempty" jsonschema:"optional topic slug from list_topics, for a statement that is a one-paragraph summary of an entire subject (e.g. a fundamentals statement about safe housing points at repairs-and-habitability). Mutually exclusive with concept. Never set it to this page's own topic."`
 	Citations []CitationInput `json:"citations" jsonschema:"at least one citation quoting a fetched source"`
+	// ReviewerNote carries the agent's doubt about this claim into the
+	// review queue as a work item on the statement's key (ADR-018 D1),
+	// where the human reviewer decides it before the page can publish.
+	ReviewerNote string `json:"reviewer_note,omitempty" jsonschema:"one or two sentences for the human reviewer on anything about THIS statement you are not sure of: a reading inferred from a statute's silence or structure, a simplification of the legal test, a claim supported by agency guidance but no statute, a figure or date that will go stale and when, a source you could not open. Omit when you have no doubt. Never use it for page-level remarks."`
 }
 
 type SaveDraftInput struct {
@@ -313,6 +317,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			Language:     lang,
 			ConceptSlug:  strings.TrimSpace(st.Concept),
 			TopicRefSlug: strings.TrimSpace(st.TopicRef),
+			ReviewerNote: strings.TrimSpace(st.ReviewerNote),
 			Sources:      cites,
 		})
 	}

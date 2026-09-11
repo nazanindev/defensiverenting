@@ -168,17 +168,68 @@ func (pg *PG) FileProposal(ctx context.Context, p FileProposalParams) (int64, er
 				return err
 			}
 		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE statement_proposals SET status = 'superseded'
-			WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed')`, key); err != nil {
-			return fmt.Errorf("supersede: %w", err)
-		}
-		return tx.QueryRow(ctx, `
-			INSERT INTO statement_proposals (statement_key, playbook_id, reason, proposed, evidence, proposed_by)
-			VALUES ($1::uuid, $2, $3, $4, $5, $6) RETURNING id`,
-			key, playbookID, p.Reason, proposed, evidence, p.ProposedBy).Scan(&id)
+		var err error
+		id, err = insertProposal(ctx, tx, key, playbookID, p.Reason, proposed, evidence, p.ProposedBy)
+		return err
 	})
 	return id, err
+}
+
+// insertProposal writes one proposal inside tx, superseding any pending or
+// snoozed one against the same key. Shared by FileProposal and the save path
+// that files reviewer notes (ADR-018 D1).
+func insertProposal(ctx context.Context, tx pgx.Tx, key string, playbookID int64, reason string, proposed []byte, evidence json.RawMessage, by string) (int64, error) {
+	if _, err := tx.Exec(ctx, `
+		UPDATE statement_proposals SET status = 'superseded'
+		WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed')`, key); err != nil {
+		return 0, fmt.Errorf("supersede: %w", err)
+	}
+	var id int64
+	err := tx.QueryRow(ctx, `
+		INSERT INTO statement_proposals (statement_key, playbook_id, reason, proposed, evidence, proposed_by)
+		VALUES ($1::uuid, $2, $3, $4, $5, $6) RETURNING id`,
+		key, playbookID, reason, proposed, evidence, by).Scan(&id)
+	return id, err
+}
+
+// ReasonReviewerFlag is the reason code of a work item filed from a
+// statement's reviewer note at save time (ADR-018 D1). The evidence is
+// {"note": "..."}: the proposer's doubt, in their words.
+const ReasonReviewerFlag = "agent-pass:flag"
+
+// ReviewerFlagEvidence is the evidence shape behind ReasonReviewerFlag.
+type ReviewerFlagEvidence struct {
+	Note string `json:"note"`
+}
+
+// fileReviewerFlag files a statement's reviewer note as a work-item proposal
+// inside the saving transaction, so the doubt and the claim land together or
+// not at all. A note already on file for this key, in any status, is not
+// filed again: a save that carries the same note forward must not reopen a
+// doubt a reviewer has already decided, and must not stack duplicates while
+// one is pending.
+func fileReviewerFlag(ctx context.Context, tx pgx.Tx, key string, playbookID int64, note, by string) error {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return nil
+	}
+	evidence, err := json.Marshal(ReviewerFlagEvidence{Note: note})
+	if err != nil {
+		return err
+	}
+	var dup bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM statement_proposals
+			WHERE statement_key = $1::uuid AND reason = $2 AND evidence = $3::jsonb)`,
+		key, ReasonReviewerFlag, evidence).Scan(&dup); err != nil {
+		return fmt.Errorf("look for an existing note: %w", err)
+	}
+	if dup {
+		return nil
+	}
+	_, err = insertProposal(ctx, tx, key, playbookID, ReasonReviewerFlag, nil, evidence, by)
+	return err
 }
 
 // proposalRowSQL joins each proposal to the page an approval would edit and

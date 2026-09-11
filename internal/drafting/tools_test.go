@@ -770,3 +770,25 @@ func activateSpanish(t *testing.T) {
 	store.ContentLanguages = []string{"en", "es"}
 	t.Cleanup(func() { store.ContentLanguages = prev })
 }
+
+func TestSaveDraft_ReviewerNoteReachesIngest(t *testing.T) {
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	})
+	mustFetch(t, tb, depositURL)
+
+	st := stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+		depositURL, "within thirty days after the termination of the tenancy, return the security deposit")
+	st.ReviewerNote = "  The 30-day figure is from guidance; the statute says thirty days after termination.  "
+	if _, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits",
+		Title: "Boston Security Deposits", IntroMD: "Intro.", Statements: []StatementInput{st},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := fs.ingested.Statements[0].ReviewerNote
+	if got != "The 30-day figure is from guidance; the statute says thirty days after termination." {
+		t.Errorf("reviewer note = %q", got)
+	}
+}

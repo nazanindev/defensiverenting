@@ -1058,30 +1058,42 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 				return fmt.Errorf("statement %d has no citations — ingest aborted", i)
 			}
 
-			key, err := keys.choose(i, sp)
-			if err != nil {
+			if err := writeStatement(ctx, tx, keys, params.JurisdictionID, playbookID, i, sp, params.UpdatedBy); err != nil {
 				return err
-			}
-			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp, key)
-			if err != nil {
-				return fmt.Errorf("insert statement %d: %w", i, err)
-			}
-
-			for _, cite := range sp.Sources {
-				if _, err := tx.Exec(ctx, insertCitationSQL, citationArgs(stmtID, cite)...); err != nil {
-					return fmt.Errorf("insert citation for statement %d: %w", i, err)
-				}
-			}
-
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO playbook_statements (playbook_id, statement_id, position)
-				VALUES ($1, $2, $3)`, playbookID, stmtID, i,
-			); err != nil {
-				return fmt.Errorf("link statement %d to playbook: %w", i, err)
 			}
 		}
 		return nil
 	})
+}
+
+// writeStatement is the one place a statement lands on a page: the row, its
+// citations, its position link, and any reviewer note filed as a work item
+// (ADR-018 D1). Shared by IngestPlaybook and AuthorUpdatePlaybook so the
+// two save paths cannot drift.
+func writeStatement(ctx context.Context, tx pgx.Tx, keys *keyChooser, jurisdictionID, playbookID int64, i int, sp IngestStatementParams, by string) error {
+	key, err := keys.choose(i, sp)
+	if err != nil {
+		return err
+	}
+	stmtID, err := insertStatement(ctx, tx, jurisdictionID, sp, key)
+	if err != nil {
+		return fmt.Errorf("insert statement %d: %w", i, err)
+	}
+	for _, cite := range sp.Sources {
+		if _, err := tx.Exec(ctx, insertCitationSQL, citationArgs(stmtID, cite)...); err != nil {
+			return fmt.Errorf("insert citation for statement %d: %w", i, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO playbook_statements (playbook_id, statement_id, position)
+		VALUES ($1, $2, $3)`, playbookID, stmtID, i,
+	); err != nil {
+		return fmt.Errorf("link statement %d to playbook: %w", i, err)
+	}
+	if err := fileReviewerFlag(ctx, tx, key, playbookID, sp.ReviewerNote, by); err != nil {
+		return fmt.Errorf("file reviewer note on statement %d: %w", i, err)
+	}
+	return nil
 }
 
 // ---- scan helpers ----------------------------------------------------------
@@ -1281,24 +1293,8 @@ func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdateP
 		}
 
 		for i, sp := range params.Statements {
-			key, err := keys.choose(i, sp)
-			if err != nil {
+			if err := writeStatement(ctx, tx, keys, params.JurisdictionID, params.ID, i, sp, params.UpdatedBy); err != nil {
 				return err
-			}
-			stmtID, err := insertStatement(ctx, tx, params.JurisdictionID, sp, key)
-			if err != nil {
-				return fmt.Errorf("insert statement %d: %w", i, err)
-			}
-			for _, cite := range sp.Sources {
-				if _, err := tx.Exec(ctx, insertCitationSQL, citationArgs(stmtID, cite)...); err != nil {
-					return fmt.Errorf("insert citation for statement %d: %w", i, err)
-				}
-			}
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO playbook_statements (playbook_id, statement_id, position)
-				VALUES ($1, $2, $3)`, params.ID, stmtID, i,
-			); err != nil {
-				return fmt.Errorf("link statement %d to playbook: %w", i, err)
 			}
 		}
 

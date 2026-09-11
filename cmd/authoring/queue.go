@@ -47,6 +47,9 @@ type queueItem struct {
 	// Drift is the checker's evidence read into shape for a source-drift
 	// item, so the page can show what changed rather than a JSON blob.
 	Drift *driftEvidence
+	// Note is the drafting agent's doubt on a reviewer-flag item (ADR-018
+	// D1), shown as the finding in its own words.
+	Note string
 }
 
 // driftEvidence is the source-drift evidence the checker files (see
@@ -112,6 +115,12 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 				var d driftEvidence
 				if json.Unmarshal(row.Evidence, &d) == nil && d.OldQuote != "" {
 					item.Drift = &d
+				}
+			}
+			if row.Reason == store.ReasonReviewerFlag {
+				var f store.ReviewerFlagEvidence
+				if json.Unmarshal(row.Evidence, &f) == nil {
+					item.Note = f.Note
 				}
 			}
 		}

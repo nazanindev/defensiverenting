@@ -45,6 +45,8 @@
   .chip { display: inline-block; padding: .12rem .5rem; border-radius: 10px; font-size: .7rem; font-weight: 600; background: #fde8eb; color: #7a1c2a; white-space: nowrap; }
   .chip-drift { background: #fef3c7; color: #92400e; }
   .chip-quality { background: #e8f4fd; color: #2c5282; }
+  .chip-flag { background: #ede9fe; color: #4c1d95; }
+  .note { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 8px 11px; border-radius: 4px; line-height: 1.5; }
   .chip-name { color: #7a5c5c; font-size: .74rem; margin-left: 4px; }
   .lead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { color: #9a7878; font-size: .78rem; white-space: nowrap; }
@@ -147,7 +149,7 @@
       <details class="item" id="p{{.ID}}">
         <summary>
           <span class="pos">{{if .OnPage}}#{{.Position}}{{else}}—{{end}}</span>
-          <span><span class="chip {{if eq .ReasonLabel "source-drift"}}chip-drift{{else if eq .ReasonLabel "source-quality"}}chip-quality{{end}}">{{.ReasonLabel}}</span>{{if .ReasonName}}<span class="chip-name">{{.ReasonName}}</span>{{end}}</span>
+          <span><span class="chip {{if eq .ReasonLabel "source-drift"}}chip-drift{{else if eq .ReasonLabel "source-quality"}}chip-quality{{else if .Note}}chip-flag{{end}}">{{if .Note}}reviewer note{{else}}{{.ReasonLabel}}{{end}}</span>{{if and .ReasonName (not .Note)}}<span class="chip-name">{{.ReasonName}}</span>{{end}}</span>
           <span class="lead">{{if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
           <span class="meta">{{.ProposedBy}} · {{.Age}}</span>
         </summary>
@@ -168,7 +170,7 @@
                 <textarea class="stmt" name="body">{{.Proposed.BodyMD}}</textarea>
               </form>
               <ul class="cites">{{range .Proposed.Citations}}<li>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}}<span class="q">“{{.Quote}}” {{if .Checked}}<span class="ok">✓ confirmed by proposer</span>{{else}}<span class="unk">will be checked live on approve</span>{{end}}</span>{{end}}{{end}}</li>{{end}}</ul>
-              {{else}}<div class="stmt">No replacement offered. The evidence below says what was found.</div>{{end}}
+              {{else if .Note}}<div class="stmt note">{{.Note}}</div>{{else}}<div class="stmt">No replacement offered. The evidence below says what was found.</div>{{end}}
             </div>
           </div>
           {{with .Drift}}

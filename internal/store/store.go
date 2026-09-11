@@ -209,6 +209,12 @@ type IngestStatementParams struct {
 	// pointing at a registry topic. Mutually exclusive with ConceptSlug; the
 	// save fails when both are set rather than picking one silently.
 	TopicRefSlug string
+	// ReviewerNote is what the drafting agent was unsure of about this claim
+	// (ADR-018 D1): an inferred reading, a simplification, guidance-only
+	// support, a figure that will go stale. The save files it as a work-item
+	// proposal against the statement's key so the doubt reaches the review
+	// queue instead of a document beside the portal. "" files nothing.
+	ReviewerNote string
 	Sources      []IngestCitationParams
 }
 
