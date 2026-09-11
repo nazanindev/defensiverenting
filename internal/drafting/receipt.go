@@ -115,7 +115,7 @@ func (r Receipt) Describe() string {
 // recorded, or attested by hand) is comparable with anything: there is no
 // better evidence to defer to.
 func Comparable(baselineExtractor, currentExtractor string) bool {
-	return !(baselineExtractor == ExtractorPDFToText && currentExtractor == ExtractorPDFGo)
+	return baselineExtractor != ExtractorPDFToText || currentExtractor != ExtractorPDFGo
 }
 
 // contextRadius is how much text Context keeps on each side of a quote.
