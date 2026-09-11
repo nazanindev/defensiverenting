@@ -562,6 +562,21 @@ type ThanksPage struct {
 // Reported reports whether the thank-you page is confirming a correction.
 func (p ThanksPage) Reported() bool { return p.Kind == "report" }
 
+// AccountPage is /account (ADR-017): the sign-in form when signed out, the
+// account when signed in. It is the one page that knows who the reader is,
+// and it is served uncached for that reason.
+type AccountPage struct {
+	SignedIn bool
+	Email    string
+	// LocationName and LocationSlug are the reader's saved place, empty when
+	// none is set.
+	LocationName string
+	LocationSlug string
+	// Notice is reader-facing text resolved from the ?notice= code the
+	// previous step redirected with. Empty on a plain visit.
+	Notice string
+}
+
 // Render dispatches to the correct template based on the concrete page type.
 func Render(w io.Writer, page any) error {
 	switch p := page.(type) {
@@ -597,6 +612,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "authors.html", p)
 	case NotFoundPage:
 		return tmpl.ExecuteTemplate(w, "notfound.html", p)
+	case AccountPage:
+		return tmpl.ExecuteTemplate(w, "account.html", p)
 	default:
 		return fmt.Errorf("unknown page type %T", page)
 	}

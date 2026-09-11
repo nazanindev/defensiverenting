@@ -159,6 +159,19 @@ body {
 
 .header-search button:hover { background: #7a1a28; }
 
+/* Sign in / Account. Static text in the cached HTML; the scope script flips
+   it to "Account" when the rl_in cookie says the reader is signed in. */
+.header-account {
+  margin-left: auto;
+  color: #fff;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: .9;
+  padding: 8px 0;
+}
+.header-account:hover { opacity: 1; text-decoration: underline; }
+
 /* ── Hero ───────────────────────────────────────────────── */
 
 .hero {
@@ -1241,6 +1254,22 @@ input:focus-visible,
 
 .callout-warn p { margin: 0 0 .6rem; }
 .callout-warn p:last-child { margin: 0; }
+
+.account-row { margin: 0 0 1.25rem; }
+.account-row dt { font-weight: 600; margin-bottom: .2rem; }
+.account-row dd { margin: 0; }
+.btn-quiet {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  padding: 11px 26px;
+  cursor: pointer;
+}
+.btn-quiet:hover { background: var(--accent); color: #fff; }
 
 .form-privacy {
   font-size: .9rem;

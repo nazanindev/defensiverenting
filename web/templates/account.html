@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{if .SignedIn}}Your account{{else}}Sign in{{end}} · RenterLaw</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
+      <form class="header-search" action="/search" method="get" role="search">
+        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
+        <button type="submit">Search</button>
+      </form>
+      <a class="header-account" href="/account" data-account-link>{{if .SignedIn}}Account{{else}}Sign in{{end}}</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span> {{if .SignedIn}}Your account{{else}}Sign in{{end}}
+    </nav>
+
+    <article class="prose form-page">
+      {{if .Notice}}<p class="form-error" role="status">{{.Notice}}</p>{{end}}
+
+      {{if .SignedIn}}
+      <h1>Your account</h1>
+      <p class="lede">Your location follows you to any device you sign in on.</p>
+
+      <dl>
+        <div class="account-row">
+          <dt>Email</dt>
+          <dd>{{.Email}}</dd>
+        </div>
+        <div class="account-row">
+          <dt>Your location</dt>
+          <dd>
+            {{if .LocationSlug}}<a href="/j/{{.LocationSlug}}">{{.LocationName}}</a>. Change it from the location picker on the <a href="/">home page</a>.
+            {{else}}Not set yet. Pick a location on the <a href="/">home page</a> and it will be saved here.{{end}}
+          </dd>
+        </div>
+      </dl>
+
+      <form class="site-form" method="post" action="/account/signout">
+        <button class="btn-quiet" type="submit">Sign out</button>
+      </form>
+
+      <p class="form-privacy">We store your email address and your chosen location, and nothing else. No name, no password, no history of what you read.</p>
+
+      {{else}}
+      <h1>Sign in</h1>
+      <p class="lede">Keep your location across devices. No password: we email you a link.</p>
+
+      <form class="site-form" method="post" action="/account/signin">
+        <div class="field">
+          <label for="email">Your email</label>
+          <input type="email" id="email" name="email" maxlength="254" autocomplete="email" required autofocus />
+          <p class="field-hint">We send a sign-in link to this address. It works once, for 15 minutes.</p>
+        </div>
+        <button class="btn-primary" type="submit">Email me a sign-in link</button>
+      </form>
+
+      <p class="form-privacy">Signing in stores your email address and your chosen location, and nothing else. You can read everything on this site without an account.</p>
+      {{end}}
+    </article>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

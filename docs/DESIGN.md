@@ -208,7 +208,7 @@ The schema is i18n-ready — `language` column on `statements` and `playbooks` �
 
 ## 11. Auth (deferred)
 
-Not in MVP. The seam: a `User` interface in `internal/http/middleware/auth.go` resolves to an anonymous singleton today. v2 swaps the implementation for a session-cookie or magic-link backend without touching handlers. End-state vision (logged-in tenant who can save progress and get help anywhere) is sequenced in §15.
+Shipped 2026-09-11 as ADR-017: magic-link sign-in, email address only, a session cookie, and one preference (location). Browse handlers still know nothing about readers; signed-in state reaches a page only through uncached JSON, because browse HTML is shared-cache. The `auth.go` middleware seam originally described here was never built and is not needed.
 
 ## 12. Operational concerns
 

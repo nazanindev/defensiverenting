@@ -127,6 +127,39 @@
 
   sel.addEventListener('change', apply);
   apply();
+
+  // Signed-in readers (ADR-017) carry their location on the server as well,
+  // so it follows them to another device. The HTML cannot know who is
+  // reading it, so this asks /api/me after load, and only when the
+  // rl_in cookie says there is a session worth asking about. Server wins
+  // over localStorage when both are set; a fresh account adopts whatever
+  // this device already remembered. A change is written to both.
+  if (!window.fetch || !/(^|; )rl_in=1(;|$)/.test(document.cookie)) return;
+  var accountLink = document.querySelector('[data-account-link]');
+  if (accountLink) accountLink.textContent = 'Account';
+  function push(slug) {
+    fetch('/api/me/location', {
+      method: 'PUT', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location: slug || '' })
+    }).catch(function () {});
+  }
+  fetch('/api/me', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (me) {
+      if (!me || !me.signed_in) return;
+      if (me.location) {
+        if (sel.value !== me.location) {
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === me.location) { sel.value = me.location; apply(); break; }
+          }
+        }
+      } else if (sel.value) {
+        push(sel.value);
+      }
+      sel.addEventListener('change', function () { push(sel.value); });
+    })
+    .catch(function () {});
 })();
 </script>
 {{end}}
@@ -185,6 +218,16 @@
 {{end}}
 
 {{define "site-footer"}}
+<script>
+(function () {
+  // The header is shared-cache HTML, so it always says "Sign in"; the cookie
+  // set at sign-in has no secret in it and exists so this line can run.
+  if (/(^|; )rl_in=1(;|$)/.test(document.cookie)) {
+    var a = document.querySelector('[data-account-link]');
+    if (a) a.textContent = 'Account';
+  }
+})();
+</script>
 <footer class="site-footer">
   {{$l := pageLang .}}
   <div class="wrap">

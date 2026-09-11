@@ -13,6 +13,7 @@ import (
 	dbpkg "github.com/nazanindev/defensiverenting/db"
 	"github.com/nazanindev/defensiverenting/internal/config"
 	apphttp "github.com/nazanindev/defensiverenting/internal/http"
+	"github.com/nazanindev/defensiverenting/internal/mail"
 	"github.com/nazanindev/defensiverenting/internal/store"
 	webtmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
@@ -56,6 +57,13 @@ func main() {
 	}
 	logger.Info("migrations applied")
 
+	var mailer mail.Mailer = mail.Log{Logger: logger}
+	if cfg.ResendAPIKey != "" {
+		mailer = mail.Resend{APIKey: cfg.ResendAPIKey, From: cfg.MailFrom}
+	} else if !cfg.IsDevelopment() {
+		logger.Warn("RESEND_API_KEY is not set — sign-in links will be logged, not sent")
+	}
+
 	srv := &http.Server{
 		Addr: cfg.ListenAddr,
 		Handler: apphttp.NewRouter(pg, logger, apphttp.RouterConfig{
@@ -63,6 +71,8 @@ func main() {
 			CanonicalRedirect: cfg.CanonicalRedirect && !cfg.IsDevelopment(),
 			FormsURL:          cfg.FormsURL,
 			TurnstileSiteKey:  cfg.TurnstileSiteKey,
+			Mailer:            mailer,
+			SecureCookies:     !cfg.IsDevelopment(),
 		}),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,

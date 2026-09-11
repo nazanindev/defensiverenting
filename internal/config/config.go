@@ -24,6 +24,13 @@ type Config struct {
 	// development wants: the Worker is the only thing that verifies the token,
 	// and it is not in the loop when you are running against localhost.
 	TurnstileSiteKey string
+	// ResendAPIKey sends sign-in links through Resend (ADR-017). Empty means
+	// links are written to the log instead of sent, which is what local
+	// development wants.
+	ResendAPIKey string
+	// MailFrom is the sender on those links; its domain must be verified in
+	// Resend.
+	MailFrom string
 }
 
 func Load() Config {
@@ -46,6 +53,8 @@ func Load() Config {
 		}(),
 		FormsURL:         env("FORMS_URL", "https://forms.renterlaw.org"),
 		TurnstileSiteKey: env("TURNSTILE_SITE_KEY", ""),
+		ResendAPIKey:     env("RESEND_API_KEY", ""),
+		MailFrom:         env("MAIL_FROM", "RenterLaw <signin@renterlaw.org>"),
 	}
 }
 

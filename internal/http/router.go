@@ -8,6 +8,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/http/middleware"
+	"github.com/nazanindev/defensiverenting/internal/mail"
 	"github.com/nazanindev/defensiverenting/internal/store"
 	webstatic "github.com/nazanindev/defensiverenting/web/static"
 )
@@ -23,6 +24,10 @@ type RouterConfig struct {
 	FormsURL string
 	// TurnstileSiteKey is the public spam-check key embedded in those forms.
 	TurnstileSiteKey string
+	// Mailer delivers sign-in links (ADR-017).
+	Mailer mail.Mailer
+	// SecureCookies marks session cookies Secure; off only in development.
+	SecureCookies bool
 }
 
 // NewRouter wires all routes and middleware onto a chi.Router.
@@ -56,6 +61,14 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 		r.Get("/thanks", handlers.Thanks)
 		r.Get("/robots.txt", handlers.Robots(cfg.SiteURL))
 		r.Get("/sitemap.xml", handlers.Sitemap(db, cfg.SiteURL))
+	})
+
+	// Reader accounts (ADR-017) — personal, never cached. Mounted outside the
+	// browse group so nothing here inherits the public cache header.
+	handlers.Account(r, db, logger, handlers.AccountConfig{
+		SiteURL:       cfg.SiteURL,
+		Mailer:        cfg.Mailer,
+		SecureCookies: cfg.SecureCookies,
 	})
 
 	// Static assets
