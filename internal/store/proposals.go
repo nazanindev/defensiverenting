@@ -26,10 +26,16 @@ type ProposedCitation struct {
 	Kind      string `json:"kind,omitempty"`
 	Locator   string `json:"locator,omitempty"`
 	Quote     string `json:"quote,omitempty"`
-	// Checked says the proposer confirmed the quote verbatim at the source
-	// when it filed. The approval stamps checked_at on its word; an
-	// unchecked quote is fetched live at approval instead.
+	// Checked says the proposer confirmed the quote verbatim in the live
+	// page when it filed. Approval re-checks every quote live and, only when
+	// the source cannot be read from the authoring server, stamps checked_at
+	// on the proposer's word. A quote matched against a snapshot is never
+	// Checked.
 	Checked bool `json:"checked,omitempty"`
+	// CheckedVia says how the proposer obtained the text ("direct fetch,
+	// html", "headless render"), for the reviewer and for the stamp that
+	// approval writes on the proposer's word.
+	CheckedVia string `json:"checked_via,omitempty"`
 	// Editorial marks the site's own guidance citation (ADR-003), which has
 	// no URL, quote, or locator.
 	Editorial bool `json:"editorial,omitempty"`

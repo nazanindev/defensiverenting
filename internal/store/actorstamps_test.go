@@ -51,6 +51,7 @@ func TestActorStamps_saveEditAndPublish(t *testing.T) {
 			Sources: []store.IngestCitationParams{{
 				SourceID: src.ID, Locator: "§ 1", Quote: "verbatim words",
 				CheckedNow: true, CheckedBy: "Nazanin",
+				Checked: store.CheckReceipt{Via: "direct", Extractor: "html", Hash: "h1", Context: "…the verbatim words here…"},
 			}},
 		}},
 	}); err != nil {
@@ -106,6 +107,18 @@ func TestActorStamps_saveEditAndPublish(t *testing.T) {
 	}
 	if cite.CheckedAt == nil || !cite.CheckedAt.Equal(firstChecked) {
 		t.Errorf("re-save without a fetch moved checked_at to %v, want the inherited %v", cite.CheckedAt, firstChecked)
+	}
+	// The receipt travels with the stamp it describes: the re-save fetched
+	// nothing, so the row must still say how Nazanin's confirmation was made.
+	var via, extractor, hash, context_ string
+	if err := pg.Pool().QueryRow(ctx, `
+		SELECT c.checked_via, c.checked_extractor, c.checked_hash, c.checked_context
+		FROM citations c JOIN playbook_statements ps ON ps.statement_id = c.statement_id
+		WHERE ps.playbook_id = $1 AND c.source_id = $2`, id, src.ID).Scan(&via, &extractor, &hash, &context_); err != nil {
+		t.Fatal(err)
+	}
+	if via != "direct" || extractor != "html" || hash != "h1" || context_ != "…the verbatim words here…" {
+		t.Errorf("re-save without a fetch lost the receipt: via=%q extractor=%q hash=%q context=%q", via, extractor, hash, context_)
 	}
 
 	// Publishing is a touch too.

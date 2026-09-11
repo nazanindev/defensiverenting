@@ -87,12 +87,12 @@ func (f *fakeStore) ListConcepts(_ context.Context) ([]store.Concept, error) {
 
 func newTestToolbelt(fs *fakeStore, pages map[string]string) *Toolbelt {
 	tb := &Toolbelt{db: fs, cache: newFetchCache(), extract: htmlStripper{}}
-	tb.fetch = func(u string) (fetched, error) {
+	tb.fetch = func(u string) (Receipt, error) {
 		body, ok := pages[u]
 		if !ok {
-			return fetched{}, fmt.Errorf("no such page")
+			return Receipt{}, fmt.Errorf("no such page")
 		}
-		return fetched{Text: tb.extract.extract(body)}, nil
+		return newReceipt(u, tb.extract.extract(body), TierDirect, ExtractorHTML), nil
 	}
 	return tb
 }

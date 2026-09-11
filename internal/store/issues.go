@@ -184,19 +184,23 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 	if err := scanIssueRows(ctx, q, `
 		SELECT pb.id, src.url,
 		       string_agg((ps.position + 1)::text, ', ' ORDER BY ps.position),
-		       (src.last_checked_at IS NULL)::text
+		       (src.last_checked_at IS NULL)::text, src.last_fetch_note
 		FROM playbook_statements ps
 		JOIN playbooks pb ON pb.id = ps.playbook_id
 		JOIN citations c ON c.statement_id = ps.statement_id
 		JOIN sources src ON src.id = c.source_id
 		WHERE `+cond+` AND src.kind <> 'editorial'
 		  AND btrim(c.quote) <> '' AND c.checked_at IS NULL AND NOT c.manually_verified
-		GROUP BY pb.id, src.url, src.last_checked_at
+		GROUP BY pb.id, src.url, src.last_checked_at, src.last_fetch_note
 		ORDER BY pb.id, src.url`, args,
 		func(id int64, f []string) {
 			first := pos(strings.SplitN(f[1], ",", 2)[0])
 			if f[2] == "true" {
-				add(id, first, "source-unreachable", fmt.Sprintf("the checker has never managed to read %s; it may block automated fetching. Statement(s) %s cite it with unconfirmed quotes — open the source yourself and attest each quote in the editor", f[0], f[1]))
+				why := "it may block automated fetching"
+				if f[3] != "" {
+					why = "last attempt: " + f[3]
+				}
+				add(id, first, "source-unreachable", fmt.Sprintf("the checker has never managed to read %s (%s). Statement(s) %s cite it with unconfirmed quotes — open the source yourself and attest each quote in the editor", f[0], why, f[1]))
 				return
 			}
 			add(id, first, "unverified-quote", fmt.Sprintf("quotes from %s were never confirmed at the source (statement(s) %s) — re-check them in the editor, or attest by hand", f[0], f[1]))

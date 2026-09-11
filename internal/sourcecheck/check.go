@@ -5,6 +5,15 @@
 // the whole page) avoids false alarms from dynamic page content: timestamps,
 // banners, and session tokens change constantly; our cited statutory text
 // does not, unless it actually changed.
+//
+// "Changed" is never inferred from "not found". Each fetch comes back as a
+// drafting.Receipt saying which tier and extractor produced the text, and
+// each citation carries the receipt recorded when its quote was last
+// confirmed. A quote is declared missing only when the current text is
+// readable (live, not a script shell or bot-check page) and comparable
+// (produced by an extractor at least as good as the one that confirmed the
+// quote). Anything else is reported as "could not check here", and the
+// source keeps the stamp from the run that last actually read it.
 package sourcecheck
 
 import (
@@ -14,21 +23,25 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 // Result summarizes a check run.
 type Result struct {
-	Sources  int // sources checked
-	Drifted  int // sources with at least one cited quote no longer found
-	Proposed int // source-drift proposals filed for the review queue
-	Failed   int // sources that could not be fetched
-	Skipped  int // citations carrying no quote, so nothing could be verified
-	Unused   int // unused-source deletion proposals filed for the review queue
+	Sources      int // sources read and examined
+	Drifted      int // sources with at least one cited quote no longer found
+	Proposed     int // source-drift proposals filed for the review queue
+	Failed       int // sources that could not be fetched at all
+	Unreadable   int // sources that answered with text too thin to examine (script shell, bot check)
+	Incomparable int // citations whose quote was not found but whose baseline extractor outranks this run's, so nothing was concluded
+	Skipped      int // citations carrying no quote, so nothing could be verified
+	Unused       int // unused-source deletion proposals filed for the review queue
 }
 
-// FetchFunc returns the readable text of a URL (e.g. drafting.FetchExtract).
-type FetchFunc func(url string) (string, error)
+// FetchFunc returns the readable text of a URL with its receipt (e.g.
+// drafting.FetchExtract).
+type FetchFunc func(url string) (drafting.Receipt, error)
 
 // closeEnough is the similarity above which the nearest passage in the new
 // fetch is offered as the replacement quote. Below it the proposal carries
@@ -38,13 +51,15 @@ const closeEnough = 0.6
 // Run re-fetches every cited source once and confirms each verbatim quote cited
 // from it still appears in the current page. Every confirmation is recorded:
 // the source's last_checked_at and each confirmed citation's checked_at are
-// stamped, so "when was this last checked" is answerable per source and per
-// statement, not just per run.
+// stamped with this run's receipt, so "when was this last checked, and
+// against what" is answerable per source and per statement, not just per run.
 //
 // A quote that went missing becomes a source-drift proposal against the
 // statement citing it: the same statement with that citation's quote swapped
 // for the nearest passage in the new text when the match is close, and a
-// work item carrying the passage as evidence when it is not. The checker
+// work item carrying the passage as evidence when it is not. The evidence
+// shows the passage the quote sat in when it was confirmed beside the passage
+// found now, and says whether the page text changed at all. The checker
 // knows the quote vanished; it does not know the law. A person decides on
 // the review queue. A statement whose drift is already waiting there, or was
 // rejected for this same quote, is not filed again.
@@ -99,39 +114,80 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 	res := Result{Skipped: skipped, Unused: unused}
 	for _, id := range order {
 		a := bySrc[id]
-		text, err := fetch(a.url)
+		rc, err := fetch(a.url)
 		if err != nil {
 			res.Failed++
 			logf("✗ %s: %v", a.url, err)
+			if err := db.MarkSourceUnreadable(ctx, id, "fetch failed: "+err.Error()); err != nil {
+				return res, err
+			}
 			continue
 		}
-		hay := normalize(text)
-		var present []string
-		var missing []store.CitationCheckRow
+		if !rc.Live() {
+			// FetchExtract never returns a snapshot; a test fetcher might.
+			res.Failed++
+			logf("✗ %s: only a %s was available, which says nothing about the live page", a.url, rc.Describe())
+			if err := db.MarkSourceUnreadable(ctx, id, "only a snapshot was available ("+rc.Describe()+")"); err != nil {
+				return res, err
+			}
+			continue
+		}
+
+		var present []store.QuoteConfirmation
+		var missing, unchecked []store.CitationCheckRow
 		for _, r := range a.rows {
-			if strings.Contains(hay, normalize(r.Quote)) {
-				present = append(present, r.Quote)
-			} else {
+			switch {
+			case r.CheckedHash != "" && r.CheckedHash == rc.Hash:
+				// The page text is byte-for-byte what the quote was confirmed
+				// in. No matching needed, and no matcher can disagree.
+				present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: r.CheckedContext})
+			case drafting.QuoteAppearsIn(rc.Text, r.Quote):
+				present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: drafting.Context(rc.Text, r.Quote)})
+			case rc.Thin:
+				// A quote absent from a script shell or a bot-check page is
+				// not evidence of anything.
+				unchecked = append(unchecked, r)
+			case !drafting.Comparable(r.CheckedExtractor, rc.Extractor):
+				res.Incomparable++
+				logf("  ? %s: quote confirmed under %s cannot be judged missing by %s — not comparable here: %q", a.url, r.CheckedExtractor, rc.Extractor, clip(r.Quote, 80))
+			default:
 				missing = append(missing, r)
 			}
 		}
-		// Stamp the quotes this fetch confirmed, even on a drifted source: the
-		// quotes still present were checked and found intact, and only the
-		// missing ones keep their older stamp.
-		if err := db.MarkQuotesChecked(ctx, id, present); err != nil {
+
+		fetchReceipt := store.CheckReceipt{Via: rc.Tier, Extractor: rc.Extractor, Hash: rc.Hash}
+		// Stamp the quotes this fetch confirmed, even on a drifted or thin
+		// source: the quotes found were checked and found intact, and only
+		// the others keep their older stamp.
+		if err := db.MarkQuotesChecked(ctx, id, fetchReceipt, present); err != nil {
 			return res, err
 		}
-		if err := db.MarkSourceReviewed(ctx, id); err != nil {
-			return res, err
+		if len(unchecked) > 0 {
+			res.Unreadable++
+			note := fmt.Sprintf("page too thin to examine (%s): %d of %d quote(s) could not be checked", rc.Describe(), len(unchecked), len(a.rows))
+			logf("⚠ %s — %s", a.url, note)
+			if err := db.MarkSourceUnreadable(ctx, id, note); err != nil {
+				return res, err
+			}
+			if len(present) == 0 {
+				continue
+			}
 		}
-		res.Sources++
+		if len(unchecked) == 0 {
+			if err := db.MarkSourceChecked(ctx, id, rc.Describe()); err != nil {
+				return res, err
+			}
+			res.Sources++
+		}
 		if len(missing) == 0 {
-			logf("· %s — all %d quote(s) still present", a.url, len(a.rows))
+			if len(unchecked) == 0 {
+				logf("· %s — all %d quote(s) still present (%s)", a.url, len(a.rows), rc.Describe())
+			}
 			continue
 		}
 		res.Drifted++
-		logf("⚑ %s — %d of %d cited quote(s) no longer found", a.url, len(missing), len(a.rows))
-		filed, err := fileDrift(ctx, db, a.url, a.publisher, hay, missing, logf)
+		logf("⚑ %s — %d of %d cited quote(s) no longer found (%s)", a.url, len(missing), len(a.rows), rc.Describe())
+		filed, err := fileDrift(ctx, db, a.url, a.publisher, rc, missing, logf)
 		if err != nil {
 			return res, err
 		}
@@ -141,7 +197,8 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 }
 
 // fileDrift files one proposal per (statement, missing quote) on a source.
-func fileDrift(ctx context.Context, db store.Store, url, publisher, hay string, missing []store.CitationCheckRow, logf func(string, ...any)) (int, error) {
+func fileDrift(ctx context.Context, db store.Store, url, publisher string, rc drafting.Receipt, missing []store.CitationCheckRow, logf func(string, ...any)) (int, error) {
+	hay := normalize(rc.Text)
 	filed := 0
 	seen := map[string]bool{}
 	for _, r := range missing {
@@ -160,6 +217,9 @@ func fileDrift(ctx context.Context, db store.Store, url, publisher, hay string, 
 		evidence := map[string]any{
 			"source_url": url, "publisher": publisher, "locator": r.Locator,
 			"old_quote": r.Quote, "new_quote": passage, "similarity": score,
+			"old_context": r.CheckedContext, "new_context": drafting.Context(rc.Text, passage),
+			"fetched_via": rc.Describe(), "confirmed_via": r.CheckedExtractor,
+			"text_changed": textChanged(r.CheckedHash, rc.Hash),
 		}
 		var proposed *store.ProposedStatement
 		if score >= closeEnough {
@@ -172,10 +232,12 @@ func fileDrift(ctx context.Context, db store.Store, url, publisher, hay string, 
 			}
 			for i := range st.Citations {
 				if st.Citations[i].URL == url && st.Citations[i].Quote == r.Quote {
-					// The passage is verbatim in the text this run fetched,
-					// so the approval can stamp it on the checker's word.
+					// The passage is verbatim in the live text this run
+					// fetched, so the approval may fall back to the
+					// checker's word if it cannot read the source itself.
 					st.Citations[i].Quote = passage
 					st.Citations[i].Checked = true
+					st.Citations[i].CheckedVia = rc.Describe()
 				}
 			}
 			proposed = &st
@@ -201,6 +263,21 @@ func fileDrift(ctx context.Context, db store.Store, url, publisher, hay string, 
 		}
 	}
 	return filed, nil
+}
+
+// textChanged says what the hashes prove about the page: "yes" when the text
+// the quote was confirmed in differs from the text fetched now, and "unknown"
+// when no baseline was recorded (the quote was confirmed before receipts, or
+// attested by hand). It is never "no": a quote missing from unchanged text
+// cannot happen, since an equal hash is accepted before any matching.
+func textChanged(baseline, now string) string {
+	if baseline == "" {
+		return "unknown"
+	}
+	if baseline != now {
+		return "yes"
+	}
+	return "no"
 }
 
 // Nearest finds the window of text closest to quote, comparing whitespace-
@@ -254,6 +331,13 @@ func fold(w string) string {
 	return strings.ToLower(strings.Trim(w, ".,;:()[]\"'“”‘’"))
 }
 
-// normalize collapses whitespace so the quote match tolerates layout changes,
-// matching how the drafting guardrail verifies quotes at save time.
+// normalize collapses whitespace so Nearest tolerates layout changes.
 func normalize(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+func clip(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}

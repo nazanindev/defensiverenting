@@ -32,17 +32,10 @@ const draftLanguage = "en"
 type Toolbelt struct {
 	db          store.Store
 	cache       *fetchCache
-	fetch       func(url string) (fetched, error) // overridable in tests
+	fetch       func(url string) (Receipt, error) // overridable in tests
 	extract     textExtractor
 	archiveBase string                           // Internet Archive fallback prefix, overridable in tests
 	render      func(url string) (string, error) // headless-render fallback, overridable in tests; nil skips the tier
-}
-
-// fetched is the result of reading a source: its extracted text, and how it
-// was obtained when a fallback was needed.
-type fetched struct {
-	Text string
-	Via  string // empty for a direct fetch; e.g. "web.archive.org snapshot"
 }
 
 // New builds a Toolbelt backed by a store, an HTTP fetcher, and the default
@@ -67,26 +60,27 @@ func reject(format string, args ...any) error {
 
 // ---- fetch cache -----------------------------------------------------------
 
-// fetchCache stores the extracted text of every URL fetched this session, keyed
-// by URL. SaveDraft checks citation quotes against these entries.
+// fetchCache stores the receipt of every URL fetched this session, keyed by
+// URL. SaveDraft checks citation quotes against these entries, and the
+// receipt's tier decides whether a match may be recorded as a confirmation.
 type fetchCache struct {
 	mu sync.Mutex
-	m  map[string]string
+	m  map[string]Receipt
 }
 
-func newFetchCache() *fetchCache { return &fetchCache{m: map[string]string{}} }
+func newFetchCache() *fetchCache { return &fetchCache{m: map[string]Receipt{}} }
 
-func (c *fetchCache) put(url, text string) {
+func (c *fetchCache) put(url string, r Receipt) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.m[url] = text
+	c.m[url] = r
 }
 
-func (c *fetchCache) get(url string) (string, bool) {
+func (c *fetchCache) get(url string) (Receipt, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	t, ok := c.m[url]
-	return t, ok
+	r, ok := c.m[url]
+	return r, ok
 }
 
 // ---- HTTP fetch + text extraction ------------------------------------------
@@ -116,31 +110,47 @@ const (
 // fails or is unavailable (no local Chrome), the newest Internet Archive
 // snapshot. The render tier is tried before the archive because it reflects
 // current law, where a snapshot may be stale. The citation always points at
-// the original URL; Via records which tier supplied the text so the agent
-// and the human reviewer can see how it was obtained.
-func (tb *Toolbelt) httpFetch(url string) (fetched, error) {
-	text, err := tb.fetchDirect(url)
-	if err == nil && !tooThin(text) {
-		return fetched{Text: text}, nil
+// the original URL; the Receipt records which tier and extractor supplied
+// the text so the agent, the checker and the human reviewer can see how it
+// was obtained.
+func (tb *Toolbelt) httpFetch(url string) (Receipt, error) {
+	direct, err := tb.fetchDirect(url, TierDirect)
+	if err == nil && !direct.Thin {
+		return direct, nil
 	}
-	if tb.render != nil {
-		if rtext, rerr := tb.render(url); rerr == nil && !tooThin(rtext) {
-			return fetched{Text: rtext, Via: "headless render"}, nil
-		}
+	if r, ok := tb.renderTier(url); ok {
+		return r, nil
 	}
-	atext, aerr := tb.fetchDirect(tb.archiveBase + url)
-	if aerr == nil && !tooThin(atext) {
-		return fetched{Text: atext, Via: "web.archive.org snapshot"}, nil
+	archive, aerr := tb.fetchDirect(tb.archiveBase+url, TierArchive)
+	if aerr == nil && !archive.Thin {
+		archive.URL = url
+		return archive, nil
 	}
 	if err == nil {
-		return fetched{Text: text}, nil // direct was thin, but neither fallback was better
+		return direct, nil // direct was thin, but neither fallback was better
 	}
-	return fetched{}, err
+	return Receipt{}, err
+}
+
+// renderTier runs the headless-render fallback when one is configured and
+// reports whether it produced a page worth quoting from.
+func (tb *Toolbelt) renderTier(url string) (Receipt, bool) {
+	if tb.render == nil {
+		return Receipt{}, false
+	}
+	rtext, rerr := tb.render(url)
+	if rerr != nil {
+		return Receipt{}, false
+	}
+	r := newReceipt(url, rtext, TierRender, ExtractorRender)
+	return r, !r.Thin
 }
 
 // fetchDirect performs one GET and extracts readable text: PDF extraction for
-// PDF responses, HTML stripping otherwise. Non-2xx statuses are errors.
-func (tb *Toolbelt) fetchDirect(url string) (string, error) {
+// PDF responses, HTML stripping otherwise. Non-2xx statuses are errors. tier
+// labels the receipt: the same GET serves the direct tier and the archive
+// tier, which differ only in what the URL points at.
+func (tb *Toolbelt) fetchDirect(url, tier string) (Receipt, error) {
 	// context.Background rather than a caller's context: fetchDirect is reached
 	// through FetchExtract, whose signature carries no context, so there is no
 	// real one to thread yet. Making that explicit beats an implicit nil.
@@ -148,32 +158,30 @@ func (tb *Toolbelt) fetchDirect(url string) (string, error) {
 	// cancelled and is worth doing separately.
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
-		return "", err
+		return Receipt{}, err
 	}
 	req.Header.Set("User-Agent", userAgent)
 	client := &http.Client{Timeout: fetchTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return Receipt{}, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
-		return "", err
+		return Receipt{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return "", fmt.Errorf("status %d", resp.StatusCode)
+		return Receipt{}, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	if isPDF(resp.Header.Get("Content-Type"), body) {
-		return pdfExtract(body)
+		text, extractor, err := pdfExtract(body)
+		if err != nil {
+			return Receipt{}, err
+		}
+		return newReceipt(url, text, tier, extractor), nil
 	}
-	return tb.extract.extract(string(body)), nil
-}
-
-// tooThin reports whether extracted text is too short to quote from — the
-// signature of a JS-only shell or a block page.
-func tooThin(text string) bool {
-	return len(normalizeForMatch(text)) < minUsableChars
+	return newReceipt(url, tb.extract.extract(string(body)), tier, ExtractorHTML), nil
 }
 
 // FetchExtract fetches a URL and returns its extracted readable text using the
@@ -182,10 +190,14 @@ func tooThin(text string) bool {
 // Cloudflare-style 403) or too thin to quote from (a JS-only shell) — the same
 // class of problem httpFetch's render tier solves for fetch_source. It never
 // falls back to the Internet Archive, unlike httpFetch: the source-change
-// checker hashes this text to detect upstream drift, and the quote verifier
-// checks a reviewer's pasted text against it, so both need the live page, not
-// a snapshot that could be stale.
-func FetchExtract(url string) (string, error) {
+// checker compares cited quotes against this text to detect upstream drift,
+// and the quote verifier checks a reviewer's pasted text against it, so both
+// need the live page, not a snapshot that could be stale.
+//
+// The receipt says what came back. A thin receipt (Readable() false) is the
+// live page answering with a script shell or a bot-check interstitial, and
+// callers must treat a quote missing from it as "could not check here".
+func FetchExtract(url string) (Receipt, error) {
 	tb := &Toolbelt{extract: htmlStripper{}}
 	tb.render = tb.chromeRender
 	return tb.fetchNoArchive(url)
@@ -194,20 +206,18 @@ func FetchExtract(url string) (string, error) {
 // fetchNoArchive is httpFetch without the archive tier: direct fetch, then a
 // headless render if that's blocked or too thin. Split out so FetchExtract's
 // render fallback is testable without a real Chrome (see fetch_test.go).
-func (tb *Toolbelt) fetchNoArchive(url string) (string, error) {
-	text, err := tb.fetchDirect(url)
-	if err == nil && !tooThin(text) {
-		return text, nil
+func (tb *Toolbelt) fetchNoArchive(url string) (Receipt, error) {
+	direct, err := tb.fetchDirect(url, TierDirect)
+	if err == nil && !direct.Thin {
+		return direct, nil
 	}
-	if tb.render != nil {
-		if rtext, rerr := tb.render(url); rerr == nil && !tooThin(rtext) {
-			return rtext, nil
-		}
+	if r, ok := tb.renderTier(url); ok {
+		return r, nil
 	}
 	if err == nil {
-		return text, nil // direct was thin, but render was no better
+		return direct, nil // direct was thin, but render was no better; the receipt says so
 	}
-	return "", err
+	return Receipt{}, err
 }
 
 // textExtractor turns a fetched document body into readable text. Kept behind an

@@ -23,8 +23,8 @@ func TestHTTPFetch_directSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("httpFetch: %v", err)
 	}
-	if !strings.Contains(got.Text, "DIRECT") || got.Via != "" {
-		t.Errorf("got Via=%q text=%.40q, want direct text and empty Via", got.Via, got.Text)
+	if !strings.Contains(got.Text, "DIRECT") || got.Via() != "" {
+		t.Errorf("got Via=%q text=%.40q, want direct text and empty Via", got.Via(), got.Text)
 	}
 }
 
@@ -56,8 +56,8 @@ func TestHTTPFetch_archiveFallbackOnBlock(t *testing.T) {
 			if !strings.Contains(got.Text, "ARCHIVED") {
 				t.Errorf("text = %.60q, want archived content", got.Text)
 			}
-			if got.Via != "web.archive.org snapshot" {
-				t.Errorf("Via = %q, want snapshot marker", got.Via)
+			if got.Via() != "web.archive.org snapshot" {
+				t.Errorf("Via = %q, want snapshot marker", got.Via())
 			}
 		})
 	}
@@ -80,8 +80,8 @@ func TestHTTPFetch_renderFallbackOnThinPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("httpFetch: %v", err)
 	}
-	if !strings.Contains(got.Text, "RENDERED") || got.Via != "headless render" {
-		t.Errorf("got Via=%q text=%.40q, want headless-render text and Via=%q", got.Via, got.Text, "headless render")
+	if !strings.Contains(got.Text, "RENDERED") || got.Via() != "headless render" {
+		t.Errorf("got Via=%q text=%.40q, want headless-render text and Via=%q", got.Via(), got.Text, "headless render")
 	}
 }
 
@@ -106,8 +106,8 @@ func TestHTTPFetch_renderFailureFallsThroughToArchive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("httpFetch: %v", err)
 	}
-	if !strings.Contains(got.Text, "ARCHIVED") || got.Via != "web.archive.org snapshot" {
-		t.Errorf("got Via=%q text=%.40q, want archive text when render fails", got.Via, got.Text)
+	if !strings.Contains(got.Text, "ARCHIVED") || got.Via() != "web.archive.org snapshot" {
+		t.Errorf("got Via=%q text=%.40q, want archive text when render fails", got.Via(), got.Text)
 	}
 }
 
@@ -162,8 +162,8 @@ func TestFetchNoArchive_renderFallbackOn403(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fetchNoArchive: %v", err)
 	}
-	if !strings.Contains(got, "RENDERED") {
-		t.Errorf("text = %.40q, want rendered content", got)
+	if !strings.Contains(got.Text, "RENDERED") || got.Tier != TierRender || !got.Readable() {
+		t.Errorf("receipt = tier %q readable %v text %.40q, want readable rendered content", got.Tier, got.Readable(), got.Text)
 	}
 }
 
@@ -204,5 +204,34 @@ func TestStripAllWS_fusedPDFQuoteMatch(t *testing.T) {
 	}
 	if strings.Contains(stripAllWS(cached), stripAllWS("THE TENANT LANDLORD ACT")) {
 		t.Error("reordered words must not match")
+	}
+}
+
+func TestFetchNoArchive_thinPageComesBackAsUnreadableReceipt(t *testing.T) {
+	// The class of bug this guards against: a bot-check interstitial or a
+	// script-only shell answers 200 with a few hundred characters. The
+	// checker used to compare every cited quote against that shell and file
+	// each one as drift. The text still comes back — a quote found in it is
+	// found — but the receipt says a quote missing from it means nothing.
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html><body><p>Checking your browser before accessing the site.</p></body></html>`))
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{
+		extract: htmlStripper{},
+		render: func(url string) (string, error) {
+			return "", errors.New("no local chrome found")
+		},
+	}
+	got, err := tb.fetchNoArchive(direct.URL)
+	if err != nil {
+		t.Fatalf("fetchNoArchive: %v", err)
+	}
+	if !got.Thin || got.Readable() || got.Tier != TierDirect || got.Extractor != ExtractorHTML {
+		t.Errorf("receipt = %+v, want a thin, unreadable direct/html receipt", got)
+	}
+	if !strings.Contains(got.Describe(), "thin") {
+		t.Errorf("Describe() = %q, want it to say the page was thin", got.Describe())
 	}
 }

@@ -8,8 +8,13 @@ RUN go build -o /authoring ./cmd/authoring
 FROM alpine:3.20
 # chromium backs the quote verifier's and checkSources' headless-render
 # fallback (see internal/drafting/render.go) for sources that block a plain
-# HTTP fetch. The rest are its runtime deps for headless rendering on Alpine.
-RUN apk add --no-cache ca-certificates chromium nss freetype harfbuzz ttf-freefont
+# HTTP fetch; nss, freetype, harfbuzz and ttf-freefont are its runtime deps
+# for headless rendering on Alpine. poppler-utils supplies pdftotext so PDFs
+# extract to the same text here as on a developer machine: a quote confirmed
+# under pdftotext cannot be re-checked by the pure-Go reader (see
+# drafting.Comparable), so without it this server could never examine a
+# PDF-backed citation that was confirmed elsewhere.
+RUN apk add --no-cache ca-certificates chromium nss freetype harfbuzz ttf-freefont poppler-utils
 COPY --from=builder /authoring /authoring
 EXPOSE 8081
 ENTRYPOINT ["/authoring"]

@@ -90,6 +90,13 @@ type CitationCheckRow struct {
 	// proposal against that statement (ADR-014 D4).
 	StatementKey string
 	Locator      string
+	// The baseline recorded when the quote was last confirmed: which
+	// extractor produced the text it was found in, that text's hash, and the
+	// passage around the quote. Empty on rows confirmed before receipts were
+	// recorded, or attested by hand.
+	CheckedExtractor string
+	CheckedHash      string
+	CheckedContext   string
 }
 
 type Statement struct {

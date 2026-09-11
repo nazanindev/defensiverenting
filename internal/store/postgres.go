@@ -831,28 +831,42 @@ func (pg *PG) GetEditorialSource(ctx context.Context) (Source, error) {
 // and the identical text carries its confirmation with it. Rows from before
 // migration 000017 have no stamp to inherit and stay NULL — claiming a time we
 // did not record would be the same lie retrieved_at already tells.
-// checked_by follows checked_at through the same three arms: nobody for a
-// never-confirmed quote, the current actor ($7) for a confirmation made by
-// this save, and otherwise whoever made the newest stamp being inherited —
-// the inherited time and name must describe the same confirmation.
+//
+// checked_by and the receipt columns (checked_via, checked_extractor,
+// checked_hash, checked_context; migration 000040) follow checked_at through
+// the same three arms: nothing for a never-confirmed quote, the current
+// actor's values ($7..$11) for a confirmation made by this save, and
+// otherwise whatever the newest stamp being inherited recorded — the
+// inherited time, name and receipt must describe the same confirmation.
 const insertCitationSQL = `
-	INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified, checked_at, checked_by)
-	VALUES ($1, $2, $3, $4, $5,
-		CASE WHEN btrim($4) = '' THEN NULL
-		     WHEN $6 THEN NOW()
-		     ELSE (SELECT max(c2.checked_at) FROM citations c2
-		           WHERE c2.source_id = $2 AND c2.quote = $4)
-		END,
-		CASE WHEN btrim($4) = '' THEN ''
-		     WHEN $6 THEN $7
-		     ELSE COALESCE((SELECT c2.checked_by FROM citations c2
-		           WHERE c2.source_id = $2 AND c2.quote = $4 AND c2.checked_at IS NOT NULL
-		           ORDER BY c2.checked_at DESC LIMIT 1), '')
-		END)
+	INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified,
+	                       checked_at, checked_by, checked_via, checked_extractor, checked_hash, checked_context)
+	SELECT $1::bigint, $2::bigint, $3::text, $4::text, $5::boolean,
+		CASE WHEN btrim($4::text) = '' THEN NULL WHEN $6::boolean THEN NOW() ELSE prior.checked_at END,
+		CASE WHEN btrim($4::text) = '' THEN '' WHEN $6::boolean THEN $7::text  ELSE COALESCE(prior.checked_by, '') END,
+		CASE WHEN btrim($4::text) = '' THEN '' WHEN $6::boolean THEN $8::text  ELSE COALESCE(prior.checked_via, '') END,
+		CASE WHEN btrim($4::text) = '' THEN '' WHEN $6::boolean THEN $9::text  ELSE COALESCE(prior.checked_extractor, '') END,
+		CASE WHEN btrim($4::text) = '' THEN '' WHEN $6::boolean THEN $10::text ELSE COALESCE(prior.checked_hash, '') END,
+		CASE WHEN btrim($4::text) = '' THEN '' WHEN $6::boolean THEN $11::text ELSE COALESCE(prior.checked_context, '') END
+	FROM (SELECT 1) AS one
+	LEFT JOIN LATERAL (
+		SELECT c2.checked_at, c2.checked_by, c2.checked_via, c2.checked_extractor, c2.checked_hash, c2.checked_context
+		FROM citations c2
+		WHERE c2.source_id = $2::bigint AND c2.quote = $4::text AND c2.checked_at IS NOT NULL
+		ORDER BY c2.checked_at DESC LIMIT 1
+	) AS prior ON true
 	ON CONFLICT (statement_id, source_id) DO UPDATE SET
 		locator = EXCLUDED.locator, quote = EXCLUDED.quote,
 		manually_verified = EXCLUDED.manually_verified,
-		checked_at = EXCLUDED.checked_at, checked_by = EXCLUDED.checked_by`
+		checked_at = EXCLUDED.checked_at, checked_by = EXCLUDED.checked_by,
+		checked_via = EXCLUDED.checked_via, checked_extractor = EXCLUDED.checked_extractor,
+		checked_hash = EXCLUDED.checked_hash, checked_context = EXCLUDED.checked_context`
+
+// citationArgs is the argument list insertCitationSQL expects for one row.
+func citationArgs(stmtID int64, cite IngestCitationParams) []any {
+	return []any{stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow, cite.CheckedBy,
+		cite.Checked.Via, cite.Checked.Extractor, cite.Checked.Hash, cite.Checked.Context}
+}
 
 // insertStatement writes one statement row, resolving its concept slug against
 // the registry. An unknown slug is an error, not a silently dropped tag: the
@@ -1054,9 +1068,7 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 			}
 
 			for _, cite := range sp.Sources {
-				if _, err := tx.Exec(ctx, insertCitationSQL,
-					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow, cite.CheckedBy,
-				); err != nil {
+				if _, err := tx.Exec(ctx, insertCitationSQL, citationArgs(stmtID, cite)...); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}
 			}
@@ -1278,9 +1290,7 @@ func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdateP
 				return fmt.Errorf("insert statement %d: %w", i, err)
 			}
 			for _, cite := range sp.Sources {
-				if _, err := tx.Exec(ctx, insertCitationSQL,
-					stmtID, cite.SourceID, cite.Locator, cite.Quote, cite.ManuallyVerified, cite.CheckedNow, cite.CheckedBy,
-				); err != nil {
+				if _, err := tx.Exec(ctx, insertCitationSQL, citationArgs(stmtID, cite)...); err != nil {
 					return fmt.Errorf("insert citation for statement %d: %w", i, err)
 				}
 			}

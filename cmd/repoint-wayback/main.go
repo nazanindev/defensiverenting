@@ -110,12 +110,18 @@ func main() {
 			log.Fatalf("repoint-wayback: citations of source %d: %v", s.id, err)
 		}
 
-		text, err := drafting.FetchExtract(live)
+		rc, err := drafting.FetchExtract(live)
 		if err != nil {
 			held++
 			fmt.Printf("⚑ HOLD source %d (%s): live page did not fetch: %s: %v\n", s.id, s.pub, live, err)
 			continue
 		}
+		if !rc.Readable() {
+			held++
+			fmt.Printf("⚑ HOLD source %d (%s): live page answered with only a shell (%s): %s\n", s.id, s.pub, rc.Describe(), live)
+			continue
+		}
+		text := rc.Text
 
 		var missing []citation
 		unverifiable := 0
@@ -133,7 +139,7 @@ func main() {
 				s.id, s.pub, len(missing), len(cites), live)
 			for _, c := range missing {
 				fmt.Printf("    statement %d: %q\n", c.statementID, clip(c.quote, 90))
-				n, err := proposeDrift(ctx, db, s.url, live, s.pub, text, c, *apply)
+				n, err := proposeDrift(ctx, db, s.url, live, s.pub, rc, c, *apply)
 				if err != nil {
 					log.Fatalf("repoint-wayback: propose drift for statement %d: %v", c.statementID, err)
 				}
@@ -151,7 +157,7 @@ func main() {
 			fmt.Printf("· would repoint source %d (%s): %d citation(s) → %s%s\n", s.id, s.pub, len(cites), live, note)
 			continue
 		}
-		if err := repoint(ctx, pool, s.id, live); err != nil {
+		if err := repoint(ctx, pool, s.id, live, rc); err != nil {
 			log.Fatalf("repoint-wayback: repoint source %d: %v", s.id, err)
 		}
 		fmt.Printf("✓ repointed source %d (%s): %d citation(s) → %s%s\n", s.id, s.pub, len(cites), live, note)
@@ -178,7 +184,8 @@ func main() {
 // passage when the match is close, or a finding when it is not. Approval on
 // the queue then performs the repoint for that statement. Returns 1 when a
 // proposal was (or in a dry run, would be) filed.
-func proposeDrift(ctx context.Context, db *store.PG, snapshotURL, liveURL, publisher, liveText string, c citation, apply bool) (int, error) {
+func proposeDrift(ctx context.Context, db *store.PG, snapshotURL, liveURL, publisher string, rc drafting.Receipt, c citation, apply bool) (int, error) {
+	liveText := rc.Text
 	if c.key == "" {
 		return 0, nil // orphaned statement, no page cites it
 	}
@@ -188,7 +195,7 @@ func proposeDrift(ctx context.Context, db *store.PG, snapshotURL, liveURL, publi
 	}
 	passage, score := sourcecheck.Nearest(liveText, c.quote)
 	evidence := map[string]any{
-		"snapshot_url": snapshotURL, "source_url": liveURL, "publisher": publisher,
+		"snapshot_url": snapshotURL, "source_url": liveURL, "publisher": publisher, "fetched_via": rc.Describe(),
 		"old_quote": c.quote, "new_quote": passage, "similarity": score,
 	}
 	var proposed *store.ProposedStatement
@@ -205,6 +212,7 @@ func proposeDrift(ctx context.Context, db *store.PG, snapshotURL, liveURL, publi
 				st.Citations[i].URL = liveURL
 				st.Citations[i].Quote = passage
 				st.Citations[i].Checked = true // verbatim in the live text just fetched
+				st.Citations[i].CheckedVia = rc.Describe()
 			}
 		}
 		proposed = &st
@@ -252,9 +260,9 @@ func listCitations(ctx context.Context, pool *pgxpool.Pool, sourceID int64) ([]c
 // UNIQUE), the citations move to it and the snapshot row is deleted; otherwise
 // the snapshot row's url is rewritten in place. Either way the quotes were
 // just confirmed against the live page, so checked_at/checked_by are stamped
-// on every non-empty-quote citation — empty quotes verified nothing and keep
-// their prior state.
-func repoint(ctx context.Context, pool *pgxpool.Pool, snapID int64, live string) error {
+// on every non-empty-quote citation, with the receipt of the fetch that
+// confirmed them — empty quotes verified nothing and keep their prior state.
+func repoint(ctx context.Context, pool *pgxpool.Pool, snapID int64, live string, rc drafting.Receipt) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -270,12 +278,17 @@ func repoint(ctx context.Context, pool *pgxpool.Pool, snapID int64, live string)
 		// Merge into the existing live row. A statement citing both the
 		// snapshot and the live row keeps the live citation it already has.
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified, checked_at, checked_by)
+			INSERT INTO citations (statement_id, source_id, locator, quote, manually_verified, checked_at, checked_by,
+			                       checked_via, checked_extractor, checked_hash, checked_context)
 			SELECT statement_id, $1, locator, quote, manually_verified,
 			       CASE WHEN quote <> '' THEN NOW() ELSE checked_at END,
-			       CASE WHEN quote <> '' THEN $3 ELSE checked_by END
+			       CASE WHEN quote <> '' THEN $3 ELSE checked_by END,
+			       CASE WHEN quote <> '' THEN $4 ELSE checked_via END,
+			       CASE WHEN quote <> '' THEN $5 ELSE checked_extractor END,
+			       CASE WHEN quote <> '' THEN $6 ELSE checked_hash END,
+			       CASE WHEN quote <> '' THEN '' ELSE checked_context END
 			FROM citations WHERE source_id = $2
-			ON CONFLICT (statement_id, source_id) DO NOTHING`, liveID, snapID, checkedBy); err != nil {
+			ON CONFLICT (statement_id, source_id) DO NOTHING`, liveID, snapID, checkedBy, rc.Tier, rc.Extractor, rc.Hash); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM citations WHERE source_id = $1`, snapID); err != nil {
@@ -287,17 +300,18 @@ func repoint(ctx context.Context, pool *pgxpool.Pool, snapID int64, live string)
 		if _, err := tx.Exec(ctx, `DELETE FROM sources WHERE id = $1`, snapID); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE sources SET retrieved_at = NOW(), last_checked_at = NOW() WHERE id = $1`, liveID); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE sources SET retrieved_at = NOW(), last_checked_at = NOW(), last_fetch_at = NOW(), last_fetch_note = $2 WHERE id = $1`, liveID, rc.Describe()); err != nil {
 			return err
 		}
 	case pgx.ErrNoRows:
 		if _, err := tx.Exec(ctx, `
-			UPDATE sources SET url = $1, retrieved_at = NOW(), last_checked_at = NOW() WHERE id = $2`, live, snapID); err != nil {
+			UPDATE sources SET url = $1, retrieved_at = NOW(), last_checked_at = NOW(), last_fetch_at = NOW(), last_fetch_note = $3 WHERE id = $2`, live, snapID, rc.Describe()); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE citations SET checked_at = NOW(), checked_by = $2
-			WHERE source_id = $1 AND quote <> ''`, snapID, checkedBy); err != nil {
+			UPDATE citations SET checked_at = NOW(), checked_by = $2,
+			       checked_via = $3, checked_extractor = $4, checked_hash = $5, checked_context = ''
+			WHERE source_id = $1 AND quote <> ''`, snapID, checkedBy, rc.Tier, rc.Extractor, rc.Hash); err != nil {
 			return err
 		}
 	default:

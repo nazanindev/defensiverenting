@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 )
 
 // A reviewer can now type a quote into the form. These tests cover the check
@@ -24,8 +26,51 @@ func (f *fakeQuoteStore) CitationQuoteExists(_ context.Context, url, quote strin
 
 func newTestVerifier(known map[string]bool, fetch func(string) (string, error)) (*quoteVerifier, *fakeQuoteStore) {
 	fs := &fakeQuoteStore{known: known}
-	qv := &quoteVerifier{fetch: fetch, quotes: fs, cache: newSourceFetchCache(time.Minute)}
+	qv := &quoteVerifier{fetch: readable(fetch), quotes: fs, cache: newSourceFetchCache(time.Minute)}
 	return qv, fs
+}
+
+// readable wraps a plain text fetch as a readable live receipt, the way a
+// full statute page comes back. Pages in these tests are a sentence long,
+// which a real fetch would call thin; the thin path has its own test.
+func readable(fetch func(string) (string, error)) func(string) (drafting.Receipt, error) {
+	return func(u string) (drafting.Receipt, error) {
+		text, err := fetch(u)
+		if err != nil {
+			return drafting.Receipt{}, err
+		}
+		return drafting.Receipt{URL: u, Text: text, Tier: drafting.TierDirect, Extractor: drafting.ExtractorHTML, Chars: len(text), Hash: "h-" + u}, nil
+	}
+}
+
+func TestQuoteVerifier_thinPageIsUnreadableNotAMismatch(t *testing.T) {
+	// A bot-check interstitial answers 200 with a few hundred characters.
+	// The quote is not in it, but that is the server failing to read the
+	// page, not the reviewer misquoting it: overridable, like a 403.
+	qv := &quoteVerifier{quotes: &fakeQuoteStore{}, fetch: func(u string) (drafting.Receipt, error) {
+		return drafting.Receipt{URL: u, Text: "Checking your browser before accessing the site.", Tier: drafting.TierDirect, Extractor: drafting.ExtractorHTML, Chars: 49, Thin: true}, nil
+	}}
+	res := qv.checkQuote(context.Background(), "https://law.example/walled", "within thirty days")
+	if res.Msg == "" || !res.Overridable || res.Verified {
+		t.Fatalf("thin page: got %+v, want an overridable failure", res)
+	}
+	if !strings.Contains(res.Msg, "attest") {
+		t.Errorf("message should point at attestation, got %q", res.Msg)
+	}
+}
+
+func TestQuoteVerifier_foundInThinPageStillCounts(t *testing.T) {
+	// A legitimately short page is thin too. A quote found in it is found.
+	qv := &quoteVerifier{quotes: &fakeQuoteStore{}, fetch: func(u string) (drafting.Receipt, error) {
+		return drafting.Receipt{URL: u, Text: "§ 2. The deposit is returned within thirty days.", Tier: drafting.TierDirect, Extractor: drafting.ExtractorHTML, Chars: 48, Hash: "abc", Thin: true}, nil
+	}}
+	res := qv.checkQuote(context.Background(), "https://law.example/short", "within thirty days")
+	if res.Msg != "" || !res.Verified {
+		t.Fatalf("got %+v, want verified", res)
+	}
+	if res.Receipt.Via != drafting.TierDirect || res.Receipt.Hash != "abc" || !strings.Contains(res.Receipt.Context, "within thirty days") {
+		t.Errorf("receipt = %+v, want the fetch's tier, hash and the passage around the quote", res.Receipt)
+	}
 }
 
 func TestQuoteVerifier_acceptsAQuotePresentInTheSource(t *testing.T) {
@@ -175,12 +220,12 @@ func TestSourceFetchCache_sharedAcrossVerifierInstances(t *testing.T) {
 	cache := newSourceFetchCache(time.Minute)
 	ctx := context.Background()
 
-	live := &quoteVerifier{fetch: fetch, quotes: &fakeQuoteStore{}, cache: cache}
+	live := &quoteVerifier{fetch: readable(fetch), quotes: &fakeQuoteStore{}, cache: cache}
 	if res := live.checkQuote(ctx, "https://law.example/shared", "beta gamma"); res.Msg != "" {
 		t.Fatalf("live check: %s", res.Msg)
 	}
 
-	atSave := &quoteVerifier{fetch: fetch, quotes: &fakeQuoteStore{}, cache: cache}
+	atSave := &quoteVerifier{fetch: readable(fetch), quotes: &fakeQuoteStore{}, cache: cache}
 	if res := atSave.check(ctx, 1, "https://law.example/shared", "beta gamma"); res.Msg != "" {
 		t.Fatalf("save check: %s", res.Msg)
 	}
@@ -193,10 +238,10 @@ func TestSourceFetchCache_sharedAcrossVerifierInstances(t *testing.T) {
 func TestSourceFetchCache_expiresAfterTTL(t *testing.T) {
 	n := 0
 	c := newSourceFetchCache(0) // expires immediately
-	qv := &quoteVerifier{fetch: func(string) (string, error) {
+	qv := &quoteVerifier{fetch: readable(func(string) (string, error) {
 		n++
 		return "alpha beta gamma delta", nil
-	}, quotes: &fakeQuoteStore{}, cache: c}
+	}), quotes: &fakeQuoteStore{}, cache: c}
 	ctx := context.Background()
 	qv.checkQuote(ctx, "https://law.example/ttl", "beta gamma")
 	qv.checkQuote(ctx, "https://law.example/ttl", "beta gamma")

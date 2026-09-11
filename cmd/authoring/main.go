@@ -958,8 +958,26 @@ func parseStatementTag(v string) (conceptSlug, topicRefSlug string) {
 // templateFuncs is shared with the template tests so that a helper added here
 // cannot be missing where the templates are parsed for rendering checks.
 var templateFuncs = template.FuncMap{
-	"date": fmtDate,
-	"inc":  func(i int) int { return i + 1 }, // 1-based row numbers
+	"date":      fmtDate,
+	"inc":       func(i int) int { return i + 1 }, // 1-based row numbers
+	"highlight": highlight,
+}
+
+// highlight renders a passage with one quote marked inside it, both escaped.
+// The passage is the checker's context window and the quote is the cited
+// text (or the nearest passage found now); marking it is what lets a reviewer
+// see at a glance which words moved.
+func highlight(passage, quote string) template.HTML {
+	passage, quote = strings.TrimSpace(passage), strings.TrimSpace(quote)
+	if quote == "" {
+		return template.HTML(template.HTMLEscapeString(passage)) //nolint:gosec // escaped
+	}
+	at := strings.Index(passage, quote)
+	if at < 0 {
+		return template.HTML(template.HTMLEscapeString(passage)) //nolint:gosec // escaped
+	}
+	return template.HTML( //nolint:gosec // every segment is escaped
+		template.HTMLEscapeString(passage[:at]) + "<mark>" + template.HTMLEscapeString(quote) + "</mark>" + template.HTMLEscapeString(passage[at+len(quote):]))
 }
 
 func fmtDate(v any) string {
@@ -1362,6 +1380,7 @@ func (s *srv) parsePageContent(ctx context.Context, r *http.Request, lang, actor
 				// skip is neither, and inherits its earlier stamp.
 				CheckedNow: res.Verified || overridden,
 				CheckedBy:  actorName,
+				Checked:    res.Receipt,
 			})
 		}
 		if r.FormValue(fmt.Sprintf("edit_%d", ji)) == "on" {
@@ -1725,7 +1744,7 @@ func (s *srv) sourceText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	qv := newQuoteVerifier(s.pg, s.sourceCache)
-	text, err := qv.fetchCached(u)
+	rc, err := qv.fetchCached(u)
 	// Fetched page text is untrusted; text/plain plus nosniff means no browser
 	// will ever interpret it as HTML, which is what gosec's XSS taint warning
 	// is about.
@@ -1736,7 +1755,10 @@ func (s *srv) sourceText(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not fetch %s: %v", u, err) //nolint:gosec // plain text + nosniff, see above
 		return
 	}
-	_, _ = w.Write([]byte(text)) //nolint:gosec // plain text + nosniff, see above
+	// The receipt leads so a reader knows what they are looking at: a thin
+	// page here is the server seeing a shell, not the statute.
+	fmt.Fprintf(w, "[%s]\n\n", rc.Describe()) //nolint:gosec // plain text + nosniff, see above
+	_, _ = w.Write([]byte(rc.Text))           //nolint:gosec // plain text + nosniff, see above
 }
 
 func (s *srv) checkQuoteLive(w http.ResponseWriter, r *http.Request) {
@@ -2121,7 +2143,7 @@ type quoteLookup interface {
 
 type quoteVerifier struct {
 	quotes quoteLookup
-	fetch  func(string) (string, error)
+	fetch  func(string) (drafting.Receipt, error)
 	cache  *sourceFetchCache // shared across requests; nil disables caching (tests)
 }
 
@@ -2138,7 +2160,7 @@ var errNoFetch = errors.New("autosave does not fetch sources")
 // poison the shared cache a real save reads. No cache, no fetch: an unknown
 // quote simply stays unverified until a manual save or blur-check confirms it.
 func knownQuoteVerifier(pg quoteLookup) *quoteVerifier {
-	return &quoteVerifier{quotes: pg, fetch: func(string) (string, error) { return "", errNoFetch }}
+	return &quoteVerifier{quotes: pg, fetch: func(string) (drafting.Receipt, error) { return drafting.Receipt{}, errNoFetch }}
 }
 
 // quoteCheckResult is check's verdict: Msg is a reviewer-facing message when
@@ -2155,6 +2177,10 @@ type quoteCheckResult struct {
 	// recorded earlier, so the citation's checked_at must inherit that older
 	// stamp rather than claim one from a fetch that never happened.
 	Verified bool
+	// Receipt is how the confirmation was made when Verified is set: the
+	// fetch tier and extractor, the text hash, and the passage the quote sat
+	// in. Stored with the citation so a later check can compare against it.
+	Receipt store.CheckReceipt
 }
 
 // check returns a reviewer-facing message when the quote cannot be confirmed,
@@ -2182,34 +2208,45 @@ func (qv *quoteVerifier) checkQuote(ctx context.Context, url, quote string) quot
 	if known, err := qv.quotes.CitationQuoteExists(ctx, url, quote); err == nil && known {
 		return quoteCheckResult{}
 	}
-	text, err := qv.fetchCached(url)
+	rc, err := qv.fetchCached(url)
 	if err != nil {
 		return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
 			"could not open %s to check the quote (%v). "+
 				"The citation saves either way but stays unverified, which blocks publishing — "+
 				"check \"I verified this quote myself\" to attest to it.", url, err)}
 	}
-	if !drafting.QuoteAppearsIn(text, quote) {
-		return quoteCheckResult{Msg: fmt.Sprintf("that quote does not appear in %s. "+
-			"Copy the wording from the source exactly, without editing it. "+
-			"It saves either way but cannot be published until it matches.", url)}
+	if drafting.QuoteAppearsIn(rc.Text, quote) {
+		return quoteCheckResult{Verified: true, Receipt: store.CheckReceipt{
+			Via: rc.Tier, Extractor: rc.Extractor, Hash: rc.Hash, Context: drafting.Context(rc.Text, quote),
+		}}
 	}
-	return quoteCheckResult{Verified: true}
+	if !rc.Readable() {
+		// The page answered, but with a script shell or a bot-check
+		// interstitial. A quote missing from that is not a mismatch; it is a
+		// source this server cannot read, which a person can.
+		return quoteCheckResult{Overridable: true, Msg: fmt.Sprintf(
+			"%s answered, but with only %d characters of text (%s) — a script-only page or a bot check, which this server cannot read. "+
+				"The citation saves either way but stays unverified, which blocks publishing — "+
+				"open the source yourself and check \"I verified this quote myself\" to attest to it.", url, rc.Chars, rc.Describe())}
+	}
+	return quoteCheckResult{Msg: fmt.Sprintf("that quote does not appear in %s (%s). "+
+		"Copy the wording from the source exactly, without editing it. "+
+		"It saves either way but cannot be published until it matches.", url, rc.Describe())}
 }
 
 // fetchCached routes a fetch through the shared source cache when one is set,
 // so the live check fired on every blur and the check repeated at save don't
 // each pay a slow or blocked source's fetch cost on their own.
-func (qv *quoteVerifier) fetchCached(url string) (string, error) {
+func (qv *quoteVerifier) fetchCached(url string) (drafting.Receipt, error) {
 	if qv.cache == nil {
 		return qv.fetch(url)
 	}
-	if text, err, ok := qv.cache.get(url); ok {
-		return text, err
+	if rc, err, ok := qv.cache.get(url); ok {
+		return rc, err
 	}
-	text, err := qv.fetch(url)
-	qv.cache.put(url, text, err)
-	return text, err
+	rc, err := qv.fetch(url)
+	qv.cache.put(url, rc, err)
+	return rc, err
 }
 
 // sourceFetchCache remembers a source fetch's outcome for a short time so
@@ -2225,29 +2262,29 @@ type sourceFetchCache struct {
 }
 
 type cacheEntry struct {
-	text string
-	err  error
-	at   time.Time
+	rc  drafting.Receipt
+	err error
+	at  time.Time
 }
 
 func newSourceFetchCache(ttl time.Duration) *sourceFetchCache {
 	return &sourceFetchCache{ttl: ttl, m: map[string]cacheEntry{}}
 }
 
-func (c *sourceFetchCache) get(url string) (text string, err error, ok bool) {
+func (c *sourceFetchCache) get(url string) (rc drafting.Receipt, err error, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, found := c.m[url]
 	if !found || time.Since(e.at) > c.ttl {
-		return "", nil, false
+		return drafting.Receipt{}, nil, false
 	}
-	return e.text, e.err, true
+	return e.rc, e.err, true
 }
 
-func (c *sourceFetchCache) put(url, text string, err error) {
+func (c *sourceFetchCache) put(url string, rc drafting.Receipt, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.m[url] = cacheEntry{text: text, err: err, at: time.Now()}
+	c.m[url] = cacheEntry{rc: rc, err: err, at: time.Now()}
 }
 
 // formError re-renders the new-playbook form with a validation message, handing

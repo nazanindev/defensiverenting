@@ -2,7 +2,7 @@
 // whose content changed since it was last reviewed, for the author to reconcile
 // in the authoring dashboard. Run on a cadence (cron) or on demand.
 //
-// DB: DATABASE_URL (or -db). No API key needed — this is a plain fetch + hash.
+// DB: DATABASE_URL (or -db). No API key needed — this is a plain fetch + quote match.
 package main
 
 import (
@@ -38,7 +38,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("check-sources: %v", err)
 	}
-	fmt.Printf("checked %d sources — %d with a cited quote missing (%d proposal(s) filed for review), %d failed\n", res.Sources, res.Drifted, res.Proposed, res.Failed)
+	fmt.Printf("checked %d sources — %d with a cited quote missing (%d proposal(s) filed for review), %d failed to fetch\n", res.Sources, res.Drifted, res.Proposed, res.Failed)
+	if res.Unreadable > 0 {
+		fmt.Printf("%d source(s) answered with text too thin to examine (a script shell or bot-check page) — nothing about their quotes was concluded\n", res.Unreadable)
+	}
+	if res.Incomparable > 0 {
+		fmt.Printf("%d citation(s) not found, but confirmed under a better extractor than this machine has — not filed as drift; run the check where pdftotext is installed\n", res.Incomparable)
+	}
 	if res.Unused > 0 {
 		fmt.Printf("%d unused source(s) filed for deletion under Proposed changes\n", res.Unused)
 	}

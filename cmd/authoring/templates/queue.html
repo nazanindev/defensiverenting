@@ -62,6 +62,15 @@
   .cites .ok { color: #38a169; font-style: normal; }
   .cites .unk { color: #b7791f; font-style: normal; }
   .gone { color: #b7791f; font-size: .85rem; margin-bottom: 10px; }
+  .drift { margin-top: 14px; border: 1px solid #f3e2b3; background: #fffbeb; border-radius: 6px; padding: 10px 12px; font-size: .84rem; }
+  .drift .verdict { font-weight: 600; color: #92400e; margin: 0 0 6px; }
+  .drift .how { color: #7a5c5c; font-size: .78rem; margin: 0 0 10px; }
+  .drift .passages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .drift h4 { margin: 0 0 4px; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: #7a5c5c; }
+  .drift p { margin: 0; white-space: pre-wrap; line-height: 1.45; }
+  .drift mark { background: #fde68a; padding: 0 1px; }
+  .drift .absent { color: #9b2335; font-style: italic; }
+  @media (max-width: 760px) { .drift .passages { grid-template-columns: 1fr; } }
   .evidence { margin-top: 14px; }
   .evidence summary { cursor: pointer; font-size: .78rem; color: #7a5c5c; }
   .evidence pre { font-size: .76rem; background: #fff; border: 1px solid #e8dede; border-radius: 6px; padding: 10px; overflow-x: auto; margin-top: 6px; white-space: pre-wrap; }
@@ -162,7 +171,23 @@
               {{else}}<div class="stmt">No replacement offered. The evidence below says what was found.</div>{{end}}
             </div>
           </div>
-          {{if .EvidenceText}}<details class="evidence"><summary>Evidence</summary><pre>{{.EvidenceText}}</pre></details>{{end}}
+          {{with .Drift}}
+          <div class="drift">
+            <p class="verdict">{{.Verdict}}</p>
+            <p class="how">Read now via {{if .FetchedVia}}{{.FetchedVia}}{{else}}an unrecorded tier{{end}}{{if .Locator}} · {{.Locator}}{{end}}{{if .NewQuote}} · nearest passage is {{.SimilarityPct}}% the same words{{end}}</p>
+            <div class="passages">
+              <div>
+                <h4>Confirmed then</h4>
+                {{if .OldContext}}<p>{{highlight .OldContext .OldQuote}}</p>{{else}}<p><mark>{{.OldQuote}}</mark></p><p class="absent">No surrounding passage was recorded when this quote was confirmed.</p>{{end}}
+              </div>
+              <div>
+                <h4>On the page now</h4>
+                {{if .NewContext}}<p>{{highlight .NewContext .NewQuote}}</p>{{else if .NewQuote}}<p><mark>{{.NewQuote}}</mark></p>{{else}}<p class="absent">Nothing resembling the quote was found.</p>{{end}}
+              </div>
+            </div>
+          </div>
+          {{end}}
+          {{if .EvidenceText}}<details class="evidence"><summary>Raw evidence</summary><pre>{{.EvidenceText}}</pre></details>{{end}}
           {{if or (eq .Status "pending") (eq .Status "snoozed")}}
           <div class="actions">
             {{if .Proposed}}

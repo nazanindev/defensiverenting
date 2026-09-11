@@ -30,11 +30,16 @@ func isPDF(contentType string, body []byte) bool {
 // below, either garbles or panics on. When pdftotext isn't on PATH, or it
 // produces nothing, pdfExtractGo is the fallback, so a source is still
 // readable with no local dependency at all.
-func pdfExtract(body []byte) (string, error) {
+//
+// The extractor that produced the text is returned with it: the two produce
+// different text from the same file, and a quote confirmed under one cannot
+// be declared missing under the other (see Comparable).
+func pdfExtract(body []byte) (string, string, error) {
 	if text, err := pdftotextExtract(body); err == nil && text != "" {
-		return text, nil
+		return text, ExtractorPDFToText, nil
 	}
-	return pdfExtractGo(body)
+	text, err := pdfExtractGo(body)
+	return text, ExtractorPDFGo, err
 }
 
 // pdftotextExtract shells out to poppler's pdftotext (the poppler-utils /

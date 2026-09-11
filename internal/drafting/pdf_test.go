@@ -16,7 +16,7 @@ func TestPdftotextExtract_InvalidBytesErrors(t *testing.T) {
 // pure-Go extractor and return a clean error, never panic, on bytes that
 // aren't a real PDF.
 func TestPdfExtract_InvalidBytesReturnsErrorNoPanic(t *testing.T) {
-	if _, err := pdfExtract([]byte("not a pdf")); err == nil {
+	if _, _, err := pdfExtract([]byte("not a pdf")); err == nil {
 		t.Error("pdfExtract(garbage) = nil error, want an error")
 	}
 }

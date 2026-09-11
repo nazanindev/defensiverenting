@@ -59,12 +59,17 @@ type Store interface {
 	ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error)
 	CountUncheckableCitations(ctx context.Context) (int, error)
 	CitationQuoteExists(ctx context.Context, url, quote string) (bool, error)
-	MarkSourceReviewed(ctx context.Context, id int64) error
+	// MarkSourceChecked records that the checker read this source and
+	// examined its quotes; note says how the text was obtained.
+	MarkSourceChecked(ctx context.Context, id int64, note string) error
+	// MarkSourceUnreadable records an attempt that produced no text worth
+	// examining, with the reason, and leaves last_checked_at alone.
+	MarkSourceUnreadable(ctx context.Context, id int64, note string) error
 	// MarkQuotesChecked stamps checked_at on every citation of this source
 	// whose quote is in quotes — the ones a check run confirmed are still
 	// present at the URL. Quotes that went missing are not stamped: their last
 	// confirmation stays at the run that last actually saw them.
-	MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []string) error
+	MarkQuotesChecked(ctx context.Context, sourceID int64, fetch CheckReceipt, quotes []QuoteConfirmation) error
 	ListUnusedSources(ctx context.Context) ([]Source, error)
 
 	// Concepts (ADR-011) and the reference layer built on them (ADR-012)
@@ -228,4 +233,29 @@ type IngestCitationParams struct {
 	// the insert inherits checked_by along with checked_at, naming whoever
 	// actually confirmed the quote back then.
 	CheckedBy string
+	// Checked is how the confirmation was made when CheckedNow is set: the
+	// fetch that produced the text and the passage the quote sat in. Zero
+	// for a hand attestation, which fetched nothing. Inherited alongside
+	// checked_at when CheckedNow is false.
+	Checked CheckReceipt
+}
+
+// CheckReceipt is the record of one confirmation: the fetch tier and
+// extractor that produced the text the quote was found in, the hash of that
+// normalized text, and the passage around the quote. The checker compares a
+// later fetch against it (equal hash means unchanged; a differing extractor
+// means the comparison may not be valid), and a drift proposal shows Context
+// beside the passage that replaced it.
+type CheckReceipt struct {
+	Via       string // "direct" | "render"; "" when nothing was fetched
+	Extractor string // "html" | "render" | "pdftotext" | "pdfgo"
+	Hash      string
+	Context   string
+}
+
+// QuoteConfirmation is one quote the checker found in a fetch, with the
+// passage around it, for MarkQuotesChecked.
+type QuoteConfirmation struct {
+	Quote   string
+	Context string
 }

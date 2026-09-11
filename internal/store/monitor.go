@@ -22,7 +22,8 @@ import (
 // nothing published depends on.
 func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT s.id, s.url, s.publisher, c.quote, st.key::text, c.locator
+		SELECT s.id, s.url, s.publisher, c.quote, st.key::text, c.locator,
+		       c.checked_extractor, c.checked_hash, c.checked_context
 		FROM citations c
 		JOIN sources s ON s.id = c.source_id
 		JOIN statements st ON st.id = c.statement_id
@@ -37,7 +38,8 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 	var out []CitationCheckRow
 	for rows.Next() {
 		var r CitationCheckRow
-		if err := rows.Scan(&r.SourceID, &r.URL, &r.Publisher, &r.Quote, &r.StatementKey, &r.Locator); err != nil {
+		if err := rows.Scan(&r.SourceID, &r.URL, &r.Publisher, &r.Quote, &r.StatementKey, &r.Locator,
+			&r.CheckedExtractor, &r.CheckedHash, &r.CheckedContext); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -111,35 +113,55 @@ func (pg *PG) CitationQuoteExists(ctx context.Context, url, quote string) (bool,
 	return exists, err
 }
 
-// MarkSourceReviewed stamps retrieved_at and last_checked_at. Only the
-// checker calls this, so last_checked_at means exactly "the checker fetched
-// this source and examined its quotes then" — unlike retrieved_at, which
-// UpsertSource bumps on every save without fetching. A quote that went
-// missing is no longer recorded here: it is filed as a source-drift proposal
-// against the statement citing it (ADR-014 D4).
-func (pg *PG) MarkSourceReviewed(ctx context.Context, id int64) error {
+// MarkSourceChecked stamps retrieved_at and last_checked_at, and records how
+// the text was obtained. Only the checker calls this, so last_checked_at
+// means exactly "the checker read this source and examined its quotes then"
+// — unlike retrieved_at, which UpsertSource bumps on every save without
+// fetching. A quote that went missing is not recorded here: it is filed as a
+// source-drift proposal against the statement citing it (ADR-014 D4).
+func (pg *PG) MarkSourceChecked(ctx context.Context, id int64, note string) error {
 	_, err := pg.pool.Exec(ctx, `
 		UPDATE sources
 		SET retrieved_at    = NOW(),
-		    last_checked_at = NOW()
-		WHERE id = $1`, id)
+		    last_checked_at = NOW(),
+		    last_fetch_at   = NOW(),
+		    last_fetch_note = $2
+		WHERE id = $1`, id, note)
 	return err
 }
 
-// MarkQuotesChecked stamps checked_at on every citation of this source whose
-// quote the checker just confirmed at the URL. Matching on (source_id, quote)
-// rather than citation ids stamps every statement carrying the same confirmed
-// text — including orphaned rows, whose stamps insertCitationSQL inherits when
-// the same quote is saved again. Quotes that went missing are absent from the
-// list and keep the stamp from the run that last actually saw them.
-func (pg *PG) MarkQuotesChecked(ctx context.Context, sourceID int64, quotes []string) error {
-	if len(quotes) == 0 {
-		return nil
-	}
+// MarkSourceUnreadable records a check that reached for the source and got
+// nothing it could examine quotes against: a failed fetch, or a thin page.
+// last_checked_at is left alone, because nothing was checked; the note says
+// what happened so the issue list can tell the reviewer.
+func (pg *PG) MarkSourceUnreadable(ctx context.Context, id int64, note string) error {
 	_, err := pg.pool.Exec(ctx, `
-		UPDATE citations SET checked_at = NOW(), checked_by = $3
-		WHERE source_id = $1 AND quote = ANY($2)`, sourceID, quotes, ActorSourceCheck)
+		UPDATE sources
+		SET last_fetch_at   = NOW(),
+		    last_fetch_note = $2
+		WHERE id = $1`, id, note)
 	return err
+}
+
+// MarkQuotesChecked stamps checked_at and the confirmation receipt on every
+// citation of this source whose quote the checker just found at the URL.
+// Matching on (source_id, quote) rather than citation ids stamps every
+// statement carrying the same confirmed text — including orphaned rows, whose
+// stamps insertCitationSQL inherits when the same quote is saved again.
+// Quotes that went missing are absent from the list and keep the stamp from
+// the run that last actually saw them.
+func (pg *PG) MarkQuotesChecked(ctx context.Context, sourceID int64, fetch CheckReceipt, quotes []QuoteConfirmation) error {
+	for _, q := range quotes {
+		if _, err := pg.pool.Exec(ctx, `
+			UPDATE citations
+			SET checked_at = NOW(), checked_by = $3,
+			    checked_via = $4, checked_extractor = $5, checked_hash = $6, checked_context = $7
+			WHERE source_id = $1 AND quote = $2`,
+			sourceID, q.Quote, ActorSourceCheck, fetch.Via, fetch.Extractor, fetch.Hash, q.Context); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ListUnusedSources returns sources no page on the site cites: no citation

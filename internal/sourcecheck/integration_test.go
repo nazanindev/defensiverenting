@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	dbpkg "github.com/nazanindev/defensiverenting/db"
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -52,11 +53,12 @@ func TestRun_filesIntoTheRealQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fetch := func(u string) (string, error) {
+	fetch := func(u string) (drafting.Receipt, error) {
+		text := "unrelated page that still contains whatever it contained"
 		if u == src.URL {
-			return "(a) The landlord shall return the deposit within twenty-one days. (b) Interest.", nil
+			text = "(a) The landlord shall return the deposit within twenty-one days. (b) Interest."
 		}
-		return "unrelated page that still contains whatever it contained", nil
+		return drafting.Receipt{URL: u, Text: text, Tier: drafting.TierDirect, Extractor: drafting.ExtractorHTML, Chars: len(text), Hash: "hash:" + text}, nil
 	}
 	res, err := sourcecheck.Run(ctx, pg, fetch, nil)
 	if err != nil {

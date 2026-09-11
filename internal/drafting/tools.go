@@ -63,7 +63,7 @@ type FetchSourceOutput struct {
 	Host      string `json:"host"`
 	Text      string `json:"text" jsonschema:"readable text of the source; cite verbatim lines from this"`
 	Truncated bool   `json:"truncated" jsonschema:"true if text was cut for length (full text is still cached for citation checks)"`
-	Via       string `json:"via,omitempty" jsonschema:"how the text was obtained when a fallback was needed, e.g. \"web.archive.org snapshot\"; tell the human reviewer when set"`
+	Via       string `json:"via,omitempty" jsonschema:"how the text was obtained when a fallback was needed, e.g. \"web.archive.org snapshot\"; tell the human reviewer when set. A quote taken from a snapshot is saved unverified: only a person who opens the live page can confirm it"`
 }
 
 // FetchSource fetches a URL, caches its extracted text for the verbatim check,
@@ -78,13 +78,13 @@ func (tb *Toolbelt) FetchSource(_ context.Context, in FetchSourceInput) (FetchSo
 	if err != nil {
 		return FetchSourceOutput{}, reject("could not fetch %s: %v", raw, err)
 	}
-	tb.cache.put(raw, f.Text)
+	tb.cache.put(raw, f)
 
 	returned, truncated := f.Text, false
 	if r := []rune(f.Text); len(r) > maxReturnRune {
 		returned, truncated = string(r[:maxReturnRune]), true
 	}
-	return FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated, Via: f.Via}, nil
+	return FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated, Via: f.Via()}, nil
 }
 
 // ---- save_draft_playbook ---------------------------------------------------
@@ -215,7 +215,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	}
 
 	// Guardrail: every citation quote must be verbatim in the cached fetched text.
-	citationCount := 0
+	citationCount, snapshotQuotes := 0, 0
 	for si, st := range in.Statements {
 		if strings.TrimSpace(st.BodyMD) == "" {
 			return SaveDraftOutput{}, reject("statement %d has empty body_md", si+1)
@@ -237,8 +237,11 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			if !ok {
 				return SaveDraftOutput{}, reject("statement %d citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", si+1, ci+1, c.URL, c.URL)
 			}
-			if !QuoteAppearsIn(cached, c.Quote) {
+			if !QuoteAppearsIn(cached.Text, c.Quote) {
 				return SaveDraftOutput{}, reject("statement %d citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", si+1, ci+1, c.URL, truncate(c.Quote, 120))
+			}
+			if !cached.Live() {
+				snapshotQuotes++
 			}
 			citationCount++
 		}
@@ -289,15 +292,19 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	for _, st := range in.Statements {
 		cites := make([]store.IngestCitationParams, 0, len(st.Citations))
 		for _, c := range st.Citations {
+			// The guardrail above matched this quote against the text
+			// fetch_source returned in this session. That is a confirmation
+			// only when the text was the live page: a quote matched against
+			// an archive snapshot is saved unverified, and the publish gate
+			// holds it until a person opens the live page.
+			rc, _ := tb.cache.get(strings.TrimSpace(c.URL))
 			cites = append(cites, store.IngestCitationParams{
-				SourceID: srcID[strings.TrimSpace(c.URL)],
-				Locator:  c.Locator,
-				Quote:    c.Quote,
-				// The guardrail above matched this quote against the text
-				// fetch_source returned in this session, so the citation is
-				// checked as of this save.
-				CheckedNow: true,
+				SourceID:   srcID[strings.TrimSpace(c.URL)],
+				Locator:    c.Locator,
+				Quote:      c.Quote,
+				CheckedNow: rc.Live(),
 				CheckedBy:  store.ActorDraftingAgent,
+				Checked:    receiptFor(rc, c.Quote),
 			})
 		}
 		stmts = append(stmts, store.IngestStatementParams{
@@ -333,8 +340,19 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		StatementCount:   len(in.Statements),
 		CitationCount:    citationCount,
 		Status:           "draft",
-		Message:          savedMessage(revises),
+		Message:          savedMessage(revises, snapshotQuotes),
 	}, nil
+}
+
+// receiptFor turns a session fetch into the confirmation record stored with
+// a citation: which tier and extractor produced the text, its hash, and the
+// passage around the quote. Empty when the fetch was not live, since then no
+// confirmation is being recorded.
+func receiptFor(r Receipt, quote string) store.CheckReceipt {
+	if !r.Live() {
+		return store.CheckReceipt{}
+	}
+	return store.CheckReceipt{Via: r.Tier, Extractor: r.Extractor, Hash: r.Hash, Context: Context(r.Text, quote)}
 }
 
 // ---- read helpers ----------------------------------------------------------
@@ -477,12 +495,16 @@ func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPl
 // savedMessage tells the caller whether this draft stands alone or proposes a
 // replacement for a page that is currently live, since the consequence of
 // publishing it differs.
-func savedMessage(revises bool) string {
+func savedMessage(revises bool, snapshotQuotes int) string {
+	msg := "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published."
 	if revises {
-		return "Draft saved as a proposed revision of the page that is currently live. " +
+		msg = "Draft saved as a proposed revision of the page that is currently live. " +
 			"The live page is unchanged. Publishing this revision replaces it and retires the old version; nothing was published."
 	}
-	return "Draft saved. It is visible in the authoring tool for the human author to verify and publish; nothing was published."
+	if snapshotQuotes > 0 {
+		msg += fmt.Sprintf(" %d citation(s) were matched against an archive snapshot, not the live page, and are saved unverified; the reviewer must confirm them at the live source before the page can publish.", snapshotQuotes)
+	}
+	return msg
 }
 
 // validateConcepts checks every statement's concept tag and topic reference
@@ -610,14 +632,17 @@ func (tb *Toolbelt) ProposeStatement(ctx context.Context, in ProposeStatementInp
 			if !ok {
 				return ProposeStatementOutput{}, reject("citation %d cites %s but that URL was never fetched — call fetch_source(%q) first", ci+1, u, u)
 			}
-			if !QuoteAppearsIn(cached, c.Quote) {
+			if !QuoteAppearsIn(cached.Text, c.Quote) {
 				return ProposeStatementOutput{}, reject("citation %d quote is NOT present verbatim in %s — quote exact text returned by fetch_source. Offending quote: %q", ci+1, u, truncate(c.Quote, 120))
 			}
 			proposed.Citations = append(proposed.Citations, store.ProposedCitation{
 				URL: u, Publisher: c.Publisher, Kind: defaultKind(c.Kind), Locator: c.Locator, Quote: c.Quote,
-				// Matched against this session's fetch, so the approval can
-				// stamp it on the proposer's word.
-				Checked: true,
+				// Matched against this session's fetch of the live page, so
+				// the approval may fall back to the proposer's word when the
+				// source cannot be read from the authoring server. A snapshot
+				// match is not a confirmation.
+				Checked:    cached.Live(),
+				CheckedVia: cached.Describe(),
 			})
 		}
 	}

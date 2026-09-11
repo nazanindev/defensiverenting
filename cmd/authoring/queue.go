@@ -44,7 +44,43 @@ type queueItem struct {
 	// ReasonLabel splits "agent-pass:rerun-sources" into a chip and a name.
 	ReasonLabel string
 	ReasonName  string
+	// Drift is the checker's evidence read into shape for a source-drift
+	// item, so the page can show what changed rather than a JSON blob.
+	Drift *driftEvidence
 }
+
+// driftEvidence is the source-drift evidence the checker files (see
+// sourcecheck.fileDrift). Every field is optional: older proposals carry
+// only the quotes and the similarity.
+type driftEvidence struct {
+	SourceURL   string  `json:"source_url"`
+	Publisher   string  `json:"publisher"`
+	Locator     string  `json:"locator"`
+	OldQuote    string  `json:"old_quote"`
+	NewQuote    string  `json:"new_quote"`
+	Similarity  float64 `json:"similarity"`
+	OldContext  string  `json:"old_context"`
+	NewContext  string  `json:"new_context"`
+	FetchedVia  string  `json:"fetched_via"`
+	TextChanged string  `json:"text_changed"` // "yes" | "unknown"; "" on older proposals
+	Note        string  `json:"note"`
+}
+
+// Verdict is the one line the reviewer reads first: what the checker
+// actually established about the page.
+func (d driftEvidence) Verdict() string {
+	switch d.TextChanged {
+	case "yes":
+		return "The page text is different from the text this quote was confirmed in."
+	case "no":
+		return "The page text is unchanged; the quote could not be matched (report this)."
+	default:
+		return "No baseline was recorded for this quote, so whether the page changed is not known; only that the quote is not on it now."
+	}
+}
+
+// SimilarityPct renders the word-bag similarity for the page.
+func (d driftEvidence) SimilarityPct() int { return int(d.Similarity*100 + 0.5) }
 
 func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -72,6 +108,12 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		item.ReasonLabel, item.ReasonName, _ = strings.Cut(row.Reason, ":")
 		if ev := strings.TrimSpace(string(row.Evidence)); ev != "" && ev != "{}" {
 			item.EvidenceText = prettyJSON(row.Evidence)
+			if item.ReasonLabel == "source-drift" {
+				var d driftEvidence
+				if json.Unmarshal(row.Evidence, &d) == nil && d.OldQuote != "" {
+					item.Drift = &d
+				}
+			}
 		}
 		if n := len(groups); n == 0 || groups[n-1].TargetPlaybookID != row.TargetPlaybookID {
 			groups = append(groups, queueGroup{
@@ -95,8 +137,11 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 
 // approveProposal turns the proposed statement into a save. The body may
 // have been edited on the queue page; the citations are the proposal's,
-// resolved to source rows here, with each quote either taken on the
-// proposer's word (Checked) or fetched live the way a manual save does.
+// resolved to source rows here, with each quote fetched live the way a
+// manual save does. Only when the source cannot be read from this server
+// does a quote the proposer confirmed in the live page (Checked) go through
+// on the proposer's word; a readable page that lacks the quote leaves it
+// unverified, and the publish gate says so.
 func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -157,11 +202,16 @@ func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
-		if c.Checked {
-			cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
-		} else if strings.TrimSpace(c.Quote) != "" {
+		if strings.TrimSpace(c.Quote) != "" {
 			res := qv.check(ctx, p.Position, u, c.Quote)
-			cite.CheckedNow, cite.CheckedBy = res.Verified, actor(r)
+			switch {
+			case res.Verified:
+				cite.CheckedNow, cite.CheckedBy, cite.Checked = true, actor(r), res.Receipt
+			case c.Checked && res.Overridable:
+				// This server could not read the page; the proposer did.
+				cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
+				cite.Checked = store.CheckReceipt{Via: c.CheckedVia}
+			}
 		}
 		stmt.Sources = append(stmt.Sources, cite)
 	}

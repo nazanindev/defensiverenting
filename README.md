@@ -49,7 +49,7 @@ The model is never believed. It sits above a trust boundary and the only thing t
 
 Publishing is a human act. The authoring tool runs the gate inside the publish transaction: every statement cited, every quote confirmed by a named person. Drafts save freely and the gate refuses, so nothing is lost and nothing leaks.
 
-After publishing, a checker refetches every cited source and confirms each quote still appears. Where one does not, it files a proposal against the statement's durable key with the nearest passage as evidence. A person approves, edits, or rejects it. Approval is just a save, so the same gate holds.
+After publishing, a checker refetches every cited source and confirms each quote still appears. Every fetch carries a receipt (which tier and extractor produced the text, its hash) and every confirmation stores that receipt with the passage around the quote. A later check compares against that baseline: an equal hash is unchanged, a script shell or bot-check page is "could not read here" rather than drift, and a quote confirmed under pdftotext is never declared missing by the weaker pure-Go PDF reader. Only a readable, comparable fetch that lacks the quote files a proposal against the statement's durable key, showing the old passage beside the nearest new one. A person approves, edits, or rejects it. Approval is just a save, so the same gate holds.
 
 ## Stack
 
@@ -129,7 +129,7 @@ erDiagram
 Known gaps, stated plainly:
 
 - Fetched text is not persisted. It lives in memory for the run, so a checked_at stamp cannot yet show the text it was checked against.
-- The verbatim rule is implemented twice, in the drafting toolbelt and in the source checker.
+- Every path that confirms a quote (drafting guardrail, authoring form, checker, queue approval, wayback repoint) matches with the one `drafting.QuoteAppearsIn` and records the same receipt, so "checked" means one thing everywhere.
 - Two maintenance commands, promote and ingest, write through the same save path but skip the publish gate.
 
 ## Roadmap
