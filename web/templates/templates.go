@@ -33,6 +33,14 @@ func SetBaseURL(u string) {
 // BaseURL returns the canonical site origin with no trailing slash.
 func BaseURL() string { return baseURL }
 
+// analyticsToken is the Cloudflare Web Analytics beacon token. Empty means the
+// footer renders no analytics script at all.
+var analyticsToken string
+
+// SetAnalyticsToken sets the beacon token, e.g. from the CF_ANALYTICS_TOKEN
+// env var.
+func SetAnalyticsToken(t string) { analyticsToken = strings.TrimSpace(t) }
+
 func init() {
 	var err error
 	tmpl, err = template.New("").Funcs(funcMap()).ParseFS(tmplFS, "*.html")
@@ -53,11 +61,12 @@ func funcMap() template.FuncMap {
 		"absURL": func(path string) string {
 			return baseURL + path
 		},
-		"groupByOrg": groupByOrg,
-		"langPrefix": store.LangPrefix,
-		"ui":         UIString,
-		"uif":        UIStringf,
-		"pageLang":   pageLang,
+		"analyticsToken": func() string { return analyticsToken },
+		"groupByOrg":     groupByOrg,
+		"langPrefix":     store.LangPrefix,
+		"ui":             UIString,
+		"uif":            UIStringf,
+		"pageLang":       pageLang,
 	}
 }
 

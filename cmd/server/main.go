@@ -21,6 +21,7 @@ import (
 func main() {
 	cfg := config.Load()
 	webtmpl.SetBaseURL(cfg.SiteURL)
+	webtmpl.SetAnalyticsToken(cfg.AnalyticsToken)
 
 	logLevel := slog.LevelInfo
 	if cfg.LogLevel == "debug" {

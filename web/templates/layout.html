@@ -242,4 +242,10 @@
     </p>
   </div>
 </footer>
+{{/*
+  Cloudflare Web Analytics. Cookieless: page views and referrers only, so
+  the site learns what readers do after the click without following anyone.
+  No token, no script.
+*/}}
+{{with analyticsToken}}<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "{{.}}"}'></script>{{end}}
 {{end}}

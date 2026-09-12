@@ -31,6 +31,10 @@ type Config struct {
 	// MailFrom is the sender on those links; its domain must be verified in
 	// Resend.
 	MailFrom string
+	// AnalyticsToken is the Cloudflare Web Analytics beacon token. Empty renders
+	// no script, which is what local development wants. The beacon is
+	// cookieless and records page views and referrers, nothing per person.
+	AnalyticsToken string
 }
 
 func Load() Config {
@@ -55,6 +59,7 @@ func Load() Config {
 		TurnstileSiteKey: env("TURNSTILE_SITE_KEY", ""),
 		ResendAPIKey:     env("RESEND_API_KEY", ""),
 		MailFrom:         env("MAIL_FROM", "RenterLaw <signin@renterlaw.org>"),
+		AnalyticsToken:   env("CF_ANALYTICS_TOKEN", ""),
 	}
 }
 
