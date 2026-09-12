@@ -122,9 +122,9 @@
     {{else if .Stmt.ProposalPending}}<div class="fix">A change is proposed for this statement. <a href="/queue">Decide it in the queue ↗</a></div>{{end}}
     <div class="row">
       {{if .Done}}<span class="stamp">Done{{if .Stmt.ReviewedAt}} · {{date .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} · {{.Stmt.ReviewedBy}}{{end}}{{end}}</span>
-      {{else if and (not .Broken) (not .Stmt.ProposalPending) (ne .PageKind "directory")}}
+      {{else if and (not .Broken) (not .Stmt.ProposalPending)}}
       <form method="post" action="/statement/done"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}<button class="btn btn-done" title="I read this statement and its quotes; they stand">Done</button></form>
-      {{else if eq .PageKind "directory"}}<span class="stamp">Reviewed with the page when it is published</span>{{end}}
+      {{end}}
       <button type="button" onclick="startEdit(this)" style="font-size:.78rem;color:#9a7878;background:none;border:none;cursor:pointer;font-family:inherit">edit</button>
       <a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}" style="font-size:.78rem;color:#c9b0b0;text-decoration:none" title="The full editor: add, remove, or reorder statements">full page ↗</a>
     </div>
