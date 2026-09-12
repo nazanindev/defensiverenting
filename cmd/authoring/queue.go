@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,6 +54,33 @@ type queueItem struct {
 	// EditorHref opens the target page's editor scrolled to this statement;
 	// "" when the statement is no longer on the page.
 	EditorHref string
+}
+
+// newQueueItem reads a proposal row into the shape the queue and the
+// statement card both render.
+func newQueueItem(row store.ProposalRow) queueItem {
+	item := queueItem{ProposalRow: row, Age: ago(row.CreatedAt)}
+	item.ReasonLabel, item.ReasonName, _ = strings.Cut(row.Reason, ":")
+	if ev := strings.TrimSpace(string(row.Evidence)); ev != "" && ev != "{}" {
+		item.EvidenceText = prettyJSON(row.Evidence)
+		if item.ReasonLabel == "source-drift" {
+			var d driftEvidence
+			if json.Unmarshal(row.Evidence, &d) == nil && d.OldQuote != "" {
+				item.Drift = &d
+			}
+		}
+		if row.Reason == store.ReasonReviewerFlag {
+			var f store.ReviewerFlagEvidence
+			if json.Unmarshal(row.Evidence, &f) == nil {
+				item.Note = f.Note
+			}
+		}
+	}
+	if row.OnPage() {
+		// The editor numbers its cards from zero in page order.
+		item.EditorHref = fmt.Sprintf("/edit/%d#card_%d", row.TargetPlaybookID, row.Position-1)
+	}
+	return item
 }
 
 // driftEvidence is the source-drift evidence the checker files (see
@@ -116,27 +144,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	}
 	var groups []queueGroup
 	for _, row := range rows {
-		item := queueItem{ProposalRow: row, Age: ago(row.CreatedAt)}
-		item.ReasonLabel, item.ReasonName, _ = strings.Cut(row.Reason, ":")
-		if ev := strings.TrimSpace(string(row.Evidence)); ev != "" && ev != "{}" {
-			item.EvidenceText = prettyJSON(row.Evidence)
-			if item.ReasonLabel == "source-drift" {
-				var d driftEvidence
-				if json.Unmarshal(row.Evidence, &d) == nil && d.OldQuote != "" {
-					item.Drift = &d
-				}
-			}
-			if row.Reason == store.ReasonReviewerFlag {
-				var f store.ReviewerFlagEvidence
-				if json.Unmarshal(row.Evidence, &f) == nil {
-					item.Note = f.Note
-				}
-			}
-		}
-		if row.OnPage() {
-			// The editor numbers its cards from zero in page order.
-			item.EditorHref = fmt.Sprintf("/edit/%d#card_%d", row.TargetPlaybookID, row.Position-1)
-		}
+		item := newQueueItem(row)
 		if n := len(groups); n == 0 || groups[n-1].TargetPlaybookID != row.TargetPlaybookID {
 			groups = append(groups, queueGroup{
 				Title: row.Title, JurisdictionName: row.JurisdictionName, TopicName: row.TopicName,
@@ -187,59 +195,7 @@ func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 		s.queueRedirect(w, r, "Marked resolved.", "")
 		return
 	}
-	body := strings.TrimSpace(r.FormValue("body"))
-	if body == "" {
-		body = p.Proposed.BodyMD
-	}
-	stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: p.Proposed.Concept, TopicRefSlug: p.Proposed.TopicRef}
-	editorial, err := s.pg.GetEditorialSource(ctx)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	pw, err := s.pg.AuthorGetPlaybook(ctx, p.TargetPlaybookID)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	qv := newQuoteVerifier(s.pg, s.sourceCache)
-	for i, c := range p.Proposed.Citations {
-		if c.Editorial || c.Kind == "editorial" {
-			stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
-			continue
-		}
-		u := strings.TrimSpace(c.URL)
-		if u == "" {
-			s.queueRedirect(w, r, "", fmt.Sprintf("citation %d has no URL; sources are stored by URL", i+1))
-			return
-		}
-		if discover.ReferenceOnly(u) {
-			s.queueRedirect(w, r, "", fmt.Sprintf("citation %d (%s) is reference-only and can never become a source; reject this proposal or edit the page by hand", i+1, u))
-			return
-		}
-		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
-			URL: u, Publisher: strings.TrimSpace(c.Publisher), Kind: sourceKindOrDefault(c.Kind), JurisdictionID: &pw.JurisdictionID,
-		})
-		if err != nil {
-			s.queueRedirect(w, r, "", fmt.Sprintf("citation %d: %v", i+1, err))
-			return
-		}
-		cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
-		if strings.TrimSpace(c.Quote) != "" {
-			res := qv.check(ctx, p.Position, u, c.Quote)
-			switch {
-			case res.Verified:
-				cite.CheckedNow, cite.CheckedBy, cite.Checked = true, actor(r), res.Receipt
-			case c.Checked && res.Overridable:
-				// This server could not read the page; the proposer did.
-				cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
-				cite.Checked = store.CheckReceipt{Via: c.CheckedVia}
-			}
-		}
-		stmt.Sources = append(stmt.Sources, cite)
-	}
-
-	err = s.pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: id, By: actor(r), Statement: stmt})
+	err = s.applyApproval(ctx, p, strings.TrimSpace(r.FormValue("body")), actor(r))
 	var npe *store.NotPublishableError
 	switch {
 	case errors.As(err, &npe):
@@ -251,6 +207,59 @@ func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.queueRedirect(w, r, fmt.Sprintf("Applied to %s · %s.", p.JurisdictionName, p.TopicName), "")
 	}
+}
+
+// applyApproval resolves a replacement's sources, checks its quotes, and
+// approves it under a person's name. body overrides the proposed text when
+// the reviewer edited it first. Shared by the queue and the statement card.
+func (s *srv) applyApproval(ctx context.Context, p store.ProposalRow, body, by string) error {
+	if body == "" {
+		body = p.Proposed.BodyMD
+	}
+	stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: p.Proposed.Concept, TopicRefSlug: p.Proposed.TopicRef}
+	editorial, err := s.pg.GetEditorialSource(ctx)
+	if err != nil {
+		return err
+	}
+	pw, err := s.pg.AuthorGetPlaybook(ctx, p.TargetPlaybookID)
+	if err != nil {
+		return err
+	}
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
+	for i, c := range p.Proposed.Citations {
+		if c.Editorial || c.Kind == "editorial" {
+			stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
+			continue
+		}
+		u := strings.TrimSpace(c.URL)
+		if u == "" {
+			return fmt.Errorf("citation %d has no URL; sources are stored by URL", i+1)
+		}
+		if discover.ReferenceOnly(u) {
+			return fmt.Errorf("citation %d (%s) is reference-only and can never become a source; reject this proposal or edit the page by hand", i+1, u)
+		}
+		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
+			URL: u, Publisher: strings.TrimSpace(c.Publisher), Kind: sourceKindOrDefault(c.Kind), JurisdictionID: &pw.JurisdictionID,
+		})
+		if err != nil {
+			return fmt.Errorf("citation %d: %w", i+1, err)
+		}
+		cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
+		if strings.TrimSpace(c.Quote) != "" {
+			res := qv.check(ctx, p.Position, u, c.Quote)
+			switch {
+			case res.Verified:
+				cite.CheckedNow, cite.CheckedBy, cite.Checked = true, by, res.Receipt
+			case c.Checked && res.Overridable:
+				// This server could not read the page; the proposer did.
+				cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
+				cite.Checked = store.CheckReceipt{Via: c.CheckedVia}
+			}
+		}
+		stmt.Sources = append(stmt.Sources, cite)
+	}
+
+	return s.pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: p.ID, By: by, Statement: stmt})
 }
 
 func (s *srv) rejectProposal(w http.ResponseWriter, r *http.Request) {

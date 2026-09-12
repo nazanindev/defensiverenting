@@ -42,6 +42,9 @@ type stmtCard struct {
 	ShowPage bool
 	// F is the screen's filter, so the Done form returns to it.
 	F filter
+	// Changes are the pending replacements and drift findings on this
+	// statement, decided here rather than on the queue page.
+	Changes []queueItem
 }
 
 func (c stmtCard) CardIndex() int { return c.Position - 1 }
@@ -174,10 +177,24 @@ func (s *srv) statements(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	keys := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Stmt.ProposalPending {
+			keys = append(keys, row.Stmt.Key)
+		}
+	}
+	changes, err := s.pg.PendingChangesByKeys(ctx, keys)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	cards := make([]stmtCard, 0, len(rows))
 	todo := 0
 	for _, row := range rows {
 		c := cardFromRow(row, f)
+		for _, pr := range changes[row.Stmt.Key] {
+			c.Changes = append(c.Changes, newQueueItem(pr))
+		}
 		if !c.Done {
 			todo++
 		}
@@ -271,6 +288,50 @@ func (s *srv) statementSave(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 	default:
 		http.Redirect(w, r, f.path("Saved."), http.StatusSeeOther) //nolint:gosec // see filter.path
+	}
+}
+
+// statementChange decides a replacement or drift finding from the card:
+// apply it (the reviewer may have edited the proposed text first) or keep
+// the statement as it is.
+func (s *srv) statementChange(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.FormValue("proposal"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid proposal", http.StatusBadRequest)
+		return
+	}
+	f := readFilter(r.Form)
+	ctx := r.Context()
+	p, err := s.pg.GetProposal(ctx, id)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	switch r.FormValue("verdict") {
+	case "apply":
+		if p.Proposed == nil {
+			err = s.pg.DecideProposal(ctx, id, "approved", actor(r), "Resolved on the statement", nil)
+		} else {
+			err = s.applyApproval(ctx, p, strings.TrimSpace(r.FormValue("body")), actor(r))
+		}
+	case "keep":
+		note := strings.TrimSpace(r.FormValue("note"))
+		if note == "" {
+			note = "Kept as written"
+		}
+		err = s.pg.DecideProposal(ctx, id, "rejected", actor(r), note, nil)
+	default:
+		http.Error(w, "unknown verdict", http.StatusBadRequest)
+		return
+	}
+	var npe *store.NotPublishableError
+	switch {
+	case errors.As(err, &npe):
+		http.Redirect(w, r, f.path("Not applied: the page is live and this change would leave it unpublishable. "+strings.Join(issueDetails(npe.Issues), "; ")), http.StatusSeeOther) //nolint:gosec // see filter.path
+	case err != nil:
+		http.Redirect(w, r, f.path("Not applied: "+err.Error()), http.StatusSeeOther) //nolint:gosec // see filter.path
+	default:
+		http.Redirect(w, r, f.path(""), http.StatusSeeOther) //nolint:gosec // see filter.path
 	}
 }
 

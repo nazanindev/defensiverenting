@@ -62,6 +62,15 @@
   .q .w { color: #b7791f; font-weight: 600; }
   .note { margin-top: 8px; font-size: .84rem; line-height: 1.5; color: #4c1d95; }
   .fix { margin-top: 8px; font-size: .84rem; color: #9b2335; }
+  .chg { margin-top: 10px; border: 1px solid #f3e2b3; background: #fffbeb; border-radius: 8px; padding: 10px 12px; font-size: .84rem; }
+  .chg-hd { font-weight: 600; color: #92400e; margin-bottom: 6px; }
+  .chg-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .chg-cols b { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #7a5c5c; margin-bottom: 3px; }
+  .chg-cols p { margin: 0; line-height: 1.45; white-space: pre-wrap; }
+  .chg mark { background: #fde68a; padding: 0 1px; }
+  .chg textarea { width: 100%; min-height: 5em; font-family: inherit; font-size: .9rem; line-height: 1.5; border: 1px solid #e0c8c8; border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+  .chg .ev { font-size: .76rem; white-space: pre-wrap; color: #5c3a3a; margin-top: 6px; }
+  @media (max-width: 700px) { .chg-cols { grid-template-columns: 1fr; } }
   .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
   .row form { margin: 0; }
   .stamp { font-size: .76rem; color: #3730a3; }
@@ -109,6 +118,7 @@
   </div>
 </header>
 {{define "stmtcard"}}
+{{$c := .}}
 <div class="stmt{{if .Done}} done{{end}}" id="p{{.PlaybookID}}-{{.Position}}" data-n="{{.Position}}">
   <div class="n">{{.Position}}</div>
   <div>
@@ -119,7 +129,28 @@
     {{end}}{{end}}
     {{range .Stmt.Notes}}<div class="note">Note: {{.Note}}</div>{{end}}
     {{if .Broken}}<div class="fix">Needs an edit before it can be done: {{range .Standing.Reasons}}{{if eq . "empty"}}no text. {{else if eq . "uncited"}}no citation. {{else if eq . "quote-missing"}}a citation has no quote. {{else if eq . "statute-locator"}}the statute needs its section. {{end}}{{end}}<a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}">Edit ↗</a></div>
-    {{else if .Stmt.ProposalPending}}<div class="fix">A change is proposed for this statement. <a href="/queue">Decide it in the queue ↗</a></div>{{end}}
+    {{else}}{{range .Changes}}
+    <div class="chg">
+      <div class="chg-hd">{{if .Drift}}The checker no longer finds the quote at the source{{else if .Proposed}}A change is proposed{{else}}A finding{{end}} · {{.ProposedBy}} · {{.Age}}</div>
+      {{with .Drift}}
+      <div class="chg-cols">
+        <div><b>Confirmed then</b>{{if .OldContext}}<p>{{highlight .OldContext .OldQuote}}</p>{{else}}<p><mark>{{.OldQuote}}</mark></p>{{end}}</div>
+        <div><b>On the page now</b>{{if .NewContext}}<p>{{highlight .NewContext .NewQuote}}</p>{{else if .NewQuote}}<p><mark>{{.NewQuote}}</mark></p>{{else}}<p class="w">Nothing resembling the quote was found.</p>{{end}}</div>
+      </div>
+      {{end}}
+      {{if .Proposed}}
+      <form method="post" action="/statement/change" class="chg-form"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="apply">{{template "filterfields" $c.F}}
+        {{if ne .Proposed.BodyMD $c.Stmt.BodyMD}}<textarea name="body">{{.Proposed.BodyMD}}</textarea>{{end}}
+        {{range .Proposed.Citations}}{{if .Quote}}<div class="q"><i>“{{.Quote}}”</i> — {{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}{{if .Locator}}, {{.Locator}}{{end}}</div>{{end}}{{end}}
+        <div class="row"><button class="btn btn-done">Apply this change</button></div>
+      </form>
+      {{else if not .Drift}}<pre class="ev">{{.EvidenceText}}</pre>{{end}}
+      <div class="row">
+        {{if not .Proposed}}<form method="post" action="/statement/change"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="apply">{{template "filterfields" $c.F}}<button class="btn" title="I dealt with this in the statement">Resolved</button></form>{{end}}
+        <form method="post" action="/statement/change"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="keep">{{template "filterfields" $c.F}}<input type="text" name="note" placeholder="why it stays (optional)" style="font-family:inherit;font-size:.8rem;padding:.3rem .5rem;border:1px solid #e0c8c8;border-radius:6px;width:16rem"><button class="btn">Keep as written</button></form>
+      </div>
+    </div>
+    {{end}}{{end}}
     <div class="row">
       {{if .Done}}<span class="stamp">Done{{if .Stmt.ReviewedAt}} · {{datetime .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} · {{.Stmt.ReviewedBy}}{{end}}{{end}}</span>
       {{else if and (not .Broken) (not .Stmt.ProposalPending)}}

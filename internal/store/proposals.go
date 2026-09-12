@@ -613,3 +613,28 @@ func (pg *PG) DriftAlreadyFiled(ctx context.Context, key, missingQuote string) (
 			       OR (status = 'rejected' AND evidence->>'old_quote' = $2)))`, key, missingQuote).Scan(&exists)
 	return exists, err
 }
+
+// PendingChangesByKeys returns the pending proposals that are not reviewer
+// notes (replacements and drift findings) for a set of statement keys, so a
+// statement can show and decide its own change where it is read.
+func (pg *PG) PendingChangesByKeys(ctx context.Context, keys []string) (map[string][]ProposalRow, error) {
+	out := map[string][]ProposalRow{}
+	if len(keys) == 0 {
+		return out, nil
+	}
+	rows, err := pg.pool.Query(ctx, proposalRowSQL+`
+		WHERE p.statement_key = ANY($1::uuid[]) AND p.status = 'pending' AND p.reason <> $2
+		ORDER BY p.id`, keys, ReasonReviewerFlag)
+	if err != nil {
+		return nil, fmt.Errorf("pending changes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		r, err := scanProposalRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[r.StatementKey] = append(out[r.StatementKey], r)
+	}
+	return out, rows.Err()
+}
