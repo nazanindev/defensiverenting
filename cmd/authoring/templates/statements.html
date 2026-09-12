@@ -121,7 +121,7 @@
     {{if .Broken}}<div class="fix">Needs an edit before it can be done: {{range .Standing.Reasons}}{{if eq . "empty"}}no text. {{else if eq . "uncited"}}no citation. {{else if eq . "quote-missing"}}a citation has no quote. {{else if eq . "statute-locator"}}the statute needs its section. {{end}}{{end}}<a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}">Edit ↗</a></div>
     {{else if .Stmt.ProposalPending}}<div class="fix">A change is proposed for this statement. <a href="/queue">Decide it in the queue ↗</a></div>{{end}}
     <div class="row">
-      {{if .Done}}<span class="stamp">Done{{if .Stmt.ReviewedAt}} · {{date .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} · {{.Stmt.ReviewedBy}}{{end}}{{end}}</span>
+      {{if .Done}}<span class="stamp">Done{{if .Stmt.ReviewedAt}} · {{datetime .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} · {{.Stmt.ReviewedBy}}{{end}}{{end}}</span>
       {{else if and (not .Broken) (not .Stmt.ProposalPending)}}
       <form method="post" action="/statement/done"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}<button class="btn btn-done" title="I read this statement and its quotes; they stand">Done</button></form>
       {{end}}
@@ -163,7 +163,7 @@
   {{with .Page}}
   <div class="head">
     <h1>{{.Playbook.Title}}</h1>
-    <div class="meta">{{.Jurisdiction.Name}} · {{.Topic.Slug}} · {{.Playbook.Status}}{{if .Playbook.UpdatedBy}} · last edited by {{.Playbook.UpdatedBy}} {{date .Playbook.UpdatedAt}}{{end}}</div>
+    <div class="meta">{{.Jurisdiction.Name}} · {{.Topic.Slug}} · {{.Playbook.Status}}{{if .Playbook.UpdatedBy}} · last edited by {{.Playbook.UpdatedBy}} {{datetime .Playbook.UpdatedAt}}{{end}}</div>
     <div class="acts">
       {{if and (eq .Playbook.Status "draft") (eq $.Todo 0) $.Cards}}
       <form method="post" action="/publish/{{.Playbook.ID}}" style="margin:0" onsubmit="return confirm('Publish this page to the live site?')"><button class="btn btn-publish">Publish</button></form>
@@ -178,7 +178,7 @@
   {{with .Source}}
   <div class="head">
     <h1>{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</h1>
-    <div class="meta"><a href="{{.URL}}" target="_blank" rel="noopener" style="color:#9b2335">{{.URL}} ↗</a>{{if .Unreadable}} · the checker could not read this page ({{.LastFetchNote}}){{else if .LastCheckedAt}} · checker last read it {{date .LastCheckedAt}}{{end}}</div>
+    <div class="meta"><a href="{{.URL}}" target="_blank" rel="noopener" style="color:#9b2335">{{.URL}} ↗</a>{{if .Unreadable}} · the checker could not read this page ({{.LastFetchNote}}){{else if .LastCheckedAt}} · checker last read it {{datetime .LastCheckedAt}}{{end}}</div>
     <div class="acts"><form method="post" action="/statements/source/{{.SourceID}}/recheck" style="margin:0">{{template "filterfields" $.F}}<button class="btn">Recheck quotes</button></form></div>
   </div>
   {{end}}

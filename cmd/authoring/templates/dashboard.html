@@ -180,7 +180,7 @@
           <td class="title-cell">{{.Title}}</td>
           {{if $.ShowLanguage}}<td class="meta-cell">{{.Language}}</td>{{end}}
           <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}{{with index $.Standing .ID}} <span class="badge badge-review{{if .Publishable}} badge-review-done{{end}}" title="{{with index $.Issues $p.ID}}{{.Tooltip}}{{else}}Nothing left to do{{end}}">{{if .Publishable}}ready{{else}}{{.ToDo}} to do{{end}}</span>{{else}}{{with index $.Issues .ID}} <span class="badge badge-issues" title="{{.Tooltip}}">⚠ {{.N}}</span>{{end}}{{end}}</td>
-          <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}{{if .UpdatedBy}} · {{.UpdatedBy}}{{end}}</td>
+          <td class="meta-cell" title="Created {{datetime .CreatedAt}}{{if .PublishedAt}} · Published {{datetime .PublishedAt}}{{end}}">{{datetime .UpdatedAt}}{{if .UpdatedBy}} · {{.UpdatedBy}}{{end}}</td>
           <td>
             <div class="actions">
               <a href="/statements?page={{.ID}}" class="btn btn-view btn-xs">Open</a>

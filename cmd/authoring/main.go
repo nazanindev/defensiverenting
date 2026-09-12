@@ -991,6 +991,7 @@ func parseStatementTag(v string) (conceptSlug, topicRefSlug string) {
 // cannot be missing where the templates are parsed for rendering checks.
 var templateFuncs = template.FuncMap{
 	"date":      fmtDate,
+	"datetime":  fmtDateTime,
 	"inc":       func(i int) int { return i + 1 }, // 1-based row numbers
 	"highlight": highlight,
 }
@@ -1029,6 +1030,36 @@ func fmtDate(v any) string {
 		return "—"
 	}
 	return t.Format("Jan 2, 2006")
+}
+
+// portalZone is where the people using the portal are; the server runs in
+// UTC and a bare "17:58" would mislead.
+var portalZone = func() *time.Location {
+	if loc, err := time.LoadLocation("America/New_York"); err == nil {
+		return loc
+	}
+	return time.UTC
+}()
+
+// fmtDateTime is fmtDate with the time of day, for stamps where "when today"
+// matters: a Done, a save, a confirmation.
+func fmtDateTime(v any) string {
+	var t time.Time
+	switch x := v.(type) {
+	case time.Time:
+		t = x
+	case *time.Time:
+		if x == nil {
+			return "—"
+		}
+		t = *x
+	default:
+		return "—"
+	}
+	if t.IsZero() {
+		return "—"
+	}
+	return t.In(portalZone).Format("Jan 2, 2006 15:04 MST")
 }
 
 // viewPlaybook is the page's statements screen: the one statements list
