@@ -27,7 +27,8 @@ type PageIssue struct {
 	// Code names the invariant, stable across wording changes:
 	// no-title, no-statements, empty-statement, uncited-statement,
 	// missing-quote, unverified-quote, source-unreachable, statute-locator,
-	// source-no-publisher, language-deferred.
+	// source-no-publisher, language-deferred, unreviewed-statement,
+	// undecided-item.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -237,6 +238,48 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		WHERE `+cond+` AND NOT (pb.language = ANY($`+strconv.Itoa(len(args)+1)+`))`, append(append([]any{}, args...), ContentLanguages),
 		func(id int64, f []string) {
 			add(id, 0, "language-deferred", fmt.Sprintf("content in %q is deferred (ADR-015): the page can be edited but not published until that language is active again", f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// Review is per statement (ADR-018 D2, D3): a page cannot publish while
+	// any statement lacks a valid stamp, one by a person over the content as
+	// it reads now. Directory pages are the exception, reviewed as a page at
+	// publish, because an entry's lines mean nothing apart from the
+	// organisation heading above them. One issue per page, listing the
+	// positions, so fourteen unread statements are one line, not fourteen.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, string_agg((ps.position + 1)::text, ', ' ORDER BY ps.position), count(*)::text
+		FROM playbook_statements ps
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN statements s ON s.id = ps.statement_id
+		JOIN statement_review_hash h ON h.statement_id = s.id
+		WHERE `+cond+` AND pb.page_kind <> 'directory'
+		  AND NOT (s.last_reviewed_at IS NOT NULL AND s.reviewed_hash = h.hash)
+		GROUP BY pb.id`, args,
+		func(id int64, f []string) {
+			first := pos(strings.SplitN(f[0], ",", 2)[0])
+			add(id, first, "unreviewed-statement", fmt.Sprintf("%s statement(s) have not been reviewed (%s) — read each with its citations and mark it reviewed", f[1], f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// An undecided queue item is an open question about a claim: the
+	// drafting agent's doubt, or a quote the checker could not find. Nothing
+	// publishes over it. Snoozing is how a reviewer defers one on purpose.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, string_agg(DISTINCT (ps.position + 1)::text, ', ')
+		FROM playbook_statements ps
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN statements s ON s.id = ps.statement_id
+		JOIN statement_proposals sp ON sp.statement_key = s.key AND sp.status = 'pending'
+		WHERE `+cond+`
+		GROUP BY pb.id`, args,
+		func(id int64, f []string) {
+			first := pos(strings.SplitN(f[0], ",", 2)[0])
+			add(id, first, "undecided-item", fmt.Sprintf("statement(s) %s have an undecided item in the queue — decide it there first", f[0]))
 		},
 	); err != nil {
 		return nil, err

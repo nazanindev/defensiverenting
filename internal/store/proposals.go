@@ -423,14 +423,16 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 			return ErrProposalTargetGone
 		}
 		params.Statements = current
-		if err := authorUpdatePlaybookTx(ctx, tx, params); err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `
+		// Decided before the save: the approval is the reviewer's sign-off
+		// on the replacement (ADR-018 D2), and a still-pending item would
+		// keep the save from stamping it and the live gate from passing.
+		if _, err := tx.Exec(ctx, `
 			UPDATE statement_proposals
 			   SET status = 'approved', decided_by = $2, decided_at = NOW(), snoozed_until = NULL
-			 WHERE id = $1`, p.ID, p.By)
-		return err
+			 WHERE id = $1`, p.ID, p.By); err != nil {
+			return err
+		}
+		return authorUpdatePlaybookTx(ctx, tx, params)
 	})
 }
 

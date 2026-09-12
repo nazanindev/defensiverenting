@@ -230,6 +230,7 @@ func main() {
 	mux.HandleFunc("POST /generate", s.generateDraft)
 	mux.HandleFunc("POST /check-sources", s.checkSources)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
+	mux.HandleFunc("POST /review/{id}", s.markReviewed)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
 	mux.HandleFunc("POST /api/check-quote", s.checkQuoteLive)
@@ -501,6 +502,19 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	for pid, issues := range draftIssues {
 		issueBadges[pid] = &issueBadge{N: len(issues), Tooltip: strings.Join(issueDetails(issues), "\n")}
 	}
+	// Review standing per draft (ADR-018 D4): n of m statements stamped.
+	// Pointers for the same reason as the issue badges: a missing row must
+	// read as absent, not as "0/0 reviewed".
+	reviewCounts, err := s.pg.AuthorDraftReviewCounts(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	reviewed := make(map[int64]*store.ReviewCount, len(reviewCounts))
+	for pid, c := range reviewCounts {
+		c := c
+		reviewed[pid] = &c
+	}
 
 	langs := map[string]bool{}
 	for _, p := range playbooks {
@@ -587,6 +601,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "dashboard.html", map[string]any{
 		"Actor":           actor(r),
 		"Issues":          issueBadges,
+		"Reviewed":        reviewed,
 		"Playbooks":       playbooks,
 		"Cities":          cities,
 		"ReviewCounts":    counts,
@@ -1072,7 +1087,10 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 
 	var stmts []viewStmt
 	for i, stmt := range pw.Statements {
-		vs := viewStmt{Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, TopicRef: stmt.TopicRefSlug}
+		vs := viewStmt{
+			Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, TopicRef: stmt.TopicRefSlug,
+			Key: stmt.Key, ReviewedAt: stmt.ReviewedAt, ReviewedBy: stmt.ReviewedBy, Undecided: stmt.Undecided,
+		}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorial.ID {
 				vs.Editorial = true
@@ -1110,14 +1128,27 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Review is per statement except on a directory, which is reviewed as
+	// a page when published (ADR-018 D3). The count drives the page-level
+	// "mark the rest" action and the n-of-m line.
+	perStatement := pw.Playbook.PageKind != "directory"
+	unreviewed := 0
+	for _, st := range stmts {
+		if st.ReviewedAt == nil {
+			unreviewed++
+		}
+	}
+
 	s.render(w, "view.html", map[string]any{
-		"Playbook": pw,
-		"Sources":  sources,
-		"Stmts":    stmts,
-		"Groups":   groups,
-		"Grouped":  pw.Playbook.PageKind == "directory",
-		"Issues":   issueDetails(issues),
-		"Msg":      r.URL.Query().Get("msg"),
+		"Playbook":     pw,
+		"Sources":      sources,
+		"Stmts":        stmts,
+		"Groups":       groups,
+		"Grouped":      pw.Playbook.PageKind == "directory",
+		"PerStatement": perStatement,
+		"Unreviewed":   unreviewed,
+		"Issues":       issueDetails(issues),
+		"Msg":          r.URL.Query().Get("msg"),
 	})
 }
 
@@ -1156,6 +1187,14 @@ type viewStmt struct {
 	// neither: they cite no external text to check.
 	CheckedAt *time.Time
 	Unchecked bool
+	// Review standing (ADR-018 D2): Key is what the mark-reviewed form posts
+	// back; ReviewedAt/By read nil and "" while the stamp is absent or the
+	// content changed since; Undecided means a queue item is pending on
+	// this claim and the stamp is refused until it is decided.
+	Key        string
+	ReviewedAt *time.Time
+	ReviewedBy string
+	Undecided  bool
 }
 
 // stmtCheckedAt derives a statement's last-checked stamp from its citations.
@@ -1560,6 +1599,33 @@ func (s *srv) publish(w http.ResponseWriter, r *http.Request) {
 		}
 		s.serverError(w, err)
 	}
+}
+
+// markReviewed stamps statements on one page as reviewed by the signed-in
+// person (ADR-018 D2). The form posts the keys of the statements it showed;
+// no keys means every statement on the page that is not yet reviewed. The
+// view page renders each statement with its quotes, so either shape is a
+// stamp over content the reviewer had in front of them.
+func (s *srv) markReviewed(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	res, err := s.pg.MarkStatementsReviewed(r.Context(), id, r.Form["key"], actor(r))
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	msg := fmt.Sprintf("Marked %d statement(s) reviewed.", res.Stamped)
+	if res.Undecided > 0 {
+		msg += fmt.Sprintf(" %d skipped: an item in the queue is still undecided.", res.Undecided)
+	}
+	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }
 
 // placeOption is one entry in the location filter.

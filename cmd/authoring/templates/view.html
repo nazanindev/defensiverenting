@@ -77,6 +77,13 @@
   .cite-quote-checked { grid-column: 2; font-size: .68rem; color: #6b7f5e; }
   .check-stamp { display: inline-flex; align-items: center; padding: .2rem .55rem; border-radius: 6px; font-size: .72rem; font-weight: 600; border: 1px solid #cddcc4; background: #f2f8ee; color: #3f5c33; }
   .check-stamp-missing { border-color: #f0e0b0; background: #fdf6e3; color: #8a6d3b; }
+  /* Review stamps (ADR-018): one per statement, set by a person over the
+     content as it reads, void the moment the words or evidence change. */
+  .review-stamp { border-color: #c7d2fe; background: #eef2ff; color: #3730a3; }
+  .review-stamp-undecided { border-color: #ddd6fe; background: #f5f3ff; color: #5b21b6; text-decoration: none; }
+  .btn-review { padding: .2rem .6rem; font-size: .72rem; font-weight: 600; border-radius: 6px; border: 1px solid #a5b4fc; background: #fff; color: #3730a3; cursor: pointer; }
+  .btn-review:hover { background: #eef2ff; }
+  .review-line { font-size: .8rem; color: #4b3f3f; margin-top: 10px; }
   .btn-publish { background: #065f46; color: #fff; }
   .btn-publish:hover { background: #054c39; }
 
@@ -155,6 +162,15 @@
         <button type="submit" class="btn btn-publish">✓ Verify &amp; publish</button>
       </form>
       {{end}}
+      {{if and .PerStatement .Unreviewed}}
+      {{/* The page-level stamp is honest here because every statement is
+           rendered below with its quotes; it stamps only what is unreviewed
+           and skips anything with an undecided queue item. */}}
+      <form method="post" action="/review/{{.Playbook.Playbook.ID}}" style="display:inline"
+            onsubmit="return confirm('Mark all {{.Unreviewed}} unreviewed statement(s) on this page as reviewed by you? Only do this after reading each one with its quotes.')">
+        <button type="submit" class="btn btn-secondary">Mark {{.Unreviewed}} remaining as reviewed</button>
+      </form>
+      {{end}}
       {{/* Taking a page down keeps its text as the slot's draft: a page that is
            wrong in front of renters has to come down before a correction can be
            researched, and deleting it destroys the text and 404s a live URL.
@@ -205,7 +221,8 @@
   <!-- Statements -->
   <section>
     <h2>Statements ({{len .Stmts}})</h2>
-    {{if .Stmts}}<p class="verify-hint">Each quote below should be <strong>verbatim from its source</strong> — the editor checks it against the live page, and publishing is refused while any citation's quote is missing or unconfirmed. Confirm the quote supports the statement and the source is authoritative, then use <strong>Verify &amp; publish</strong> above.</p>{{end}}
+    {{if .Stmts}}<p class="verify-hint">Each quote below should be <strong>verbatim from its source</strong> — the editor checks it against the live page, and publishing is refused while any citation's quote is missing or unconfirmed. {{if .PerStatement}}Read each statement with its quotes, confirm the quote supports the claim and the source is authoritative, and <strong>mark it reviewed</strong>. Publishing needs every statement reviewed; a stamp is void the moment the words or the evidence change.{{else}}A directory is reviewed as a page: confirm each organisation's lines together, then publish.{{end}}</p>{{end}}
+    {{if and .PerStatement .Stmts}}<p class="review-line">{{if .Unreviewed}}{{.Unreviewed}} of {{len .Stmts}} statement(s) still to review.{{else}}Every statement is reviewed.{{end}}</p>{{end}}
     {{range .Groups}}
     {{if .Heading}}<h3 class="org-heading">{{.Heading}}</h3>{{end}}
     {{range .Stmts}}
@@ -236,6 +253,18 @@
           <span class="check-stamp check-stamp-missing" title="At least one citation has never been confirmed against its live source">Not checked yet</span>
           {{else if .CheckedAt}}
           <span class="check-stamp" title="Every citation was confirmed against its live source, the oldest on this date">Checked {{date .CheckedAt}}</span>
+          {{end}}
+          {{if $.PerStatement}}
+          {{if .ReviewedAt}}
+          <span class="check-stamp review-stamp" title="A person read this statement with its citations as it reads now">Reviewed {{date .ReviewedAt}}{{if .ReviewedBy}} by {{.ReviewedBy}}{{end}}</span>
+          {{else if .Undecided}}
+          <a class="check-stamp review-stamp-undecided" href="/queue" title="A queue item is pending on this statement; decide it before marking the statement reviewed">Undecided in the queue ↗</a>
+          {{else}}
+          <form method="post" action="/review/{{$.Playbook.Playbook.ID}}" style="display:inline">
+            <input type="hidden" name="key" value="{{.Key}}">
+            <button type="submit" class="btn-review" title="Stamp this statement, as it reads with these quotes, as reviewed by you">Mark reviewed</button>
+          </form>
+          {{end}}
           {{end}}
         </div>
         {{range .Cites}}{{if .Quote}}

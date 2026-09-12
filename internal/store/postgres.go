@@ -412,9 +412,11 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 		SELECT
 			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
-			src.url, src.publisher, src.kind
+			src.url, src.publisher, src.kind,
+			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
+		JOIN statement_review_hash h ON h.statement_id = s.id
 		LEFT JOIN concepts co ON co.id = s.concept_id
 		LEFT JOIN topics   tr ON tr.id = s.topic_ref
 		JOIN citations  c   ON c.statement_id = s.id
@@ -900,10 +902,24 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 		}
 		topicRefID = &id
 	}
+	// The review stamp (ADR-018 D2) rides along from the most recent row
+	// with the same key, the way a citation inherits its confirmation. The
+	// stamp is only honoured while its hash matches the content, so carrying
+	// it onto an edited statement is harmless: the mismatch reads as
+	// unreviewed. The prior row still exists here because saves detach and
+	// delete replaced rows last.
 	var stmtID int64
 	err := tx.QueryRow(ctx, `
-		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id, topic_ref, key)
-		VALUES ($1, $2, $3, $4, $5, COALESCE(NULLIF($6, '')::uuid, gen_random_uuid())) RETURNING id`,
+		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id, topic_ref, key,
+		                        last_reviewed_at, reviewed_by, reviewed_hash)
+		SELECT $1, $2, $3, $4, $5, k.key,
+		       prior.last_reviewed_at, COALESCE(prior.reviewed_by, ''), COALESCE(prior.reviewed_hash, '')
+		FROM (SELECT COALESCE(NULLIF($6, '')::uuid, gen_random_uuid()) AS key) k
+		LEFT JOIN LATERAL (
+			SELECT p.last_reviewed_at, p.reviewed_by, p.reviewed_hash
+			FROM statements p WHERE p.key = k.key ORDER BY p.id DESC LIMIT 1
+		) prior ON true
+		RETURNING id`,
 		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID, key,
 	).Scan(&stmtID)
 	return stmtID, err
@@ -1062,6 +1078,13 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 				return err
 			}
 		}
+		// Ingesting straight to published is publishing: the person running
+		// the tool reviewed the page as a page (ADR-018 D3).
+		if status == "published" {
+			if err := stampUnreviewed(ctx, tx, playbookID, params.UpdatedBy); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 }
@@ -1092,6 +1115,11 @@ func writeStatement(ctx context.Context, tx pgx.Tx, keys *keyChooser, jurisdicti
 	}
 	if err := fileReviewerFlag(ctx, tx, key, playbookID, sp.ReviewerNote, by); err != nil {
 		return fmt.Errorf("file reviewer note on statement %d: %w", i, err)
+	}
+	if isReviewer(by) {
+		if err := stampIfWritten(ctx, tx, stmtID, by); err != nil {
+			return fmt.Errorf("stamp statement %d: %w", i, err)
+		}
 	}
 	return nil
 }
@@ -1146,10 +1174,16 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			checkedBy        *string
 			url, pub, kind   *string
 		)
+		var (
+			reviewedAt *time.Time
+			reviewedBy string
+			undecided  bool
+		)
 		if err := rows.Scan(
 			&stmtID, &stmtKey, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
 			&sourceID, &locator, &quote, &manuallyVerified, &c.CheckedAt, &checkedBy,
 			&url, &pub, &kind,
+			&reviewedAt, &reviewedBy, &undecided,
 		); err != nil {
 			continue
 		}
@@ -1160,6 +1194,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			out = append(out, CitedStatement{
 				ID: stmtID, Key: stmtKey, BodyMD: bodyMD, ConceptSlug: conceptSlug,
 				TopicRefSlug: topicRefSlug, TopicRefName: topicRefName,
+				ReviewedAt: reviewedAt, ReviewedBy: reviewedBy, Undecided: undecided,
 			})
 			idx[k] = i
 			order = append(order, k)
@@ -1221,9 +1256,11 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		SELECT
 			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
-			src.url, src.publisher, src.kind
+			src.url, src.publisher, src.kind,
+			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
+		JOIN statement_review_hash h ON h.statement_id = s.id
 		LEFT JOIN concepts co ON co.id = s.concept_id
 		LEFT JOIN topics   tr ON tr.id = s.topic_ref
 		LEFT JOIN citations  c   ON c.statement_id = s.id
@@ -1419,7 +1456,10 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64, actor string)
 			 WHERE id = $1`, id, actor); err != nil {
 			return fmt.Errorf("publish playbook %d: %w", id, err)
 		}
-		return nil
+		// The gate already required every statement reviewed, except on a
+		// directory page, which is reviewed as a page (ADR-018 D3): its
+		// statements are stamped by the publisher here.
+		return stampUnreviewed(ctx, tx, id, actor)
 	})
 }
 

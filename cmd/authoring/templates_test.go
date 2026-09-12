@@ -35,6 +35,7 @@ func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[strin
 		"Playbooks": playbooks,
 		// Draft 1 carries issues so the ⚠ badge path renders, not just the
 		// clean-row skip.
+		"Reviewed": map[int64]*store.ReviewCount{},
 		"Issues": map[int64]*issueBadge{
 			1: {N: 2, Tooltip: "the page has no title\nstatement 1 has no citation"},
 		},

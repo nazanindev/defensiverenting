@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed |
+| Status | Accepted; D1, D2, D3 shipped 2026-09-11 (migration 000041), D4 lists and D5 bulk actions pending |
 | Date | 2026-09-11 |
 
 ## Context
@@ -28,13 +28,17 @@ The drafting prompt tells the agent to use the field for exactly what the review
 
 `statements` gains `reviewed_by TEXT` and `reviewed_hash TEXT` beside the existing `last_reviewed_at`. Marking a statement reviewed stamps all three: the actor, the time, and a hash over the statement body, its concept, and every citation's URL, locator, and quote. A statement counts as reviewed only while the stored hash matches the hash of its current content. Any edit to the words or the evidence silently returns it to unreviewed. Nothing has to invalidate; the stamp is simply no longer true, the way a receipt hash is no longer true after drift.
 
-The stamp cannot be set while the statement has a pending proposal of any reason. A doubt from D1, or a source-drift item from the checker, must be decided first.
+The stamp cannot be set while the statement has a pending proposal of any reason. A doubt from D1, or a source-drift item from the checker, must be decided first. A snoozed proposal is a deliberate deferral and does not block.
 
 Editorial-only statements (every citation is `kind = 'editorial'`) are still reviewed: the stamp is about the claim, not only its quotes.
 
+**A person's save stamps what that person wrote** (amendment, 2026-09-11). When a named person saves a page, a statement that is new to its key, or whose content differs from every earlier row with that key, is stamped by them at that save. A statement they carried forward unchanged keeps whatever stamp it inherited, which may be none: saving a page is not reading every statement on it. The drafting agent and the source checker never stamp. Without this rule, every edit to a live page would be refused at the gate until the editor stamped by hand the statement they had just written, and approving a queue item (which is a save by the reviewer) could never pass the live gate. The approval decides the item before it saves for the same reason.
+
+The stamp travels with the key across saves, the way a citation's confirmation does, and is judged against the hash on read. Pages that were already live when this shipped were back-filled by the migration: their statements are stamped by whoever last published the page, at the publish time, since publishing was the sign-off until now.
+
 ### D3. Publishing a page requires every statement reviewed
 
-`collectIssues` gains one check, code `unreviewed-statement`: a non-directory page is not publishable while any statement lacks a valid stamp. The dashboard badges, the view page, and the gate show it together, as with every other issue (ADR-013). No second enforcement point.
+`collectIssues` gains two checks. `unreviewed-statement`: a non-directory page is not publishable while any statement lacks a valid stamp. `undecided-item`: no page of any kind publishes while a statement on it has a pending proposal; snoozing is how a reviewer defers one on purpose. The dashboard badges, the view page, and the gate show both together, as with every other issue (ADR-013). No second enforcement point. A page ingested straight to published (`cmd/ingest`, `cmd/promote`) is stamped whole by the person running the tool, like a directory.
 
 Publishing continues to stamp `playbooks.last_reviewed_at` and continues to be a single-page, named-person action. What changes is that the person may have done the reading days earlier, in a different order, in groups.
 
@@ -50,7 +54,7 @@ Three list pages under `/review`, each showing statements with their citations a
 
 Lists, not boxes. Keyboard driven where the queue is.
 
-The dashboard's draft list gains a per-page count, "n of m statements reviewed", beside the existing issue badge.
+The dashboard's draft list gains a per-page count, "n of m statements reviewed", beside the existing issue badge. The page view is the first group: each statement shows its stamp, or a mark-reviewed button, or a pointer to its undecided queue item, and the page offers to stamp the remainder in one action since every statement is rendered there with its quotes.
 
 ### D5. "Verify all" is four buttons, because it is four actions
 

@@ -26,7 +26,9 @@ func seedUnquoted(t *testing.T, pg *store.PG, jID, tID int64, kind string) int64
 	}
 	if err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: jID, TopicID: tID, Language: "en", Slug: "slug-" + t.Name(),
-		Title: "Unquoted", IntroMD: "intro", Status: "draft",
+		// Seeded by a person, so the statements count as reviewed (ADR-018 D2)
+		// and these tests keep exercising the citation checks alone.
+		Title: "Unquoted", IntroMD: "intro", Status: "draft", UpdatedBy: "test",
 		Statements: []store.IngestStatementParams{{
 			BodyMD: "A claim nobody can verify.", Language: "en",
 			Sources: []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1"}},

@@ -288,6 +288,17 @@ type CitedStatement struct {
 	TopicRefSlug string
 	TopicRefName string
 	Citations    []CitationWithSource
+	// ReviewedAt is when a person signed this statement off (ADR-018 D2),
+	// nil when never, or when the body, tags, or citations changed since:
+	// the stamp is bound to a hash of what was reviewed and reads as absent
+	// once the content no longer matches. ReviewedBy names that person; ""
+	// whenever ReviewedAt is nil.
+	ReviewedAt *time.Time
+	ReviewedBy string
+	// Undecided reports a pending proposal against this statement's key. The
+	// statement cannot be stamped reviewed, and its page cannot publish,
+	// until the queue item is decided.
+	Undecided bool
 }
 
 type SearchResult struct {

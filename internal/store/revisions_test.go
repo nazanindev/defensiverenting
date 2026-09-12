@@ -24,7 +24,9 @@ func seedPlaybook(t *testing.T, pg *store.PG, jID, tID int64, status, title stri
 	}
 	if err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
 		JurisdictionID: jID, TopicID: tID, Language: "en", Slug: "slug-" + t.Name(),
-		Title: title, IntroMD: "intro", Status: status,
+		// Seeded by a person: the statements are reviewed as written (ADR-018
+		// D2), so fixtures that publish straight away still can.
+		Title: title, IntroMD: "intro", Status: status, UpdatedBy: "test",
 		Statements: []store.IngestStatementParams{{
 			BodyMD: "A claim. " + title, Language: "en",
 			// CheckedNow mirrors the real drafting path, which confirms the
