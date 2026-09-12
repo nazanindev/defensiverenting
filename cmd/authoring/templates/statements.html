@@ -222,21 +222,62 @@ function openPanel(btn) {
 }
 function closePanel() { document.body.classList.remove('with-panel'); target = null; }
 function setNote(msg, ok) { const n = document.getElementById('p-note'); n.textContent = msg; n.className = 'pn' + (ok ? ' ok' : ''); }
+// A fetched page is the whole page: menus, code pickers, footers, and
+// somewhere in it the law. The checker matches against all of it, so the
+// text is shown whole, but runs of short lines (a menu is many short
+// lines; a statute is long ones) fold into one line the reader can open.
+function isChrome(line) {
+  const t = line.trim();
+  if (!t) return true;
+  return t.length < 48 && !/[.;:!?”"')]$/.test(t);
+}
+function segments(text) {
+  const out = []; let run = [];
+  const flush = () => { if (run.length >= 4) out.push({ fold: run }); else run.forEach(l => out.push({ text: l })); run = []; };
+  text.split('\n').forEach(line => { if (isChrome(line)) run.push(line); else { flush(); out.push({ text: line }); } });
+  flush();
+  return out;
+}
 function showText(text, quote) {
   const el = document.getElementById('p-text');
-  el.textContent = text;
-  if (!quote) { setNote('No quote recorded for this citation. Select the words that back the statement and use them as the quote.', false); return; }
-  // Match the quote allowing any whitespace between words, case-insensitively.
-  const words = quote.trim().split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const re = new RegExp(words.join('\\s+'), 'i');
-  const m = re.exec(text);
-  if (!m) { setNote('The quote was not found in the fetched text. Select the passage that backs the statement and use it as the quote.', false); return; }
   el.innerHTML = '';
-  el.appendChild(document.createTextNode(text.slice(0, m.index)));
-  const mark = document.createElement('mark'); mark.textContent = m[0]; el.appendChild(mark);
-  el.appendChild(document.createTextNode(text.slice(m.index + m[0].length)));
-  setNote('Quote found in the fetched text.', true);
-  mark.scrollIntoView({ block: 'center' });
+  // Find the quote in the whole text first, then place the mark in whichever
+  // line holds it. Any whitespace between words, case-insensitive.
+  let re = null;
+  if (quote) {
+    const words = quote.trim().split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    re = new RegExp(words.join('\\s+'), 'i');
+  }
+  let mark = null, firstContent = null;
+  segments(text).forEach(seg => {
+    if (seg.fold) {
+      const d = document.createElement('details');
+      const sm = document.createElement('summary');
+      sm.textContent = seg.fold.filter(l => l.trim()).length + ' short lines (menus, links)';
+      sm.style.cssText = 'cursor:pointer;color:#9a7878;font-size:.76rem;margin:6px 0';
+      d.appendChild(sm);
+      const pre = document.createElement('div'); pre.textContent = seg.fold.join('\n'); pre.style.color = '#9a7878';
+      d.appendChild(pre);
+      el.appendChild(d);
+      return;
+    }
+    const line = seg.text;
+    const m = re && !mark ? re.exec(line) : null;
+    const div = document.createElement('div');
+    if (m) {
+      div.appendChild(document.createTextNode(line.slice(0, m.index)));
+      mark = document.createElement('mark'); mark.textContent = m[0]; div.appendChild(mark);
+      div.appendChild(document.createTextNode(line.slice(m.index + m[0].length)));
+    } else {
+      div.textContent = line;
+    }
+    if (!firstContent && line.trim().length >= 48) firstContent = div;
+    el.appendChild(div);
+  });
+  if (!quote) { setNote('No quote recorded for this citation. Select the words that back the statement and use them as the quote.', false); }
+  else if (!mark) { setNote('The quote was not found in the fetched text. Select the passage that backs the statement and use it as the quote.', false); }
+  else { setNote('Quote found in the fetched text.', true); }
+  (mark || firstContent || el).scrollIntoView({ block: mark ? 'center' : 'start' });
 }
 document.addEventListener('selectionchange', () => {
   const sel = document.getSelection();
