@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"time"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -526,5 +527,37 @@ func TestQueueTemplateRendersSourceProposals(t *testing.T) {
 	}
 	if !strings.Contains(render(nil), "Nothing pending") {
 		t.Error("no empty state without any proposals")
+	}
+}
+
+func TestReviewTemplatesRender(t *testing.T) {
+	tmpl := parseTemplates(t)
+	now := time.Now()
+	src := store.SourceReviewSummary{SourceID: 7, URL: "https://law.example.gov/x", Publisher: "Example", Kind: "statute", Unreviewed: 1, Unconfirmed: 1, Unreadable: true, LastFetchNote: "bot check"}
+	cite := store.CitationWithSource{SourceID: 7, Locator: "§ 1", Quote: "verbatim", SourceURL: src.URL, Publisher: "Example", SourceKind: "statute"}
+	rows := []store.ReviewRow{{
+		PlaybookID: 3, PageTitle: "T", PageStatus: "draft", PageKind: "playbook", Jurisdiction: "Texas", Topic: "Deposits", Position: 2,
+		Stmt: store.CitedStatement{ID: 11, Key: "k", BodyMD: "A claim.", Citations: []store.CitationWithSource{cite},
+			Notes: []store.StatementNote{{ID: 5, Note: "Doubt.", By: "drafting agent", At: now}}},
+	}, {
+		PlaybookID: 4, PageStatus: "published", PageKind: "directory", Jurisdiction: "Texas", Topic: "Help", Position: 1,
+		Stmt: store.CitedStatement{ID: 12, Key: "k2", BodyMD: "Org.", ReviewedAt: &now, ReviewedBy: "Nazanin", Citations: []store.CitationWithSource{cite}},
+	}}
+	items := []reviewGroupItem{{ReviewRow: rows[0], Focus: &cite, Item: "3:k"}, {ReviewRow: rows[1], Item: "4:k2"}}
+	for name, data := range map[string]map[string]any{
+		"review.html": {"Actor": "Nazanin", "Sources": []store.SourceReviewSummary{src}, "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", TopicSlug: "t", Statements: 2, Unreviewed: 1}}, "SourcesOpen": 1, "ConceptsOpen": 1, "Notes": 3, "Msg": ""},
+		"review_group.html": {"Actor": "Nazanin", "Kind": "source", "Source": src, "Title": "Example", "Items": items, "Counts": countReview(rows), "MarkPath": "/review/source/7/reviewed", "Msg": "hi"},
+	} {
+		var buf bytes.Buffer
+		if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
+			t.Fatalf("execute %s: %v", name, err)
+		}
+		if name == "review_group.html" && !strings.Contains(buf.String(), "Attest 1 unconfirmed") {
+			t.Error("an unreadable source with unconfirmed quotes must offer attestation")
+		}
+	}
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, "review_group.html", map[string]any{"Kind": "concept", "Concept": "c", "Title": "C", "Items": items, "Counts": countReview(rows), "MarkPath": "/review/concept/c/reviewed"}); err != nil {
+		t.Fatalf("concept group: %v", err)
 	}
 }

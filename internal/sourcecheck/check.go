@@ -94,11 +94,25 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		return Result{Skipped: skipped, Unused: unused}, err
 	}
 
-	// Group cited quotes by source, preserving first-seen order.
-	type agg struct {
-		url, publisher string
-		rows           []store.CitationCheckRow
+	order, bySrc := groupBySource(rows)
+
+	res := Result{Skipped: skipped, Unused: unused}
+	for _, id := range order {
+		if err := checkSource(ctx, db, fetch, id, bySrc[id], logf, &res); err != nil {
+			return res, err
+		}
 	}
+	return res, nil
+}
+
+// agg is one source's cited quotes, gathered for a single fetch.
+type agg struct {
+	url, publisher string
+	rows           []store.CitationCheckRow
+}
+
+// groupBySource groups cited quotes by source, preserving first-seen order.
+func groupBySource(rows []store.CitationCheckRow) ([]int64, map[int64]*agg) {
 	var order []int64
 	bySrc := map[int64]*agg{}
 	for _, r := range rows {
@@ -110,90 +124,116 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		}
 		a.rows = append(a.rows, r)
 	}
+	return order, bySrc
+}
 
-	res := Result{Skipped: skipped, Unused: unused}
-	for _, id := range order {
-		a := bySrc[id]
-		rc, err := fetch(a.url)
-		if err != nil {
-			res.Failed++
-			logf("✗ %s: %v", a.url, err)
-			if err := db.MarkSourceUnreadable(ctx, id, "fetch failed: "+err.Error()); err != nil {
-				return res, err
-			}
-			continue
-		}
-		if !rc.Live() {
-			// FetchExtract never returns a snapshot; a test fetcher might.
-			res.Failed++
-			logf("✗ %s: only a %s was available, which says nothing about the live page", a.url, rc.Describe())
-			if err := db.MarkSourceUnreadable(ctx, id, "only a snapshot was available ("+rc.Describe()+")"); err != nil {
-				return res, err
-			}
-			continue
-		}
-
-		var present []store.QuoteConfirmation
-		var missing, unchecked []store.CitationCheckRow
-		for _, r := range a.rows {
-			switch {
-			case r.CheckedHash != "" && r.CheckedHash == rc.Hash:
-				// The page text is byte-for-byte what the quote was confirmed
-				// in. No matching needed, and no matcher can disagree.
-				present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: r.CheckedContext})
-			case drafting.QuoteAppearsIn(rc.Text, r.Quote):
-				present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: drafting.Context(rc.Text, r.Quote)})
-			case rc.Thin:
-				// A quote absent from a script shell or a bot-check page is
-				// not evidence of anything.
-				unchecked = append(unchecked, r)
-			case !drafting.Comparable(r.CheckedExtractor, rc.Extractor):
-				res.Incomparable++
-				logf("  ? %s: quote confirmed under %s cannot be judged missing by %s — not comparable here: %q", a.url, r.CheckedExtractor, rc.Extractor, clip(r.Quote, 80))
-			default:
-				missing = append(missing, r)
-			}
-		}
-
-		fetchReceipt := store.CheckReceipt{Via: rc.Tier, Extractor: rc.Extractor, Hash: rc.Hash}
-		// Stamp the quotes this fetch confirmed, even on a drifted or thin
-		// source: the quotes found were checked and found intact, and only
-		// the others keep their older stamp.
-		if err := db.MarkQuotesChecked(ctx, id, fetchReceipt, present); err != nil {
-			return res, err
-		}
-		if len(unchecked) > 0 {
-			res.Unreadable++
-			note := fmt.Sprintf("page too thin to examine (%s): %d of %d quote(s) could not be checked", rc.Describe(), len(unchecked), len(a.rows))
-			logf("⚠ %s — %s", a.url, note)
-			if err := db.MarkSourceUnreadable(ctx, id, note); err != nil {
-				return res, err
-			}
-			if len(present) == 0 {
-				continue
-			}
-		}
-		if len(unchecked) == 0 {
-			if err := db.MarkSourceChecked(ctx, id, rc.Describe()); err != nil {
-				return res, err
-			}
-			res.Sources++
-		}
-		if len(missing) == 0 {
-			if len(unchecked) == 0 {
-				logf("· %s — all %d quote(s) still present (%s)", a.url, len(a.rows), rc.Describe())
-			}
-			continue
-		}
-		res.Drifted++
-		logf("⚑ %s — %d of %d cited quote(s) no longer found (%s)", a.url, len(missing), len(a.rows), rc.Describe())
-		filed, err := fileDrift(ctx, db, a.url, a.publisher, rc, missing, logf)
-		if err != nil {
-			return res, err
-		}
-		res.Proposed += filed
+// RunSource is Run scoped to one source (ADR-018 D5): the review page's
+// "recheck quotes" button. It files no unused-source proposals and counts
+// no uncheckable citations; those are the whole-site run's concern.
+func RunSource(ctx context.Context, db store.Store, fetch FetchFunc, sourceID int64, logf func(string, ...any)) (Result, error) {
+	if logf == nil {
+		logf = func(string, ...any) {}
 	}
-	return res, nil
+	rows, err := db.ListCitationsForCheck(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	var mine []store.CitationCheckRow
+	for _, r := range rows {
+		if r.SourceID == sourceID {
+			mine = append(mine, r)
+		}
+	}
+	var res Result
+	if len(mine) == 0 {
+		return res, nil
+	}
+	_, bySrc := groupBySource(mine)
+	return res, checkSource(ctx, db, fetch, sourceID, bySrc[sourceID], logf, &res)
+}
+
+// checkSource fetches one source and confirms, files, or stamps each quote
+// cited from it, accumulating into res.
+func checkSource(ctx context.Context, db store.Store, fetch FetchFunc, id int64, a *agg, logf func(string, ...any), res *Result) error {
+	rc, err := fetch(a.url)
+	if err != nil {
+		res.Failed++
+		logf("✗ %s: %v", a.url, err)
+		if err := db.MarkSourceUnreadable(ctx, id, "fetch failed: "+err.Error()); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !rc.Live() {
+		// FetchExtract never returns a snapshot; a test fetcher might.
+		res.Failed++
+		logf("✗ %s: only a %s was available, which says nothing about the live page", a.url, rc.Describe())
+		if err := db.MarkSourceUnreadable(ctx, id, "only a snapshot was available ("+rc.Describe()+")"); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	var present []store.QuoteConfirmation
+	var missing, unchecked []store.CitationCheckRow
+	for _, r := range a.rows {
+		switch {
+		case r.CheckedHash != "" && r.CheckedHash == rc.Hash:
+			// The page text is byte-for-byte what the quote was confirmed
+			// in. No matching needed, and no matcher can disagree.
+			present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: r.CheckedContext})
+		case drafting.QuoteAppearsIn(rc.Text, r.Quote):
+			present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: drafting.Context(rc.Text, r.Quote)})
+		case rc.Thin:
+			// A quote absent from a script shell or a bot-check page is
+			// not evidence of anything.
+			unchecked = append(unchecked, r)
+		case !drafting.Comparable(r.CheckedExtractor, rc.Extractor):
+			res.Incomparable++
+			logf("  ? %s: quote confirmed under %s cannot be judged missing by %s — not comparable here: %q", a.url, r.CheckedExtractor, rc.Extractor, clip(r.Quote, 80))
+		default:
+			missing = append(missing, r)
+		}
+	}
+
+	fetchReceipt := store.CheckReceipt{Via: rc.Tier, Extractor: rc.Extractor, Hash: rc.Hash}
+	// Stamp the quotes this fetch confirmed, even on a drifted or thin
+	// source: the quotes found were checked and found intact, and only
+	// the others keep their older stamp.
+	if err := db.MarkQuotesChecked(ctx, id, fetchReceipt, present); err != nil {
+		return err
+	}
+	if len(unchecked) > 0 {
+		res.Unreadable++
+		note := fmt.Sprintf("page too thin to examine (%s): %d of %d quote(s) could not be checked", rc.Describe(), len(unchecked), len(a.rows))
+		logf("⚠ %s — %s", a.url, note)
+		if err := db.MarkSourceUnreadable(ctx, id, note); err != nil {
+			return err
+		}
+		if len(present) == 0 {
+			return nil
+		}
+	}
+	if len(unchecked) == 0 {
+		if err := db.MarkSourceChecked(ctx, id, rc.Describe()); err != nil {
+			return err
+		}
+		res.Sources++
+	}
+	if len(missing) == 0 {
+		if len(unchecked) == 0 {
+			logf("· %s — all %d quote(s) still present (%s)", a.url, len(a.rows), rc.Describe())
+		}
+		return nil
+	}
+	res.Drifted++
+	logf("⚑ %s — %d of %d cited quote(s) no longer found (%s)", a.url, len(missing), len(a.rows), rc.Describe())
+	filed, err := fileDrift(ctx, db, a.url, a.publisher, rc, missing, logf)
+	if err != nil {
+		return err
+	}
+	res.Proposed += filed
+	return nil
 }
 
 // fileDrift files one proposal per (statement, missing quote) on a source.

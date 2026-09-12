@@ -136,6 +136,8 @@ func nullableKeys(keys []string) any {
 // statements carry a valid stamp.
 type ReviewCount struct {
 	Reviewed, Total int
+	// Undecided counts statements with a pending queue item.
+	Undecided int
 }
 
 // AuthorDraftReviewCounts returns review standing for every draft that is
@@ -145,7 +147,8 @@ func (pg *PG) AuthorDraftReviewCounts(ctx context.Context) (map[int64]ReviewCoun
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id,
 		       count(*) FILTER (WHERE s.last_reviewed_at IS NOT NULL AND s.reviewed_hash = h.hash),
-		       count(*)
+		       count(*),
+		       count(*) FILTER (WHERE `+undecidedSQL+`)
 		FROM playbooks pb
 		JOIN playbook_statements ps ON ps.playbook_id = pb.id
 		JOIN statements s ON s.id = ps.statement_id
@@ -160,7 +163,7 @@ func (pg *PG) AuthorDraftReviewCounts(ctx context.Context) (map[int64]ReviewCoun
 	for rows.Next() {
 		var id int64
 		var c ReviewCount
-		if err := rows.Scan(&id, &c.Reviewed, &c.Total); err != nil {
+		if err := rows.Scan(&id, &c.Reviewed, &c.Total, &c.Undecided); err != nil {
 			return nil, err
 		}
 		out[id] = c

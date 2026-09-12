@@ -94,12 +94,18 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	if status == "" {
 		status = "pending"
 	}
-	rows, err := s.pg.ListProposals(ctx, status)
+	// ?kind=note|drift|other narrows the list to one family of items, so a
+	// run of 240 reviewer notes can be worked apart from drift findings.
+	kind := r.URL.Query().Get("kind")
+	rows, err := s.pg.ListProposalsByReason(ctx, status, kind)
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	sources, err := s.pg.ListSourceProposals(ctx, status)
+	if kind != "" {
+		sources = nil
+	}
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -142,6 +148,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "queue.html", map[string]any{
 		"Actor":    actor(r),
 		"Status":   status,
+		"Kind":     kind,
 		"Groups":   groups,
 		"Sources":  sourceItems,
 		"Count":    len(rows) + len(sourceItems),

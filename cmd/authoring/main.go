@@ -231,6 +231,14 @@ func main() {
 	mux.HandleFunc("POST /check-sources", s.checkSources)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /review/{id}", s.markReviewed)
+	mux.HandleFunc("GET /review", s.reviewIndex)
+	mux.HandleFunc("GET /review/source/{id}", s.reviewSource)
+	mux.HandleFunc("POST /review/source/{id}/reviewed", s.reviewMarkGroup)
+	mux.HandleFunc("POST /review/source/{id}/attest", s.reviewAttestSource)
+	mux.HandleFunc("POST /review/source/{id}/recheck", s.reviewRecheckSource)
+	mux.HandleFunc("GET /review/concept/{slug}", s.reviewConcept)
+	mux.HandleFunc("POST /review/concept/{slug}/reviewed", s.reviewMarkGroup)
+	mux.HandleFunc("POST /publish-ready", s.publishReady)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
 	mux.HandleFunc("POST /api/check-quote", s.checkQuoteLive)
@@ -515,6 +523,13 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		c := c
 		reviewed[pid] = &c
 	}
+	// Drafts the gate would pass right now, for the publish-ready button.
+	readyCount := 0
+	for _, pb := range playbooks {
+		if pb.Status == "draft" && len(draftIssues[pb.ID]) == 0 {
+			readyCount++
+		}
+	}
 
 	langs := map[string]bool{}
 	for _, p := range playbooks {
@@ -602,6 +617,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Actor":           actor(r),
 		"Issues":          issueBadges,
 		"Reviewed":        reviewed,
+		"ReadyCount":      readyCount,
 		"Playbooks":       playbooks,
 		"Cities":          cities,
 		"ReviewCounts":    counts,

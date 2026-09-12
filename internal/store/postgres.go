@@ -1283,27 +1283,12 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 // statement on the page, so the editor and the view can show the doubt
 // beside the claim rather than pointing at the queue.
 func (pg *PG) attachNotes(ctx context.Context, p *PlaybookWithStatements) error {
-	rows, err := pg.pool.Query(ctx, `
-		SELECT s.key::text, sp.id, COALESCE(sp.evidence->>'note', ''), sp.proposed_by, sp.created_at
-		FROM playbook_statements ps
-		JOIN statements s ON s.id = ps.statement_id
-		JOIN statement_proposals sp ON sp.statement_key = s.key
-		WHERE ps.playbook_id = $1 AND sp.reason = $2 AND sp.status = 'pending'
-		ORDER BY sp.id`, p.Playbook.ID, ReasonReviewerFlag)
+	keys := make([]string, 0, len(p.Statements))
+	for _, st := range p.Statements {
+		keys = append(keys, st.Key)
+	}
+	byKey, err := pg.notesByKey(ctx, keys)
 	if err != nil {
-		return fmt.Errorf("load reviewer notes: %w", err)
-	}
-	defer rows.Close()
-	byKey := map[string][]StatementNote{}
-	for rows.Next() {
-		var key string
-		var n StatementNote
-		if err := rows.Scan(&key, &n.ID, &n.Note, &n.By, &n.At); err != nil {
-			return err
-		}
-		byKey[key] = append(byKey[key], n)
-	}
-	if err := rows.Err(); err != nil {
 		return err
 	}
 	for i := range p.Statements {

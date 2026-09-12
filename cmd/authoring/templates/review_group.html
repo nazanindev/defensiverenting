@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Review — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 32px 24px 80px; }
+  .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
+  .crumb a { color: #9b2335; text-decoration: none; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+  .note { color: #7a5c5c; font-size: .85rem; margin-bottom: 18px; max-width: 70ch; }
+  .flash { padding: 10px 14px; border-radius: 8px; font-size: .88rem; margin-bottom: 16px; }
+  .flash-ok { background: #d1fae5; color: #065f46; }
+  .flash-err { background: #fde8eb; color: #7a1c2a; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
+  .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
+  .group { margin-bottom: 28px; }
+  .group-hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; border-bottom: 1px solid #e8dede; margin-bottom: 4px; }
+  .group-hd h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; }
+  .group-hd a { color: #9b2335; text-decoration: none; font-size: .82rem; }
+  .group-hd a:hover { text-decoration: underline; }
+  .group-title { flex-basis: 100%; color: #9a7878; font-size: .78rem; font-style: italic; }
+  .tag { display: inline-block; padding: .15rem .5rem; border-radius: 6px; font-size: .72rem; font-weight: 600; }
+  .tag-draft { background: #fef3c7; color: #92400e; }
+  .tag-published { background: #d1fae5; color: #065f46; }
+  .tag-lang { background: #f0ebe8; color: #5c3a3a; }
+  .item { border-bottom: 1px solid #f0e4e4; }
+  .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .85rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
+  .btn-primary { background: #9b2335; color: #fff; }
+  .btn-primary:hover { background: #7a1c2a; }
+  .btn-success { background: #38a169; color: #fff; }
+  .btn-mute { background: #fdf0f2; color: #7a1c2a; border: 1px solid #f0c0c8; }
+  .btn-review { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .stamp { display: inline-block; padding: .15rem .5rem; border-radius: 6px; font-size: .7rem; font-weight: 600; white-space: nowrap; }
+  .stamp-ok { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .stamp-no { background: #fdf6e3; color: #8a6d3b; border: 1px solid #f0e0b0; }
+  .stamp-undecided { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+  .stamp-page { background: #f0ebe8; color: #5c3a3a; border: 1px solid #e8dede; }
+  .panel { background: #fff; border-radius: 10px; border: 1px solid #e8dede; padding: 14px 18px; margin-bottom: 22px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .panel form { margin: 0; }
+  .panel p { color: #7a5c5c; font-size: .8rem; line-height: 1.5; flex: 1 1 30ch; }
+  .empty { text-align: center; padding: 40px 24px; color: #b08080; background: #fff; border: 1px solid #e8dede; border-radius: 10px; }
+  .note-box { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 7px 10px; border-radius: 4px; font-size: .82rem; line-height: 1.5; color: #3b2a5c; margin-top: 8px; }
+  .note-box a { color: #5b21b6; font-weight: 600; margin-left: 6px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      {{if .Actor}}<span style="color:rgba(255,255,255,.85);font-size:.8rem">Signed in as {{.Actor}}</span>{{end}}
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
+<style>
+  .row { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; }
+  .row-hd { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: .8rem; color: #7a5c5c; margin-bottom: 8px; }
+  .row-hd a { color: #9b2335; text-decoration: none; font-weight: 600; }
+  .row-hd .pos { color: #9a7878; }
+  .body { font-size: .95rem; line-height: 1.6; color: #1e1215; white-space: pre-wrap; }
+  .focus { margin-top: 10px; padding: 8px 12px; background: #fdf8f8; border-left: 3px solid #9b2335; border-radius: 4px; font-size: .84rem; line-height: 1.5; }
+  .focus .q { font-style: italic; color: #5c3a3a; }
+  .focus .meta { display: block; font-size: .72rem; color: #9a7878; margin-top: 2px; }
+  .cites { list-style: none; margin-top: 8px; font-size: .78rem; color: #7a5c5c; }
+  .cites li { padding: 2px 0; }
+  .cites a { color: #9b2335; text-decoration: none; }
+  .cites .q { color: #5c3a3a; font-style: italic; }
+  .check { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .check input { width: 16px; height: 16px; accent-color: #3730a3; }
+  .check label { font-size: .8rem; color: #3730a3; cursor: pointer; }
+  .sticky { position: sticky; bottom: 0; background: #fdf8f8; padding: 12px 0; border-top: 1px solid #e8dede; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .sticky p { font-size: .8rem; color: #7a5c5c; flex: 1 1 30ch; }
+</style>
+<div class="page">
+  <div class="crumb"><a href="/review">← Review</a></div>
+  <h1>{{.Title}}</h1>
+  {{if eq .Kind "source"}}
+  <p class="note"><a href="{{.Source.URL}}" target="_blank" rel="noopener" style="color:#9b2335">{{.Source.URL}} ↗</a> · {{.Source.Kind}} · cited by {{.Counts.Total}} statement(s), {{.Counts.Reviewed}} reviewed.
+  {{if .Source.Unreadable}}The checker could not read this source ({{.Source.LastFetchNote}}).{{else if .Source.LastCheckedAt}}The checker last read it {{date .Source.LastCheckedAt}}.{{else}}The checker has never read it.{{end}}</p>
+  {{else}}
+  <p class="note">Concept <code>{{.Concept}}</code>, stated on {{.Counts.Total}} page(s), {{.Counts.Reviewed}} reviewed. Read the versions against each other: a state whose claim differs from the rest is either a real difference in law or a mistake.</p>
+  {{end}}
+  {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+
+  {{if eq .Kind "source"}}
+  <div class="panel">
+    <form method="post" action="/review/source/{{.Source.SourceID}}/recheck"><button class="btn btn-primary" type="submit">Recheck quotes at the source</button></form>
+    {{if and .Source.Unconfirmed .Source.Unreadable}}
+    <form method="post" action="/review/source/{{.Source.SourceID}}/attest" onsubmit="return confirm('Attest all {{.Source.Unconfirmed}} unconfirmed quote(s) from this source under your name? Only after opening the source and finding each one.')"><button class="btn btn-mute" type="submit">Attest {{.Source.Unconfirmed}} unconfirmed quote(s)</button></form>
+    {{end}}
+    <p>Recheck fetches the page once and confirms every quote below that still appears, recording a receipt. {{if .Source.Unreadable}}This source blocks the checker, so attesting by hand is the way through: open it, find each quote, then attest.{{else if .Source.Unconfirmed}}{{.Source.Unconfirmed}} quote(s) were never confirmed; recheck first, and attest only if the checker cannot read the page.{{else}}Every quote from this source has been confirmed.{{end}}</p>
+  </div>
+  {{end}}
+
+  <form method="post" action="{{.MarkPath}}" id="markform">
+  <input type="hidden" name="back" value="{{if eq .Kind "source"}}/review/source/{{.Source.SourceID}}{{else}}/review/concept/{{.Concept}}{{end}}">
+  {{range .Items}}
+  <div class="row">
+    <div class="row-hd">
+      <a href="/view/{{.PlaybookID}}">{{.Jurisdiction}} · {{.Topic}}</a>
+      <span class="tag tag-{{.PageStatus}}">{{.PageStatus}}</span>
+      <span class="pos">statement {{.Position}}</span>
+      {{if eq .PageKind "directory"}}<span class="stamp stamp-page" title="Directory pages are reviewed as a page at publish">page-level review</span>
+      {{else if .Stmt.ReviewedAt}}<span class="stamp stamp-ok">Reviewed {{date .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} by {{.Stmt.ReviewedBy}}{{end}}</span>
+      {{else if .Stmt.Undecided}}<span class="stamp stamp-undecided">undecided note in the queue</span>
+      {{else}}<span class="stamp stamp-no">not reviewed</span>{{end}}
+      <a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}" style="margin-left:auto;font-weight:500">edit ↗</a>
+    </div>
+    <div class="body">{{.Stmt.BodyMD}}</div>
+    {{with .Focus}}
+    <div class="focus">{{if .Quote}}<span class="q">“{{.Quote}}”</span>{{else}}<span class="q">No verbatim quote recorded for this citation.</span>{{end}}
+      <span class="meta">{{if .Locator}}{{.Locator}} · {{end}}{{if .CheckedAt}}confirmed {{date .CheckedAt}}{{if .CheckedBy}} by {{.CheckedBy}}{{end}}{{if .ManuallyVerified}} (attested){{end}}{{else}}never confirmed at the source{{end}}</span>
+    </div>
+    {{end}}
+    <ul class="cites">
+      {{range .Stmt.Citations}}{{if ne .SourceKind "editorial"}}<li><a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}} <span class="q">“{{.Quote}}”</span>{{end}}{{if .CheckedAt}} · confirmed {{date .CheckedAt}}{{else}} · <b>not confirmed</b>{{end}}</li>{{else}}<li>Site editorial guidance</li>{{end}}{{end}}
+    </ul>
+    {{range .Stmt.Notes}}<div class="note-box">{{.Note}}<a href="/queue?kind=note#p{{.ID}}">decide in the queue ↗</a></div>{{end}}
+    {{if and (ne .PageKind "directory") (not .Stmt.ReviewedAt) (not .Stmt.Undecided)}}
+    <div class="check"><input type="checkbox" name="item" value="{{.Item}}" id="i{{.Stmt.ID}}" checked><label for="i{{.Stmt.ID}}">Mark this statement reviewed</label></div>
+    {{end}}
+  </div>
+  {{end}}
+  {{if .Items}}
+  <div class="sticky">
+    <button type="submit" class="btn btn-review" onclick="return confirm('Stamp the checked statements as reviewed by you, as they read above with these quotes?')">Mark checked statements reviewed</button>
+    <p>{{.Counts.Reviewed}} of {{.Counts.Total}} reviewed{{if .Counts.Undecided}} · {{.Counts.Undecided}} waiting on a queue item{{end}}{{if .Counts.Directory}} · {{.Counts.Directory}} on directory pages, reviewed at publish{{end}}. Untick any statement you have not read. The stamp is void the moment its words or evidence change.</p>
+  </div>
+  {{end}}
+  </form>
+</div>
+</body>
+</html>
