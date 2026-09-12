@@ -83,9 +83,47 @@
   .review-stamp-undecided { border-color: #ddd6fe; background: #f5f3ff; color: #5b21b6; text-decoration: none; }
   .btn-review { padding: .2rem .6rem; font-size: .72rem; font-weight: 600; border-radius: 6px; border: 1px solid #a5b4fc; background: #fff; color: #3730a3; cursor: pointer; }
   .btn-review:hover { background: #eef2ff; }
-  .review-line { font-size: .8rem; color: #4b3f3f; margin-top: 10px; }
+  .review-line { font-size: .8rem; color: #4b3f3f; margin: 0 0 12px; }
+  .tag-draft { background: #fef3c7; color: #92400e; }
+  .tag-published { background: #d1fae5; color: #065f46; }
   .stmt-note { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 7px 10px; border-radius: 4px; font-size: .82rem; line-height: 1.5; color: #3b2a5c; margin-top: 8px; }
   .stmt-note a { color: #5b21b6; font-weight: 600; margin-left: 6px; white-space: nowrap; }
+  /* The statement card: one statement, its standing, and every action that
+     clears a reason. Shared by the page view and the grouped list. */
+  .card { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; }
+  .card.is-ready { border-color: #a7f3d0; }
+  .card.is-blocked { border-color: #f0c0c8; }
+  .card-hd { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: .8rem; color: #7a5c5c; margin-bottom: 8px; }
+  .card-hd a { color: #9b2335; text-decoration: none; font-weight: 600; }
+  .card-hd .pos { color: #9a7878; font-variant-numeric: tabular-nums; }
+  .card-hd .edit { margin-left: auto; font-weight: 500; }
+  .standing { display: inline-block; padding: .15rem .55rem; border-radius: 6px; font-size: .7rem; font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
+  .standing-ready { background: #d1fae5; color: #065f46; }
+  .standing-needs-you { background: #fdf6e3; color: #8a6d3b; }
+  .standing-blocked { background: #fde8eb; color: #7a1c2a; }
+  .reason { display: inline-block; padding: .12rem .5rem; border-radius: 10px; font-size: .7rem; font-weight: 600; background: #f0ebe8; color: #5c3a3a; }
+  .card-body { font-size: .95rem; line-height: 1.6; color: #1e1215; white-space: pre-wrap; }
+  .card-tags { margin-top: 6px; font-size: .72rem; color: #9a7878; }
+  .quote { margin-top: 8px; padding: 8px 12px; background: #fdf8f8; border-left: 3px solid #e0c8c8; border-radius: 4px; font-size: .84rem; line-height: 1.5; }
+  .quote.is-focus { border-left-color: #9b2335; }
+  .quote .q { font-style: italic; color: #5c3a3a; }
+  .quote .src { display: block; font-size: .72rem; color: #9a7878; margin-top: 2px; }
+  .quote .src a { color: #9b2335; text-decoration: none; }
+  .quote .bad { color: #b7791f; font-weight: 600; }
+  .quote .blocked { color: #7a1c2a; font-weight: 600; }
+  .note-box { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 7px 10px; border-radius: 4px; font-size: .82rem; line-height: 1.5; color: #3b2a5c; margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .note-box span { flex: 1 1 30ch; }
+  .note-box form { margin: 0; display: inline; }
+  .card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .card-actions form { margin: 0; display: inline; }
+  .btn { display: inline-block; padding: .35rem .8rem; border-radius: 6px; font-size: .8rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 600; }
+  .btn-primary { background: #9b2335; color: #fff; }
+  .btn-review { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .btn-ok { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+  .btn-mute { background: #fff; color: #7a1c2a; border: 1px solid #f0c0c8; }
+  .btn-xs { padding: .2rem .55rem; font-size: .72rem; }
+  .stamp { font-size: .72rem; color: #3730a3; }
+  .stamp-page { font-size: .72rem; color: #5c3a3a; }
   .btn-publish { background: #065f46; color: #fff; }
   .btn-publish:hover { background: #054c39; }
 
@@ -161,16 +199,16 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
       {{if eq .Playbook.Playbook.Status "draft"}}
       <form method="post" action="/publish/{{.Playbook.Playbook.ID}}" style="display:inline" onsubmit="return confirm('Publish this playbook to the live site?')">
-        <button type="submit" class="btn btn-publish">✓ Verify &amp; publish</button>
+        <button type="submit" class="btn btn-publish"{{if not .Summary.Publishable}} title="Every statement must be ready first; see the standing on each card"{{end}}>Publish</button>
       </form>
       {{end}}
-      {{if and .PerStatement .Unreviewed}}
+      {{if and (not .Grouped) .Summary.Unread}}
       {{/* The page-level stamp is honest here because every statement is
            rendered below with its quotes; it stamps only what is unreviewed
            and skips anything with an undecided queue item. */}}
       <form method="post" action="/review/{{.Playbook.Playbook.ID}}" style="display:inline"
-            onsubmit="return confirm('Mark all {{.Unreviewed}} unreviewed statement(s) on this page as reviewed by you? Only do this after reading each one with its quotes.')">
-        <button type="submit" class="btn btn-secondary">Mark {{.Unreviewed}} remaining as reviewed</button>
+            onsubmit="return confirm('Mark all {{.Summary.Unread}} unread statement(s) on this page as reviewed by you? Only after reading each one with its quotes.')">
+        <button type="submit" class="btn btn-secondary">Mark all {{.Summary.Unread}} reviewed</button>
       </form>
       {{end}}
       {{/* Taking a page down keeps its text as the slot's draft: a page that is
@@ -220,69 +258,13 @@
     {{end}}
   </section>
 
-  <!-- Statements -->
+  <!-- Statements: the shared card (ADR-019), grouped by organisation on a directory -->
   <section>
-    <h2>Statements ({{len .Stmts}})</h2>
-    {{if .Stmts}}<p class="verify-hint">Each quote below should be <strong>verbatim from its source</strong> — the editor checks it against the live page, and publishing is refused while any citation's quote is missing or unconfirmed. {{if .PerStatement}}Read each statement with its quotes, confirm the quote supports the claim and the source is authoritative, and <strong>mark it reviewed</strong>. Publishing needs every statement reviewed; a stamp is void the moment the words or the evidence change.{{else}}A directory is reviewed as a page: confirm each organisation's lines together, then publish.{{end}}</p>{{end}}
-    {{if and .PerStatement .Stmts}}<p class="review-line">{{if .Unreviewed}}{{.Unreviewed}} of {{len .Stmts}} statement(s) still to review.{{else}}Every statement is reviewed.{{end}}</p>{{end}}
-    {{range .Groups}}
+    <h2>Statements ({{len .Cards}})</h2>
+    {{if .Cards}}<p class="review-line">{{.Summary.Ready}} of {{.Summary.Total}} ready{{if .Summary.Unread}} · {{.Summary.Unread}} not yet read{{end}}{{if .Summary.Notes}} · {{.Summary.Notes}} with a note to decide{{end}}{{if .Summary.Unconfirmed}} · {{.Summary.Unconfirmed}} with a quote to confirm{{end}}{{if .Summary.Blocked}} · {{.Summary.Blocked}} blocked{{end}}{{if .Grouped}} · a directory is reviewed as a page when published{{end}}.</p>{{end}}
+    {{range .CardGroups}}
     {{if .Heading}}<h3 class="org-heading">{{.Heading}}</h3>{{end}}
-    {{range .Stmts}}
-    <div class="stmt-item{{if $.Grouped}} stmt-item-grouped{{end}}">
-      <div class="stmt-num">{{.Num}}</div>
-      <div>
-        <p class="stmt-body">{{.Body}}</p>
-        <div class="stmt-cites">
-          {{/* The chip is the citation: it names its source (domain, not a
-               number to cross-reference) and clicking it opens the source. */}}
-          {{range .Cites}}
-          <a class="cite-chip cite-chip-src" href="{{.URL}}" target="_blank" rel="noopener"
-             title="{{.Publisher}}{{if .Locator}} · {{.Locator}}{{end}} — opens the source">
-            <span class="cite-num">{{.Num}}</span>
-            {{.Domain}}{{if .Locator}} · {{.Locator}}{{end}} ↗
-          </a>
-          {{end}}
-          {{if .Editorial}}
-          <span class="cite-chip cite-chip-editorial">Editorial guidance</span>
-          {{end}}
-          {{if .Concept}}
-          <span class="cite-chip cite-chip-concept" title="Concept tag (ADR-011): connects this claim to its versions on other pages, and is the statement's public anchor">◈ {{.Concept}}</span>
-          {{end}}
-          {{if .TopicRef}}
-          <span class="cite-chip cite-chip-concept" title="Whole-topic reference (ADR-011 D7): this statement summarizes a subject the site covers as its own pages">⇒ {{.TopicRef}}</span>
-          {{end}}
-          {{if .Unchecked}}
-          <span class="check-stamp check-stamp-missing" title="At least one citation has never been confirmed against its live source">Not checked yet</span>
-          {{else if .CheckedAt}}
-          <span class="check-stamp" title="Every citation was confirmed against its live source, the oldest on this date">Checked {{date .CheckedAt}}</span>
-          {{end}}
-          {{if $.PerStatement}}
-          {{if .ReviewedAt}}
-          <span class="check-stamp review-stamp" title="A person read this statement with its citations as it reads now">Reviewed {{date .ReviewedAt}}{{if .ReviewedBy}} by {{.ReviewedBy}}{{end}}</span>
-          {{else if .Undecided}}
-          <span class="check-stamp review-stamp-undecided" title="A queue item is pending on this statement; decide it before marking the statement reviewed">Undecided in the queue</span>
-          {{else}}
-          <form method="post" action="/review/{{$.Playbook.Playbook.ID}}" style="display:inline">
-            <input type="hidden" name="key" value="{{.Key}}">
-            <button type="submit" class="btn-review" title="Stamp this statement, as it reads with these quotes, as reviewed by you">Mark reviewed</button>
-          </form>
-          {{end}}
-          {{end}}
-        </div>
-        {{range .Notes}}
-        <div class="stmt-note">{{.Note}}<a href="/queue#p{{.ID}}">decide in the queue ↗</a></div>
-        {{end}}
-        {{range .Cites}}{{if .Quote}}
-        <blockquote class="cite-quote">
-          <span class="cite-quote-num">{{.Num}}</span>
-          <span class="cite-quote-text">“{{.Quote}}”</span>
-          <a class="cite-quote-src" href="{{.URL}}" target="_blank" rel="noopener">{{if .Locator}}{{.Locator}} · {{end}}{{.Domain}} ↗</a>
-          <span class="cite-quote-checked">{{if .CheckedAt}}Confirmed at the source {{date .CheckedAt}}{{if .CheckedBy}} by {{.CheckedBy}}{{end}}{{else}}Not yet confirmed at the source{{end}}</span>
-        </blockquote>
-        {{end}}{{end}}
-      </div>
-    </div>
-    {{end}}
+    {{range .Cards}}{{template "stmtcard" .}}{{end}}
     {{end}}
   </section>
 

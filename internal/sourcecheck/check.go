@@ -289,10 +289,18 @@ func fileDrift(ctx context.Context, db store.Store, url, publisher string, rc dr
 		if err != nil {
 			return filed, err
 		}
-		if _, err := db.FileProposal(ctx, store.FileProposalParams{
+		_, err = db.FileProposal(ctx, store.FileProposalParams{
 			StatementKey: r.StatementKey, Reason: "source-drift", Proposed: proposed,
 			Evidence: ev, ProposedBy: store.ActorSourceCheck,
-		}); err != nil {
+		})
+		if errors.Is(err, store.ErrNotFound) {
+			// The statement left every live and draft page between the
+			// listing and this filing: a save or a delete mid-run. Nothing
+			// to file against, and no reason to abandon the other sources.
+			logf("  · statement %s is no longer on any page; nothing filed", r.StatementKey)
+			continue
+		}
+		if err != nil {
 			return filed, fmt.Errorf("file drift proposal for %s: %w", r.StatementKey, err)
 		}
 		filed++

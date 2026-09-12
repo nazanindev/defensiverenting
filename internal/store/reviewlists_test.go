@@ -88,7 +88,10 @@ func TestPublishReadyDrafts_publishesOnlyWhatTheGatePasses(t *testing.T) {
 	keys := statementKeys(t, pg, held)
 	saveAs(t, pg, held, jID, tp.ID, store.ActorDraftingAgent, store.IngestStatementParams{Key: keys[0], BodyMD: "Changed by the agent."})
 
-	out, err := pg.PublishReadyDrafts(ctx, "Nazanin")
+	// Scoped to this test's place: the test database is shared, and
+	// publishing every draft in it would pull the ground from under the
+	// other tests.
+	out, err := pg.PublishReadyDrafts(ctx, "Nazanin", jID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +105,7 @@ func TestPublishReadyDrafts_publishesOnlyWhatTheGatePasses(t *testing.T) {
 	if got[held].Published || len(got[held].Issues) == 0 {
 		t.Errorf("held draft should be refused with issues: %+v", got[held])
 	}
-	if _, err := pg.PublishReadyDrafts(ctx, store.ActorDraftingAgent); err == nil {
+	if _, err := pg.PublishReadyDrafts(ctx, store.ActorDraftingAgent, jID); err == nil {
 		t.Error("the agent published")
 	}
 }

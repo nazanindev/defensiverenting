@@ -231,13 +231,13 @@ func main() {
 	mux.HandleFunc("POST /check-sources", s.checkSources)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("POST /review/{id}", s.markReviewed)
-	mux.HandleFunc("GET /review", s.reviewIndex)
-	mux.HandleFunc("GET /review/source/{id}", s.reviewSource)
-	mux.HandleFunc("POST /review/source/{id}/reviewed", s.reviewMarkGroup)
-	mux.HandleFunc("POST /review/source/{id}/attest", s.reviewAttestSource)
-	mux.HandleFunc("POST /review/source/{id}/recheck", s.reviewRecheckSource)
-	mux.HandleFunc("GET /review/concept/{slug}", s.reviewConcept)
-	mux.HandleFunc("POST /review/concept/{slug}/reviewed", s.reviewMarkGroup)
+	mux.HandleFunc("GET /statements", s.statements)
+	mux.HandleFunc("POST /statements/reviewed", s.statementsMarkGroup)
+	mux.HandleFunc("POST /statements/source/{id}/attest", s.sourceAttest)
+	mux.HandleFunc("POST /statements/source/{id}/recheck", s.sourceRecheck)
+	mux.HandleFunc("POST /statement/review", s.statementReview)
+	mux.HandleFunc("POST /statement/attest", s.statementAttest)
+	mux.HandleFunc("POST /statement/decide", s.statementDecide)
 	mux.HandleFunc("POST /publish-ready", s.publishReady)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
@@ -510,18 +510,23 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	for pid, issues := range draftIssues {
 		issueBadges[pid] = &issueBadge{N: len(issues), Tooltip: strings.Join(issueDetails(issues), "\n")}
 	}
-	// Review standing per draft (ADR-018 D4): n of m statements stamped.
+	// Standing per draft (ADR-019): every draft statement folded through the
+	// one rule the cards use, so the worklist row and the cards agree.
 	// Pointers for the same reason as the issue badges: a missing row must
-	// read as absent, not as "0/0 reviewed".
-	reviewCounts, err := s.pg.AuthorDraftReviewCounts(ctx)
+	// read as absent, not as zero of zero.
+	draftRows, err := s.pg.ReviewStatementsOnDrafts(ctx)
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	reviewed := make(map[int64]*store.ReviewCount, len(reviewCounts))
-	for pid, c := range reviewCounts {
-		c := c
-		reviewed[pid] = &c
+	standing := map[int64]*store.PageStanding{}
+	for _, row := range draftRows {
+		ps := standing[row.PlaybookID]
+		if ps == nil {
+			ps = &store.PageStanding{}
+			standing[row.PlaybookID] = ps
+		}
+		ps.Aggregate(row.Stmt.Standing(row.PageKind == "directory"))
 	}
 	// Drafts the gate would pass right now, for the publish-ready button.
 	readyCount := 0
@@ -616,7 +621,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "dashboard.html", map[string]any{
 		"Actor":           actor(r),
 		"Issues":          issueBadges,
-		"Reviewed":        reviewed,
+		"Standing":        standing,
 		"ReadyCount":      readyCount,
 		"Playbooks":       playbooks,
 		"Cities":          cities,
@@ -1145,27 +1150,41 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Review is per statement except on a directory, which is reviewed as
-	// a page when published (ADR-018 D3). The count drives the page-level
-	// "mark the rest" action and the n-of-m line.
-	perStatement := pw.Playbook.PageKind != "directory"
-	unreviewed := 0
-	for _, st := range stmts {
-		if st.ReviewedAt == nil {
-			unreviewed++
+	// The statements render as the shared card (ADR-019), grouped under
+	// organisation headings on a directory the way the live page groups
+	// them. The summary drives the publish button and the mark-all action.
+	pageLevel := pw.Playbook.PageKind == "directory"
+	cards := make([]stmtCard, 0, len(pw.Statements))
+	for i, st := range pw.Statements {
+		cards = append(cards, stmtCard{
+			PlaybookID: pw.Playbook.ID, PageTitle: pw.Playbook.Title, PageStatus: pw.Playbook.Status, PageKind: pw.Playbook.PageKind,
+			Jurisdiction: pw.Jurisdiction.Name, Topic: pw.Topic.Slug, Position: i + 1,
+			Stmt: st, Standing: st.Standing(pageLevel), PageLevel: pageLevel,
+			RetBy: "page", RetID: strconv.FormatInt(pw.Playbook.ID, 10),
+		})
+	}
+	type cardGroup struct {
+		Heading string
+		Cards   []stmtCard
+	}
+	var cardGroups []cardGroup
+	for _, g := range groups {
+		cg := cardGroup{Heading: g.Heading}
+		for _, vs := range g.Stmts {
+			cg.Cards = append(cg.Cards, cards[vs.Num-1])
 		}
+		cardGroups = append(cardGroups, cg)
 	}
 
 	s.render(w, "view.html", map[string]any{
-		"Playbook":     pw,
-		"Sources":      sources,
-		"Stmts":        stmts,
-		"Groups":       groups,
-		"Grouped":      pw.Playbook.PageKind == "directory",
-		"PerStatement": perStatement,
-		"Unreviewed":   unreviewed,
-		"Issues":       issueDetails(issues),
-		"Msg":          r.URL.Query().Get("msg"),
+		"Playbook":   pw,
+		"Sources":    sources,
+		"Cards":      cards,
+		"CardGroups": cardGroups,
+		"Summary":    summarize(cards),
+		"Grouped":    pageLevel,
+		"Issues":     issueDetails(issues),
+		"Msg":        r.URL.Query().Get("msg"),
 	})
 }
 

@@ -162,7 +162,7 @@ func (pg *PG) FileProposal(ctx context.Context, p FileProposalParams) (int64, er
 				WHERE s.key = $1::uuid AND pb.status IN ('draft', 'published')
 				ORDER BY (pb.status = 'draft') DESC LIMIT 1`, key).Scan(&playbookID)
 			if errors.Is(err, pgx.ErrNoRows) {
-				return fmt.Errorf("no page carries a statement with key %s", key)
+				return fmt.Errorf("no page carries a statement with key %s: %w", key, ErrNotFound)
 			}
 			if err != nil {
 				return err

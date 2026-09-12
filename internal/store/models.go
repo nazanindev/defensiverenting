@@ -136,6 +136,11 @@ type CitationWithSource struct {
 	SourceURL  string
 	Publisher  string
 	SourceKind string // statute|regulation|gov_guidance|nonprofit|editorial
+	// SourceUnreadable reports that the checker's most recent attempt could
+	// not read this source (blocked, thin, or failed) and nothing has
+	// confirmed it since. An unconfirmed quote from such a source can only
+	// be attested by a person who opened it.
+	SourceUnreadable bool
 }
 
 // Concept names a claim that recurs across jurisdictions, from the closed
@@ -302,6 +307,9 @@ type CitedStatement struct {
 	// Notes are the pending reviewer notes on this statement (ADR-018 D1),
 	// oldest first. Loaded by the authoring getter only.
 	Notes []StatementNote
+	// ProposalPending reports a pending proposal other than a reviewer note:
+	// a replacement or a drift finding waiting in the queue.
+	ProposalPending bool
 }
 
 // StatementNote is one pending reviewer note: the drafting agent's doubt

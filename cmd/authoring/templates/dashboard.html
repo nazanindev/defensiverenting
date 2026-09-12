@@ -96,7 +96,7 @@
   <div class="toolbar">
     <h1>Pages</h1>
     <div style="display:flex;gap:10px">
-      <a href="/review" class="btn btn-view">Review by source or concept</a>
+      <a href="/statements" class="btn btn-view">Statements by source, concept, or note</a>
       <a href="/queue" class="btn btn-view">Proposed changes{{if .Proposals}} · {{.Proposals}}{{end}}</a>
       <a href="/coverage" class="btn btn-view">Coverage</a>
       {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft that passes the gate ({{.ReadyCount}})? Each goes live under your name.')"><button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0">Publish {{.ReadyCount}} ready</button></form>{{end}}
@@ -182,7 +182,7 @@
           <td class="title-cell">{{.Title}}</td>
           <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           {{if $.ShowLanguage}}<td class="meta-cell">{{.Language}}</td>{{end}}
-          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}{{with index $.Issues .ID}} <span class="badge badge-issues" title="Publishing is blocked until these are fixed:&#10;{{.Tooltip}}">⚠ {{.N}}</span>{{end}}{{with index $.Reviewed .ID}} <span class="badge badge-review{{if eq .Reviewed .Total}} badge-review-done{{end}}" title="Statements reviewed by a person (ADR-018){{if .Undecided}}; {{.Undecided}} with an undecided queue item{{end}}">{{.Reviewed}}/{{.Total}} reviewed{{if .Undecided}} · {{.Undecided}} notes{{end}}</span>{{end}}</td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}{{with index $.Standing .ID}} <span class="badge badge-review{{if .Publishable}} badge-review-done{{end}}" title="{{with index $.Issues $p.ID}}Publishing is blocked until these are fixed:&#10;{{.Tooltip}}{{else}}Every statement is ready{{end}}">{{.Ready}}/{{.Total}} ready{{if .Unread}} · {{.Unread}} unread{{end}}{{if .Notes}} · {{.Notes}} notes{{end}}{{if .Unconfirmed}} · {{.Unconfirmed}} quotes{{end}}{{if .Blocked}} · {{.Blocked}} blocked{{end}}{{if .Proposals}} · {{.Proposals}} proposed{{end}}{{if .Broken}} · {{.Broken}} broken{{end}}</span>{{else}}{{with index $.Issues .ID}} <span class="badge badge-issues" title="Publishing is blocked until these are fixed:&#10;{{.Tooltip}}">⚠ {{.N}}</span>{{end}}{{end}}</td>
           <td class="meta-cell num" title="{{.StatementCount}} statements, {{.SourceCount}} sources">{{.StatementCount}}/{{.SourceCount}}</td>
           <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}{{if .UpdatedBy}} · {{.UpdatedBy}}{{end}}</td>
           <td>

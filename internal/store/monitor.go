@@ -29,7 +29,8 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 		JOIN statements st ON st.id = c.statement_id
 		WHERE s.kind <> 'editorial' AND btrim(c.quote) <> ''
 		  AND EXISTS (SELECT 1 FROM playbook_statements ps JOIN playbooks pb ON pb.id = ps.playbook_id
-		              WHERE ps.statement_id = c.statement_id AND pb.language = ANY($1))
+		              WHERE ps.statement_id = c.statement_id AND pb.language = ANY($1)
+		                AND pb.status IN ('draft', 'published'))
 		ORDER BY s.id`, ContentLanguages)
 	if err != nil {
 		return nil, err

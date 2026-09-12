@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statements — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 32px 24px 80px; }
+  .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
+  .crumb a { color: #9b2335; text-decoration: none; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+  .note { color: #7a5c5c; font-size: .85rem; margin-bottom: 18px; max-width: 70ch; }
+  .flash { padding: 10px 14px; border-radius: 8px; font-size: .88rem; margin-bottom: 16px; }
+  .flash-ok { background: #d1fae5; color: #065f46; }
+  .flash-err { background: #fde8eb; color: #7a1c2a; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
+  .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
+  .group { margin-bottom: 28px; }
+  .group-hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; border-bottom: 1px solid #e8dede; margin-bottom: 4px; }
+  .group-hd h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; }
+  .group-hd a { color: #9b2335; text-decoration: none; font-size: .82rem; }
+  .group-hd a:hover { text-decoration: underline; }
+  .group-title { flex-basis: 100%; color: #9a7878; font-size: .78rem; font-style: italic; }
+  .tag { display: inline-block; padding: .15rem .5rem; border-radius: 6px; font-size: .72rem; font-weight: 600; }
+  .tag-draft { background: #fef3c7; color: #92400e; }
+  .tag-published { background: #d1fae5; color: #065f46; }
+  .tag-lang { background: #f0ebe8; color: #5c3a3a; }
+  .item { border-bottom: 1px solid #f0e4e4; }
+  /* The statement card: one statement, its standing, and every action that
+     clears a reason. Shared by the page view and the grouped list. */
+  .card { background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; }
+  .card.is-ready { border-color: #a7f3d0; }
+  .card.is-blocked { border-color: #f0c0c8; }
+  .card-hd { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: .8rem; color: #7a5c5c; margin-bottom: 8px; }
+  .card-hd a { color: #9b2335; text-decoration: none; font-weight: 600; }
+  .card-hd .pos { color: #9a7878; font-variant-numeric: tabular-nums; }
+  .card-hd .edit { margin-left: auto; font-weight: 500; }
+  .standing { display: inline-block; padding: .15rem .55rem; border-radius: 6px; font-size: .7rem; font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
+  .standing-ready { background: #d1fae5; color: #065f46; }
+  .standing-needs-you { background: #fdf6e3; color: #8a6d3b; }
+  .standing-blocked { background: #fde8eb; color: #7a1c2a; }
+  .reason { display: inline-block; padding: .12rem .5rem; border-radius: 10px; font-size: .7rem; font-weight: 600; background: #f0ebe8; color: #5c3a3a; }
+  .card-body { font-size: .95rem; line-height: 1.6; color: #1e1215; white-space: pre-wrap; }
+  .card-tags { margin-top: 6px; font-size: .72rem; color: #9a7878; }
+  .quote { margin-top: 8px; padding: 8px 12px; background: #fdf8f8; border-left: 3px solid #e0c8c8; border-radius: 4px; font-size: .84rem; line-height: 1.5; }
+  .quote.is-focus { border-left-color: #9b2335; }
+  .quote .q { font-style: italic; color: #5c3a3a; }
+  .quote .src { display: block; font-size: .72rem; color: #9a7878; margin-top: 2px; }
+  .quote .src a { color: #9b2335; text-decoration: none; }
+  .quote .bad { color: #b7791f; font-weight: 600; }
+  .quote .blocked { color: #7a1c2a; font-weight: 600; }
+  .note-box { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 7px 10px; border-radius: 4px; font-size: .82rem; line-height: 1.5; color: #3b2a5c; margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .note-box span { flex: 1 1 30ch; }
+  .note-box form { margin: 0; display: inline; }
+  .card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .card-actions form { margin: 0; display: inline; }
+  .btn { display: inline-block; padding: .35rem .8rem; border-radius: 6px; font-size: .8rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 600; }
+  .btn-primary { background: #9b2335; color: #fff; }
+  .btn-review { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .btn-ok { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+  .btn-mute { background: #fff; color: #7a1c2a; border: 1px solid #f0c0c8; }
+  .btn-xs { padding: .2rem .55rem; font-size: .72rem; }
+  .stamp { font-size: .72rem; color: #3730a3; }
+  .stamp-page { font-size: .72rem; color: #5c3a3a; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e8dede; border-radius: 10px; overflow: hidden; font-size: .85rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #f0e4e4; vertical-align: top; }
+  th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; background: #fdf8f8; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td a { color: #9b2335; text-decoration: none; font-weight: 500; }
+  .url { color: #9a7878; font-size: .74rem; word-break: break-all; display: block; }
+  .warn { color: #b7791f; font-size: .74rem; }
+  .done { color: #9a7878; }
+  details.rest summary { cursor: pointer; color: #9b2335; font-size: .82rem; margin: 10px 0 16px; }
+  .panel { background: #fff; border-radius: 10px; border: 1px solid #e8dede; padding: 14px 18px; margin-bottom: 22px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .panel form { margin: 0; }
+  .panel p { color: #7a5c5c; font-size: .8rem; line-height: 1.5; flex: 1 1 30ch; }
+  .sticky { position: sticky; bottom: 0; background: #fdf8f8; padding: 12px 0; border-top: 1px solid #e8dede; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .sticky p { font-size: .8rem; color: #7a5c5c; flex: 1 1 30ch; }
+  .empty { text-align: center; padding: 40px 24px; color: #b08080; background: #fff; border: 1px solid #e8dede; border-radius: 10px; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      {{if .Actor}}<span style="color:rgba(255,255,255,.85);font-size:.8rem">Signed in as {{.Actor}}</span>{{end}}
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
+{{define "stmtcard"}}
+<div class="card is-{{.Standing.Status}}" id="s{{.Stmt.ID}}">
+  <div class="card-hd">
+    {{if .ShowPage}}<a href="/view/{{.PlaybookID}}">{{.Jurisdiction}} · {{.Topic}}</a><span class="tag tag-{{.PageStatus}}">{{.PageStatus}}</span>{{end}}
+    <span class="pos">statement {{.Position}}</span>
+    <span class="standing standing-{{.Standing.Status}}">{{if eq .Standing.Status "ready"}}ready{{else if eq .Standing.Status "blocked"}}blocked{{else}}needs you{{end}}</span>
+    {{range .Standing.Reasons}}<span class="reason">{{if eq . "unread"}}not yet read{{else if eq . "note"}}note to decide{{else if eq . "proposal"}}change proposed{{else if eq . "quote-unconfirmed"}}quote unconfirmed{{else if eq . "source-blocked"}}source unreadable{{else if eq . "quote-missing"}}quote missing{{else if eq . "uncited"}}no citation{{else if eq . "empty"}}no text{{else if eq . "statute-locator"}}statute needs its section{{else}}{{.}}{{end}}</span>{{end}}
+    {{if .Stmt.ReviewedAt}}<span class="stamp">reviewed {{date .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} by {{.Stmt.ReviewedBy}}{{end}}</span>{{else if .PageLevel}}<span class="stamp-page">reviewed with the page at publish</span>{{end}}
+    <a class="edit" href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}">edit ↗</a>
+  </div>
+  <div class="card-body">{{.Stmt.BodyMD}}</div>
+  {{if or .Stmt.ConceptSlug .Stmt.TopicRefSlug}}<div class="card-tags">{{if .Stmt.ConceptSlug}}◈ {{.Stmt.ConceptSlug}}{{end}}{{if .Stmt.TopicRefSlug}}⇒ {{.Stmt.TopicRefSlug}}{{end}}</div>{{end}}
+  {{$c := .}}
+  {{range .Stmt.Citations}}
+    {{if eq .SourceKind "editorial"}}<div class="quote"><span class="src">Site editorial guidance</span></div>
+    {{else}}
+    <div class="quote{{if and $c.Focus (eq $c.Focus.SourceID .SourceID)}} is-focus{{end}}">
+      {{if .Quote}}<span class="q">“{{.Quote}}”</span>{{else}}<span class="bad">No verbatim quote recorded.</span>{{end}}
+      <span class="src"><a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}} ↗</a>{{if .Locator}} · {{.Locator}}{{end}} ·
+        {{if .CheckedAt}}confirmed {{date .CheckedAt}}{{if .CheckedBy}} by {{.CheckedBy}}{{end}}{{if .ManuallyVerified}} (attested){{end}}{{else if .SourceUnreadable}}<span class="blocked">not confirmed; the checker cannot read this source</span>{{else if .Quote}}<span class="bad">not yet confirmed at the source</span>{{end}}</span>
+    </div>
+    {{end}}
+  {{end}}
+  {{range .Stmt.Notes}}
+  <div class="note-box"><span>{{.Note}}</span>
+    <form method="post" action="/statement/decide"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="by" value="{{$c.RetBy}}"><input type="hidden" name="id" value="{{$c.RetID}}"><input type="hidden" name="verdict" value="fine"><button class="btn btn-ok btn-xs" title="Read; the statement stands as written">Fine as is</button></form>
+    <a class="btn btn-mute btn-xs" href="/edit/{{$c.PlaybookID}}#card_{{$c.CardIndex}}">Fix in editor</a>
+    <form method="post" action="/statement/decide"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="by" value="{{$c.RetBy}}"><input type="hidden" name="id" value="{{$c.RetID}}"><input type="hidden" name="verdict" value="fixed"><button class="btn btn-mute btn-xs" title="The edit was made">Fixed</button></form>
+  </div>
+  {{end}}
+  {{if .Stmt.ProposalPending}}<div class="note-box"><span>A replacement or a drift finding for this statement is waiting.</span><a class="btn btn-mute btn-xs" href="/queue">Open the queue</a></div>{{end}}
+  <div class="card-actions">
+    {{if .Standing.Has "source-blocked"}}
+    <form method="post" action="/statement/attest" onsubmit="return confirm('Attest the unconfirmed quote(s) on this statement under your name? Only after opening the source and finding the words.')"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}"><input type="hidden" name="by" value="{{.RetBy}}"><input type="hidden" name="id" value="{{.RetID}}"><button class="btn btn-mute">Attest quotes I found</button></form>
+    {{end}}
+    {{if .CanReview}}
+    <form method="post" action="/statement/review"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}"><input type="hidden" name="by" value="{{.RetBy}}"><input type="hidden" name="id" value="{{.RetID}}"><button class="btn btn-review" title="Stamp this statement, as it reads with these quotes, as reviewed by you">Reviewed</button></form>
+    {{end}}
+  </div>
+</div>
+{{end}}
+<div class="page">
+  <div class="crumb"><a href="/">← Dashboard</a></div>
+  <h1>Statements</h1>
+  <p class="note">Every statement shows one standing: ready, needs you, or blocked, with the reasons and the action that clears each. Group them by source to confirm a quote once for every page that cites it, by concept to read one claim across states, or by note to work through what the drafting agent was unsure of.</p>
+  {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+
+  <div class="tabs">
+    <a class="tab {{if eq .By "source"}}active{{end}}" href="/statements?by=source">By source{{if .SourcesOpen}} · {{.SourcesOpen}} with work{{end}}</a>
+    <a class="tab {{if eq .By "concept"}}active{{end}}" href="/statements?by=concept">By concept{{if .ConceptsOpen}} · {{.ConceptsOpen}} with work{{end}}</a>
+    <a class="tab {{if eq .By "note"}}active{{end}}" href="/statements?by=note">Reviewer notes · {{.NoteCount}}</a>
+  </div>
+
+  {{if and (eq .By "source") (not .Source)}}
+    {{if .Sources}}
+    <table>
+      <thead><tr><th>Source</th><th class="num">Statements</th><th class="num">Unreviewed</th><th class="num">Unconfirmed quotes</th><th>Checker</th></tr></thead>
+      <tbody>
+      {{range .Sources}}{{if or .Unreviewed .Unconfirmed}}
+        <tr><td><a href="/statements?by=source&id={{.SourceID}}">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a><span class="url">{{.URL}} · {{.Kind}}</span></td><td class="num">{{.Statements}}</td><td class="num">{{.Unreviewed}}</td><td class="num">{{.Unconfirmed}}</td><td>{{if .Unreadable}}<span class="warn">could not read: {{.LastFetchNote}}</span>{{else if .LastCheckedAt}}read {{date .LastCheckedAt}}{{else}}<span class="warn">never read</span>{{end}}</td></tr>
+      {{end}}{{end}}
+      </tbody>
+    </table>
+    <details class="rest"><summary>Sources with nothing left to review</summary>
+    <table><tbody>
+      {{range .Sources}}{{if not (or .Unreviewed .Unconfirmed)}}<tr class="done"><td><a href="/statements?by=source&id={{.SourceID}}">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a><span class="url">{{.URL}}</span></td><td class="num">{{.Statements}}</td><td class="num">0</td><td class="num">0</td><td>{{if .LastCheckedAt}}read {{date .LastCheckedAt}}{{end}}</td></tr>{{end}}{{end}}
+    </tbody></table>
+    </details>
+    {{else}}<div class="empty">No page cites a source yet.</div>{{end}}
+  {{end}}
+
+  {{if and (eq .By "concept") (not .Concept)}}
+    {{if .Concepts}}
+    <table>
+      <thead><tr><th>Concept</th><th>Topic</th><th class="num">Statements</th><th class="num">Unreviewed</th></tr></thead>
+      <tbody>
+      {{range .Concepts}}<tr{{if not .Unreviewed}} class="done"{{end}}><td><a href="/statements?by=concept&slug={{.Slug}}">{{.Name}}</a><span class="url">{{.Slug}}</span></td><td>{{.TopicSlug}}</td><td class="num">{{.Statements}}</td><td class="num">{{.Unreviewed}}</td></tr>{{end}}
+      </tbody>
+    </table>
+    {{else}}<div class="empty">No statement carries a concept tag yet.</div>{{end}}
+  {{end}}
+
+  {{with .Source}}
+  <div class="panel">
+    <div style="flex:1 1 40ch"><b>{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</b><span class="url"><a href="{{.URL}}" target="_blank" rel="noopener" style="color:#9b2335">{{.URL}} ↗</a> · {{.Kind}}</span>
+      <p style="margin-top:4px">{{if .Unreadable}}The checker could not read this source ({{.LastFetchNote}}). Open it yourself; the attest button records the quotes you find.{{else if .LastCheckedAt}}The checker last read it {{date .LastCheckedAt}}.{{else}}The checker has never read it.{{end}}</p></div>
+    <form method="post" action="/statements/source/{{.SourceID}}/recheck"><input type="hidden" name="by" value="source"><input type="hidden" name="id" value="{{.SourceID}}"><button class="btn btn-primary" type="submit">Recheck quotes</button></form>
+    {{if and .Unconfirmed .Unreadable}}<form method="post" action="/statements/source/{{.SourceID}}/attest" onsubmit="return confirm('Attest all {{.Unconfirmed}} unconfirmed quote(s) from this source under your name? Only after opening the source and finding each one.')"><input type="hidden" name="by" value="source"><input type="hidden" name="id" value="{{.SourceID}}"><button class="btn btn-mute" type="submit">Attest all {{.Unconfirmed}}</button></form>{{end}}
+  </div>
+  {{end}}
+  {{if .Concept}}<p class="note"><b>{{.ConceptName}}</b> · <code>{{.Concept}}</code>. Read the versions against each other: a state whose claim differs from the rest is either a real difference in law or a mistake.</p>{{end}}
+
+  {{if .Cards}}
+  <form method="post" action="/statements/reviewed" id="markform">
+    <input type="hidden" name="by" value="{{.By}}"><input type="hidden" name="id" value="{{if .Source}}{{.Source.SourceID}}{{else if .Concept}}{{.Concept}}{{end}}">
+    {{range .Cards}}{{template "stmtcard" .}}{{end}}
+    {{if .Summary.Reviewable}}
+    <div class="sticky">
+      {{range .Cards}}{{if .CanReview}}<input type="hidden" name="item" value="{{.Item}}">{{end}}{{end}}
+      <button type="submit" class="btn btn-review" onclick="return confirm('Stamp all {{.Summary.Reviewable}} unreviewed statement(s) above as reviewed by you, as they read with these quotes?')">Mark all {{.Summary.Reviewable}} reviewed</button>
+      <p>{{.Summary.Ready}} of {{.Summary.Total}} ready{{if .Summary.Notes}} · {{.Summary.Notes}} with a note to decide{{end}}{{if .Summary.Unconfirmed}} · {{.Summary.Unconfirmed}} with a quote to confirm{{end}}{{if .Summary.Blocked}} · {{.Summary.Blocked}} blocked{{end}}. Use the card buttons for one at a time.</p>
+    </div>
+    {{end}}
+  </form>
+  {{else if or .Source .Concept (eq .By "note")}}<div class="empty">Nothing here.</div>{{end}}
+</div>
+</body>
+</html>

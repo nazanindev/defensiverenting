@@ -131,13 +131,25 @@ func (pg *PG) ReviewStatementsByConcept(ctx context.Context, slug string) ([]Rev
 	return pg.reviewRows(ctx, `co.slug = $2`, slug)
 }
 
+// ReviewStatementsOnDrafts returns every statement on every draft, for the
+// dashboard worklist to aggregate standings with the one rule in Standing.
+func (pg *PG) ReviewStatementsOnDrafts(ctx context.Context) ([]ReviewRow, error) {
+	return pg.reviewRows(ctx, `pb.status = $2`, "draft")
+}
+
+// ReviewStatementsWithNotes returns every statement carrying a pending
+// reviewer note, on any draft or live page.
+func (pg *PG) ReviewStatementsWithNotes(ctx context.Context) ([]ReviewRow, error) {
+	return pg.reviewRows(ctx, `$2::text = 'note' AND EXISTS (SELECT 1 FROM statement_proposals sp WHERE sp.statement_key = s.key AND sp.status = 'pending' AND sp.reason = 'agent-pass:flag')`, "note")
+}
+
 func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id, pb.title, pb.status, pb.page_kind, j.name, t.name, ps.position,
 		       s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''),
-		       `+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`,
+		       `+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`, `+proposalPendingSQL+`,
 		       c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
-		       src.url, src.publisher, src.kind
+		       src.url, src.publisher, src.kind, COALESCE(`+sourceUnreadableSQL+`, false)
 		FROM playbook_statements ps
 		JOIN playbooks pb ON pb.id = ps.playbook_id
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
@@ -165,6 +177,8 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 			reviewedAt *time.Time
 			reviewedBy string
 			undecided  bool
+			pending    bool
+			unreadable bool
 			c          CitationWithSource
 			sourceID   *int64
 			loc, quote *string
@@ -175,14 +189,15 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 		)
 		if err := rows.Scan(&r.PlaybookID, &r.PageTitle, &r.PageStatus, &r.PageKind, &r.Jurisdiction, &r.Topic, &position,
 			&stmtID, &r.Stmt.Key, &r.Stmt.BodyMD, &r.Stmt.ConceptSlug, &r.Stmt.TopicRefSlug,
-			&reviewedAt, &reviewedBy, &undecided,
-			&sourceID, &loc, &quote, &manual, &c.CheckedAt, &checkedBy, &url, &pub, &kind); err != nil {
+			&reviewedAt, &reviewedBy, &undecided, &pending,
+			&sourceID, &loc, &quote, &manual, &c.CheckedAt, &checkedBy, &url, &pub, &kind, &unreadable); err != nil {
 			return nil, err
 		}
 		i, ok := idx[stmtID]
 		if !ok {
 			r.Position = position + 1
 			r.Stmt.ID, r.Stmt.ReviewedAt, r.Stmt.ReviewedBy, r.Stmt.Undecided = stmtID, reviewedAt, reviewedBy, undecided
+			r.Stmt.ProposalPending = pending
 			i = len(out)
 			out = append(out, r)
 			idx[stmtID] = i
@@ -196,6 +211,7 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 		c.ManuallyVerified = manual != nil && *manual
 		c.CheckedBy = deref(checkedBy)
 		c.SourceURL, c.Publisher, c.SourceKind = deref(url), deref(pub), deref(kind)
+		c.SourceUnreadable = unreadable
 		out[i].Stmt.Citations = append(out[i].Stmt.Citations, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -272,7 +288,10 @@ type PublishOutcome struct {
 // one transaction per page through the ordinary gate (ADR-018 D5). Drafts
 // that carry issues are reported, not touched. A draft that gains an issue
 // between the listing and its publish is refused by the gate like any other.
-func (pg *PG) PublishReadyDrafts(ctx context.Context, by string) ([]PublishOutcome, error) {
+//
+// jurisdictionIDs narrows the run to drafts in those places; none means every
+// draft.
+func (pg *PG) PublishReadyDrafts(ctx context.Context, by string, jurisdictionIDs ...int64) ([]PublishOutcome, error) {
 	if !isReviewer(by) {
 		return nil, fmt.Errorf("%q cannot publish", by)
 	}
@@ -280,11 +299,16 @@ func (pg *PG) PublishReadyDrafts(ctx context.Context, by string) ([]PublishOutco
 	if err != nil {
 		return nil, err
 	}
+	var scope any
+	if len(jurisdictionIDs) > 0 {
+		scope = jurisdictionIDs
+	}
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id, pb.title, j.name, t.name
 		FROM playbooks pb JOIN jurisdictions j ON j.id = pb.jurisdiction_id JOIN topics t ON t.id = pb.topic_id
 		WHERE pb.status = 'draft' AND pb.language = ANY($1)
-		ORDER BY j.name, t.name`, ContentLanguages)
+		  AND ($2::bigint[] IS NULL OR pb.jurisdiction_id = ANY($2::bigint[]))
+		ORDER BY j.name, t.name`, ContentLanguages, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -344,4 +368,30 @@ func (pg *PG) ListProposalsByReason(ctx context.Context, status, family string) 
 		}
 	}
 	return out, nil
+}
+
+// AttestStatementQuotes records a person's attestation for every unconfirmed
+// quote on one statement whose source the checker cannot read: the card's
+// "attest" action. Quotes on readable sources are not attested here; they are
+// rechecked. Returns how many citations were stamped.
+func (pg *PG) AttestStatementQuotes(ctx context.Context, playbookID int64, key, by string) (int, error) {
+	if !isReviewer(by) {
+		return 0, fmt.Errorf("%q cannot attest quotes: attestation is a person's act", by)
+	}
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return 0, fmt.Errorf("%q is not a statement key", key)
+	}
+	tag, err := pg.pool.Exec(ctx, `
+		UPDATE citations c
+		   SET manually_verified = true, checked_at = NOW(), checked_by = $3
+		  FROM playbook_statements ps, statements s, sources src
+		 WHERE ps.playbook_id = $1 AND s.id = ps.statement_id AND s.key = $2::uuid
+		   AND c.statement_id = s.id AND src.id = c.source_id
+		   AND btrim(c.quote) <> '' AND c.checked_at IS NULL
+		   AND `+sourceUnreadableSQL, playbookID, key, by)
+	if err != nil {
+		return 0, fmt.Errorf("attest statement quotes: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }

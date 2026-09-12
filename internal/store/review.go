@@ -23,6 +23,12 @@ const (
 	// A pending proposal is an undecided question about the claim. Snoozed
 	// ones are a deliberate deferral and do not count.
 	undecidedSQL = `EXISTS (SELECT 1 FROM statement_proposals sp WHERE sp.statement_key = s.key AND sp.status = 'pending')`
+	// A pending proposal that is not a reviewer note: something proposes to
+	// change the claim, or the checker lost its quote.
+	proposalPendingSQL = `EXISTS (SELECT 1 FROM statement_proposals sp WHERE sp.statement_key = s.key AND sp.status = 'pending' AND sp.reason <> 'agent-pass:flag')`
+	// Expects sources as src. True when the last fetch attempt failed to
+	// read the source and no successful check has happened since.
+	sourceUnreadableSQL = `(src.last_fetch_note <> '' AND (src.last_checked_at IS NULL OR src.last_fetch_at > src.last_checked_at))`
 )
 
 // isReviewer reports whether a save actor is a person whose edits count as

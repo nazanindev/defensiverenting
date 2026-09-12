@@ -413,7 +413,8 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind,
-			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`
+			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`, `+proposalPendingSQL+`,
+			COALESCE(`+sourceUnreadableSQL+`, false)
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
 		JOIN statement_review_hash h ON h.statement_id = s.id
@@ -1175,15 +1176,17 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			url, pub, kind   *string
 		)
 		var (
-			reviewedAt *time.Time
-			reviewedBy string
-			undecided  bool
+			reviewedAt      *time.Time
+			reviewedBy      string
+			undecided       bool
+			proposalPending bool
+			srcUnreadable   bool
 		)
 		if err := rows.Scan(
 			&stmtID, &stmtKey, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
 			&sourceID, &locator, &quote, &manuallyVerified, &c.CheckedAt, &checkedBy,
 			&url, &pub, &kind,
-			&reviewedAt, &reviewedBy, &undecided,
+			&reviewedAt, &reviewedBy, &undecided, &proposalPending, &srcUnreadable,
 		); err != nil {
 			continue
 		}
@@ -1194,7 +1197,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			out = append(out, CitedStatement{
 				ID: stmtID, Key: stmtKey, BodyMD: bodyMD, ConceptSlug: conceptSlug,
 				TopicRefSlug: topicRefSlug, TopicRefName: topicRefName,
-				ReviewedAt: reviewedAt, ReviewedBy: reviewedBy, Undecided: undecided,
+				ReviewedAt: reviewedAt, ReviewedBy: reviewedBy, Undecided: undecided, ProposalPending: proposalPending,
 			})
 			idx[k] = i
 			order = append(order, k)
@@ -1207,6 +1210,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		c.ManuallyVerified = manuallyVerified != nil && *manuallyVerified
 		c.CheckedBy = deref(checkedBy)
 		c.SourceURL, c.Publisher, c.SourceKind = deref(url), deref(pub), deref(kind)
+		c.SourceUnreadable = srcUnreadable
 		out[i].Citations = append(out[i].Citations, c)
 	}
 	_ = order
@@ -1257,7 +1261,8 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind,
-			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`
+			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`, `+proposalPendingSQL+`,
+			COALESCE(`+sourceUnreadableSQL+`, false)
 		FROM playbook_statements ps
 		JOIN statements s   ON s.id  = ps.statement_id
 		JOIN statement_review_hash h ON h.statement_id = s.id
