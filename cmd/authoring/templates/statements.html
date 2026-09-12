@@ -68,6 +68,34 @@
   .empty { padding: 40px 0; color: #b08080; text-align: center; }
   .issues { font-size: .82rem; color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .issues li { margin-left: 18px; }
+  /* Edit in place */
+  .ed { display: none; margin-top: 8px; }
+  .stmt.editing .ed { display: block; }
+  .stmt.editing .body, .stmt.editing .q, .stmt.editing .row { display: none; }
+  .ed textarea, .ed input { width: 100%; font-family: inherit; font-size: .92rem; line-height: 1.5; border: 1px solid #e0c8c8; border-radius: 6px; padding: 8px 10px; background: #fff; }
+  .ed textarea { min-height: 6em; resize: vertical; }
+  .ed .cite { margin-top: 10px; font-size: .78rem; color: #7a5c5c; }
+  .ed .cite a { color: #9b2335; text-decoration: none; }
+  .ed .cite input { margin-top: 4px; }
+  .ed .cite .loc { width: 14rem; }
+  .ed .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .src-btn { font-size: .76rem; color: #9b2335; background: none; border: 1px solid #f0c0c8; border-radius: 6px; padding: .1rem .5rem; cursor: pointer; font-family: inherit; margin-left: 6px; }
+  /* Source panel: full height, its own scroll */
+  body.with-panel .page { margin-right: 46vw; }
+  #panel { display: none; position: fixed; top: 0; right: 0; bottom: 0; width: 45vw; background: #fff; border-left: 1px solid #e0c8c8; box-shadow: -6px 0 24px rgba(74,18,35,.08); z-index: 20; flex-direction: column; }
+  body.with-panel #panel { display: flex; }
+  #panel .ph { padding: 12px 18px; border-bottom: 1px solid #ece0e0; font-size: .8rem; color: #7a5c5c; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  #panel .ph b { color: #1e1215; }
+  #panel .ph a { color: #9b2335; text-decoration: none; word-break: break-all; }
+  #panel .ph .x { margin-left: auto; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #9a7878; }
+  #panel .pn { padding: 8px 18px; font-size: .78rem; color: #b7791f; border-bottom: 1px solid #ece0e0; }
+  #panel .pn.ok { color: #065f46; }
+  #panel .pt { flex: 1; overflow: auto; padding: 16px 18px; font-size: .86rem; line-height: 1.6; white-space: pre-wrap; color: #2d1f1f; }
+  #panel .pt mark { background: #fde68a; padding: 0 1px; }
+  #panel .pf { padding: 10px 18px; border-top: 1px solid #ece0e0; font-size: .78rem; color: #7a5c5c; display: flex; gap: 10px; align-items: center; }
+  #panel .pf button { font-family: inherit; font-size: .8rem; padding: .3rem .7rem; border-radius: 6px; border: 1px solid #c7d2fe; background: #eef2ff; color: #3730a3; cursor: pointer; }
+  #panel .pf button[disabled] { opacity: .5; cursor: default; }
+  @media (max-width: 900px) { #panel { width: 100vw; } body.with-panel .page { margin-right: 0; } }
 </style>
 </head>
 <body>
@@ -81,13 +109,13 @@
   </div>
 </header>
 {{define "stmtcard"}}
-<div class="stmt{{if .Done}} done{{end}}" id="s{{.Stmt.ID}}">
+<div class="stmt{{if .Done}} done{{end}}" id="p{{.PlaybookID}}-{{.Position}}" data-n="{{.Position}}">
   <div class="n">{{.Position}}</div>
   <div>
     {{if .ShowPage}}<div class="where"><a href="/statements?page={{.PlaybookID}}">{{.Jurisdiction}} · {{.Topic}}</a> · {{.PageStatus}}</div>{{end}}
     <div class="body">{{.Stmt.BodyMD}}</div>
     {{range .Stmt.Citations}}{{if ne .SourceKind "editorial"}}
-    <div class="q">{{if .Quote}}<i>“{{.Quote}}”</i>{{else}}<span class="w">No quote recorded.</span>{{end}} — <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}{{if .Locator}}, {{.Locator}}{{end}} ↗</a>{{if and .Quote (not .CheckedAt)}} <span class="w">not confirmed at the source, open it</span>{{end}}</div>
+    <div class="q">{{if .Quote}}<i>“{{.Quote}}”</i>{{else}}<span class="w">No quote recorded.</span>{{end}} — <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}{{if .Locator}}, {{.Locator}}{{end}} ↗</a>{{if and .Quote (not .CheckedAt)}} <span class="w">not confirmed at the source</span>{{end}}<button type="button" class="src-btn" data-url="{{.SourceURL}}" data-pub="{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}" data-src="{{.SourceID}}" data-quote="{{.Quote}}" onclick="openPanel(this)">read source</button></div>
     {{end}}{{end}}
     {{range .Stmt.Notes}}<div class="note">Note: {{.Note}}</div>{{end}}
     {{if .Broken}}<div class="fix">Needs an edit before it can be done: {{range .Standing.Reasons}}{{if eq . "empty"}}no text. {{else if eq . "uncited"}}no citation. {{else if eq . "quote-missing"}}a citation has no quote. {{else if eq . "statute-locator"}}the statute needs its section. {{end}}{{end}}<a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}">Edit ↗</a></div>
@@ -97,8 +125,20 @@
       {{else if and (not .Broken) (not .Stmt.ProposalPending) (ne .PageKind "directory")}}
       <form method="post" action="/statement/done"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}<button class="btn btn-done" title="I read this statement and its quotes; they stand">Done</button></form>
       {{else if eq .PageKind "directory"}}<span class="stamp">Reviewed with the page when it is published</span>{{end}}
-      <a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}" style="font-size:.78rem;color:#9a7878;text-decoration:none">edit</a>
+      <button type="button" onclick="startEdit(this)" style="font-size:.78rem;color:#9a7878;background:none;border:none;cursor:pointer;font-family:inherit">edit</button>
+      <a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}" style="font-size:.78rem;color:#c9b0b0;text-decoration:none" title="The full editor: add, remove, or reorder statements">full page ↗</a>
     </div>
+    <form class="ed" method="post" action="/statement/save">
+      <input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}
+      <textarea name="body">{{.Stmt.BodyMD}}</textarea>
+      {{range .Stmt.Citations}}{{if ne .SourceKind "editorial"}}
+      <div class="cite"><a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}} ↗</a> <button type="button" class="src-btn" data-url="{{.SourceURL}}" data-pub="{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}" data-src="{{.SourceID}}" data-quote="{{.Quote}}" onclick="openPanel(this)">read source</button>
+        <input type="text" name="quote_{{.SourceID}}" value="{{.Quote}}" placeholder="verbatim quote from this source" data-src="{{.SourceID}}">
+        <input type="text" class="loc" name="locator_{{.SourceID}}" value="{{.Locator}}" placeholder="section, e.g. § 1950.5(b)">
+      </div>
+      {{end}}{{end}}
+      <div class="acts"><button class="btn btn-done" type="submit">Save</button><button class="btn" type="button" onclick="stopEdit(this)">Cancel</button></div>
+    </form>
   </div>
 </div>
 {{end}}
@@ -151,5 +191,68 @@
   {{else if .F.Empty}}<div class="empty">Pick a page from the list, or a source or concept above.</div>
   {{else}}<div class="empty">No statements here.</div>{{end}}
 </div>
+<aside id="panel" aria-label="Source text">
+  <div class="ph"><b id="p-pub"></b><a id="p-url" href="#" target="_blank" rel="noopener"></a><button class="x" type="button" onclick="closePanel()" title="Close">×</button></div>
+  <div class="pn" id="p-note">Fetching…</div>
+  <div class="pt" id="p-text"></div>
+  <div class="pf"><span id="p-target"></span><button type="button" id="p-use" disabled onclick="useSelection()">Use selection as the quote</button></div>
+</aside>
+<script>
+// Edit in place: the card swaps its text for the form; nothing navigates.
+function startEdit(btn) { btn.closest('.stmt').classList.add('editing'); }
+function stopEdit(btn) { btn.closest('.stmt').classList.remove('editing'); }
+
+// The source panel: the fetched text the checker sees, the quote marked
+// in it, and a way to make a selection the quote. One panel, one target
+// at a time: the card and source the button was pressed on.
+let target = null;
+function openPanel(btn) {
+  const card = btn.closest('.stmt');
+  target = { card, src: btn.dataset.src, quote: btn.dataset.quote || '' };
+  document.getElementById('p-pub').textContent = btn.dataset.pub;
+  const a = document.getElementById('p-url'); a.textContent = btn.dataset.url; a.href = btn.dataset.url;
+  document.getElementById('p-target').textContent = 'Statement ' + card.dataset.n;
+  document.getElementById('p-text').textContent = '';
+  setNote('Fetching…', false);
+  document.body.classList.add('with-panel');
+  fetch('/api/source-text?url=' + encodeURIComponent(btn.dataset.url))
+    .then(r => r.text())
+    .then(t => showText(t, target.quote))
+    .catch(e => setNote('Could not fetch: ' + e, false));
+}
+function closePanel() { document.body.classList.remove('with-panel'); target = null; }
+function setNote(msg, ok) { const n = document.getElementById('p-note'); n.textContent = msg; n.className = 'pn' + (ok ? ' ok' : ''); }
+function showText(text, quote) {
+  const el = document.getElementById('p-text');
+  el.textContent = text;
+  if (!quote) { setNote('No quote recorded for this citation. Select the words that back the statement and use them as the quote.', false); return; }
+  // Match the quote allowing any whitespace between words, case-insensitively.
+  const words = quote.trim().split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp(words.join('\\s+'), 'i');
+  const m = re.exec(text);
+  if (!m) { setNote('The quote was not found in the fetched text. Select the passage that backs the statement and use it as the quote.', false); return; }
+  el.innerHTML = '';
+  el.appendChild(document.createTextNode(text.slice(0, m.index)));
+  const mark = document.createElement('mark'); mark.textContent = m[0]; el.appendChild(mark);
+  el.appendChild(document.createTextNode(text.slice(m.index + m[0].length)));
+  setNote('Quote found in the fetched text.', true);
+  mark.scrollIntoView({ block: 'center' });
+}
+document.addEventListener('selectionchange', () => {
+  const sel = document.getSelection();
+  const inPanel = sel && sel.rangeCount && document.getElementById('p-text').contains(sel.anchorNode);
+  document.getElementById('p-use').disabled = !(inPanel && sel.toString().trim().length > 0);
+});
+function useSelection() {
+  if (!target) return;
+  const words = document.getSelection().toString().replace(/\s+/g, ' ').trim();
+  if (!words) return;
+  target.card.classList.add('editing');
+  const input = target.card.querySelector('input[name="quote_' + target.src + '"]');
+  if (input) { input.value = words; input.focus(); }
+  target.quote = words;
+  showText(document.getElementById('p-text').textContent, words);
+}
+</script>
 </body>
 </html>

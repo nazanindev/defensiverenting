@@ -433,35 +433,6 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 			return ErrProposalNotPending
 		}
 
-		var params AuthorUpdatePlaybookParams
-		params.ID = targetID
-		params.UpdatedBy = p.By
-		if err := tx.QueryRow(ctx, `
-			SELECT jurisdiction_id, topic_id, language, slug, title, intro_md, page_kind, author_notes
-			FROM playbooks WHERE id = $1`, targetID,
-		).Scan(&params.JurisdictionID, &params.TopicID, &params.Language, &params.Slug,
-			&params.Title, &params.IntroMD, &params.PageKind, &params.AuthorNotes); err != nil {
-			return fmt.Errorf("read target page: %w", err)
-		}
-		current, err := statementParams(ctx, tx, targetID)
-		if err != nil {
-			return err
-		}
-		replaced := false
-		for i := range current {
-			if current[i].Key == key {
-				st := p.Statement
-				st.Key = key
-				st.Language = params.Language
-				current[i] = st
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			return ErrProposalTargetGone
-		}
-		params.Statements = current
 		// Decided before the save: the approval is the reviewer's sign-off
 		// on the replacement (ADR-018 D2), and a still-pending item would
 		// keep the save from stamping it and the live gate from passing.
@@ -471,8 +442,55 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 			 WHERE id = $1`, p.ID, p.By); err != nil {
 			return err
 		}
-		return authorUpdatePlaybookTx(ctx, tx, params)
+		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.By)
 	})
+}
+
+// ReplaceStatement saves a page with one statement swapped for st, under a
+// person's name (ADR-019 D6: editing in place on the statements screen). It
+// is an ordinary save: a draft captures anything, a live page runs the gate.
+func (pg *PG) ReplaceStatement(ctx context.Context, playbookID int64, key string, st IngestStatementParams, by string) error {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return fmt.Errorf("%q is not a statement key", key)
+	}
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return replaceStatementTx(ctx, tx, playbookID, key, st, by)
+	})
+}
+
+// replaceStatementTx loads the page, substitutes the statement under key,
+// and saves through the one save path.
+func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, by string) error {
+	var params AuthorUpdatePlaybookParams
+	params.ID = playbookID
+	params.UpdatedBy = by
+	if err := tx.QueryRow(ctx, `
+		SELECT jurisdiction_id, topic_id, language, slug, title, intro_md, page_kind, author_notes
+		FROM playbooks WHERE id = $1`, playbookID,
+	).Scan(&params.JurisdictionID, &params.TopicID, &params.Language, &params.Slug,
+		&params.Title, &params.IntroMD, &params.PageKind, &params.AuthorNotes); err != nil {
+		return fmt.Errorf("read target page: %w", err)
+	}
+	current, err := statementParams(ctx, tx, playbookID)
+	if err != nil {
+		return err
+	}
+	replaced := false
+	for i := range current {
+		if current[i].Key == key {
+			st.Key = key
+			st.Language = params.Language
+			current[i] = st
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		return ErrProposalTargetGone
+	}
+	params.Statements = current
+	return authorUpdatePlaybookTx(ctx, tx, params)
 }
 
 // statementParams reads a page's statements back in the shape the save

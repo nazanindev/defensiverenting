@@ -232,6 +232,7 @@ func main() {
 	mux.HandleFunc("POST /publish/{id}", s.publish)
 	mux.HandleFunc("GET /statements", s.statements)
 	mux.HandleFunc("POST /statement/done", s.statementDone)
+	mux.HandleFunc("POST /statement/save", s.statementSave)
 	mux.HandleFunc("POST /statements/source/{id}/recheck", s.sourceRecheck)
 	mux.HandleFunc("POST /publish-ready", s.publishReady)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)

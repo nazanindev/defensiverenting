@@ -538,6 +538,9 @@ if (PRELOAD && PRELOAD.sources) {
     stmts.push(st);
   });
   render();
+  // A link from the statements screen names a card; the cards exist only
+  // now, after render, so the browser's own anchor jump found nothing.
+  if (location.hash) { const el = document.querySelector(location.hash); if (el) el.scrollIntoView({ block: 'start' }); }
 }
 
 // Editing a draft — and re-rendering after a validation error — arrives with the

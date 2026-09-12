@@ -176,3 +176,28 @@ func TestMarkStatementDone_isOneActionForReadNoteAndQuote(t *testing.T) {
 		t.Error("the agent marked a statement done")
 	}
 }
+
+func TestReplaceStatement_savesOneStatementInPlace(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	id := seedPlaybook(t, pg, jID, tID, "draft", "In place")
+	pw, _ := pg.AuthorGetPlaybook(ctx, id)
+	key := pw.Statements[0].Key
+	srcID := pw.Statements[0].Citations[0].SourceID
+	if err := pg.ReplaceStatement(ctx, id, key, store.IngestStatementParams{
+		BodyMD: "Reworded.", Sources: []store.IngestCitationParams{{SourceID: srcID, Locator: "§ 2", Quote: "new words"}},
+	}, "Nazanin"); err != nil {
+		t.Fatal(err)
+	}
+	pw, _ = pg.AuthorGetPlaybook(ctx, id)
+	st := pw.Statements[0]
+	if st.Key != key || st.BodyMD != "Reworded." || st.Citations[0].Locator != "§ 2" || st.Citations[0].Quote != "new words" {
+		t.Errorf("after replace: %+v", st)
+	}
+	if st.Citations[0].CheckedAt != nil {
+		t.Error("an unchecked new quote must not inherit the old confirmation")
+	}
+	if err := pg.ReplaceStatement(ctx, id, "00000000-0000-0000-0000-000000000000", store.IngestStatementParams{BodyMD: "x"}, "Nazanin"); !errors.Is(err, store.ErrProposalTargetGone) {
+		t.Errorf("replacing a missing key: %v", err)
+	}
+}

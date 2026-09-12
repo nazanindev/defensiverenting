@@ -566,7 +566,7 @@ func TestStatementTemplatesRender(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if name == "page" {
-			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "1 of 2 to do"} {
+			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "1 of 2 to do", `name="quote_7"`, `id="panel"`} {
 				if !strings.Contains(buf.String(), want) {
 					t.Errorf("page: missing %q", want)
 				}

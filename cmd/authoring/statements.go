@@ -209,6 +209,71 @@ func (s *srv) statementDone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// statementSave is edit in place: the card's form posts the statement's
+// text and, per citation, its quote and locator. A quote that changed is
+// checked against the fetched source text the way the editor does; found,
+// it is saved confirmed under the reviewer's name, otherwise unconfirmed
+// and the gate holds until it is. Everything else about the statement
+// (its tags, which sources it cites) is kept as it was.
+func (s *srv) statementSave(w http.ResponseWriter, r *http.Request) {
+	pid, err := strconv.ParseInt(r.FormValue("playbook"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid playbook", http.StatusBadRequest)
+		return
+	}
+	key := r.FormValue("key")
+	f := readFilter(r.Form)
+	ctx := r.Context()
+	pw, err := s.pg.AuthorGetPlaybook(ctx, pid)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	var cur *store.CitedStatement
+	for i := range pw.Statements {
+		if pw.Statements[i].Key == key {
+			cur = &pw.Statements[i]
+		}
+	}
+	if cur == nil {
+		http.Redirect(w, r, f.path("That statement is no longer on the page."), http.StatusSeeOther) //nolint:gosec // see filter.path
+		return
+	}
+	st := store.IngestStatementParams{
+		BodyMD: strings.TrimSpace(r.FormValue("body")), ConceptSlug: cur.ConceptSlug, TopicRefSlug: cur.TopicRefSlug,
+	}
+	qv := newQuoteVerifier(s.pg, s.sourceCache)
+	for _, c := range cur.Citations {
+		cite := store.IngestCitationParams{SourceID: c.SourceID, Locator: c.Locator, Quote: c.Quote, ManuallyVerified: c.ManuallyVerified}
+		if c.SourceKind != "editorial" {
+			sid := strconv.FormatInt(c.SourceID, 10)
+			if v, ok := r.Form["locator_"+sid]; ok {
+				cite.Locator = strings.TrimSpace(v[0])
+			}
+			if v, ok := r.Form["quote_"+sid]; ok && strings.TrimSpace(v[0]) != c.Quote {
+				cite.Quote = strings.TrimSpace(v[0])
+				cite.ManuallyVerified = false
+				if cite.Quote != "" {
+					if res := qv.checkQuote(ctx, c.SourceURL, cite.Quote); res.Verified {
+						cite.CheckedNow, cite.CheckedBy, cite.Checked = true, actor(r), res.Receipt
+					}
+				}
+			}
+		}
+		st.Sources = append(st.Sources, cite)
+	}
+	err = s.pg.ReplaceStatement(ctx, pid, key, st, actor(r))
+	var npe *store.NotPublishableError
+	switch {
+	case errors.As(err, &npe):
+		http.Redirect(w, r, f.path("Not saved: this page is live and the change would leave it unpublishable. "+strings.Join(issueDetails(npe.Issues), "; ")), http.StatusSeeOther) //nolint:gosec // see filter.path
+	case err != nil:
+		s.serverError(w, err)
+	default:
+		http.Redirect(w, r, f.path("Saved."), http.StatusSeeOther) //nolint:gosec // see filter.path
+	}
+}
+
 // sourceRecheck re-fetches one source and confirms its quotes now.
 func (s *srv) sourceRecheck(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
