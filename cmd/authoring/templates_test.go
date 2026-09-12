@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"time"
 	"testing"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -545,7 +545,7 @@ func TestReviewTemplatesRender(t *testing.T) {
 	}}
 	items := []reviewGroupItem{{ReviewRow: rows[0], Focus: &cite, Item: "3:k"}, {ReviewRow: rows[1], Item: "4:k2"}}
 	for name, data := range map[string]map[string]any{
-		"review.html": {"Actor": "Nazanin", "Sources": []store.SourceReviewSummary{src}, "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", TopicSlug: "t", Statements: 2, Unreviewed: 1}}, "SourcesOpen": 1, "ConceptsOpen": 1, "Notes": 3, "Msg": ""},
+		"review.html":       {"Actor": "Nazanin", "Sources": []store.SourceReviewSummary{src}, "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", TopicSlug: "t", Statements: 2, Unreviewed: 1}}, "SourcesOpen": 1, "ConceptsOpen": 1, "Notes": 3, "Msg": ""},
 		"review_group.html": {"Actor": "Nazanin", "Kind": "source", "Source": src, "Title": "Example", "Items": items, "Counts": countReview(rows), "MarkPath": "/review/source/7/reviewed", "Msg": "hi"},
 	} {
 		var buf bytes.Buffer
