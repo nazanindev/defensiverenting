@@ -37,6 +37,9 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
 	r.Use(chimw.Recoverer)
+	// HEAD answers like GET with the body dropped. Without this every HEAD
+	// returned 405, which link checkers and preview fetchers read as broken.
+	r.Use(chimw.GetHead)
 	r.Use(middleware.CanonicalHost(cfg.SiteURL, cfg.CanonicalRedirect))
 
 	// Unmatched URLs get the styled 404 instead of the stock one-liner. chi's
