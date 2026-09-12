@@ -1090,6 +1090,7 @@ func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 		vs := viewStmt{
 			Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, TopicRef: stmt.TopicRefSlug,
 			Key: stmt.Key, ReviewedAt: stmt.ReviewedAt, ReviewedBy: stmt.ReviewedBy, Undecided: stmt.Undecided,
+			Notes: stmt.Notes,
 		}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorial.ID {
@@ -1195,6 +1196,7 @@ type viewStmt struct {
 	ReviewedAt *time.Time
 	ReviewedBy string
 	Undecided  bool
+	Notes      []store.StatementNote
 }
 
 // stmtCheckedAt derives a statement's last-checked stamp from its citations.
@@ -2408,12 +2410,17 @@ type preloadStmt struct {
 	// Key is the statement's durable identity (ADR-014 D1). It rides along
 	// as a hidden field so an edited body keeps its key; a card added on the
 	// form has none and the save mints one.
-	Key       string            `json:"key"`
-	Body      string            `json:"body"`
-	Editorial bool              `json:"editorial"`
-	Tag       string            `json:"tag"`      // "c:{concept}" | "t:{topic}" | "" (ADR-011)
-	Cites     []int             `json:"cites"`    // indices into sources slice
-	Locators  map[string]string `json:"locators"` // "srcIdx" -> locator override
+	Key       string `json:"key"`
+	Body      string `json:"body"`
+	Editorial bool   `json:"editorial"`
+	// Notes are the pending reviewer notes on this claim and Reviewed the
+	// current stamp line (ADR-018), both read-only in the editor: the queue
+	// decides notes, and editing the body voids the stamp on its own.
+	Notes    []string          `json:"notes"`
+	Reviewed string            `json:"reviewed"`
+	Tag      string            `json:"tag"`      // "c:{concept}" | "t:{topic}" | "" (ADR-011)
+	Cites    []int             `json:"cites"`    // indices into sources slice
+	Locators map[string]string `json:"locators"` // "srcIdx" -> locator override
 	// Quotes carries the verbatim source text backing each citation, keyed the
 	// same way as Locators. The form never captured it, so every save rewrote
 	// citations.quote to "" — a human review pass silently destroyed the
@@ -2538,6 +2545,15 @@ func buildPreload(pw store.PlaybookWithStatements, editorialSourceID int64) prel
 			tag = "t:" + stmt.TopicRefSlug
 		}
 		ps := preloadStmt{ID: i, Key: stmt.Key, Body: stmt.BodyMD, Tag: tag, Locators: map[string]string{}, Quotes: map[string]string{}, Verified: map[string]bool{}, Checked: map[string]bool{}}
+		for _, n := range stmt.Notes {
+			ps.Notes = append(ps.Notes, n.Note)
+		}
+		if stmt.ReviewedAt != nil {
+			ps.Reviewed = "Reviewed " + stmt.ReviewedAt.Format("2006-01-02")
+			if stmt.ReviewedBy != "" {
+				ps.Reviewed += " by " + stmt.ReviewedBy
+			}
+		}
 		for _, c := range stmt.Citations {
 			if c.SourceID == editorialSourceID {
 				ps.Editorial = true

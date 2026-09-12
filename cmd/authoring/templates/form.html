@@ -69,6 +69,11 @@
   .card { border: 1px solid #e8dede; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; background: #fffafa; }
   .card-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .card-num { font-size: .82rem; font-weight: 700; color: #5c3a3a; }
+  /* Reviewer notes (ADR-018 D1): the drafting agent's doubt, shown where
+     the words are edited. Decided in the queue, not here. */
+  .card-notes { margin: 8px 0 4px; }
+  .card-note { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 7px 10px; border-radius: 4px; font-size: .82rem; line-height: 1.5; color: #3b2a5c; margin-bottom: 4px; }
+  .card-reviewed { font-size: .72rem; color: #3730a3; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; padding: .1rem .5rem; margin-left: 8px; font-weight: 600; }
 
   /* citation rows */
   .cite-hd { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #b08080; margin: 12px 0 8px; padding-top: 10px; border-top: 1px dashed #e8dede; }
@@ -509,7 +514,7 @@ if (PRELOAD && PRELOAD.sources) {
     sources.push({ id: nextSrcId++, url: s.url, publisher: s.publisher, kind: s.kind, locator: s.locator || '' });
   });
   PRELOAD.stmts.forEach(s => {
-    const st = { id: nextStmtId++, key: s.key || '', body: s.body, editorial: !!s.editorial, tag: s.tag || '', cites: {}, locators: {}, quotes: {}, verified: {} };
+    const st = { id: nextStmtId++, key: s.key || '', body: s.body, editorial: !!s.editorial, tag: s.tag || '', notes: s.notes || [], reviewed: s.reviewed || '', cites: {}, locators: {}, quotes: {}, verified: {} };
     (s.cites || []).forEach(i => { st.cites[i] = true; });
     Object.entries(s.locators || {}).forEach(([k, v]) => { st.locators[+k] = v; });
     Object.entries(s.quotes || {}).forEach(([k, v]) => { st.quotes[+k] = v; });
@@ -1059,6 +1064,7 @@ function renderStmts() {
         '<span class="drag-handle" title="Drag to reorder"' +
           ' onmousedown="enableDrag(event,\'card_' + st.id + '\')">⠿</span>' +
         '<span class="card-num">' + cardLabel + '</span>' +
+        (st.reviewed ? '<span class="card-reviewed" title="A person read this statement with its citations as it reads now. Editing the words or the evidence voids the stamp.">' + esc(st.reviewed) + '</span>' : '') +
         // Dragging is fine for a nudge and miserable for a 13-statement page,
         // where the drop target is off-screen and the list scrolls under the
         // cursor. The buttons move one place per press and need no aiming.
@@ -1074,6 +1080,12 @@ function renderStmts() {
       '<input type="hidden" name="key_' + st.id + '" value="' + esc(st.key || '') + '">' +
       '<textarea name="stmt_' + st.id + '" rows="5" placeholder="' + stmtPlaceholder + '"' +
         ' style="width:100%;margin-bottom:0">' + esc(st.body) + '</textarea>' +
+      ((st.notes || []).length
+        ? '<div class="card-notes">' +
+            st.notes.map(n => '<div class="card-note">' + esc(n) + '</div>').join('') +
+            '<div class="hint">Reviewer notes from the drafting agent. Decide each in the <a href="/queue" target="_blank" rel="noopener">queue</a>; the page cannot publish while one waits.</div>' +
+          '</div>'
+        : '') +
       conceptRow(st) +
       '<div class="cite-hd">' + (isDir ? 'Source:' : 'Cite:') +
         '<span class="stmt-flag" id="cite_flag_' + st.id + '"></span></div>' +

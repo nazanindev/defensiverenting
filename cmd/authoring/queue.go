@@ -50,6 +50,9 @@ type queueItem struct {
 	// Note is the drafting agent's doubt on a reviewer-flag item (ADR-018
 	// D1), shown as the finding in its own words.
 	Note string
+	// EditorHref opens the target page's editor scrolled to this statement;
+	// "" when the statement is no longer on the page.
+	EditorHref string
 }
 
 // driftEvidence is the source-drift evidence the checker files (see
@@ -123,6 +126,10 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 					item.Note = f.Note
 				}
 			}
+		}
+		if row.OnPage() {
+			// The editor numbers its cards from zero in page order.
+			item.EditorHref = fmt.Sprintf("/edit/%d#card_%d", row.TargetPlaybookID, row.Position-1)
 		}
 		if n := len(groups); n == 0 || groups[n-1].TargetPlaybookID != row.TargetPlaybookID {
 			groups = append(groups, queueGroup{

@@ -299,6 +299,18 @@ type CitedStatement struct {
 	// statement cannot be stamped reviewed, and its page cannot publish,
 	// until the queue item is decided.
 	Undecided bool
+	// Notes are the pending reviewer notes on this statement (ADR-018 D1),
+	// oldest first. Loaded by the authoring getter only.
+	Notes []StatementNote
+}
+
+// StatementNote is one pending reviewer note: the drafting agent's doubt
+// about a claim, waiting for a person to decide it in the queue.
+type StatementNote struct {
+	ID   int64 // the proposal id, for linking into the queue
+	Note string
+	By   string
+	At   time.Time
 }
 
 type SearchResult struct {

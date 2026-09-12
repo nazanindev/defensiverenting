@@ -150,7 +150,7 @@
         <summary>
           <span class="pos">{{if .OnPage}}#{{.Position}}{{else}}—{{end}}</span>
           <span><span class="chip {{if eq .ReasonLabel "source-drift"}}chip-drift{{else if eq .ReasonLabel "source-quality"}}chip-quality{{else if .Note}}chip-flag{{end}}">{{if .Note}}reviewer note{{else}}{{.ReasonLabel}}{{end}}</span>{{if and .ReasonName (not .Note)}}<span class="chip-name">{{.ReasonName}}</span>{{end}}</span>
-          <span class="lead">{{if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
+          <span class="lead">{{if .Note}}{{.Note}}{{else if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
           <span class="meta">{{.ProposedBy}} · {{.Age}}</span>
         </summary>
         <div class="body">
@@ -194,10 +194,16 @@
           <div class="actions">
             {{if .Proposed}}
               {{if .OnPage}}<button class="btn btn-success" type="submit" form="approve{{.ID}}">Approve{{if eq .TargetStatus "published"}} &amp; publish{{end}}</button>{{end}}
+            {{else if .Note}}
+              {{/* A note is a question about the claim. The three answers:
+                   it stands as written, it needs an edit, the edit is done. */}}
+              <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="note" value="Read; the statement stands as written"><button class="btn btn-success">Fine as is</button></form>
+              {{if .EditorHref}}<a class="btn btn-mute" href="{{.EditorHref}}">Fix in editor</a>{{end}}
+              <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Fixed</button></form>
             {{else}}
               <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Resolved in editor</button></form>
             {{end}}
-            <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger">Reject</button></form>
+            {{if not .Note}}<form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger">Reject</button></form>{{end}}
             <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute">Snooze</button></form>
           </div>
           {{else}}

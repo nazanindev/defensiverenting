@@ -84,6 +84,8 @@
   .btn-review { padding: .2rem .6rem; font-size: .72rem; font-weight: 600; border-radius: 6px; border: 1px solid #a5b4fc; background: #fff; color: #3730a3; cursor: pointer; }
   .btn-review:hover { background: #eef2ff; }
   .review-line { font-size: .8rem; color: #4b3f3f; margin-top: 10px; }
+  .stmt-note { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 7px 10px; border-radius: 4px; font-size: .82rem; line-height: 1.5; color: #3b2a5c; margin-top: 8px; }
+  .stmt-note a { color: #5b21b6; font-weight: 600; margin-left: 6px; white-space: nowrap; }
   .btn-publish { background: #065f46; color: #fff; }
   .btn-publish:hover { background: #054c39; }
 
@@ -258,7 +260,7 @@
           {{if .ReviewedAt}}
           <span class="check-stamp review-stamp" title="A person read this statement with its citations as it reads now">Reviewed {{date .ReviewedAt}}{{if .ReviewedBy}} by {{.ReviewedBy}}{{end}}</span>
           {{else if .Undecided}}
-          <a class="check-stamp review-stamp-undecided" href="/queue" title="A queue item is pending on this statement; decide it before marking the statement reviewed">Undecided in the queue ↗</a>
+          <span class="check-stamp review-stamp-undecided" title="A queue item is pending on this statement; decide it before marking the statement reviewed">Undecided in the queue</span>
           {{else}}
           <form method="post" action="/review/{{$.Playbook.Playbook.ID}}" style="display:inline">
             <input type="hidden" name="key" value="{{.Key}}">
@@ -267,6 +269,9 @@
           {{end}}
           {{end}}
         </div>
+        {{range .Notes}}
+        <div class="stmt-note">{{.Note}}<a href="/queue#p{{.ID}}">decide in the queue ↗</a></div>
+        {{end}}
         {{range .Cites}}{{if .Quote}}
         <blockquote class="cite-quote">
           <span class="cite-quote-num">{{.Num}}</span>

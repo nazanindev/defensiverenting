@@ -178,11 +178,19 @@ func (pg *PG) FileProposal(ctx context.Context, p FileProposalParams) (int64, er
 // insertProposal writes one proposal inside tx, superseding any pending or
 // snoozed one against the same key. Shared by FileProposal and the save path
 // that files reviewer notes (ADR-018 D1).
+//
+// Superseding is for competing edits: two replacements for one claim would
+// leave the reviewer choosing between them. A reviewer note (ADR-018 D1) is
+// a question, not a replacement: several can stand on one statement, and an
+// edit proposal arriving later does not answer them, so notes neither
+// supersede nor are superseded.
 func insertProposal(ctx context.Context, tx pgx.Tx, key string, playbookID int64, reason string, proposed []byte, evidence json.RawMessage, by string) (int64, error) {
-	if _, err := tx.Exec(ctx, `
-		UPDATE statement_proposals SET status = 'superseded'
-		WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed')`, key); err != nil {
-		return 0, fmt.Errorf("supersede: %w", err)
+	if reason != ReasonReviewerFlag {
+		if _, err := tx.Exec(ctx, `
+			UPDATE statement_proposals SET status = 'superseded'
+			WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed') AND reason <> $2`, key, ReasonReviewerFlag); err != nil {
+			return 0, fmt.Errorf("supersede: %w", err)
+		}
 	}
 	var id int64
 	err := tx.QueryRow(ctx, `

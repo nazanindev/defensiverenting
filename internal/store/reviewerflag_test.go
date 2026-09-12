@@ -67,15 +67,36 @@ func TestReviewerNote_filesOneWorkItemOnTheStatementKey(t *testing.T) {
 		t.Errorf("after an identical re-save, pending flags = %d, want 1", n)
 	}
 
-	// A different note on the same claim replaces the pending one.
+	// A different note on the same claim stands beside the first: notes are
+	// questions, not competing edits, so nothing is superseded.
 	resave(t, pg, id, jID, tID, store.IngestStatementParams{
 		Key: key, BodyMD: "Claim one.", ReviewerNote: "Guidance only, no statute.",
 	})
-	if n := len(flagsFor(t, pg, key, "pending")); n != 1 {
-		t.Errorf("after a new note, pending flags = %d, want 1", n)
+	if n := len(flagsFor(t, pg, key, "pending")); n != 2 {
+		t.Errorf("after a second note, pending flags = %d, want 2", n)
 	}
-	if n := len(flagsFor(t, pg, key, "superseded")); n != 1 {
-		t.Errorf("superseded flags = %d, want 1", n)
+	if n := len(flagsFor(t, pg, key, "superseded")); n != 0 {
+		t.Errorf("superseded flags = %d, want 0", n)
+	}
+	// An edit proposal filed afterwards leaves both notes standing, and the
+	// page reads them back beside the statement.
+	if _, err := pg.FileProposal(context.Background(), store.FileProposalParams{
+		StatementKey: key, Reason: "agent-pass:rewrite", ProposedBy: "agent",
+		Proposed: &store.ProposedStatement{BodyMD: "Claim one, reworded."},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(flagsFor(t, pg, key, "pending")); n != 2 {
+		t.Errorf("an edit proposal superseded the notes: pending flags = %d, want 2", n)
+	}
+	pw, err := pg.AuthorGetPlaybook(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(pw.Statements[0].Notes); got != 2 {
+		t.Errorf("statement carries %d notes, want 2", got)
+	} else if pw.Statements[0].Notes[0].Note != "Inferred from the statute's silence." {
+		t.Errorf("first note = %q", pw.Statements[0].Notes[0].Note)
 	}
 }
 
