@@ -42,7 +42,7 @@ The stamp travels with the key across saves, the way a citation's confirmation d
 
 Publishing continues to stamp `playbooks.last_reviewed_at` and continues to be a single-page, named-person action. What changes is that the person may have done the reading days earlier, in a different order, in groups.
 
-**Directory pages are excluded.** On a directory the meaning of a statement comes from the organisation heading above it; the hours line means nothing alone. Directory pages keep page-level review: publishing one stamps every statement on it, and the `unreviewed-statement` check does not run against `page_kind = 'directory'`.
+**Directory pages were excluded, and are not any more (amendment, 2026-09-12).** The reasoning below held for the gate but confused the people using the screen, and an entry is read under its heading either way; every entry now needs its own stamp like any statement. Original text: On a directory the meaning of a statement comes from the organisation heading above it; the hours line means nothing alone. Directory pages keep page-level review: publishing one stamps every statement on it, and the `unreviewed-statement` check does not run against `page_kind = 'directory'`.
 
 ### D4. Review is done in groups, over three axes that already exist
 

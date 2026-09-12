@@ -54,10 +54,8 @@ func (s Standing) Has(reason string) bool {
 	return false
 }
 
-// Standing computes the statement's standing. pageLevel is true on a
-// directory page, whose statements are reviewed as a page at publish and so
-// never carry the unread reason themselves.
-func (st CitedStatement) Standing(pageLevel bool) Standing {
+// Standing computes the statement's standing.
+func (st CitedStatement) Standing() Standing {
 	var out Standing
 	add := func(r string) {
 		if !out.Has(r) {
@@ -95,7 +93,7 @@ func (st CitedStatement) Standing(pageLevel bool) Standing {
 	if st.ProposalPending {
 		add(ReasonProposal)
 	}
-	if !pageLevel && st.ReviewedAt == nil {
+	if st.ReviewedAt == nil {
 		add(ReasonUnread)
 	}
 	switch {

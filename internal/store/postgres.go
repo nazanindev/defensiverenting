@@ -1483,9 +1483,9 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64, actor string)
 			 WHERE id = $1`, id, actor); err != nil {
 			return fmt.Errorf("publish playbook %d: %w", id, err)
 		}
-		// The gate already required every statement reviewed, except on a
-		// directory page, which is reviewed as a page (ADR-018 D3): its
-		// statements are stamped by the publisher here.
+		// The gate already required every statement reviewed; this stamps
+		// nothing on a page that passed it and stays for the ingest path,
+		// which publishes without the gate.
 		return stampUnreviewed(ctx, tx, id, actor)
 	})
 }

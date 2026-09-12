@@ -158,7 +158,7 @@ func TestMarkStatementDone_isOneActionForReadNoteAndQuote(t *testing.T) {
 	if st.ReviewedAt == nil || st.ReviewedBy != "Nazanin" || len(st.Notes) != 0 || st.Citations[0].CheckedAt == nil || !st.Citations[0].ManuallyVerified {
 		t.Errorf("after Done: reviewed=%v by=%q notes=%d checked=%v attested=%v", st.ReviewedAt, st.ReviewedBy, len(st.Notes), st.Citations[0].CheckedAt, st.Citations[0].ManuallyVerified)
 	}
-	if s := st.Standing(false); s.Status != store.Ready {
+	if s := st.Standing(); s.Status != store.Ready {
 		t.Errorf("standing after Done = %+v", s)
 	}
 	if err := pg.AuthorPublishPlaybook(ctx, id, "Nazanin"); err != nil {

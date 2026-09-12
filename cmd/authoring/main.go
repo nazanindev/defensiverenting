@@ -522,7 +522,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 			ps = &store.PageStanding{}
 			standing[row.PlaybookID] = ps
 		}
-		ps.Aggregate(row.Stmt.Standing(row.PageKind == "directory"))
+		ps.Aggregate(row.Stmt.Standing())
 	}
 	// Drafts the gate would pass right now, for the publish-ready button.
 	readyCount := 0

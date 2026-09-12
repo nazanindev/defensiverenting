@@ -47,9 +47,7 @@ type stmtCard struct {
 func (c stmtCard) CardIndex() int { return c.Position - 1 }
 
 func cardFromRow(r store.ReviewRow, f filter) stmtCard {
-	// On screen a directory entry is done or not like any other statement;
-	// only the gate treats the page as the unit (ADR-018 D3).
-	st := r.Stmt.Standing(false)
+	st := r.Stmt.Standing()
 	return stmtCard{
 		PlaybookID: r.PlaybookID, PageStatus: r.PageStatus, PageKind: r.PageKind,
 		Jurisdiction: r.Jurisdiction, Topic: r.Topic, Position: r.Position,

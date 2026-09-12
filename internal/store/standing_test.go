@@ -19,7 +19,7 @@ func standings(t *testing.T, pg *store.PG, id int64) []store.Standing {
 	}
 	out := make([]store.Standing, len(pw.Statements))
 	for i, st := range pw.Statements {
-		out[i] = st.Standing(pw.Playbook.PageKind == "directory")
+		out[i] = st.Standing()
 	}
 	return out
 }
@@ -102,15 +102,5 @@ func TestStanding_followsTheStatementThroughReview(t *testing.T) {
 	}
 	if !page.Publishable() || page.Total != 2 {
 		t.Errorf("page standing = %+v", page)
-	}
-}
-
-func TestStanding_directoryStatementsAreNeverUnread(t *testing.T) {
-	st := store.CitedStatement{BodyMD: "Org.", Citations: []store.CitationWithSource{{SourceKind: "nonprofit", Quote: "q", CheckedAt: nil, ManuallyVerified: true}}}
-	if s := st.Standing(true); s.Status != store.Ready {
-		t.Errorf("directory entry = %+v", s)
-	}
-	if s := st.Standing(false); !s.Has(store.ReasonUnread) {
-		t.Errorf("playbook statement = %+v", s)
 	}
 }

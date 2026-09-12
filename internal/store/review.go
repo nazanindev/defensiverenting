@@ -146,9 +146,7 @@ type ReviewCount struct {
 	Undecided int
 }
 
-// AuthorDraftReviewCounts returns review standing for every draft that is
-// reviewed per statement (directory pages are reviewed as pages, ADR-018 D3,
-// and are absent from the map).
+// AuthorDraftReviewCounts returns review standing for every draft.
 func (pg *PG) AuthorDraftReviewCounts(ctx context.Context) (map[int64]ReviewCount, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id,
@@ -159,7 +157,7 @@ func (pg *PG) AuthorDraftReviewCounts(ctx context.Context) (map[int64]ReviewCoun
 		JOIN playbook_statements ps ON ps.playbook_id = pb.id
 		JOIN statements s ON s.id = ps.statement_id
 		JOIN statement_review_hash h ON h.statement_id = s.id
-		WHERE pb.status = 'draft' AND pb.page_kind <> 'directory'
+		WHERE pb.status = 'draft'
 		GROUP BY pb.id`)
 	if err != nil {
 		return nil, fmt.Errorf("count reviewed statements: %w", err)

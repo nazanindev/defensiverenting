@@ -243,11 +243,11 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		return nil, err
 	}
 
-	// Review is per statement (ADR-018 D2, D3): a page cannot publish while
-	// any statement lacks a valid stamp, one by a person over the content as
-	// it reads now. Directory pages are the exception, reviewed as a page at
-	// publish, because an entry's lines mean nothing apart from the
-	// organisation heading above them. One issue per page, listing the
+	// Review is per statement (ADR-018 D2, D3, amended 2026-09-12): a page
+	// cannot publish while any statement lacks a valid stamp, one by a
+	// person over the content as it reads now. Directory entries included:
+	// they are read under their organisation heading either way, and a
+	// stamp on each costs nothing. One issue per page, listing the
 	// positions, so fourteen unread statements are one line, not fourteen.
 	if err := scanIssueRows(ctx, q, `
 		SELECT pb.id, string_agg((ps.position + 1)::text, ', ' ORDER BY ps.position), count(*)::text
@@ -255,7 +255,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		JOIN playbooks pb ON pb.id = ps.playbook_id
 		JOIN statements s ON s.id = ps.statement_id
 		JOIN statement_review_hash h ON h.statement_id = s.id
-		WHERE `+cond+` AND pb.page_kind <> 'directory'
+		WHERE `+cond+`
 		  AND NOT (s.last_reviewed_at IS NOT NULL AND s.reviewed_hash = h.hash)
 		GROUP BY pb.id`, args,
 		func(id int64, f []string) {

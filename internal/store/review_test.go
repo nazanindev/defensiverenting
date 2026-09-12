@@ -180,7 +180,7 @@ func TestReview_theAgentCannotStamp(t *testing.T) {
 	}
 }
 
-func TestReview_directoryIsReviewedAsAPageAtPublish(t *testing.T) {
+func TestReview_directoryEntriesAreDoneLikeAnyStatement(t *testing.T) {
 	pg, jID, tID := revisionFixture(t)
 	ctx := context.Background()
 	src, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: "https://help.example.org/" + t.Name(), Publisher: "Help", Kind: "nonprofit"})
@@ -205,14 +205,14 @@ func TestReview_directoryIsReviewedAsAPageAtPublish(t *testing.T) {
 	if got := reviewedAt(t, pg, id); got[0] || got[1] {
 		t.Fatal("agent-saved directory entries must start unreviewed")
 	}
+	if err := pg.AuthorPublishPlaybook(ctx, id, "Nazanin"); err == nil {
+		t.Fatal("a directory page must not publish with unread entries")
+	}
+	if _, err := pg.MarkStatementsReviewed(ctx, id, nil, "Nazanin"); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.AuthorPublishPlaybook(ctx, id, "Nazanin"); err != nil {
-		t.Fatalf("a directory page publishes on page-level review: %v", err)
-	}
-	if got := reviewedAt(t, pg, id); !got[0] || !got[1] {
-		t.Fatalf("publishing a directory stamps its entries, got %v", got)
-	}
-	if counts, _ := pg.AuthorDraftReviewCounts(ctx); counts[id] != (store.ReviewCount{}) {
-		t.Error("directory pages have no per-statement review count")
+		t.Fatalf("a directory page with every entry done publishes: %v", err)
 	}
 }
 
