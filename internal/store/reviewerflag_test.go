@@ -110,3 +110,22 @@ func TestReviewerNote_emptyFilesNothing(t *testing.T) {
 		t.Errorf("blank note filed %d flags", n)
 	}
 }
+
+func TestFileReviewerNote_backfillFilesOnceAndReportsIt(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	id := seedPlaybook(t, pg, jID, tID, "draft", "Backfill")
+	key := statementKeys(t, pg, id)[0]
+	ctx := context.Background()
+
+	filed, err := pg.FileReviewerNote(ctx, id, key, "From the review sheet.", store.ActorDraftingAgent)
+	if err != nil || !filed {
+		t.Fatalf("first filing: filed=%v err=%v", filed, err)
+	}
+	filed, err = pg.FileReviewerNote(ctx, id, key, "From the review sheet.", store.ActorDraftingAgent)
+	if err != nil || filed {
+		t.Fatalf("second run must file nothing: filed=%v err=%v", filed, err)
+	}
+	if n := len(flagsFor(t, pg, key, "pending")); n != 1 {
+		t.Errorf("pending flags = %d, want 1", n)
+	}
+}

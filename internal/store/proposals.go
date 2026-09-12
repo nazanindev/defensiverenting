@@ -202,6 +202,37 @@ type ReviewerFlagEvidence struct {
 	Note string `json:"note"`
 }
 
+// FileReviewerNote files one reviewer note against a statement key on a page,
+// with the same rules as a save (ADR-018 D1): nothing is filed when the same
+// note is already on file for that key in any status. It returns whether a
+// proposal was written. Used by the back-fill of the pre-ADR-018 review
+// sheets; the drafting path files through the save itself.
+func (pg *PG) FileReviewerNote(ctx context.Context, playbookID int64, key, note, by string) (bool, error) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return false, fmt.Errorf("statement key %q is not a statement key", key)
+	}
+	if strings.TrimSpace(by) == "" {
+		return false, errors.New("proposed_by is required")
+	}
+	var filed bool
+	err := pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var before, after int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM statement_proposals WHERE statement_key = $1::uuid`, key).Scan(&before); err != nil {
+			return err
+		}
+		if err := fileReviewerFlag(ctx, tx, key, playbookID, note, by); err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM statement_proposals WHERE statement_key = $1::uuid`, key).Scan(&after); err != nil {
+			return err
+		}
+		filed = after > before
+		return nil
+	})
+	return filed, err
+}
+
 // fileReviewerFlag files a statement's reviewer note as a work-item proposal
 // inside the saving transaction, so the doubt and the claim land together or
 // not at all. A note already on file for this key, in any status, is not
