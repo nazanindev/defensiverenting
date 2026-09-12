@@ -38,7 +38,9 @@ flowchart LR
     M -- save --> S[Verbatim check]
     E --> S
     S --> R[Draft]
-    R --> P[Person publishes]
+    M -- doubt --> Q
+    R --> W[Person reviews each statement]
+    W --> P[Person publishes]
     P --> L[Public page]
     L --> V[Re-verify]
     V -- quote gone --> Q[Proposal]
@@ -47,7 +49,9 @@ flowchart LR
 
 The model is never believed. It sits above a trust boundary and the only thing that crosses is a tool call. The one tool that writes checks each quote against text the system fetched itself and refuses with a fix the model can act on. The same tools run in the Go loop (`cmd/draft`) and over MCP (`cmd/mcp`), so the loop can also be driven from Claude Code.
 
-Publishing is a human act. The authoring tool runs the gate inside the publish transaction: every statement cited, every quote confirmed by a named person. Drafts save freely and the gate refuses, so nothing is lost and nothing leaks.
+Review is per statement; publishing is per page (ADR-018). A person reads each statement with its quotes and stamps it. The stamp is bound to a hash of the body, the tags, and every citation's source, locator, and quote, so an edit to the words or the evidence returns the statement to unreviewed with nothing to clear. Because the stamp lives on the claim, review can be done in any order and in groups: every statement citing one source, one concept across every state, or only what the drafting model was unsure of. The model records that doubt as a reviewer note on the statement, which the save files as a queue item; nothing publishes over an undecided one.
+
+Publishing is a human act. The authoring tool runs the gate inside the publish transaction: every statement cited, every quote confirmed by a named person, every statement reviewed by one. Drafts save freely and the gate refuses, so nothing is lost and nothing leaks. Directory pages, whose entries mean nothing apart from the organisation heading above them, are reviewed as a page at publish.
 
 After publishing, a checker refetches every cited source and confirms each quote still appears. Every fetch carries a receipt (which tier and extractor produced the text, its hash) and every confirmation stores that receipt with the passage around the quote. A later check compares against that baseline: an equal hash is unchanged, a script shell or bot-check page is "could not read here" rather than drift, and a quote confirmed under pdftotext is never declared missing by the weaker pure-Go PDF reader. Only a readable, comparable fetch that lacks the quote files a proposal against the statement's durable key, showing the old passage beside the nearest new one. A person approves, edits, or rejects it. Approval is just a save, so the same gate holds.
 
@@ -130,7 +134,7 @@ Known gaps, stated plainly:
 
 - Fetched text is not persisted. It lives in memory for the run, so a checked_at stamp cannot yet show the text it was checked against.
 - Every path that confirms a quote (drafting guardrail, authoring form, checker, queue approval, wayback repoint) matches with the one `drafting.QuoteAppearsIn` and records the same receipt, so "checked" means one thing everywhere.
-- Two maintenance commands, promote and ingest, write through the same save path but skip the publish gate.
+- Two maintenance commands, promote and ingest, write through the same save path but skip the publish gate; a page they publish is stamped reviewed whole, by the person running them.
 
 ## Roadmap
 
