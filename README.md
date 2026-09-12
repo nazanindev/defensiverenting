@@ -13,7 +13,7 @@ Drafts are produced by an AI research agent and human-reviewed before publishing
 ## Design principles
 
 - **Citations enforced at the data level** — the drafting tool and the publish gate both refuse an uncited claim
-- **Structured legal data model** enables consistent, queryable guidance across jurisdictions
+- **Review is per statement, publishing is per page** — the authoring service works one claim at a time and the gate holds the page
 - **Clear separation of statutory vs. editorial guidance**
 - **Designed for actionability**, not just legal completeness
 
@@ -21,11 +21,13 @@ Drafts are produced by an AI research agent and human-reviewed before publishing
 
 Renters search by situation or browse by city. Each playbook provides step-by-step guidance backed by inline citation chips — click any chip to read the actual statute. A separate directory page type lists local organizations with their official sources.
 
-Content is authored through an internal tool that enforces citation at submission time. No statement goes live without a citation attached.
+Content is drafted by the pipeline and reviewed in the authoring service, which enforces citation at the gate. No statement goes live without a citation, a confirmed quote, and a person's stamp.
+
+## The product
+
+The product is two things: a pipeline that turns a fetched primary source into a claim a renter can read, and an authoring service where a person reviews and publishes that claim one statement at a time. The public site is what the pipeline and the review produce. The data model under both exists to make every claim checkable after it is published; it is the foundation, not the product.
 
 ## How a claim gets published
-
-The product is a pipeline and a data model. The pipeline turns a fetched primary source into a published claim. The data model is what makes the claim checkable after it is published.
 
 One rule holds the whole thing together. A claim reaches the public only if every citation carries a quote that is a verbatim substring of text the system itself fetched, a person confirmed that quote against its source, and a person published the page.
 
@@ -51,6 +53,14 @@ The model is never believed. It sits above a trust boundary and the only thing t
 
 Review is per statement; publishing is per page (ADR-018). A person reads each statement with its quotes and stamps it. The stamp is bound to a hash of the body, the tags, and every citation's source, locator, and quote, so an edit to the words or the evidence returns the statement to unreviewed with nothing to clear. Because the stamp lives on the claim, review can be done in any order and in groups: every statement citing one source, one concept across every state, or only what the drafting model was unsure of. The model records that doubt as a reviewer note on the statement, which the save files as a queue item; nothing publishes over an undecided one.
 
+## The authoring service
+
+Review happens on one screen. A page's statements are listed one after another, each with its text and its quotes, and each with one button: Done. Done records that a person read the statement with its evidence: it attests any quote nobody confirmed, records the drafting model's notes on that statement as read, and stamps the statement over a hash of its words and citations. Change a word or a quote and the stamp is void with nothing to clear. The page shows one number, how many statements are left, and offers Publish when it reaches zero.
+
+A quote can be read where it lives. "read source" opens the fetched text in a panel down the side of the screen, with the quote marked, or a plain note when it is not there. Selecting words in that panel makes them the quote. A statement can be edited in place, text and quotes, and saved through the same path as everything else. The full editor remains for adding, removing, and reordering statements.
+
+The same list can be grouped by source, so a quote is confirmed once for every page that cites it, or by concept, so one claim is read as each state makes it, or narrowed to the statements the drafting model was unsure of. The dashboard lists pages with one number each and publishes every finished draft in one action, each through the ordinary gate.
+
 Publishing is a human act. The authoring tool runs the gate inside the publish transaction: every statement cited, every quote confirmed by a named person, every statement reviewed by one. Drafts save freely and the gate refuses, so nothing is lost and nothing leaks. Directory pages, whose entries mean nothing apart from the organisation heading above them, are reviewed as a page at publish.
 
 After publishing, a checker refetches every cited source and confirms each quote still appears. Every fetch carries a receipt (which tier and extractor produced the text, its hash) and every confirmation stores that receipt with the passage around the quote. A later check compares against that baseline: an equal hash is unchanged, a script shell or bot-check page is "could not read here" rather than drift, and a quote confirmed under pdftotext is never declared missing by the weaker pure-Go PDF reader. Only a readable, comparable fetch that lacks the quote files a proposal against the statement's durable key, showing the old passage beside the nearest new one. A person approves, edits, or rejects it. Approval is just a save, so the same gate holds.
@@ -67,7 +77,7 @@ After publishing, a checker refetches every cited source and confirms each quote
 
 ## Data model
 
-Seven tables carry that rule. A citation is a quote, not a link. A statement has a key that survives every save, so a proposal can name it. A playbook has one live row and at most one draft per slot. Jurisdictions are self-referential, so a query for Boston inherits Massachusetts and federal rules.
+The foundation under the pipeline and the authoring service. Seven tables carry the rule above. A citation is a quote, not a link. A statement has a key that survives every save, so a proposal can name it. A playbook has one live row and at most one draft per slot. Jurisdictions are self-referential, so a query for Boston inherits Massachusetts and federal rules.
 
 ```mermaid
 erDiagram
