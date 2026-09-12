@@ -107,7 +107,6 @@
   {{end}}
 
   <form method="post" action="{{.MarkPath}}" id="markform">
-  <input type="hidden" name="back" value="{{if eq .Kind "source"}}/review/source/{{.Source.SourceID}}{{else}}/review/concept/{{.Concept}}{{end}}">
   {{range .Items}}
   <div class="row">
     <div class="row-hd">

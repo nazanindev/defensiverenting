@@ -214,7 +214,14 @@ func (s *srv) reviewMarkGroup(w http.ResponseWriter, r *http.Request) {
 	if total.Undecided > 0 {
 		msg += fmt.Sprintf(" %d skipped: a queue item is still undecided.", total.Undecided)
 	}
-	http.Redirect(w, r, backTo(r)+"?msg="+url.QueryEscape(msg), http.StatusSeeOther)
+	// The return path comes from the route, never from the form.
+	back := "/review"
+	if id := r.PathValue("id"); id != "" {
+		back = "/review/source/" + url.PathEscape(id)
+	} else if slug := r.PathValue("slug"); slug != "" {
+		back = "/review/concept/" + url.PathEscape(slug)
+	}
+	http.Redirect(w, r, back+"?msg="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
 // reviewAttestSource records the reviewer's attestation for every
@@ -300,12 +307,6 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?status=draft&msg="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
-func backTo(r *http.Request) string {
-	if b := r.FormValue("back"); strings.HasPrefix(b, "/") && !strings.HasPrefix(b, "//") {
-		return b
-	}
-	return "/review"
-}
 
 func firstNonEmpty(a, b string) string {
 	if strings.TrimSpace(a) != "" {
