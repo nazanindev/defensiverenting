@@ -54,6 +54,11 @@ const (
 
 // newReceipt fills in the derived fields for text obtained a given way.
 func newReceipt(url, text, tier, extractor string) Receipt {
+	// A page served as Latin-1 or with a stray byte yields text Postgres
+	// refuses ("invalid byte sequence for encoding UTF8"), and one such row
+	// used to end a whole check run. Invalid bytes become U+FFFD; quotes are
+	// valid UTF-8 already, so matching is unaffected.
+	text = strings.ToValidUTF8(text, "\uFFFD")
 	norm := normalizeForMatch(text)
 	sum := sha256.Sum256([]byte(norm))
 	return Receipt{

@@ -3,6 +3,7 @@ package drafting
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestReceipt_readabilityByTier(t *testing.T) {
@@ -76,5 +77,16 @@ func TestDescribe(t *testing.T) {
 	}
 	if got := newReceipt("u", strings.Repeat("x ", 2000), TierRender, ExtractorRender).Describe(); got != "headless render" {
 		t.Errorf("Describe() = %q", got)
+	}
+}
+
+func TestNewReceipt_makesTextValidUTF8(t *testing.T) {
+	// 0xa0 alone is a Latin-1 non-breaking space, not UTF-8.
+	rc := newReceipt("https://x", "before\xa0after", TierDirect, ExtractorHTML)
+	if !utf8.ValidString(rc.Text) {
+		t.Fatalf("receipt text is not valid UTF-8: %q", rc.Text)
+	}
+	if !QuoteAppearsIn(rc.Text, "after") {
+		t.Error("the readable words must survive")
 	}
 }

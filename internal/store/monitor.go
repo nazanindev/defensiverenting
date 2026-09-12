@@ -136,6 +136,7 @@ func (pg *PG) MarkSourceChecked(ctx context.Context, id int64, note string) erro
 // last_checked_at is left alone, because nothing was checked; the note says
 // what happened so the issue list can tell the reviewer.
 func (pg *PG) MarkSourceUnreadable(ctx context.Context, id int64, note string) error {
+	note = strings.ToValidUTF8(note, "\uFFFD") // fetch errors can quote raw page bytes
 	_, err := pg.pool.Exec(ctx, `
 		UPDATE sources
 		SET last_fetch_at   = NOW(),
