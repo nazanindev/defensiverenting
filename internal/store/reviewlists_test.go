@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -134,5 +135,44 @@ func TestListProposalsByReason_separatesNotesFromDrift(t *testing.T) {
 	}
 	if count("note") != 1 || count("drift") != 1 || count("other") != 0 || count("") != 2 {
 		t.Errorf("note=%d drift=%d other=%d all=%d", count("note"), count("drift"), count("other"), count(""))
+	}
+}
+
+func TestMarkStatementDone_isOneActionForReadNoteAndQuote(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	id := seedPlaybook(t, pg, jID, tID, "draft", "Done")
+	pw, _ := pg.AuthorGetPlaybook(ctx, id)
+	srcID := pw.Statements[0].Citations[0].SourceID
+	keys := statementKeys(t, pg, id)
+	saveAs(t, pg, id, jID, tID, store.ActorDraftingAgent, store.IngestStatementParams{
+		Key: keys[0], BodyMD: "Claim.", ReviewerNote: "A doubt.",
+		Sources: []store.IngestCitationParams{{SourceID: srcID, Locator: "§ 1", Quote: "never confirmed"}},
+	})
+	keys = statementKeys(t, pg, id)
+	if err := pg.MarkStatementDone(ctx, id, keys[0], "Nazanin"); err != nil {
+		t.Fatalf("done: %v", err)
+	}
+	pw, _ = pg.AuthorGetPlaybook(ctx, id)
+	st := pw.Statements[0]
+	if st.ReviewedAt == nil || st.ReviewedBy != "Nazanin" || len(st.Notes) != 0 || st.Citations[0].CheckedAt == nil || !st.Citations[0].ManuallyVerified {
+		t.Errorf("after Done: reviewed=%v by=%q notes=%d checked=%v attested=%v", st.ReviewedAt, st.ReviewedBy, len(st.Notes), st.Citations[0].CheckedAt, st.Citations[0].ManuallyVerified)
+	}
+	if s := st.Standing(false); s.Status != store.Ready {
+		t.Errorf("standing after Done = %+v", s)
+	}
+	if err := pg.AuthorPublishPlaybook(ctx, id, "Nazanin"); err != nil {
+		t.Fatalf("publish after Done: %v", err)
+	}
+
+	// A drift finding is a question Done cannot answer.
+	if _, err := pg.FileProposal(ctx, store.FileProposalParams{StatementKey: keys[0], Reason: "source-drift", ProposedBy: store.ActorSourceCheck}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.MarkStatementDone(ctx, id, keys[0], "Nazanin"); !errors.Is(err, store.ErrChangeProposed) {
+		t.Errorf("Done over a drift finding: %v", err)
+	}
+	if err := pg.MarkStatementDone(ctx, id, keys[0], store.ActorDraftingAgent); err == nil {
+		t.Error("the agent marked a statement done")
 	}
 }

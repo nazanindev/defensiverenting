@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Group review (ADR-018 D4, D5). Review is per statement, so it can be done
@@ -394,4 +396,61 @@ func (pg *PG) AttestStatementQuotes(ctx context.Context, playbookID int64, key, 
 		return 0, fmt.Errorf("attest statement quotes: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// ErrChangeProposed reports that a replacement or drift finding is waiting
+// on the statement; Done cannot paper over it.
+var ErrChangeProposed = fmt.Errorf("a change is proposed for this statement in the queue")
+
+// MarkStatementDone is the one action a reviewer takes on a statement they
+// have read with its quotes (ADR-019, amended): in one transaction it
+// records their attestation for every quote nobody confirmed, records every
+// pending reviewer note as read and standing, and stamps the statement
+// reviewed over its content. Refused while a replacement or drift finding is
+// pending, since that is a question Done cannot answer.
+func (pg *PG) MarkStatementDone(ctx context.Context, playbookID int64, key, by string) error {
+	if !isReviewer(by) {
+		return fmt.Errorf("%q cannot mark a statement done: review is a person's act", by)
+	}
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return fmt.Errorf("%q is not a statement key", key)
+	}
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var pending bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (SELECT 1 FROM statement_proposals WHERE statement_key = $1::uuid
+			               AND status = 'pending' AND reason <> $2)`, key, ReasonReviewerFlag).Scan(&pending); err != nil {
+			return err
+		}
+		if pending {
+			return ErrChangeProposed
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE statement_proposals
+			   SET status = 'rejected', decided_by = $2, decided_at = NOW(), decision_note = 'Read; the statement stands as written'
+			 WHERE statement_key = $1::uuid AND status = 'pending' AND reason = $3`, key, by, ReasonReviewerFlag); err != nil {
+			return fmt.Errorf("decide notes: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE citations c
+			   SET manually_verified = true, checked_at = NOW(), checked_by = $3
+			  FROM playbook_statements ps, statements s
+			 WHERE ps.playbook_id = $1 AND s.id = ps.statement_id AND s.key = $2::uuid
+			   AND c.statement_id = s.id AND btrim(c.quote) <> '' AND c.checked_at IS NULL`, playbookID, key, by); err != nil {
+			return fmt.Errorf("attest quotes: %w", err)
+		}
+		tag, err := tx.Exec(ctx, `
+			UPDATE statements s
+			   SET last_reviewed_at = NOW(), reviewed_by = $3, reviewed_hash = h.hash
+			  FROM playbook_statements ps, statement_review_hash h
+			 WHERE ps.playbook_id = $1 AND ps.statement_id = s.id AND s.key = $2::uuid AND h.statement_id = s.id`, playbookID, key, by)
+		if err != nil {
+			return fmt.Errorf("stamp: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }

@@ -33,6 +33,10 @@ Each draft shows ready over total and the counts behind the gap: unread, notes, 
 
 Confirm a quote. Decide a note. Review a statement. Publish a page. The UI uses these and retires "verify & publish", "mark reviewed", "attest", "resolved in editor" as labels; attestation survives as the mechanism behind "Attest quotes I found" on a blocked card.
 
+### D6. One button (amendment, 2026-09-12)
+
+The card as first shipped carried a chip, reason pills, per-note buttons, an attest button, and a review button. That was more, not less. The card now carries the statement, its quotes, its notes as plain lines, and one button: Done. Done is one transaction: it attests every quote nobody confirmed, records every note as read and standing, and stamps the statement. It is refused while a replacement or drift finding is pending, and not offered while the words or evidence need an edit; those cards say so and link to the editor. The dashboard shows one number per draft, statements to do. The screen is one list, filtered by page, source, concept, or notes, with the source and concept pickers as two selects. The separate page view is gone; `/view/{id}` redirects to the list filtered to that page.
+
 ## Consequences
 
 - Portal pages for review work: dashboard, statements list, page view, editor, queue. The queue keeps proposals that carry replacement text, which need the old-beside-new layout, and still lists notes as an index; notes are decided on the card.

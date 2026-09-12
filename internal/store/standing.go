@@ -146,3 +146,6 @@ func (p *PageStanding) Aggregate(s Standing) {
 // Publishable reports whether every statement is ready: the worklist's
 // version of the gate's verdict.
 func (p PageStanding) Publishable() bool { return p.Total > 0 && p.Ready == p.Total }
+
+// ToDo is the number the worklist shows: statements not yet ready.
+func (p PageStanding) ToDo() int { return p.Total - p.Ready }

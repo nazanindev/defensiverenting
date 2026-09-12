@@ -536,22 +536,23 @@ func TestStatementTemplatesRender(t *testing.T) {
 	src := store.SourceReviewSummary{SourceID: 7, URL: "https://law.example.gov/x", Publisher: "Example", Kind: "statute", Unreviewed: 1, Unconfirmed: 1, Unreadable: true, LastFetchNote: "bot check"}
 	cite := store.CitationWithSource{SourceID: 7, Locator: "§ 1", Quote: "verbatim", SourceURL: src.URL, Publisher: "Example", SourceKind: "statute", SourceUnreadable: true}
 	rows := []store.ReviewRow{{
-		PlaybookID: 3, PageTitle: "T", PageStatus: "draft", PageKind: "playbook", Jurisdiction: "Texas", Topic: "Deposits", Position: 2,
+		PlaybookID: 3, PageStatus: "draft", PageKind: "playbook", Jurisdiction: "Texas", Topic: "deposits", Position: 1,
 		Stmt: store.CitedStatement{ID: 11, Key: "k", BodyMD: "A claim.", Citations: []store.CitationWithSource{cite},
 			Notes: []store.StatementNote{{ID: 5, Note: "Doubt.", By: "drafting agent", At: now}}, Undecided: true},
 	}, {
-		PlaybookID: 4, PageStatus: "published", PageKind: "directory", Jurisdiction: "Texas", Topic: "Help", Position: 1,
-		Stmt: store.CitedStatement{ID: 12, Key: "k2", BodyMD: "Org.", ReviewedAt: &now, ReviewedBy: "Nazanin", Citations: []store.CitationWithSource{cite}},
+		PlaybookID: 3, PageStatus: "draft", PageKind: "playbook", Jurisdiction: "Texas", Topic: "deposits", Position: 2,
+		Stmt: store.CitedStatement{ID: 12, Key: "k2", BodyMD: "Done claim.", ReviewedAt: &now, ReviewedBy: "Nazanin",
+			Citations: []store.CitationWithSource{{SourceID: 7, Quote: "q", CheckedAt: &now, SourceKind: "statute", Locator: "§ 2"}}},
 	}}
-	cards := []stmtCard{cardFromRow(rows[0], "source", "7"), cardFromRow(rows[1], "source", "7")}
-	cards[0].Focus = &cite
-	base := map[string]any{"Actor": "Nazanin", "NoteCount": 3, "Msg": ""}
+	cards := []stmtCard{cardFromRow(rows[0], filter{Page: 3}), cardFromRow(rows[1], filter{Page: 3})}
+	pw := store.PlaybookWithStatements{Playbook: store.Playbook{ID: 3, Title: "T", Status: "draft"}, Jurisdiction: store.Jurisdiction{Name: "Texas"}, Topic: store.Topic{Slug: "deposits"}}
+	base := map[string]any{"Actor": "Nazanin", "Sources": []store.SourceReviewSummary{src}, "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", Unreviewed: 1}}, "Msg": ""}
 	for name, extra := range map[string]map[string]any{
-		"source picker":  {"By": "source", "Sources": []store.SourceReviewSummary{src}, "SourcesOpen": 1},
-		"source cards":   {"By": "source", "Sources": []store.SourceReviewSummary{src}, "Source": &src, "Cards": cards, "Summary": summarize(cards)},
-		"concept picker": {"By": "concept", "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", TopicSlug: "t", Statements: 2, Unreviewed: 1}}, "ConceptsOpen": 1},
-		"concept cards":  {"By": "concept", "Concept": "c", "ConceptName": "C", "Cards": cards, "Summary": summarize(cards)},
-		"notes":          {"By": "note", "Cards": cards, "Summary": summarize(cards)},
+		"empty":   {"F": filter{}, "Cards": nil, "Todo": 0},
+		"page":    {"F": filter{Page: 3}, "Page": pw, "Issues": []string{}, "Cards": cards, "Todo": 1},
+		"source":  {"F": filter{Source: 7}, "Source": &src, "Cards": cards, "Todo": 1},
+		"concept": {"F": filter{Concept: "c"}, "Cards": cards, "Todo": 1},
+		"notes":   {"F": filter{Notes: true}, "Cards": cards, "Todo": 1},
 	} {
 		data := map[string]any{}
 		for k, v := range base {
@@ -564,11 +565,14 @@ func TestStatementTemplatesRender(t *testing.T) {
 		if err := tmpl.ExecuteTemplate(&buf, "statements.html", data); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if name == "source cards" {
-			for _, want := range []string{"Attest all 1", "Attest quotes I found", "Fine as is", "source unreadable", "by Nazanin"} {
+		if name == "page" {
+			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "1 of 2 to do"} {
 				if !strings.Contains(buf.String(), want) {
-					t.Errorf("source cards: missing %q", want)
+					t.Errorf("page: missing %q", want)
 				}
+			}
+			if strings.Contains(buf.String(), `class="btn btn-publish"`) {
+				t.Error("publish offered with work left")
 			}
 		}
 	}

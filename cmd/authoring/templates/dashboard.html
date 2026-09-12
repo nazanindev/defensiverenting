@@ -96,11 +96,9 @@
   <div class="toolbar">
     <h1>Pages</h1>
     <div style="display:flex;gap:10px">
-      <a href="/statements" class="btn btn-view">Statements by source, concept, or note</a>
-      <a href="/queue" class="btn btn-view">Proposed changes{{if .Proposals}} · {{.Proposals}}{{end}}</a>
-      <a href="/coverage" class="btn btn-view">Coverage</a>
-      {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft that passes the gate ({{.ReadyCount}})? Each goes live under your name.')"><button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0">Publish {{.ReadyCount}} ready</button></form>{{end}}
-      <a href="/guidelines" class="btn btn-view">Content guidelines</a>
+      <a href="/statements" class="btn btn-view">By source or concept</a>
+      {{if .Proposals}}<a href="/queue" class="btn btn-view">Proposed changes · {{.Proposals}}</a>{{end}}
+      {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft with nothing left to do ({{.ReadyCount}})? Each goes live under your name.')"><button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0">Publish {{.ReadyCount}} ready</button></form>{{end}}
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
   </div>
@@ -165,10 +163,8 @@
           <th class="{{if eq $v.Sort "city"}}is-sorted{{end}}"><a href="{{$v.SortLink "city"}}">City<span class="arrow">{{$v.Arrow "city"}}</span></a></th>
           <th class="{{if eq $v.Sort "topic"}}is-sorted{{end}}"><a href="{{$v.SortLink "topic"}}">Topic<span class="arrow">{{$v.Arrow "topic"}}</span></a></th>
           <th class="{{if eq $v.Sort "title"}}is-sorted{{end}}"><a href="{{$v.SortLink "title"}}">Title<span class="arrow">{{$v.Arrow "title"}}</span></a></th>
-          <th class="{{if eq $v.Sort "kind"}}is-sorted{{end}}"><a href="{{$v.SortLink "kind"}}">Type<span class="arrow">{{$v.Arrow "kind"}}</span></a></th>
           {{if .ShowLanguage}}<th>Lang</th>{{end}}
           <th class="{{if eq $v.Sort "status"}}is-sorted{{end}}"><a href="{{$v.SortLink "status"}}" title="Ascending puts drafts first — this is a review queue, not an alphabet">Status<span class="arrow">{{$v.Arrow "status"}}</span></a></th>
-          <th class="{{if eq $v.Sort "size"}}is-sorted{{end}}"><a href="{{$v.SortLink "size"}}">Size<span class="arrow">{{$v.Arrow "size"}}</span></a></th>
           <th class="{{if eq $v.Sort "updated"}}is-sorted{{end}}"><a href="{{$v.SortLink "updated"}}">Updated<span class="arrow">{{$v.Arrow "updated"}}</span></a></th>
           <th>Actions</th>
         </tr>
@@ -180,15 +176,12 @@
           <td>{{.JurisdictionName}}</td>
           <td class="meta-cell">{{.TopicSlug}}</td>
           <td class="title-cell">{{.Title}}</td>
-          <td><span class="badge badge-{{.PageKind}}">{{.PageKind}}</span></td>
           {{if $.ShowLanguage}}<td class="meta-cell">{{.Language}}</td>{{end}}
-          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}{{with index $.Standing .ID}} <span class="badge badge-review{{if .Publishable}} badge-review-done{{end}}" title="{{with index $.Issues $p.ID}}Publishing is blocked until these are fixed:&#10;{{.Tooltip}}{{else}}Every statement is ready{{end}}">{{.Ready}}/{{.Total}} ready{{if .Unread}} · {{.Unread}} unread{{end}}{{if .Notes}} · {{.Notes}} notes{{end}}{{if .Unconfirmed}} · {{.Unconfirmed}} quotes{{end}}{{if .Blocked}} · {{.Blocked}} blocked{{end}}{{if .Proposals}} · {{.Proposals}} proposed{{end}}{{if .Broken}} · {{.Broken}} broken{{end}}</span>{{else}}{{with index $.Issues .ID}} <span class="badge badge-issues" title="Publishing is blocked until these are fixed:&#10;{{.Tooltip}}">⚠ {{.N}}</span>{{end}}{{end}}</td>
-          <td class="meta-cell num" title="{{.StatementCount}} statements, {{.SourceCount}} sources">{{.StatementCount}}/{{.SourceCount}}</td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .RevisesPublished}} <span class="badge badge-revision" title="A page is already live for this city and topic. Publishing this replaces it.">rev</span>{{end}}{{with index $.Standing .ID}} <span class="badge badge-review{{if .Publishable}} badge-review-done{{end}}" title="{{with index $.Issues $p.ID}}{{.Tooltip}}{{else}}Nothing left to do{{end}}">{{if .Publishable}}ready{{else}}{{.ToDo}} to do{{end}}</span>{{else}}{{with index $.Issues .ID}} <span class="badge badge-issues" title="{{.Tooltip}}">⚠ {{.N}}</span>{{end}}{{end}}</td>
           <td class="meta-cell" title="Created {{date .CreatedAt}}{{if .PublishedAt}} · Published {{date .PublishedAt}}{{end}}">{{date .UpdatedAt}}{{if .UpdatedBy}} · {{.UpdatedBy}}{{end}}</td>
           <td>
             <div class="actions">
-              <a href="/view/{{.ID}}" class="btn btn-view btn-xs">View</a>
-              <a href="/preview/{{.ID}}" target="_blank" rel="noopener" class="btn btn-view btn-xs">Preview</a>
+              <a href="/statements?page={{.ID}}" class="btn btn-view btn-xs">Open</a>
               {{if eq .Status "draft"}}
               <form method="post" action="/publish/{{.ID}}">
                 {{if .RevisesPublished}}

@@ -133,7 +133,6 @@
     <a class="tab {{if eq $st "superseded"}}active{{end}}" href="/queue?status=superseded">superseded</a>
     <span style="flex-basis:100%"></span>
     <a class="tab {{if eq .Kind ""}}active{{end}}" href="/queue?status={{$st}}">everything</a>
-    <a class="tab {{if eq .Kind "note"}}active{{end}}" href="/queue?status={{$st}}&kind=note">reviewer notes</a>
     <a class="tab {{if eq .Kind "drift"}}active{{end}}" href="/queue?status={{$st}}&kind=drift">source drift</a>
     <a class="tab {{if eq .Kind "other"}}active{{end}}" href="/queue?status={{$st}}&kind=other">other changes</a>
   </div>

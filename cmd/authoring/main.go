@@ -230,14 +230,9 @@ func main() {
 	mux.HandleFunc("POST /generate", s.generateDraft)
 	mux.HandleFunc("POST /check-sources", s.checkSources)
 	mux.HandleFunc("POST /publish/{id}", s.publish)
-	mux.HandleFunc("POST /review/{id}", s.markReviewed)
 	mux.HandleFunc("GET /statements", s.statements)
-	mux.HandleFunc("POST /statements/reviewed", s.statementsMarkGroup)
-	mux.HandleFunc("POST /statements/source/{id}/attest", s.sourceAttest)
+	mux.HandleFunc("POST /statement/done", s.statementDone)
 	mux.HandleFunc("POST /statements/source/{id}/recheck", s.sourceRecheck)
-	mux.HandleFunc("POST /statement/review", s.statementReview)
-	mux.HandleFunc("POST /statement/attest", s.statementAttest)
-	mux.HandleFunc("POST /statement/decide", s.statementDecide)
 	mux.HandleFunc("POST /publish-ready", s.publishReady)
 	mux.HandleFunc("POST /unpublish/{id}", s.unpublish)
 	mux.HandleFunc("GET /api/sources/{id}", s.sourcesJSON)
@@ -1035,252 +1030,19 @@ func fmtDate(v any) string {
 	return t.Format("Jan 2, 2006")
 }
 
-// hostOf returns the bare host (minus a leading www.) of a URL, for compact
-// display next to a citation quote.
-func hostOf(raw string) string {
-	if u, err := url.Parse(raw); err == nil && u.Host != "" {
-		return strings.TrimPrefix(u.Host, "www.")
-	}
-	return raw
-}
-
+// viewPlaybook is the page's statements screen: the one statements list
+// filtered to this page (ADR-019).
 func (s *srv) viewPlaybook(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	pw, err := s.pg.AuthorGetPlaybook(r.Context(), id)
-	if err != nil {
-		s.serverError(w, err)
-		return
+	q := "/statements?page=" + strconv.FormatInt(id, 10)
+	if msg := r.URL.Query().Get("msg"); msg != "" {
+		q += "&msg=" + url.QueryEscape(msg)
 	}
-	editorial, _ := s.pg.GetEditorialSource(r.Context())
-
-	// Deduplicate sources across all statements for the reference display
-	type srcMeta struct {
-		Idx       int
-		URL       string
-		Publisher string
-		Kind      string
-	}
-	srcByID := map[int64]srcMeta{}
-	var srcOrder []int64
-	for _, stmt := range pw.Statements {
-		for _, c := range stmt.Citations {
-			if c.SourceID == editorial.ID {
-				continue
-			}
-			if _, ok := srcByID[c.SourceID]; !ok {
-				srcByID[c.SourceID] = srcMeta{
-					Idx:       len(srcOrder),
-					URL:       c.SourceURL,
-					Publisher: c.Publisher,
-					Kind:      c.SourceKind,
-				}
-				srcOrder = append(srcOrder, c.SourceID)
-			}
-		}
-	}
-
-	// Site-wide citation structure per source (ADR-011 D6): the same statute
-	// page cited under three sections reads as one source used three ways.
-	// Best-effort — a failure just drops the usage line.
-	usageOf := map[int64]store.SourceUsage{}
-	if usage, uerr := s.pg.ListSourceUsage(r.Context()); uerr == nil {
-		for _, u := range usage {
-			usageOf[u.SourceID] = u
-		}
-	}
-
-	var sources []viewSource
-	for _, id := range srcOrder {
-		m := srcByID[id]
-		vs := viewSource{Num: m.Idx + 1, URL: m.URL, Publisher: m.Publisher, Kind: m.Kind}
-		if u, ok := usageOf[id]; ok {
-			vs.Usage = fmt.Sprintf("Cited by %d statement(s) on %d page(s)", u.Statements, u.Pages)
-			if len(u.Locators) > 0 {
-				vs.Usage += " · " + strings.Join(u.Locators, ", ")
-			}
-		}
-		sources = append(sources, vs)
-	}
-
-	var stmts []viewStmt
-	for i, stmt := range pw.Statements {
-		vs := viewStmt{
-			Num: i + 1, Body: stmt.BodyMD, Concept: stmt.ConceptSlug, TopicRef: stmt.TopicRefSlug,
-			Key: stmt.Key, ReviewedAt: stmt.ReviewedAt, ReviewedBy: stmt.ReviewedBy, Undecided: stmt.Undecided,
-			Notes: stmt.Notes,
-		}
-		for _, c := range stmt.Citations {
-			if c.SourceID == editorial.ID {
-				vs.Editorial = true
-			} else if m, ok := srcByID[c.SourceID]; ok {
-				vs.Cites = append(vs.Cites, viewCite{
-					Num: m.Idx + 1, Locator: c.Locator,
-					Quote: c.Quote, URL: c.SourceURL, Domain: hostOf(c.SourceURL),
-					Publisher: c.Publisher,
-					CheckedAt: c.CheckedAt, CheckedBy: c.CheckedBy,
-				})
-			}
-		}
-		vs.CheckedAt, vs.Unchecked = stmtCheckedAt(vs.Cites)
-		stmts = append(stmts, vs)
-	}
-
-	// A directory lists organisations, and one organisation takes several
-	// statements: the number, the hours, who qualifies, what it will not do.
-	// Numbered one per row they read as fragments — "Ask early, the wait can
-	// exceed 21 days" means nothing without the organisation above it — so the
-	// verify view groups them the way the live page does. Grouping is by
-	// consecutive shared source because on a directory the source is the
-	// organisation. See web/templates.groupByOrg.
-	publisherOf := make(map[string]string, len(sources))
-	for _, src := range sources {
-		publisherOf[src.URL] = src.Publisher
-	}
-	groups := groupViewStmts(stmts, pw.Playbook.PageKind == "directory", publisherOf)
-
-	// The same issues the publish gate will refuse on, shown where the
-	// publish button is, so "Verify & publish" never surprises.
-	issues, err := s.pg.AuthorPlaybookIssues(r.Context(), id)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-
-	// The statements render as the shared card (ADR-019), grouped under
-	// organisation headings on a directory the way the live page groups
-	// them. The summary drives the publish button and the mark-all action.
-	pageLevel := pw.Playbook.PageKind == "directory"
-	cards := make([]stmtCard, 0, len(pw.Statements))
-	for i, st := range pw.Statements {
-		cards = append(cards, stmtCard{
-			PlaybookID: pw.Playbook.ID, PageTitle: pw.Playbook.Title, PageStatus: pw.Playbook.Status, PageKind: pw.Playbook.PageKind,
-			Jurisdiction: pw.Jurisdiction.Name, Topic: pw.Topic.Slug, Position: i + 1,
-			Stmt: st, Standing: st.Standing(pageLevel), PageLevel: pageLevel,
-			RetBy: "page", RetID: strconv.FormatInt(pw.Playbook.ID, 10),
-		})
-	}
-	type cardGroup struct {
-		Heading string
-		Cards   []stmtCard
-	}
-	var cardGroups []cardGroup
-	for _, g := range groups {
-		cg := cardGroup{Heading: g.Heading}
-		for _, vs := range g.Stmts {
-			cg.Cards = append(cg.Cards, cards[vs.Num-1])
-		}
-		cardGroups = append(cardGroups, cg)
-	}
-
-	s.render(w, "view.html", map[string]any{
-		"Playbook":   pw,
-		"Sources":    sources,
-		"Cards":      cards,
-		"CardGroups": cardGroups,
-		"Summary":    summarize(cards),
-		"Grouped":    pageLevel,
-		"Issues":     issueDetails(issues),
-		"Msg":        r.URL.Query().Get("msg"),
-	})
-}
-
-// The verify view's shapes. Package level rather than inside the handler so
-// grouping can be a plain function over them.
-type viewSource struct {
-	Num       int
-	URL       string
-	Publisher string
-	Kind      string
-	Usage     string // site-wide citation structure line (ADR-011 D6); "" when unknown
-}
-
-type viewCite struct {
-	Num       int
-	Locator   string
-	Quote     string
-	URL       string
-	Domain    string
-	Publisher string     // tooltip identity, so the chip needs no cross-reference
-	CheckedAt *time.Time // when the quote was last confirmed at the source; nil = never
-	CheckedBy string     // who confirmed it then; "" on rows from before actor stamps
-}
-
-type viewStmt struct {
-	Num       int
-	Body      string
-	Concept   string // registry concept slug (ADR-011); "" untagged
-	TopicRef  string // whole-topic reference slug (ADR-011 D7); "" when none
-	Cites     []viewCite
-	Editorial bool
-	// CheckedAt is when the statement was last fully checked: the oldest
-	// confirmation among its citations, since a statement is only as current
-	// as its least-recently-confirmed evidence. Unchecked is set instead when
-	// any citation has never been confirmed. Editorial-only statements carry
-	// neither: they cite no external text to check.
-	CheckedAt *time.Time
-	Unchecked bool
-	// Review standing (ADR-018 D2): Key is what the mark-reviewed form posts
-	// back; ReviewedAt/By read nil and "" while the stamp is absent or the
-	// content changed since; Undecided means a queue item is pending on
-	// this claim and the stamp is refused until it is decided.
-	Key        string
-	ReviewedAt *time.Time
-	ReviewedBy string
-	Undecided  bool
-	Notes      []store.StatementNote
-}
-
-// stmtCheckedAt derives a statement's last-checked stamp from its citations.
-func stmtCheckedAt(cites []viewCite) (*time.Time, bool) {
-	var oldest *time.Time
-	for _, c := range cites {
-		if c.CheckedAt == nil {
-			return nil, true
-		}
-		if oldest == nil || c.CheckedAt.Before(*oldest) {
-			oldest = c.CheckedAt
-		}
-	}
-	return oldest, false
-}
-
-// viewGroup is a run of statements shown together under one heading.
-type viewGroup struct {
-	Heading string // the organisation, empty when not grouping
-	Stmts   []viewStmt
-}
-
-// groupViewStmts collapses consecutive statements that cite the same source,
-// heading each run with that source's publisher. When grouping is off every
-// statement is its own group, so the template renders one shape either way.
-func groupViewStmts(stmts []viewStmt, grouped bool, publisherOf map[string]string) []viewGroup {
-	out := make([]viewGroup, 0, len(stmts))
-	lastKey := ""
-	for _, st := range stmts {
-		key := ""
-		if len(st.Cites) > 0 {
-			key = st.Cites[0].URL
-		}
-		if grouped && key != "" && key == lastKey && len(out) > 0 {
-			out[len(out)-1].Stmts = append(out[len(out)-1].Stmts, st)
-			continue
-		}
-		lastKey = key
-		g := viewGroup{Stmts: []viewStmt{st}}
-		if grouped {
-			if p := publisherOf[key]; p != "" {
-				g.Heading = p
-			} else {
-				g.Heading = hostOf(key)
-			}
-		}
-		out = append(out, g)
-	}
-	return out
+	http.Redirect(w, r, q, http.StatusSeeOther)
 }
 
 // previewPlaybook renders a playbook (draft or published) through the live
@@ -1636,33 +1398,6 @@ func (s *srv) publish(w http.ResponseWriter, r *http.Request) {
 		}
 		s.serverError(w, err)
 	}
-}
-
-// markReviewed stamps statements on one page as reviewed by the signed-in
-// person (ADR-018 D2). The form posts the keys of the statements it showed;
-// no keys means every statement on the page that is not yet reviewed. The
-// view page renders each statement with its quotes, so either shape is a
-// stamp over content the reviewer had in front of them.
-func (s *srv) markReviewed(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	res, err := s.pg.MarkStatementsReviewed(r.Context(), id, r.Form["key"], actor(r))
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	msg := fmt.Sprintf("Marked %d statement(s) reviewed.", res.Stamped)
-	if res.Undecided > 0 {
-		msg += fmt.Sprintf(" %d skipped: an item in the queue is still undecided.", res.Undecided)
-	}
-	http.Redirect(w, r, fmt.Sprintf("/view/%d?msg=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }
 
 // placeOption is one entry in the location filter.
