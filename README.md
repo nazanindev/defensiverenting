@@ -42,13 +42,11 @@ After publishing, a checker re-fetches every cited source and confirms each quot
 
 ## The authoring service
 
-One screen. A page's statements, each with its text and its quotes, each with one button: Done.
+The authoring service is where drafts become published pages. A reviewer opens a page and works through its statements in order, reading each one against the quotes that support it. Marking a statement done records that a person read it with its evidence: any quote the checker never confirmed is attested under the reviewer's name, the model's notes on that statement are recorded as read, and the statement is stamped over a hash of its words and citations, so any later edit voids the stamp. Once every statement on a page has been reviewed, the page can be published.
 
-Done means a person read the statement with its evidence. It attests any quote nobody confirmed, records the model's notes as read, and stamps the statement over a hash of its words and citations. Change a word or a quote and the stamp is void. The page shows how many statements are left and offers Publish at zero.
+Sources can be read without leaving the page. The fetched text opens alongside the statements with the cited passage highlighted, and a reviewer can select a different passage to use as the quote. Statements can be edited in place, and the full editor handles adding, removing, and reordering them.
 
-"read source" opens the fetched text beside the list, the quote marked in it. Select words there and they become the quote. Edit a statement in place; the full editor is for adding, removing, and reordering.
-
-Group the same list by source to confirm a quote once for every page citing it, by concept to read one claim as each state makes it, or by note to see only what the model was unsure of. The dashboard shows one number per page and publishes every finished draft in one action, each through the gate.
+The same statements can also be reviewed across pages: grouped by source, so a quote is confirmed once for every page that cites it; grouped by concept, so one claim can be read as each state makes it; or narrowed to the statements the model flagged as uncertain. The dashboard shows how much review each page has left and can publish every finished draft at once, each through the same gate.
 
 ## Stack
 
