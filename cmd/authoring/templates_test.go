@@ -547,13 +547,15 @@ func TestStatementTemplatesRender(t *testing.T) {
 	cards := []stmtCard{cardFromRow(rows[0], filter{Page: 3}), cardFromRow(rows[1], filter{Page: 3})}
 	drift := store.ProposalRow{Proposal: store.Proposal{ID: 9, StatementKey: "k", Reason: "source-drift", ProposedBy: store.ActorSourceCheck, CreatedAt: now,
 		Evidence: []byte(`{"old_quote":"verbatim","new_quote":"verbatim words","similarity":0.8,"old_context":"the verbatim text","new_context":"the verbatim words text"}`)}}
-	cards[0].Stmt.ProposalPending = true
-	cards[0].Changes = []queueItem{newQueueItem(drift)}
+	changed := cardFromRow(rows[0], filter{Page: 3})
+	changed.Position, changed.Stmt.ID, changed.Stmt.ProposalPending = 3, 13, true
+	changed.Changes = []queueItem{newQueueItem(drift)}
+	cards = append(cards, changed)
 	pw := store.PlaybookWithStatements{Playbook: store.Playbook{ID: 3, Title: "T", Status: "draft"}, Jurisdiction: store.Jurisdiction{Name: "Texas"}, Topic: store.Topic{Slug: "deposits"}}
 	base := map[string]any{"Actor": "Nazanin", "Sources": []store.SourceReviewSummary{src}, "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", Unreviewed: 1}}, "Msg": ""}
 	for name, extra := range map[string]map[string]any{
 		"empty":   {"F": filter{}, "Cards": nil, "Todo": 0},
-		"page":    {"F": filter{Page: 3}, "Page": pw, "Issues": []string{}, "Cards": cards, "Todo": 1},
+		"page":    {"F": filter{Page: 3}, "Page": pw, "Issues": []string{}, "Cards": cards, "Todo": 2},
 		"source":  {"F": filter{Source: 7}, "Source": &src, "Cards": cards, "Todo": 1},
 		"concept": {"F": filter{Concept: "c"}, "Cards": cards, "Todo": 1},
 		"notes":   {"F": filter{Notes: true}, "Cards": cards, "Todo": 1},
@@ -570,7 +572,7 @@ func TestStatementTemplatesRender(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if name == "page" {
-			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "1 of 2 to do", `name="quote_7"`, `id="panel"`, "Keep as written", "On the page now"} {
+			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "2 of 3 to do", `name="quote_7"`, `id="panel"`, "Keep as written", "On the page now"} {
 				if !strings.Contains(buf.String(), want) {
 					t.Errorf("page: missing %q", want)
 				}
