@@ -307,7 +307,6 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?status=draft&msg="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
-
 func firstNonEmpty(a, b string) string {
 	if strings.TrimSpace(a) != "" {
 		return a
