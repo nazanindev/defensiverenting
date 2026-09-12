@@ -37,6 +37,7 @@ type Result struct {
 	Incomparable int // citations whose quote was not found but whose baseline extractor outranks this run's, so nothing was concluded
 	Skipped      int // citations carrying no quote, so nothing could be verified
 	Unused       int // unused-source deletion proposals filed for the review queue
+	Errored      int // sources whose check hit an error other than fetching; logged and skipped
 }
 
 // FetchFunc returns the readable text of a URL with its receipt (e.g.
@@ -98,8 +99,15 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 
 	res := Result{Skipped: skipped, Unused: unused}
 	for _, id := range order {
-		if err := checkSource(ctx, db, fetch, id, bySrc[id], logf, &res); err != nil {
+		if err := ctx.Err(); err != nil {
 			return res, err
+		}
+		// One source's failure is that source's problem. Until 2026-09-12 a
+		// database error here ended the run, which is why weekly runs kept
+		// stopping after a handful of sources and most were never rechecked.
+		if err := checkSource(ctx, db, fetch, id, bySrc[id], logf, &res); err != nil {
+			res.Errored++
+			logf("✗ %s: %v (continuing)", bySrc[id].url, err)
 		}
 	}
 	return res, nil

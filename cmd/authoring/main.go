@@ -731,7 +731,8 @@ func (s *srv) checkSources(w http.ResponseWriter, r *http.Request) {
 		}
 		s.log.Info("sourcecheck done",
 			slog.Int("sources", res.Sources), slog.Int("drifted", res.Drifted), slog.Int("proposals", res.Proposed),
-			slog.Int("unused", res.Unused), slog.Int("failed", res.Failed))
+			slog.Int("unused", res.Unused), slog.Int("failed", res.Failed), slog.Int("unreadable", res.Unreadable),
+			slog.Int("errored", res.Errored))
 	}()
 	http.Redirect(w, r, "/queue?msg="+url.QueryEscape("re-checking sources for changes — unused sources are filed now, drift as each fetch finishes; refresh in a moment"), http.StatusSeeOther)
 }

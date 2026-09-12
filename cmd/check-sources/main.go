@@ -39,6 +39,9 @@ func main() {
 		log.Fatalf("check-sources: %v", err)
 	}
 	fmt.Printf("checked %d sources — %d with a cited quote missing (%d proposal(s) filed for review), %d failed to fetch\n", res.Sources, res.Drifted, res.Proposed, res.Failed)
+	if res.Errored > 0 {
+		fmt.Printf("%d source(s) hit an error while being checked and were skipped; see the log lines marked ✗\n", res.Errored)
+	}
 	if res.Unreadable > 0 {
 		fmt.Printf("%d source(s) answered with text too thin to examine (a script shell or bot-check page) — nothing about their quotes was concluded\n", res.Unreadable)
 	}
