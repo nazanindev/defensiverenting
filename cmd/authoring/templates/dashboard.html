@@ -98,6 +98,8 @@
     <div style="display:flex;gap:10px">
       <a href="/statements" class="btn btn-view">By source or concept</a>
       {{if .Proposals}}<a href="/queue" class="btn btn-view">Proposed changes · {{.Proposals}}</a>{{end}}
+      <a href="/coverage" class="btn btn-view">Coverage</a>
+      <a href="/guidelines" class="btn btn-view">Guidelines</a>
       {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft with nothing left to do ({{.ReadyCount}})? Each goes live under your name.')"><button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0">Publish {{.ReadyCount}} ready</button></form>{{end}}
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
