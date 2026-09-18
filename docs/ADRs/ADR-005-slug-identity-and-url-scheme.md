@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed |
+| Status | Accepted. D2 through D7 shipped (migrations 000013 slug aliases and 000014 topic registry; hierarchical URLs live). D1 superseded by ADR-011 D5: city pages carry their full statements and inheritance is deferred. Open questions 1 and 2 answered by ADR-009 (upward resolution) and ADR-010 (explanatory 404s); 3 and 4 still open. Header updated 2026-09-17. |
 | Date | 2026-08-01 |
 | Revised | 2026-08-09 — supersedes the flat-URL and USPS-suffix decisions of the first draft |
 
