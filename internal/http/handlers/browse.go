@@ -365,15 +365,7 @@ func conceptPage(db browseStore, logger *slog.Logger) http.HandlerFunc {
 // chips, and the same fully-earned-or-absent trust line playbook pages carry.
 func buildConceptEntry(inst store.ConceptInstance) *tmpl.ConceptEntry {
 	s := inst.Statement
-	chips := make([]tmpl.CitationChip, 0, len(s.Citations))
-	for _, c := range s.Citations {
-		chips = append(chips, tmpl.CitationChip{
-			URL:        c.SourceURL + anchorFragment(c.Locator),
-			Label:      c.Publisher,
-			Locator:    c.Locator,
-			SourceKind: c.SourceKind,
-		})
-	}
+	chips := citationChips(s.Citations)
 	_, checkedOn := statementCheckedAt("en", s.Citations)
 	return &tmpl.ConceptEntry{
 		PlaceName: inst.Jurisdiction.Name,
@@ -795,14 +787,8 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 				slog.Int64("statement_id", s.ID))
 			continue
 		}
-		chips := make([]tmpl.CitationChip, 0, len(s.Citations))
+		chips := citationChips(s.Citations)
 		for _, c := range s.Citations {
-			chips = append(chips, tmpl.CitationChip{
-				URL:        c.SourceURL + anchorFragment(c.Locator),
-				Label:      c.Publisher,
-				Locator:    c.Locator,
-				SourceKind: c.SourceKind,
-			})
 			if !seenSources[c.SourceURL] && c.SourceKind != "editorial" {
 				seenSources[c.SourceURL] = true
 				sourceURLs = append(sourceURLs, c.SourceURL)
@@ -874,6 +860,31 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 }
 
 // anchorFragment returns a URL fragment for a locator if non-empty.
+// citationChips builds the chips a statement shows, one per source.
+//
+// A statement may cite the same document more than once (two sections of one
+// statute, two lines of one guidance page). Every citation stays stored and
+// checked, but a chip links to the page, not to a line, so two chips for one
+// source are the same link twice. The first citation of each source keeps the
+// chip; its locator is the one shown.
+func citationChips(citations []store.CitationWithSource) []tmpl.CitationChip {
+	chips := make([]tmpl.CitationChip, 0, len(citations))
+	seen := make(map[string]bool, len(citations))
+	for _, c := range citations {
+		if seen[c.SourceURL] {
+			continue
+		}
+		seen[c.SourceURL] = true
+		chips = append(chips, tmpl.CitationChip{
+			URL:        c.SourceURL + anchorFragment(c.Locator),
+			Label:      c.Publisher,
+			Locator:    c.Locator,
+			SourceKind: c.SourceKind,
+		})
+	}
+	return chips
+}
+
 func anchorFragment(locator string) string {
 	if locator == "" {
 		return ""

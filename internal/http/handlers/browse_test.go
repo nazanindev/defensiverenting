@@ -20,10 +20,10 @@ type stubStore struct {
 	jurisdictions []store.Jurisdiction
 	// stateHubs are the states with published statewide playbooks of their
 	// own, as ListPublishedStateJurisdictions would report them.
-	stateHubs []store.Jurisdiction
-	topics    []store.Topic
-	playbook      store.PlaybookWithStatements
-	playbookErr   error
+	stateHubs   []store.Jurisdiction
+	topics      []store.Topic
+	playbook    store.PlaybookWithStatements
+	playbookErr error
 	// retired slug -> live slug, for the alias-driven 301s
 	jurisdictionAliases map[string]string
 	topicAliases        map[string]string
@@ -268,6 +268,50 @@ func TestPlaybookHandler_citationChips(t *testing.T) {
 	}
 	if !strings.Contains(body, "105-CMR") {
 		t.Error("response should contain citation URL fragment")
+	}
+}
+
+// Two citations of the same document are one link on the page: a chip goes to
+// the source, not to a line in it, so a second chip for the same source would
+// be the same link twice. The first citation keeps the chip; both stay stored.
+func TestPlaybookHandler_oneChipPerSource(t *testing.T) {
+	stub := &stubStore{
+		jurisdictions: []store.Jurisdiction{{ID: 1, Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}},
+		topics:        []store.Topic{{ID: 1, Slug: "heat-not-working", Name: "Heat Not Working"}},
+		playbook: store.PlaybookWithStatements{
+			Playbook:     store.Playbook{ID: 1, Title: "Heat Not Working", Slug: "heat-not-working", Language: "en"},
+			Jurisdiction: store.Jurisdiction{Name: "Boston", Slug: "boston"},
+			Topic:        store.Topic{Name: "Heat Not Working", Slug: "heat-not-working"},
+			Statements: []store.CitedStatement{{
+				ID:     1,
+				BodyMD: "Massachusetts requires heat of at least 68°F.",
+				Citations: []store.CitationWithSource{
+					{SourceID: 1, SourceURL: "https://www.mass.gov/regulations/105-CMR-41000", Publisher: "Massachusetts DPH", SourceKind: "regulation", Locator: "§ 410.200"},
+					{SourceID: 1, SourceURL: "https://www.mass.gov/regulations/105-CMR-41000", Publisher: "Massachusetts DPH", SourceKind: "regulation", Locator: "§ 410.201"},
+					{SourceID: 2, SourceURL: "https://www.boston.gov/heat", Publisher: "City of Boston", SourceKind: "gov_guidance"},
+				},
+			}},
+		},
+	}
+
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+	req := httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/heat-not-working", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if got := strings.Count(body, `href="https://www.mass.gov/regulations/105-CMR-41000`); got != 1 {
+		t.Errorf("same source cited twice rendered %d chips, want 1", got)
+	}
+	if !strings.Contains(body, "§ 410.200") {
+		t.Error("the first citation's locator should be the one shown")
+	}
+	if strings.Contains(body, "§ 410.201") {
+		t.Error("the second citation of the same source should not render a chip")
+	}
+	if !strings.Contains(body, "City of Boston") {
+		t.Error("a different source still gets its own chip")
 	}
 }
 
