@@ -2,7 +2,9 @@ package store_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -347,4 +349,63 @@ func TestProposal_checkerLookups(t *testing.T) {
 	if seen, _ := pg.DriftAlreadyFiled(ctx, key, "a different quote that vanished later"); seen {
 		t.Error("a rejection for one quote must not silence a later, different drift")
 	}
+}
+
+func TestProposal_resolvesClosesFlagsOnApproval(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	page := seedPlaybook(t, pg, jID, tID, "draft", "Resolves")
+	key := firstKey(t, pg, page)
+
+	if _, err := pg.FileReviewerNote(ctx, page, key, "Rests on guidance only.", "drafting agent"); err != nil {
+		t.Fatal(err)
+	}
+	var flag int64
+	for _, row := range listPending(t, pg) {
+		if row.StatementKey == key && row.Reason == store.ReasonReviewerFlag {
+			flag = row.ID
+		}
+	}
+	if flag == 0 {
+		t.Fatal("the note was not filed as a pending flag")
+	}
+
+	// A list naming anything but a pending flag on this key is refused.
+	bad := store.FileProposalParams{StatementKey: key, PlaybookID: page, Reason: "agent-pass:triage", ProposedBy: "triage agent",
+		Proposed: &store.ProposedStatement{BodyMD: "With a statute.", Citations: []store.ProposedCitation{{URL: "https://example.gov/x", Quote: "verbatim"}}},
+		Evidence: json.RawMessage(fmt.Sprintf(`{"resolves":[%d]}`, flag+1000))}
+	if _, err := pg.FileProposal(ctx, bad); err == nil {
+		t.Error("resolves pointing at a non-flag was accepted")
+	}
+
+	good := bad
+	good.Evidence = json.RawMessage(fmt.Sprintf(`{"resolves":[%d]}`, flag))
+	id, err := pg.FileProposal(ctx, good)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !inList(t, pg, "pending", flag) {
+		t.Error("filing the edit closed the flag; only approval should")
+	}
+
+	src := sourceOf(t, pg, page)
+	if err := pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: id, By: "Nazanin", Statement: replacement(src, "With a statute.", true)}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := pg.GetProposal(ctx, flag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Status != "superseded" || f.DecidedBy != "Nazanin" || f.DecisionNote != fmt.Sprintf("Resolved by proposal #%d", id) {
+		t.Errorf("flag after approval: %s by %q note %q", f.Status, f.DecidedBy, f.DecisionNote)
+	}
+}
+
+func listPending(t *testing.T, pg *store.PG) []store.ProposalRow {
+	t.Helper()
+	rows, err := pg.ListProposals(context.Background(), "pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rows
 }

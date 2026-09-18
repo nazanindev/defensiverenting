@@ -168,6 +168,7 @@
             </div>
             <div class="col">
               <h3>{{if .Proposed}}Proposed{{else}}Finding{{end}}</h3>
+              {{range .Answers}}<div class="stmt note">Answers: {{.}}</div>{{end}}
               {{if .Proposed}}
               <form method="post" action="/queue/{{.ID}}/approve" id="approve{{.ID}}">
                 <input type="hidden" name="status" value="{{$st}}">

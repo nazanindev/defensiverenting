@@ -51,6 +51,10 @@ type queueItem struct {
 	// Note is the drafting agent's doubt on a reviewer-flag item (ADR-018
 	// D1), shown as the finding in its own words.
 	Note string
+	// Answers are the reviewer notes this edit resolves (evidence
+	// "resolves"), shown above the replacement so the question sits next to
+	// its answer. Approving the edit closes them.
+	Answers []string
 	// EditorHref opens the target page's editor scrolled to this statement;
 	// "" when the statement is no longer on the page.
 	EditorHref string
@@ -142,9 +146,23 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	for _, sp := range sources {
 		sourceItems = append(sourceItems, sourceItem{SourceProposal: sp, Age: ago(sp.CreatedAt)})
 	}
+	var resolved []int64
+	for _, row := range rows {
+		resolved = append(resolved, store.ResolvedFlagIDs(row.Evidence)...)
+	}
+	notes, err := s.pg.FlagNotes(ctx, resolved)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	var groups []queueGroup
 	for _, row := range rows {
 		item := newQueueItem(row)
+		for _, id := range store.ResolvedFlagIDs(row.Evidence) {
+			if n, ok := notes[id]; ok {
+				item.Answers = append(item.Answers, n)
+			}
+		}
 		if n := len(groups); n == 0 || groups[n-1].TargetPlaybookID != row.TargetPlaybookID {
 			groups = append(groups, queueGroup{
 				Title: row.Title, JurisdictionName: row.JurisdictionName, TopicName: row.TopicName,

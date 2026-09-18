@@ -168,6 +168,9 @@ func (pg *PG) FileProposal(ctx context.Context, p FileProposalParams) (int64, er
 				return err
 			}
 		}
+		if err := checkResolves(ctx, tx, key, resolvedFlagIDs(evidence)); err != nil {
+			return err
+		}
 		var err error
 		id, err = insertProposal(ctx, tx, key, playbookID, p.Reason, proposed, evidence, p.ProposedBy)
 		return err
@@ -208,6 +211,72 @@ const ReasonReviewerFlag = "agent-pass:flag"
 // ReviewerFlagEvidence is the evidence shape behind ReasonReviewerFlag.
 type ReviewerFlagEvidence struct {
 	Note string `json:"note"`
+}
+
+// resolvesEvidence is the optional "resolves" list any proposal's evidence
+// may carry: ids of reviewer-flag work items on the same key that this
+// proposal answers. A flag is a question (ADR-018 D1) and an ordinary edit
+// does not supersede it; a proposal that names the flag does, once a person
+// approves the edit. Rejecting the proposal leaves the flags standing.
+type resolvesEvidence struct {
+	Resolves []int64 `json:"resolves"`
+}
+
+func resolvedFlagIDs(evidence json.RawMessage) []int64 {
+	var r resolvesEvidence
+	if len(evidence) == 0 || json.Unmarshal(evidence, &r) != nil {
+		return nil
+	}
+	return r.Resolves
+}
+
+// ResolvedFlagIDs exposes the "resolves" list of a proposal's evidence to
+// the queue, which shows the answered notes beside the edit.
+func ResolvedFlagIDs(evidence json.RawMessage) []int64 { return resolvedFlagIDs(evidence) }
+
+// FlagNotes returns the note text of the given reviewer-flag proposals by
+// id, for the queue to show which questions an edit answers.
+func (pg *PG) FlagNotes(ctx context.Context, ids []int64) (map[int64]string, error) {
+	notes := map[int64]string{}
+	if len(ids) == 0 {
+		return notes, nil
+	}
+	rows, err := pg.pool.Query(ctx, `
+		SELECT id, evidence->>'note' FROM statement_proposals
+		WHERE id = ANY($1) AND reason = $2`, ids, ReasonReviewerFlag)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var note string
+		if err := rows.Scan(&id, &note); err != nil {
+			return nil, err
+		}
+		notes[id] = note
+	}
+	return notes, rows.Err()
+}
+
+// checkResolves refuses a "resolves" list unless every id is a pending or
+// snoozed reviewer flag on the same key, so an approval can only ever close
+// questions asked about the statement it edits.
+func checkResolves(ctx context.Context, tx pgx.Tx, key string, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	var ok int
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*) FROM statement_proposals
+		WHERE id = ANY($1) AND statement_key = $2::uuid AND reason = $3 AND status IN ('pending', 'snoozed')`,
+		ids, key, ReasonReviewerFlag).Scan(&ok); err != nil {
+		return err
+	}
+	if ok != len(ids) {
+		return fmt.Errorf("resolves %v: every id must be a pending reviewer note on statement %s", ids, key)
+	}
+	return nil
 }
 
 // FileReviewerNote files one reviewer note against a statement key on a page,
@@ -412,8 +481,9 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var key, status string
 		var targetID int64
+		var evidence json.RawMessage
 		err := tx.QueryRow(ctx, `
-			SELECT p.statement_key::text, p.status, tgt.id
+			SELECT p.statement_key::text, p.status, tgt.id, p.evidence
 			FROM statement_proposals p
 			JOIN playbooks obs ON obs.id = p.playbook_id
 			JOIN LATERAL (
@@ -422,7 +492,7 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 				  AND pb.language = obs.language AND pb.status IN ('draft', 'published')
 				ORDER BY (pb.status = 'draft') DESC LIMIT 1
 			) tgt ON true
-			WHERE p.id = $1 FOR UPDATE OF p`, p.ID).Scan(&key, &status, &targetID)
+			WHERE p.id = $1 FOR UPDATE OF p`, p.ID).Scan(&key, &status, &targetID, &evidence)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -441,6 +511,18 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 			   SET status = 'approved', decided_by = $2, decided_at = NOW(), snoozed_until = NULL
 			 WHERE id = $1`, p.ID, p.By); err != nil {
 			return err
+		}
+		// The questions this edit answers close with it, under the approver's
+		// name, so the record says which edit settled each doubt.
+		if ids := resolvedFlagIDs(evidence); len(ids) > 0 {
+			if _, err := tx.Exec(ctx, `
+				UPDATE statement_proposals
+				   SET status = 'superseded', decided_by = $3, decided_at = NOW(), snoozed_until = NULL,
+				       decision_note = 'Resolved by proposal #' || $2::bigint::text
+				 WHERE id = ANY($1) AND statement_key = $4::uuid AND reason = $5 AND status IN ('pending', 'snoozed')`,
+				ids, p.ID, p.By, key, ReasonReviewerFlag); err != nil {
+				return fmt.Errorf("close resolved notes: %w", err)
+			}
 		}
 		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.By)
 	})
