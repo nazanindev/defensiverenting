@@ -65,6 +65,30 @@ Fetch the opinion's own canonical page — its CourtListener permalink
 (`absolute_url`) or the official court/reporter link if one exists — so the
 citation points somewhere a reviewer can independently re-check.
 
+## Settled questions (do not flag these again)
+
+Decided 2026-09-17 from the queue triage pass. Drafting agents apply them
+instead of leaving a reviewer note.
+
+- Archived or aspirational executive-branch documents (the White House
+  Renters Bill of Rights Blueprint on bidenwhitehouse.archives.gov, and the
+  like) are not sources. They are not law and not current agency guidance.
+  Cite CFPB, HUD, USAGov, or the state statute instead, and drop any
+  sentence that rests only on such a document.
+- A university legal clinic's tenant guidance (Cornell's Tenants Advocacy
+  Program, a law-school housing clinic) counts as a nonprofit legal-aid
+  source, the same as a legal-aid organization's own site. Attribute the
+  reading in the body when it is a judgment call ("a legal aid program
+  reads reasonable notice as...").
+- A city-only rule may stand on a state page when the sentence names the
+  city ("In New York City, ..."). Whether the city guide should also carry
+  it is drafting work for that page, not a doubt about the statement.
+- Tag with the registry as it reads: the rent-control concept covers rent
+  stabilization too. A topic_ref must point at a topic that has pages; if
+  none exists, leave the tag off and send the reader to the guide by name.
+- Where a statement sits on the page (help lines, advice) is a page-region
+  question (ADR-016), not a reason to note the statement.
+
 ## Setup note
 
 `courtlistener` is already connected project-scoped (http, no key needed).
