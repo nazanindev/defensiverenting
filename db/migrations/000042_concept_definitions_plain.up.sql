@@ -1,0 +1,41 @@
+-- ADR-020 D5: every definition re-read against the editorial voice. Plain
+-- words, two short sentences at most, program words glossed in place.
+-- Registry metadata, so it ships by migration like 000024.
+UPDATE concepts SET definition = 'Your written reply to an eviction case. File it on time, or the court can decide without you.' WHERE slug = 'answer-the-case';
+UPDATE concepts SET definition = 'When you can change the locks, and when your landlord can.' WHERE slug = 'lock-change-rules';
+UPDATE concepts SET definition = 'You can ask the city to send an inspector to check your home for unsafe conditions.' WHERE slug = 'code-inspection';
+UPDATE concepts SET definition = 'A government office you can call to complain about your landlord.' WHERE slug = 'complaint-line';
+UPDATE concepts SET definition = 'When your home is so bad you have to leave. The law can treat it as if your landlord evicted you.' WHERE slug = 'constructive-eviction';
+UPDATE concepts SET definition = 'Photos, letters, and receipts you keep as proof.' WHERE slug = 'records-and-evidence';
+UPDATE concepts SET definition = 'Where your landlord must keep your deposit, and whether it earns interest for you.' WHERE slug = 'deposit-escrow-interest';
+UPDATE concepts SET definition = 'Extra money a landlord must pay you for wrongly keeping your deposit. Often 2 or 3 times the deposit.' WHERE slug = 'deposit-damages';
+UPDATE concepts SET definition = 'How many days your landlord has to return your deposit after you move out.' WHERE slug = 'deposit-return-deadline';
+UPDATE concepts SET definition = 'Your landlord can come in without notice in a real emergency, like a fire or a burst pipe.' WHERE slug = 'emergency-entry';
+UPDATE concepts SET definition = 'The steps of an eviction case, from the court papers to the hearing to the day you must leave.' WHERE slug = 'eviction-court-process';
+UPDATE concepts SET definition = 'An eviction case leaves a public court record. Some places let you seal it, so future landlords cannot see it.' WHERE slug = 'eviction-record';
+UPDATE concepts SET definition = 'Laws that say a landlord cannot treat you worse because of your race, your family, a disability, and more.' WHERE slug = 'fair-housing';
+UPDATE concepts SET definition = 'Extra protections if you live in public housing, use a voucher, or get other federal rent help.' WHERE slug = 'federal-housing-assistance';
+UPDATE concepts SET definition = 'The days after the due date when your rent is not late yet.' WHERE slug = 'grace-period';
+UPDATE concepts SET definition = 'Free or low cost advice from a housing counselor approved by the federal government.' WHERE slug = 'housing-counseling';
+UPDATE concepts SET definition = 'When a landlord locks you out or shuts off your utilities (water, electric, gas) to force you out. It is against the law.' WHERE slug = 'illegal-lockout';
+UPDATE concepts SET definition = 'The written list of what was taken out of your deposit, and why.' WHERE slug = 'deduction-itemization';
+UPDATE concepts SET definition = 'How much a landlord can charge when rent is late, and when the fee starts.' WHERE slug = 'late-fees';
+UPDATE concepts SET definition = 'Free lawyers for renters who cannot afford one.' WHERE slug = 'free-legal-help';
+UPDATE concepts SET definition = 'A neutral person helps you and your landlord reach a deal, instead of a judge deciding.' WHERE slug = 'mediation';
+UPDATE concepts SET definition = 'Only a court can make you leave your home. Your landlord cannot do it alone.' WHERE slug = 'court-eviction-only';
+UPDATE concepts SET definition = 'How much warning your landlord must give before coming in.' WHERE slug = 'entry-notice-period';
+UPDATE concepts SET definition = 'A letter saying you must move out by a set date. It is not an eviction. The court case comes after.' WHERE slug = 'notice-to-quit';
+UPDATE concepts SET definition = 'What happens when you pay part of the rent.' WHERE slug = 'partial-payments';
+UPDATE concepts SET definition = 'Paying everything you owe to stop the eviction and keep your home. Many places allow it up to a deadline.' WHERE slug = 'pay-and-stay';
+UPDATE concepts SET definition = 'The written warning before an eviction for late rent. It gives you a set number of days to pay or move.' WHERE slug = 'late-rent-notice';
+UPDATE concepts SET definition = 'What your landlord must pay you for coming in without the right to.' WHERE slug = 'entry-penalties';
+UPDATE concepts SET definition = 'Your right to live in your home in peace, without your landlord bothering you.' WHERE slug = 'quiet-enjoyment';
+UPDATE concepts SET definition = 'Laws that limit how much your rent can go up each year.' WHERE slug = 'rent-control';
+UPDATE concepts SET definition = 'What happens to rent you still owe after you move out. A debt collector may contact you, and it can show on your credit.' WHERE slug = 'rent-debt-collection';
+UPDATE concepts SET definition = 'Programs that help pay your rent when you cannot.' WHERE slug = 'rent-assistance-programs';
+UPDATE concepts SET definition = 'How much written warning your landlord must give before raising your rent.' WHERE slug = 'increase-notice-period';
+UPDATE concepts SET definition = 'Not paying rent until your landlord fixes a serious problem. Allowed only in some places, with rules.' WHERE slug = 'rent-withholding';
+UPDATE concepts SET definition = 'Paying for a repair yourself and taking the cost out of your rent. Allowed only in some places, with rules.' WHERE slug = 'repair-and-deduct';
+UPDATE concepts SET definition = 'When a landlord punishes you for standing up for your rights. The law does not allow it.' WHERE slug = 'retaliation-protection';
+UPDATE concepts SET definition = 'The reasons your landlord is allowed to come in, like repairs or showing the home.' WHERE slug = 'entry-allowed-reasons';
+UPDATE concepts SET definition = 'Limits on when a utility company can shut off your water, electric, or gas. Extra protection in very hot or cold weather.' WHERE slug = 'utility-shutoff-protection';
