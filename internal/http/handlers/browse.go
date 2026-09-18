@@ -1044,7 +1044,7 @@ func plainIntro(introMD string) string {
 func metaDescription(introMD, title, jurisdiction string) string {
 	text := plainIntro(introMD)
 	if text == "" {
-		return title + " — free, step-by-step tenant rights guide for " + jurisdiction + ", backed by primary sources."
+		return title + ". Free tenant rights guide for " + jurisdiction + ". Every statement links to the law it comes from."
 	}
 	const limit = 155
 	if len(text) <= limit {

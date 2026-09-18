@@ -343,8 +343,8 @@ func TestPlaybookHandler_linksToLocalHelpWhenTheCityHasOne(t *testing.T) {
 		t.Error("the Local Help link should render as the help bar above the guide")
 	}
 	// The generic dead-end sentence is replaced by the real link, not doubled up.
-	if strings.Contains(body, "contact your local legal aid organization") {
-		t.Error("the generic 'contact your local legal aid organization' should give way to the link")
+	if strings.Contains(body, "contact a legal aid office near you") {
+		t.Error("the generic 'contact a legal aid office near you' should give way to the link")
 	}
 }
 
@@ -358,7 +358,7 @@ func TestPlaybookHandler_noLocalHelpLinkWhenTheCityHasNone(t *testing.T) {
 	if strings.Contains(body, "help-bar") {
 		t.Error("a city with no Local Help page must not get a help bar")
 	}
-	if !strings.Contains(body, "contact your local legal aid organization") {
+	if !strings.Contains(body, "contact a legal aid office near you") {
 		t.Error("without a link, the generic fallback sentence should remain")
 	}
 }

@@ -5,13 +5,13 @@
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>All locations · RenterLaw</title>
-  <meta name="description" content="Every city with a free, citation-backed tenant rights guide on RenterLaw, listed by state." />
+  <meta name="description" content="Every place RenterLaw covers, listed by state. Free tenant rights guides that link to the law they come from." />
   <link rel="canonical" href="{{absURL "/locations"}}"/>
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="RenterLaw" />
   <meta property="og:url" content="{{absURL "/locations"}}" />
   <meta property="og:title" content="All locations · RenterLaw" />
-  <meta property="og:description" content="Every city with a free, citation-backed tenant rights guide on RenterLaw, listed by state." />
+  <meta property="og:description" content="Every place RenterLaw covers, listed by state. Free tenant rights guides that link to the law they come from." />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
@@ -44,7 +44,7 @@
     <section class="hero">
       <h1>All locations</h1>
       <p class="lede">
-        {{if .CityCount}}Tenant rights guides for {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}}, grouped by state. Pick yours to see every guide we have for it.{{else}}No city guides are published yet.{{end}}
+        {{if .CityCount}}Guides for {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}}, grouped by state. Pick yours to see every guide we have for it.{{else}}No city guides are published yet.{{end}}
       </p>
     </section>
 
@@ -56,7 +56,7 @@
         <li><a href="{{.Path}}">{{.Name}}</a></li>
         {{end}}
       </ul>
-      <p class="empty-state-hint">These guides explain rules that apply in every state. Your state and city can add more protections on top.</p>
+      <p class="empty-state-hint">These guides cover rules that apply in every state. Your state and city can add more protections.</p>
     </section>
     {{end}}
 

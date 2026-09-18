@@ -34,7 +34,7 @@ func renderWithPlaces(t *testing.T, kind string) string {
 func TestNationwidePageAsksWhereYouRent(t *testing.T) {
 	body := renderWithPlaces(t, "country")
 	picker := strings.Index(body, `class="place-picker"`)
-	main := strings.Index(body, `aria-label="Playbook content"`)
+	main := strings.Index(body, `aria-label="Guide content"`)
 	if picker < 0 || main < 0 || picker > main {
 		t.Fatalf("expected the place picker before the statements; picker=%d main=%d", picker, main)
 	}

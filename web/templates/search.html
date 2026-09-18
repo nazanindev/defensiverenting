@@ -5,7 +5,7 @@
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{if .Query}}Search: {{.Query}}{{else}}Search{{end}} · RenterLaw</title>
-  <meta name="description" content="Search tenant rights guides{{if .JurisdictionSlug}} for {{.JurisdictionSlug}}{{end}}." />
+  <meta name="description" content="Search RenterLaw's tenant rights guides{{if .JurisdictionName}} for {{.JurisdictionName}}{{end}}." />
   <meta name="robots" content="noindex, follow" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,8 +31,8 @@
 
     {{if and .Query (not .Results)}}
     <p class="empty-state">
-      No results found for <strong>{{.Query}}</strong>{{if .JurisdictionName}} in {{.JurisdictionName}}{{end}}.
-      {{if .JurisdictionName}}Try setting the location to <strong>Every location</strong>, or{{else}}Try{{end}} different keywords.
+      Nothing matched <strong>{{.Query}}</strong>{{if .JurisdictionName}} in {{.JurisdictionName}}{{end}}.
+      {{if .JurisdictionName}}Try <strong>Every location</strong>, or try{{else}}Try{{end}} different words.
     </p>
     {{end}}
 
@@ -45,15 +45,15 @@
           <span class="result-meta">Legal term</span>
         {{else if eq .Type "playbook"}}
           <a class="result-title" href="{{.Path}}">{{.PlaybookTitle}}</a>
-          <span class="result-meta">Playbook · {{.JurisdictionSlug}}</span>
+          <span class="result-meta">Guide · {{.JurisdictionSlug}}</span>
           {{if .Snippet}}<p class="result-snippet">{{.Snippet}}</p>{{end}}
         {{else}}
           {{if and .PlaybookSlug .JurisdictionSlug}}
           <a class="result-title" href="{{.Path}}">{{.PlaybookTitle}}</a>
           {{else}}
-          <span class="result-title">Statement</span>
+          <span class="result-title">{{.PlaybookTitle}}</span>
           {{end}}
-          <span class="result-meta">Statement · {{.JurisdictionSlug}}</span>
+          <span class="result-meta">Guide · {{.JurisdictionSlug}}</span>
           {{if .Snippet}}<p class="result-snippet">{{.Snippet}}</p>{{end}}
         {{end}}
       </li>

@@ -3,9 +3,9 @@
 <head>
   {{- /* "for United States" is not a sentence; the country hub gets its own
        description. Everything else keeps the place-name form. */ -}}
-  {{- $desc := printf "Free tenant rights guides for %s. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." .Jurisdiction.Name -}}
+  {{- $desc := printf "Free tenant rights guides for %s: rent, deposits, repairs, eviction, and more. Every statement links to the law it comes from." .Jurisdiction.Name -}}
   {{- if eq .Jurisdiction.Kind "country" -}}
-    {{- $desc = "Free tenant rights guides for renters anywhere in the United States. Step by step playbooks on rent, deposits, repairs, and more, backed by primary sources." -}}
+    {{- $desc = "Free tenant rights guides for renters anywhere in the United States: rent, deposits, repairs, eviction, and more. Every statement links to the law it comes from." -}}
   {{- end}}
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />

@@ -6,7 +6,7 @@ import (
 )
 
 // UI chrome strings for the language-routed pages (ADR-007 D2's content
-// routes: playbook, jurisdiction hub, topic hub, 404, and the shared footer).
+// routes: guide (playbook), jurisdiction hub, topic hub, 404, and the shared footer).
 // Statements are translated by the drafting pipeline; this table is for the
 // furniture around them, so a Spanish page never wraps Spanish law in English
 // chrome. The Spanish register is usted, matching the translated statements.
@@ -21,14 +21,14 @@ var uiStrings = map[string]map[string]string{
 	"search-placeholder": {"en": "Search by situation…", "es": "Busque su situación…"},
 	"search":             {"en": "Search", "es": "Buscar"},
 	"footer-disclaimer": {
-		"en": "This site provides general information and is not a substitute for a lawyer. Every claim links to its primary source so you can verify it yourself.",
-		"es": "Este sitio ofrece información general y no reemplaza a un abogado. Cada afirmación enlaza a su fuente primaria para que usted mismo pueda verificarla.",
+		"en": "This site gives general information. It is not a substitute for a lawyer. Every statement links to the law it comes from, so you can check it yourself.",
+		"es": "Este sitio ofrece información general. No reemplaza a un abogado. Cada afirmación enlaza a la ley de donde viene, para que usted mismo pueda verificarla.",
 	},
 	"not-legal-advice": {"en": "Not legal advice.", "es": "Esto no es asesoría legal."},
 	"footer-locations": {"en": "All locations", "es": "Todos los lugares"},
 	"footer-about":     {"en": "About", "es": "Acerca de"},
 	"footer-support":   {"en": "Support this project", "es": "Apoye este proyecto"},
-	"footer-editorial": {"en": "Editorial guidance", "es": "Guía editorial"},
+	"footer-editorial": {"en": "Editorial standards", "es": "Normas editoriales"},
 	"footer-report":    {"en": "Report a problem", "es": "Reporte un problema"},
 	"footer-contact":   {"en": "Contact us", "es": "Contacto"},
 	"home":             {"en": "Home", "es": "Inicio"},
@@ -42,11 +42,11 @@ var uiStrings = map[string]map[string]string{
 	"in":            {"en": "in", "es": "en"},
 	"help-bar-tail": {"en": "legal aid, rent assistance, and who to call", "es": "ayuda legal, ayuda con la renta y a quién llamar"},
 	"page-disclaimer": {
-		"en": "Every statement below links to its primary source. Read the source before relying on this information.",
-		"es": "Cada afirmación de abajo enlaza a su fuente primaria. Lea la fuente antes de confiar en esta información.",
+		"en": "Every statement below links to the law it comes from. Read the source before you act on it.",
+		"es": "Cada afirmación de abajo enlaza a la ley de donde viene. Lea la fuente antes de actuar.",
 	},
 	"page-disclaimer-help": {
-		"en": "If you need legal help, contact your local legal aid organization.",
+		"en": "If you need legal help, contact a legal aid office near you.",
 		"es": "Si necesita ayuda legal, contacte a la organización de ayuda legal de su área.",
 	},
 	"sources":           {"en": "Sources", "es": "Fuentes"},
@@ -56,7 +56,7 @@ var uiStrings = map[string]map[string]string{
 	"rule-everywhere":   {"en": "See the rule in every place we cover.", "es": "Vea la regla en cada lugar que cubrimos."},
 	"full-guides":       {"en": "We have full guides on this.", "es": "Tenemos guías completas sobre esto."},
 	"see-guides":        {"en": "See our %s guides.", "es": "Vea nuestras guías de %s."},
-	"no-statements":     {"en": "No statements available for this playbook yet.", "es": "Aún no hay contenido en esta guía."},
+	"no-statements":     {"en": "This guide has no statements yet.", "es": "Esta guía aún no tiene contenido."},
 	"report-question":   {"en": "Is something on this page wrong or out of date?", "es": "¿Algo en esta página está mal o desactualizado?"},
 	"report-tell-us":    {"en": "Tell us", "es": "Avísenos"},
 	"more-nationwide":   {"en": "More nationwide tenant rights guides", "es": "Más guías nacionales de derechos del inquilino"},
@@ -72,8 +72,8 @@ var uiStrings = map[string]map[string]string{
 	// Jurisdiction hub
 	"whats-your-situation": {"en": "What’s your situation?", "es": "¿Cuál es su situación?"},
 	"hub-lede": {
-		"en": "Describe what is happening and get a step by step tenant rights playbook. Every statement is backed by a primary source.",
-		"es": "Estas guías explican sus derechos como inquilino paso a paso. Cada afirmación está respaldada por una fuente primaria.",
+		"en": "Search your situation, or pick a topic below. Every statement links to the law it comes from.",
+		"es": "Busque su situación o elija un tema abajo. Cada afirmación enlaza a la ley de donde viene.",
 	},
 	"hub-search-placeholder": {"en": "e.g. heat stopped working…", "es": "por ejemplo: la calefacción no funciona…"},
 	"nationwide-guides":      {"en": "Nationwide guides", "es": "Guías nacionales"},
@@ -81,23 +81,23 @@ var uiStrings = map[string]map[string]string{
 	"pick-a-topic":           {"en": "Or pick a topic", "es": "Elija un tema"},
 	"cities-in":              {"en": "Cities in %s", "es": "Ciudades en %s"},
 	"ordinances-stack": {
-		"en": "Local ordinances stack on top of %s law, so start with your city where we cover it.",
-		"es": "Las reglas locales se suman a la ley de %s. Si cubrimos su ciudad, empiece por ahí.",
+		"en": "City rules add to %s law. If we cover your city, start there.",
+		"es": "Las reglas de la ciudad se suman a la ley de %s. Si cubrimos su ciudad, empiece por ahí.",
 	},
-	"no-playbooks-yet":  {"en": "No playbooks available for %s yet.", "es": "Aún no hay guías para %s."},
+	"no-playbooks-yet":  {"en": "No guides for %s yet.", "es": "Aún no hay guías para %s."},
 	"see-all-locations": {"en": "See all locations →", "es": "Vea todos los lugares →"},
 
 	// Topic hub
 	"topic-hub-lede": {
-		"en": "Tenant rights on this topic vary by city and state. Pick your city for a step-by-step guide. Every claim cites the law it comes from.",
-		"es": "Los derechos del inquilino en este tema cambian según la ciudad y el estado. Elija su ciudad para ver una guía paso a paso. Cada afirmación cita la ley de donde viene.",
+		"en": "The rules on this topic depend on your state and city. Pick your place for the guide that applies to you.",
+		"es": "Las reglas de este tema dependen de su estado y su ciudad. Elija su lugar para ver la guía que le aplica.",
 	},
 	"choose-your-city": {"en": "Choose your city", "es": "Elija su ciudad"},
 	"covered-count":    {"en": "(%d covered)", "es": "(%d cubiertas)"},
 	"other-group":      {"en": "Other", "es": "Otros"},
 	"dont-see-city": {
-		"en": "Don’t see your city? We add new cities regularly. Statewide rules often still apply; check the guide for the nearest covered city in your state to see which laws are cited.",
-		"es": "¿No ve su ciudad? Agregamos ciudades nuevas con frecuencia. Las reglas estatales muchas veces aplican de todos modos; revise la guía de la ciudad cubierta más cercana en su estado para ver qué leyes se citan.",
+		"en": "Don’t see your city? We add new places one at a time. Your state’s guide still applies to you.",
+		"es": "¿No ve su ciudad? Agregamos lugares nuevos uno por uno. La guía de su estado igual le aplica.",
 	},
 	"statewide-guides": {"en": "Statewide guides", "es": "Guías estatales"},
 	"national-guide":   {"en": "Nationwide guide", "es": "Guía nacional"},
@@ -124,8 +124,8 @@ var uiStrings = map[string]map[string]string{
 	"nf-search-home":     {"en": "Search from the homepage", "es": "Busque desde la página principal"},
 	"nf-why-missing":     {"en": "Why some pages are missing", "es": "Por qué faltan algunas páginas"},
 	"nf-why-body": {
-		"en": "Every guide on this site is researched, and a person checks every citation before we publish it. We publish nothing without that check. That is why coverage grows one place and one topic at a time. If we do not cover your city yet, your state’s guide and the nationwide guides still apply to you.",
-		"es": "Cada guía de este sitio se investiga, y una persona verifica cada cita antes de publicarla. No publicamos nada sin esa verificación. Por eso la cobertura crece lugar por lugar y tema por tema. Si aún no cubrimos su ciudad, la guía de su estado y las guías nacionales igual aplican para usted.",
+		"en": "A person checks every citation before a guide is published. That is why coverage grows one place and one topic at a time. If we do not cover your city yet, your state’s guide and the nationwide guides still apply to you.",
+		"es": "Una persona verifica cada cita antes de publicar una guía. Por eso la cobertura crece lugar por lugar y tema por tema. Si aún no cubrimos su ciudad, la guía de su estado y las guías nacionales igual aplican para usted.",
 	},
 	"nf-ask-cover": {"en": "Ask us to cover your city →", "es": "Pídanos cubrir su ciudad →"},
 }
