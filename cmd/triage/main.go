@@ -237,6 +237,7 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 		noteKey[r.ID] = r.StatementKey
 	}
 	texts := map[string]string{}
+	seen := map[string]int{}
 	problems := 0
 	bad := func(i int, format string, args ...any) {
 		problems++
@@ -244,6 +245,10 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 	}
 	for i, e := range entries {
 		key := strings.ToLower(strings.TrimSpace(e.StatementKey))
+		if first, dup := seen[key]; dup {
+			bad(i, "same statement as entry %d; filing both would supersede the first. Merge them into one proposal", first)
+		}
+		seen[key] = i + 1
 		if !store.ValidReason(e.Reason) {
 			bad(i, "reason %q is not valid", e.Reason)
 		}
