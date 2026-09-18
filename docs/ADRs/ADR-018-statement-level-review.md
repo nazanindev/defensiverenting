@@ -76,3 +76,15 @@ Whole-page coherence is still judged once, at publish, by the person clicking it
 - Cost: one migration (two columns), one field on the drafting input, one issue code, three list pages, four actions, one back-fill script. No change to the public site.
 - Order of work: D1 with the back-fill (the queue is already the surface); D2 and D3 together, since a stamp nobody enforces is a flag; then D4 by-source, which unblocks the most `source-unreachable` issues; then by-concept and by-flag; then D5's publish button last, once there are ready pages to publish.
 - Shipped shape (2026-09-12): `/review` lists sources and concepts with work left; `/review/source/{id}` and `/review/concept/{slug}` render every statement in full and post back the ones ticked; the by-flag list is the queue's `kind=note` filter. Recheck is the whole-site checker scoped to one source (`sourcecheck.RunSource`); attest is offered only when the checker's last attempt could not read the source. Publish-ready runs `AuthorPublishPlaybook` per draft and reports each refusal. Reviewer notes never supersede and are never superseded; only competing edits do.
+
+## Amendment, 2026-09-17: notes are not queue items
+
+D1 filed each reviewer note into the proposal queue as a work item. By
+September the queue held 160 notes beside 30 real changes, and the reviewer
+was rejecting notes one at a time with the same words. A note is a question
+about a claim, and the statement's own card already shows it and Done
+already marks it read. The queue now lists changes only: replacements and
+drift findings. Notes keep their storage (a proposal row, so a filed edit can
+name the notes it answers in `resolves`) but the queue page and the
+"proposals waiting" count leave them out. A triage pass (cmd/triage) turns
+notes into edits or closes them in bulk when they pile up.

@@ -448,6 +448,7 @@ const SERVER_ONLY_CODES = { 'statute-locator': true, 'source-no-publisher': true
 let serverOnlyIssues = (SERVER_ISSUES || []).filter(function(i) { return SERVER_ONLY_CODES[i.code]; });
 // A live page's saves run the publish gate, so its blockers block saving too.
 const IS_LIVE = {{if and .EditMode (eq .Status "published")}}true{{else}}false{{end}};
+const PLAYBOOK_ID = {{if .EditMode}}{{.EditID}}{{else}}0{{end}};
 
 let sources = [], stmts = [];
 let nextSrcId = 0, nextStmtId = 0;
@@ -1086,7 +1087,7 @@ function renderStmts() {
       ((st.notes || []).length
         ? '<div class="card-notes">' +
             st.notes.map(n => '<div class="card-note">' + esc(n) + '</div>').join('') +
-            '<div class="hint">Reviewer notes from the drafting agent. Decide each in the <a href="/queue" target="_blank" rel="noopener">queue</a>; the page cannot publish while one waits.</div>' +
+            '<div class="hint">Reviewer notes from the drafting agent. Done on the <a href="/statements?page=' + PLAYBOOK_ID + '" target="_blank" rel="noopener">statements screen</a> marks them read; the page cannot publish while one waits.</div>' +
           '</div>'
         : '') +
       conceptRow(st) +

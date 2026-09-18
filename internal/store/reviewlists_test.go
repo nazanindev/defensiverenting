@@ -133,7 +133,8 @@ func TestListProposalsByReason_separatesNotesFromDrift(t *testing.T) {
 		}
 		return n
 	}
-	if count("note") != 1 || count("drift") != 1 || count("other") != 0 || count("") != 2 {
+	// The unfiltered list is the queue page: changes only, never notes.
+	if count("note") != 1 || count("drift") != 1 || count("other") != 0 || count("") != 1 {
 		t.Errorf("note=%d drift=%d other=%d all=%d", count("note"), count("drift"), count("other"), count(""))
 	}
 }

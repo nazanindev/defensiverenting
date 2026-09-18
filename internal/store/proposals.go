@@ -435,14 +435,16 @@ func (pg *PG) GetProposal(ctx context.Context, id int64) (ProposalRow, error) {
 	return r, err
 }
 
-// CountPendingProposals is the dashboard's "N proposals waiting".
+// CountPendingProposals is the dashboard's "N proposals waiting": changes
+// waiting for a decision. Reviewer notes are not counted; they are read on
+// the statement's card, and the page standing already counts them.
 func (pg *PG) CountPendingProposals(ctx context.Context) (int, error) {
 	var n int
 	err := pg.pool.QueryRow(ctx, `
 		SELECT count(*) FROM statement_proposals p
 		JOIN playbooks obs ON obs.id = p.playbook_id
-		WHERE obs.language = ANY($1)
-		  AND (p.status = 'pending' OR (p.status = 'snoozed' AND p.snoozed_until <= NOW()))`, ContentLanguages).Scan(&n)
+		WHERE obs.language = ANY($1) AND p.reason <> $2
+		  AND (p.status = 'pending' OR (p.status = 'snoozed' AND p.snoozed_until <= NOW()))`, ContentLanguages, ReasonReviewerFlag).Scan(&n)
 	return n, err
 }
 

@@ -349,7 +349,7 @@ func (pg *PG) PublishReadyDrafts(ctx context.Context, by string, jurisdictionIDs
 // "note" for reviewer notes, "drift" for the checker's findings, "" for all.
 func (pg *PG) ListProposalsByReason(ctx context.Context, status, family string) ([]ProposalRow, error) {
 	rows, err := pg.ListProposals(ctx, status)
-	if err != nil || family == "" {
+	if err != nil {
 		return rows, err
 	}
 	out := rows[:0]
@@ -357,6 +357,13 @@ func (pg *PG) ListProposalsByReason(ctx context.Context, status, family string) 
 		switch family {
 		case "note":
 			if r.Reason == ReasonReviewerFlag {
+				out = append(out, r)
+			}
+		case "":
+			// The queue lists changes. A reviewer note is a question about
+			// a claim, read and decided on the statement's own card (Done
+			// on the statements screen), so it is not a queue item.
+			if r.Reason != ReasonReviewerFlag {
 				out = append(out, r)
 			}
 		case "drift":
