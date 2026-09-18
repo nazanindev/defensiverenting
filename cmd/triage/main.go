@@ -9,11 +9,19 @@
 //	triage fetch <url>           readable text of a source, via the toolbelt
 //	triage find <jurisdiction>   candidate primary sources for a place
 //	triage check <file.json>     lint bodies, confirm quotes, check resolves
+//	triage stands <file.json> -by <name> [-apply]
+//	                             reject the listed notes as "stands as written"
+//
+// stands is the one subcommand that writes: it records a person's decision
+// that the statements a triage pass judged fine stand as written, in one
+// run instead of one click per note. Without -apply it prints what it
+// would decide. The person named in -by runs it.
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -70,6 +78,8 @@ func main() {
 		emit(out.Candidates)
 	case "check":
 		check(ctx, pg, tb, arg(2))
+	case "stands":
+		stands(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
@@ -83,7 +93,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | fetch <url> | find <jurisdiction-slug> | check <file.json>")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply]")
 	os.Exit(2)
 }
 
@@ -303,6 +313,72 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 	fmt.Printf("%d entries, %d problems\n", len(entries), problems)
 	if problems > 0 {
 		os.Exit(1)
+	}
+}
+
+type standEntry struct {
+	NoteID       int64  `json:"note_id"`
+	StatementKey string `json:"statement_key"`
+	Reason       string `json:"reason"`
+}
+
+// stands rejects each listed reviewer note with the standing decision note
+// plus the triage reason, under the named person. It refuses an entry whose
+// id is not a pending note on the stated key, so a stale file cannot decide
+// something else.
+func stands(ctx context.Context, pg *store.PG, args []string) {
+	fs := flag.NewFlagSet("stands", flag.ExitOnError)
+	by := fs.String("by", "", "the person deciding (first name)")
+	apply := fs.Bool("apply", false, "write the decisions; default prints them")
+	if len(args) < 1 {
+		usage()
+	}
+	path := args[0]
+	if err := fs.Parse(args[1:]); err != nil {
+		fatal(err)
+	}
+	if strings.TrimSpace(*by) == "" {
+		fatal(fmt.Errorf("-by is required: the person deciding"))
+	}
+	raw, err := os.ReadFile(path) // #nosec G703 -- the file named on the command line is the job
+	if err != nil {
+		fatal(err)
+	}
+	var entries []standEntry
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		fatal(fmt.Errorf("decode %s: %w", path, err))
+	}
+	pending, err := pg.ListProposalsByReason(ctx, "pending", "note")
+	if err != nil {
+		fatal(err)
+	}
+	byID := map[int64]store.ProposalRow{}
+	for _, r := range pending {
+		byID[r.ID] = r
+	}
+	decided := 0
+	for i, e := range entries {
+		row, ok := byID[e.NoteID]
+		if !ok || row.StatementKey != strings.ToLower(strings.TrimSpace(e.StatementKey)) {
+			fmt.Printf("entry %d: note %d is not a pending note on %s; skipped\n", i+1, e.NoteID, e.StatementKey)
+			continue
+		}
+		var f store.ReviewerFlagEvidence
+		_ = json.Unmarshal(row.Evidence, &f)
+		fmt.Printf("#%d %s\n    note:   %s\n    stands: %s\n", e.NoteID, row.Title, truncate(f.Note, 140), e.Reason)
+		if !*apply {
+			continue
+		}
+		note := "Read; the statement stands as written. Triage: " + strings.TrimSpace(e.Reason)
+		if err := pg.DecideProposal(ctx, e.NoteID, "rejected", *by, note, nil); err != nil {
+			fatal(fmt.Errorf("note %d: %w", e.NoteID, err))
+		}
+		decided++
+	}
+	if *apply {
+		fmt.Printf("%d of %d notes decided by %s\n", decided, len(entries), *by)
+	} else {
+		fmt.Printf("%d entries; nothing written (add -apply)\n", len(entries))
 	}
 }
 
