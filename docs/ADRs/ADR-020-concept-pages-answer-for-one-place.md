@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Deferred until every state has published guides. D5 shipped 2026-09-17 (migration 000042). |
+| Status | Partly shipped 2026-09-17: D3 (place first) and D5 (plain definitions, migration 000042). D1 classification approved 2026-09-17, columns not yet added. D2, D4, D6, D7 wait for every state to have published guides. |
 | Date | 2026-09-17 |
 
 ## Context
@@ -19,7 +19,7 @@ The definitions themselves are shorter than the statements but still lean on wor
 
 Search Console shows question-shaped queries like "how much can a landlord charge for a security deposit" are where clicks come from. A page with that title has to answer for a searcher from any of 50 states. On 2026-09-17 `/c/deposit-cap` has rows for 5 states. Wave 1 drafted state guides for California, New York, Texas, Illinois, Washington, and Pennsylvania, but only the Texas deposit statement is tagged and published; the rest wait in review.
 
-A question-titled page that answers 5 states and shrugs at 45 is worse than the current page for the reader Google sends, because the title promises an answer. So the rule-page work below waits until every state has published guides on the topic the rule belongs to. The trigger is data, not design. Until then, D5 (plain definitions) ships alone, and the concept page keeps its current shape.
+A question-titled page that answers 5 states and shrugs at 45 is worse than the current page for the reader Google sends, because the title promises an answer. So the rule-page work below waits until every state has published guides on the topic the rule belongs to. The trigger is data, not design. Until then, D5 (plain definitions) and D3 (the reader's place first) ship, since both help a renter in a covered place today without promising anything to the rest, and the concept page keeps its name as its title.
 
 What to do in the meantime, in order of leverage:
 
@@ -40,7 +40,7 @@ Every concept is at least one of the two. When a concept has a question and is a
 
 The classification is registry metadata, set by migration like the definitions (000024), never by the drafting agent.
 
-Proposed classification, to be settled by Nazanin and Cameron before the migration ships:
+Classification, approved by Nazanin 2026-09-17:
 
 | Slug | Glossary | Question |
 |---|---|---|
@@ -94,7 +94,7 @@ Proposed classification, to be settled by Nazanin and Cameron before the migrati
 
 For a concept with a question, the question is the `<title>`, the `<h1>`, the `og:title`, and the search result title. The name stays the label inside statement bodies and on the portal, where "Deposit return deadline" is the right register.
 
-### D3. The page answers for the reader's place first
+### D3. The page answers for the reader's place first (shipped 2026-09-17)
 
 The page takes the reader's place from two sources, in this order:
 
@@ -114,7 +114,9 @@ Regions, in order:
 
 The place is resolved up the chain the way the 404 and the topic hub do it: the city's statement, else the state's, else the state-not-covered message (D7). That chain walk is the third copy of that logic and becomes one function before this ships.
 
-With no place known, the "Your place" region is a picker of all 50 states, not only the covered ones (D7). The existing type-to-filter box goes.
+With no place known, the "Your place" region is a picker of all 50 states plus DC, not only the covered ones (D7). The existing type-to-filter box goes.
+
+As shipped: the reader's row, then the general rule, then the other places folded under one disclosure; with no place known the picker, the general rule, and every place open. A remembered location redirects client-side to the `?j=` URL rather than re-implementing the hoist in the browser, so there is one render path. An uncovered place gets the D7 message with the general rule beneath it. The comparison table and short answers (D6) are not built; the fold holds full statement cards.
 
 ### D4. The homepage and `/terms` list glossary concepts by name
 

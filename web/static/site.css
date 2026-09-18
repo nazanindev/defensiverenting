@@ -1302,23 +1302,19 @@ input:focus-visible,
 
 
 /* Concept-page place filter (progressive enhancement; hidden until JS runs) */
-.concept-filter { margin: 0 0 16px; }
-.concept-filter label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 600;
-  font-size: 0.95rem;
+/* ADR-020 D3: the state picker and the fold behind the reader's answer. The
+   picker borrows the scope select so the two location controls match. */
+.concept-picker { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.concept-picker .scope-select { flex: 1 1 220px; max-width: 320px; }
+.concept-picker button {
+  background: var(--accent); color: white; border: 0; border-radius: 10px;
+  padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer;
 }
-.concept-filter input[type="search"] {
-  width: 100%;
-  max-width: 340px;
-  padding: 10px 16px;
-  border: 2px solid #e8d0d4;
-  border-radius: 999px;
-  font-size: 1rem;
-  font-family: inherit;
-  background: #fff;
-  outline: none;
-}
-.concept-filter input[type="search"]:focus { border-color: #1b1f3b; }
-.concept-filter-empty { margin: 10px 0 0; color: #6b6f8a; }
+.concept-switch { margin: 14px 0 0; font-size: .95rem; }
+.concept-switch a { color: var(--accent); text-decoration: none; }
+.concept-switch a:hover { text-decoration: underline; }
+.concept-others summary { cursor: pointer; list-style: none; }
+.concept-others summary::-webkit-details-marker { display: none; }
+.concept-others summary::after { content: " ▸"; color: var(--ink-soft); }
+.concept-others[open] summary::after { content: " ▾"; }
+.concept-others[open] summary { margin-bottom: 16px; }

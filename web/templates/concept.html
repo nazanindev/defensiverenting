@@ -42,65 +42,66 @@
     <h1>{{.Name}}</h1>
     {{if .Definition}}<p class="lede">{{.Definition}}</p>{{end}}
 
+    {{/* ADR-020 D3: the reader's place first. ?j= is resolved server-side;
+         the script below sends a reader with a remembered location to that
+         URL, so there is one render path and the bare page stays shared
+         cache. The picker lists every state (D7): a searcher can rent
+         anywhere, and an uncovered pick still lands on a real page. */}}
+    {{if .Yours}}
+    <section aria-labelledby="yours-heading">
+      <h2 id="yours-heading" class="section-title">Where you live: {{.Yours.PlaceName}}</h2>
+      <div class="statement-list">
+        {{template "concept-entry" .Yours}}
+      </div>
+      <p class="concept-switch"><a href="/c/{{.Slug}}">Not your place? Pick another.</a></p>
+    </section>
+    {{else if .Uncovered}}
+    <section class="place-picker" aria-labelledby="yours-heading">
+      <h2 id="yours-heading" class="place-picker-heading">We do not have the rule for {{.PlaceName}} yet</h2>
+      <p class="place-picker-lede">The general rule below still applies to you. RenterLaw adds new places one at a time. <a href="/contact">Ask us to cover {{.PlaceName}}.</a></p>
+      {{template "concept-state-picker" .}}
+    </section>
+    {{else}}
+    <section class="place-picker" aria-labelledby="yours-heading">
+      <h2 id="yours-heading" class="place-picker-heading">Where do you rent?</h2>
+      <p class="place-picker-lede">The rule depends on your state and city. Pick your state to see the rule where you live.</p>
+      {{template "concept-state-picker" .}}
+    </section>
+    {{end}}
+
     {{if .National}}
     <section aria-labelledby="general-rule-heading">
       {{/* Not "What it means": the lede above already defines the term, and
            the national statement is not a definition, it is the rule stated
-           generally. "The general rule" pairs with "The rule where you live". */}}
+           generally. Tags may be shared, so the national page can state the
+           general rule in more than one statement; all of them belong here,
+           never under "where you live". */}}
       <h2 id="general-rule-heading" class="section-title">The general rule</h2>
-      {{/* statement-list supplies the grid gap; a bare statement-item has no
-           outer margin of its own and the cards collide without it. Tags may
-           be shared, so the national page can state the general rule in more
-           than one statement — all of them belong here, never under "where
-           you live". */}}
       <div class="statement-list">
         {{range .National}}
-        <div class="statement-item">
-          <div class="statement-body">{{.BodyHTML}}</div>
-          <div class="citation-chips" aria-label="Sources">
-            {{range .Citations}}
-            <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
-               title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">{{chipLabel .Label .Locator}}</a>
-            {{end}}
-          </div>
-          {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
-          <p class="statement-specifics"><a href="{{.PagePath}}">Read the full nationwide guide.</a></p>
-        </div>
+        {{template "concept-entry" .}}
         {{end}}
       </div>
     </section>
     {{end}}
 
-    {{if .Local}}
-    <section aria-labelledby="local-heading">
-      <h2 id="local-heading" class="section-title">The rule where you live</h2>
-      {{/* Progressive enhancement only: with JS off the input never renders
-           and the full list stands. Client-side on purpose, like scope-script:
-           these pages are shared-cache, so the HTML must not personalise. */}}
-      <div class="concept-filter" data-concept-filter hidden>
-        <label for="concept-place-filter">Find your place</label>
-        <input id="concept-place-filter" type="search"
-               placeholder="Type a city or state" autocomplete="off" />
-        <p class="concept-filter-empty" data-filter-empty hidden>
-          No match. Clear the box to see every place, or read the general rule above.
-        </p>
-      </div>
-      <div class="statement-list">
-        {{range .Local}}
-        <div class="statement-item" data-place-name="{{.PlaceName}}" data-place-slug="{{.PlaceSlug}}">
-          <h3 class="concept-place">{{.PlaceName}}</h3>
-          <div class="statement-body">{{.BodyHTML}}</div>
-          <div class="citation-chips" aria-label="Sources">
-            {{range .Citations}}
-            <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
-               title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">{{chipLabel .Label .Locator}}</a>
-            {{end}}
-          </div>
-          {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
-          <p class="statement-specifics"><a href="{{.PagePath}}">Read the full guide for {{.PlaceName}}.</a></p>
+    {{if .Others}}
+    <section aria-labelledby="others-heading">
+      {{/* With an answer above, the rest is a comparison and folds. With no
+           place known it is the whole list and stays open. */}}
+      {{if .Yours}}
+      <details class="concept-others">
+        <summary id="others-heading" class="section-title">Other places we cover</summary>
+        <div class="statement-list">
+          {{range .Others}}{{template "concept-entry" .}}{{end}}
         </div>
-        {{end}}
+      </details>
+      {{else}}
+      <h2 id="others-heading" class="section-title">Every place we cover</h2>
+      <div class="statement-list">
+        {{range .Others}}{{template "concept-entry" .}}{{end}}
       </div>
+      {{end}}
     </section>
     {{end}}
 
@@ -113,41 +114,53 @@
   {{template "site-footer" .}}
   <script>
   (function () {
-    var box = document.querySelector('[data-concept-filter]');
-    if (!box) return;
-    var input = document.getElementById('concept-place-filter');
-    var empty = box.querySelector('[data-filter-empty]');
-    var items = document.querySelectorAll('.statement-item[data-place-name]');
-    if (!input || items.length < 2) return;
-    box.hidden = false;
-
-    function apply() {
-      var q = input.value.trim().toLowerCase();
-      var shown = 0;
-      for (var i = 0; i < items.length; i++) {
-        var name = (items[i].getAttribute('data-place-name') || '').toLowerCase();
-        var hit = !q || name.indexOf(q) !== -1;
-        items[i].hidden = !hit;
-        if (hit) shown++;
-      }
-      if (empty) empty.hidden = shown !== 0;
+    // A reader who already told the site where they rent goes straight to
+    // that place's answer. Server-resolved on purpose: one render path, and
+    // the bare page stays shared cache. Same key scope-script writes.
+    if (/[?&]j=/.test(location.search)) return;
+    function go(slug) {
+      if (slug) location.replace(location.pathname + '?j=' + encodeURIComponent(slug));
     }
+    var saved = null;
+    try { saved = localStorage.getItem('renterlaw.location'); } catch (e) {}
+    if (saved) { go(saved); return; }
+    if (!window.fetch || !/(^|; )rl_in=1(;|$)/.test(document.cookie)) return;
+    fetch('/api/me', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (me) { if (me && me.signed_in && me.location) go(me.location); })
+      .catch(function () {});
 
-    // Start from the location the renter picked elsewhere on the site, when
-    // one of the listed places matches it. Same key scope-script writes.
-    try {
-      var saved = localStorage.getItem('renterlaw.location');
-      for (var i = 0; saved && i < items.length; i++) {
-        if (items[i].getAttribute('data-place-slug') === saved) {
-          input.value = items[i].getAttribute('data-place-name') || '';
-          break;
-        }
-      }
-    } catch (e) {}
-
-    input.addEventListener('input', apply);
-    apply();
+    // The picker submits on change; the button remains for keyboards and
+    // for JS off.
+    var sel = document.querySelector('[data-state-picker]');
+    if (sel) sel.addEventListener('change', function () { if (sel.value) sel.form.submit(); });
   })();
   </script>
 </body>
 </html>
+
+{{define "concept-state-picker"}}
+<form class="concept-picker" method="get" action="/c/{{.Slug}}">
+  <label class="visually-hidden" for="concept-state">Your state</label>
+  <select class="scope-select" id="concept-state" name="j" data-state-picker>
+    <option value="">Choose your state</option>
+    {{range .States}}<option value="{{.Slug}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+  </select>
+  <button type="submit">Go</button>
+</form>
+{{end}}
+
+{{define "concept-entry"}}
+<div class="statement-item" data-place-slug="{{.PlaceSlug}}">
+  {{if ne .PlaceKind "country"}}<h3 class="concept-place">{{.PlaceName}}</h3>{{end}}
+  <div class="statement-body">{{.BodyHTML}}</div>
+  <div class="citation-chips" aria-label="Sources">
+    {{range .Citations}}
+    <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
+       title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">{{chipLabel .Label .Locator}}</a>
+    {{end}}
+  </div>
+  {{with .CheckedOn}}<p class="statement-checked">✓ Sources checked {{.}}</p>{{end}}
+  <p class="statement-specifics"><a href="{{.PagePath}}">{{if eq .PlaceKind "country"}}Read the full nationwide guide.{{else}}Read the full guide for {{.PlaceName}}.{{end}}</a></p>
+</div>
+{{end}}

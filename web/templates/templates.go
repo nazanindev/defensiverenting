@@ -222,6 +222,19 @@ type ConceptPage struct {
 	// never a "where you live" entry.
 	National []ConceptEntry
 	Local    []ConceptEntry
+
+	// The reader's place (ADR-020 D3), resolved server-side from ?j= and
+	// walked up the chain: the city's own statement, else its state's.
+	// PlaceName is set whenever ?j= named a real place, covered or not;
+	// Yours is nil and Uncovered true when nothing up the chain has a
+	// statement. Others is Local minus Yours. States feeds the picker and
+	// marks the reader's state when known.
+	PlaceName string
+	PlaceSlug string
+	Yours     *ConceptEntry
+	Uncovered bool
+	Others    []ConceptEntry
+	States    []StateOption
 }
 
 // ConceptEntry is one place's statement on a concept page, carrying the same

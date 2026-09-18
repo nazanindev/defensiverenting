@@ -357,8 +357,53 @@ func conceptPage(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		for _, inst := range data.Local {
 			page.Local = append(page.Local, *buildConceptEntry(inst))
 		}
+		resolveConceptPlace(r, db, &page)
 		render(w, r, http.StatusOK, page)
 	}
+}
+
+// resolveConceptPlace answers the concept page for one place (ADR-020 D3).
+// ?j= is resolved server-side because it is a distinct URL and the shared
+// cache keys it apart; the bare page never personalises. The walk is the
+// same upward-only rule the topic hub uses: the place's own statement, else
+// its state's. A place with nothing up its chain, or a state the
+// jurisdictions table does not know yet, still gets named so the page can
+// say honestly that it has no rule there (D7). An unknown slug is ignored.
+func resolveConceptPlace(r *http.Request, db browseStore, page *tmpl.ConceptPage) {
+	page.Others = page.Local
+	jSlug := r.URL.Query().Get("j")
+	stateSlug := ""
+	if jSlug != "" {
+		if loc, err := db.GetJurisdictionBySlug(r.Context(), jSlug); err == nil && loc.Kind != "country" {
+			page.PlaceName, page.PlaceSlug = loc.Name, loc.Slug
+			stateSlug = loc.Slug
+			if loc.Kind == "city" {
+				stateSlug = loc.ParentSlug
+			}
+			for _, want := range []string{loc.Slug, loc.ParentSlug} {
+				if want == "" {
+					continue
+				}
+				for i := range page.Local {
+					if page.Local[i].PlaceSlug == want {
+						yours := page.Local[i]
+						page.Yours = &yours
+						page.Others = append(append([]tmpl.ConceptEntry{}, page.Local[:i]...), page.Local[i+1:]...)
+						break
+					}
+				}
+				if page.Yours != nil {
+					break
+				}
+			}
+			page.Uncovered = page.Yours == nil
+		} else if name := tmpl.StateName(jSlug); name != "" {
+			page.PlaceName, page.PlaceSlug = name, jSlug
+			stateSlug = jSlug
+			page.Uncovered = true
+		}
+	}
+	page.States = tmpl.StateOptions(stateSlug)
 }
 
 // buildConceptEntry renders one place's statement for a concept page: body,

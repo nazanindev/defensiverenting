@@ -618,6 +618,90 @@ func TestConceptPage_definitionAndLocalAnswers(t *testing.T) {
 	}
 }
 
+// ADR-020 D3: ?j= answers for one place first, walking up the chain the way
+// the topic hub does; a place with nothing up its chain, or a state the
+// table does not know, is named and told so (D7); the bare page asks.
+func TestConceptPage_answersForThePlaceFirst(t *testing.T) {
+	entry := func(j store.Jurisdiction, id int64, body string) store.ConceptInstance {
+		return store.ConceptInstance{Jurisdiction: j, TopicSlug: "security-deposits", Statement: store.CitedStatement{
+			ID: id, BodyMD: body, ConceptSlug: "deposit-cap",
+			Citations: []store.CitationWithSource{{SourceID: id, SourceURL: "https://example.gov", Publisher: "X", SourceKind: "statute"}},
+		}}
+	}
+	pa := store.Jurisdiction{ID: 10, Kind: "state", Name: "Pennsylvania", Slug: "pennsylvania"}
+	pgh := store.Jurisdiction{ID: 11, Kind: "city", Name: "Pittsburgh", Slug: "pittsburgh", ParentSlug: "pennsylvania", ParentName: "Pennsylvania"}
+	erie := store.Jurisdiction{ID: 12, Kind: "city", Name: "Erie", Slug: "erie", ParentSlug: "pennsylvania", ParentName: "Pennsylvania"}
+	ma := store.Jurisdiction{ID: 13, Kind: "state", Name: "Massachusetts", Slug: "massachusetts"}
+	stub := &stubStore{
+		jurisdictions: []store.Jurisdiction{pa, pgh, erie, ma},
+		conceptPage: store.ConceptPageData{
+			Concept: store.Concept{Slug: "deposit-cap", Name: "Security deposit cap", TopicSlug: "security-deposits"},
+			Local: []store.ConceptInstance{
+				entry(store.Jurisdiction{Kind: "city", Name: "Boston", Slug: "boston", ParentSlug: "massachusetts"}, 1, "Boston: one month."),
+				entry(pa, 2, "Pennsylvania: two months in year one."),
+				entry(pgh, 3, "Pittsburgh: two months in year one."),
+			},
+		},
+	}
+	r := chi.NewRouter()
+	handlers.Browse(r, stub, logger())
+	get := func(path string) string {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, want 200", path, rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	body := get("/c/deposit-cap")
+	if !strings.Contains(body, "Where do you rent?") || !strings.Contains(body, "Every place we cover") {
+		t.Error("bare page must ask for the place and list every place open")
+	}
+	if !strings.Contains(body, `<option value="wyoming"`) {
+		t.Error("the picker must list every state, not only covered ones")
+	}
+
+	body = get("/c/deposit-cap?j=pittsburgh")
+	if !strings.Contains(body, "Where you live: Pittsburgh") {
+		t.Error("a covered city must get its own answer first")
+	}
+	if strings.Index(body, "Pittsburgh: two months") > strings.Index(body, "Boston: one month") {
+		t.Error("the reader's answer must come before the other places")
+	}
+	if !strings.Contains(body, "Other places we cover") || strings.Count(body, "Pittsburgh: two months") != 1 {
+		t.Error("the rest folds under other places and the reader's row is not repeated")
+	}
+	if !strings.Contains(body, "Not your place? Pick another.") {
+		t.Error("an answered page offers the way back to the picker")
+	}
+
+	body = get("/c/deposit-cap?j=erie")
+	if !strings.Contains(body, "Where you live: Pennsylvania") {
+		t.Error("a city with no row must fall up to its state's answer")
+	}
+
+	body = get("/c/deposit-cap?j=massachusetts")
+	if !strings.Contains(body, "We do not have the rule for Massachusetts yet") {
+		t.Error("a known place with nothing up its chain is told so, not shown other cities as its answer")
+	}
+	if !strings.Contains(body, `<option value="massachusetts" selected>`) {
+		t.Error("the picker marks the reader's state")
+	}
+
+	body = get("/c/deposit-cap?j=ohio")
+	if !strings.Contains(body, "We do not have the rule for Ohio yet") || !strings.Contains(body, `href="/contact"`) {
+		t.Error("a state the table does not know is still named and offered the ask-us link")
+	}
+
+	body = get("/c/deposit-cap?j=nowhere")
+	if !strings.Contains(body, "Where do you rent?") {
+		t.Error("an unknown slug is ignored and the page asks")
+	}
+}
+
+
 func TestTermsIndexAndHomepageSection(t *testing.T) {
 	stub := &stubStore{
 		terms: []store.Term{
