@@ -50,7 +50,7 @@
   .btn-publish { background: #065f46; color: #fff; border-color: #065f46; }
   .btn-done { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
   .count { font-size: .85rem; color: #5c3a3a; margin-bottom: 14px; }
-  .stmt { padding: 16px 0; border-top: 1px solid #ece0e0; display: grid; grid-template-columns: 2.2rem 1fr; gap: 10px; }
+  .stmt { padding: 16px 0; border-top: 1px solid #ece0e0; display: grid; grid-template-columns: 2.2rem 1fr; gap: 10px; scroll-margin-top: 16px; }
   .stmt.done { opacity: .55; }
   .stmt .n { color: #9a7878; font-size: .8rem; font-variant-numeric: tabular-nums; padding-top: 3px; }
   .stmt .where { font-size: .76rem; color: #9a7878; margin-bottom: 4px; }
@@ -139,28 +139,28 @@
       </div>
       {{end}}
       {{if .Proposed}}
-      <form method="post" action="/statement/change" class="chg-form"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="apply">{{template "filterfields" $c.F}}
+      <form method="post" action="/statement/change" class="chg-form"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="apply">{{template "filterfields" $c.F}}<input type="hidden" name="at" value="p{{$c.PlaybookID}}-{{$c.Position}}">
         {{if ne .Proposed.BodyMD $c.Stmt.BodyMD}}<textarea name="body">{{.Proposed.BodyMD}}</textarea>{{end}}
         {{range .Proposed.Citations}}{{if .Quote}}<div class="q"><i>“{{.Quote}}”</i> — {{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}{{if .Locator}}, {{.Locator}}{{end}}</div>{{end}}{{end}}
         <div class="row"><button class="btn btn-done">Apply this change</button></div>
       </form>
       {{else if not .Drift}}<pre class="ev">{{.EvidenceText}}</pre>{{end}}
       <div class="row">
-        {{if not .Proposed}}<form method="post" action="/statement/change"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="apply">{{template "filterfields" $c.F}}<button class="btn" title="I dealt with this in the statement">Resolved</button></form>{{end}}
-        <form method="post" action="/statement/change"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="keep">{{template "filterfields" $c.F}}<input type="text" name="note" placeholder="why it stays (optional)" style="font-family:inherit;font-size:.8rem;padding:.3rem .5rem;border:1px solid #e0c8c8;border-radius:6px;width:16rem"><button class="btn">Keep as written</button></form>
+        {{if not .Proposed}}<form method="post" action="/statement/change"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="apply">{{template "filterfields" $c.F}}<input type="hidden" name="at" value="p{{$c.PlaybookID}}-{{$c.Position}}"><button class="btn" title="I dealt with this in the statement">Resolved</button></form>{{end}}
+        <form method="post" action="/statement/change"><input type="hidden" name="proposal" value="{{.ID}}"><input type="hidden" name="verdict" value="keep">{{template "filterfields" $c.F}}<input type="hidden" name="at" value="p{{$c.PlaybookID}}-{{$c.Position}}"><input type="text" name="note" placeholder="why it stays (optional)" style="font-family:inherit;font-size:.8rem;padding:.3rem .5rem;border:1px solid #e0c8c8;border-radius:6px;width:16rem"><button class="btn">Keep as written</button></form>
       </div>
     </div>
     {{end}}{{end}}
     <div class="row">
       {{if .Done}}<span class="stamp">Done{{if .Stmt.ReviewedAt}} · {{datetime .Stmt.ReviewedAt}}{{if .Stmt.ReviewedBy}} · {{.Stmt.ReviewedBy}}{{end}}{{end}}</span>
       {{else if and (not .Broken) (not .Stmt.ProposalPending)}}
-      <form method="post" action="/statement/done"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}<button class="btn btn-done" title="I read this statement and its quotes; they stand">Done</button></form>
+      <form method="post" action="/statement/done"><input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}<input type="hidden" name="at" value="p{{.PlaybookID}}-{{.Position}}"><button class="btn btn-done" title="I read this statement and its quotes; they stand">Done</button></form>
       {{end}}
       <button type="button" onclick="startEdit(this)" style="font-size:.78rem;color:#9a7878;background:none;border:none;cursor:pointer;font-family:inherit">edit</button>
       <a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}" style="font-size:.78rem;color:#c9b0b0;text-decoration:none" title="The full editor: add, remove, or reorder statements">full page ↗</a>
     </div>
     <form class="ed" method="post" action="/statement/save">
-      <input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}
+      <input type="hidden" name="playbook" value="{{.PlaybookID}}"><input type="hidden" name="key" value="{{.Stmt.Key}}">{{template "filterfields" .F}}<input type="hidden" name="at" value="p{{.PlaybookID}}-{{.Position}}">
       <textarea name="body">{{.Stmt.BodyMD}}</textarea>
       {{range .Stmt.Citations}}{{if ne .SourceKind "editorial"}}
       <div class="cite"><a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}} ↗</a> <button type="button" class="src-btn" data-url="{{.SourceURL}}" data-pub="{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}" data-src="{{.SourceID}}" data-quote="{{.Quote}}" onclick="openPanel(this)">read source</button>

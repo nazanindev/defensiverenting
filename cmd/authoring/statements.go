@@ -60,7 +60,11 @@ func cardFromRow(r store.ReviewRow, f filter) stmtCard {
 	}
 }
 
-var slugRE = regexp.MustCompile(`^[a-z0-9-]{1,80}$`)
+var (
+	slugRE = regexp.MustCompile(`^[a-z0-9-]{1,80}$`)
+	// cardRE matches a statement card's element id, p{playbook}-{position}.
+	cardRE = regexp.MustCompile(`^p[0-9]{1,12}-[0-9]{1,6}$`)
+)
 
 // filter is the screen's scope, rebuilt from whitelisted fields so a form
 // can return to it without carrying a path.
@@ -69,6 +73,9 @@ type filter struct {
 	Source  int64
 	Concept string
 	Notes   bool
+	// At is the card the form was posted from, so the screen returns to
+	// it instead of the top of the list. Only a card id matching cardRE.
+	At string
 }
 
 func readFilter(v url.Values) filter {
@@ -79,11 +86,16 @@ func readFilter(v url.Values) filter {
 		f.Concept = c
 	}
 	f.Notes = v.Get("notes") == "1"
+	if at := v.Get("at"); cardRE.MatchString(at) {
+		f.At = at
+	}
 	return f
 }
 
 // The result is built only from parsed integers, a slug that matched slugRE,
-// and a message the handler wrote, so it cannot point off this site.
+// a card id that matched cardRE, and a message the handler wrote, so it
+// cannot point off this site. With no message the path ends at the card
+// the form came from; a message is shown at the top, so it wins.
 func (f filter) path(msg string) string {
 	q := url.Values{}
 	if f.Page > 0 {
@@ -101,10 +113,14 @@ func (f filter) path(msg string) string {
 	if msg != "" {
 		q.Set("msg", msg)
 	}
-	if len(q) == 0 {
-		return "/statements"
+	p := "/statements"
+	if len(q) > 0 {
+		p += "?" + q.Encode()
 	}
-	return "/statements?" + q.Encode()
+	if msg == "" && f.At != "" {
+		p += "#" + f.At
+	}
+	return p
 }
 
 func (f filter) Empty() bool { return f.Page == 0 && f.Source == 0 && f.Concept == "" && !f.Notes }
@@ -287,7 +303,7 @@ func (s *srv) statementSave(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.serverError(w, err)
 	default:
-		http.Redirect(w, r, f.path("Saved."), http.StatusSeeOther) //nolint:gosec // see filter.path
+		http.Redirect(w, r, f.path(""), http.StatusSeeOther) //nolint:gosec // see filter.path
 	}
 }
 
