@@ -503,7 +503,7 @@ func TestQueueTemplateRendersSourceProposals(t *testing.T) {
 	render := func(items []sourceItem) string {
 		var buf bytes.Buffer
 		err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
-			"Actor": "nazanin", "Status": "pending", "Groups": nil, "Sources": items, "Count": len(items), "Checking": false,
+			"Actor": "nazanin", "Status": "pending", "Items": nil, "Open": int64(0), "Sources": items, "Count": len(items), "Checking": false,
 		})
 		if err != nil {
 			t.Fatalf("execute queue.html: %v", err)

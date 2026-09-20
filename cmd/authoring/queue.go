@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,20 +17,12 @@ import (
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// The review queue (ADR-014 D5): every pending statement proposal, grouped
-// by page in reading order. Approving one is the reviewer's save of that
-// page with the statement swapped (D3), so it is subject to everything a
-// save is — the reference-only rule, live quote checks, the publish gate.
-
-type queueGroup struct {
-	Title            string
-	JurisdictionName string
-	TopicName        string
-	Language         string
-	TargetPlaybookID int64
-	TargetStatus     string
-	Items            []queueItem
-}
+// The review queue (ADR-014 D5): every pending statement proposal in one
+// list, proposed edits first and then the checker's drift findings, each in
+// reading order. One item is open at a time and a decision opens the next.
+// Approving one is the reviewer's save of that page with the statement
+// swapped (D3), so it is subject to everything a save is — the reference-only
+// rule, live quote checks, the publish gate.
 
 // sourceItem is one unused-source proposal (ADR-014 D7). Approving it
 // deletes the source row; there is no page to save.
@@ -58,6 +51,18 @@ type queueItem struct {
 	// EditorHref opens the target page's editor scrolled to this statement;
 	// "" when the statement is no longer on the page.
 	EditorHref string
+	// Why is the proposer's own account of the change (evidence "note"):
+	// what a triage pass answered and did, or what the checker concluded.
+	// It is the first line the reviewer reads.
+	Why string
+	// Next is the id of the item that follows this one in the queue, so a
+	// decision can open it; 0 on the last.
+	Next int64
+	// NewCitations and GoneCitations are the citations the proposal adds
+	// and drops against the statement as it reads now, so the page shows
+	// only what changed in the evidence. Nil when the citations are the same.
+	NewCitations  []store.ProposedCitation
+	GoneCitations []store.ProposedCitation
 }
 
 // newQueueItem reads a proposal row into the shape the queue and the
@@ -78,13 +83,46 @@ func newQueueItem(row store.ProposalRow) queueItem {
 			if json.Unmarshal(row.Evidence, &f) == nil {
 				item.Note = f.Note
 			}
+		} else {
+			var w struct {
+				Note string `json:"note"`
+			}
+			if json.Unmarshal(row.Evidence, &w) == nil {
+				item.Why = strings.TrimSpace(w.Note)
+			}
 		}
+	}
+	if row.Proposed != nil {
+		item.NewCitations = citationsNotIn(row.Proposed.Citations, row.CurrentCitations)
+		item.GoneCitations = citationsNotIn(row.CurrentCitations, row.Proposed.Citations)
 	}
 	if row.OnPage() {
 		// The editor numbers its cards from zero in page order.
 		item.EditorHref = fmt.Sprintf("/edit/%d#card_%d", row.TargetPlaybookID, row.Position-1)
 	}
 	return item
+}
+
+// citationsNotIn returns the citations of a that b lacks, compared on what
+// the reader sees: source, locator, and quote.
+func citationsNotIn(a, b []store.ProposedCitation) []store.ProposedCitation {
+	same := func(x, y store.ProposedCitation) bool {
+		return x.Editorial == y.Editorial && x.URL == y.URL && x.Locator == y.Locator && strings.TrimSpace(x.Quote) == strings.TrimSpace(y.Quote)
+	}
+	var out []store.ProposedCitation
+	for _, x := range a {
+		found := false
+		for _, y := range b {
+			if same(x, y) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // driftEvidence is the source-drift evidence the checker files (see
@@ -126,25 +164,15 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	if status == "" {
 		status = "pending"
 	}
-	// ?kind=note|drift|other narrows the list to one family of items, so a
-	// run of 240 reviewer notes can be worked apart from drift findings.
-	kind := r.URL.Query().Get("kind")
-	rows, err := s.pg.ListProposalsByReason(ctx, status, kind)
+	rows, err := s.pg.ListProposalsByReason(ctx, status, r.URL.Query().Get("kind"))
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	sources, err := s.pg.ListSourceProposals(ctx, status)
-	if kind != "" {
-		sources = nil
-	}
 	if err != nil {
 		s.serverError(w, err)
 		return
-	}
-	sourceItems := make([]sourceItem, 0, len(sources))
-	for _, sp := range sources {
-		sourceItems = append(sourceItems, sourceItem{SourceProposal: sp, Age: ago(sp.CreatedAt)})
 	}
 	var resolved []int64
 	for _, row := range rows {
@@ -155,7 +183,10 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	var groups []queueGroup
+	// One list, worked top to bottom: proposed edits first, then the
+	// checker's drift findings, each family in reading order. Sources no
+	// page cites come last on the page.
+	items := make([]queueItem, 0, len(rows))
 	for _, row := range rows {
 		item := newQueueItem(row)
 		for _, id := range store.ResolvedFlagIDs(row.Evidence) {
@@ -163,21 +194,30 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 				item.Answers = append(item.Answers, n)
 			}
 		}
-		if n := len(groups); n == 0 || groups[n-1].TargetPlaybookID != row.TargetPlaybookID {
-			groups = append(groups, queueGroup{
-				Title: row.Title, JurisdictionName: row.JurisdictionName, TopicName: row.TopicName,
-				Language: row.Language, TargetPlaybookID: row.TargetPlaybookID, TargetStatus: row.TargetStatus,
-			})
-		}
-		groups[len(groups)-1].Items = append(groups[len(groups)-1].Items, item)
+		items = append(items, item)
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return (items[i].ReasonLabel == "source-drift") != (items[j].ReasonLabel == "source-drift") && items[j].ReasonLabel == "source-drift"
+	})
+	for i := range items[:max(len(items)-1, 0)] {
+		items[i].Next = items[i+1].ID
+	}
+	sourceItems := make([]sourceItem, 0, len(sources))
+	for _, sp := range sources {
+		sourceItems = append(sourceItems, sourceItem{SourceProposal: sp, Age: ago(sp.CreatedAt)})
+	}
+	// The item shown open: the one a decision handed on, else the first.
+	open, _ := strconv.ParseInt(r.URL.Query().Get("open"), 10, 64)
+	if open == 0 && len(items) > 0 {
+		open = items[0].ID
 	}
 	s.render(w, "queue.html", map[string]any{
 		"Actor":    actor(r),
 		"Status":   status,
-		"Kind":     kind,
-		"Groups":   groups,
+		"Items":    items,
+		"Open":     open,
 		"Sources":  sourceItems,
-		"Count":    len(rows) + len(sourceItems),
+		"Count":    len(items) + len(sourceItems),
 		"Checking": s.jobs.has("sources-check"),
 		"Msg":      r.URL.Query().Get("msg"),
 		"Err":      r.URL.Query().Get("err"),
@@ -356,10 +396,18 @@ func (s *srv) decideSourceProposal(w http.ResponseWriter, r *http.Request, statu
 	s.queueRedirect(w, r, strings.ToUpper(status[:1])+status[1:]+".", "")
 }
 
+// queueRedirect returns to the queue with the next item open, so a decision
+// hands the reviewer the following item instead of the top of the page.
 func (s *srv) queueRedirect(w http.ResponseWriter, r *http.Request, msg, errMsg string) {
 	q := url.Values{}
 	if st := r.FormValue("status"); st != "" {
 		q.Set("status", st)
+	}
+	if next := r.FormValue("next"); next != "" && errMsg == "" {
+		q.Set("open", next)
+	} else if self := r.FormValue("self"); self != "" && errMsg != "" {
+		// The item that failed stays open, with the error above it.
+		q.Set("open", self)
 	}
 	if msg != "" {
 		q.Set("msg", msg)

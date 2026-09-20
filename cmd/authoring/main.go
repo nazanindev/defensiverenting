@@ -996,6 +996,7 @@ var templateFuncs = template.FuncMap{
 	"datetime":  fmtDateTime,
 	"inc":       func(i int) int { return i + 1 }, // 1-based row numbers
 	"highlight": highlight,
+	"wordDiff":  wordDiff,
 }
 
 // highlight renders a passage with one quote marked inside it, both escaped.

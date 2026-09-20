@@ -11,94 +11,74 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
   .site-header { background: #4a1223; padding: 0 24px; }
-  .site-header .wrap { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-header .wrap { max-width: 860px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
   .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
   .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
   .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
-  .page { max-width: 1040px; margin: 0 auto; padding: 32px 24px 80px; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
   .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
   .crumb a { color: #9b2335; text-decoration: none; }
   h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
-  .note { color: #7a5c5c; font-size: .85rem; margin-bottom: 18px; max-width: 70ch; }
+  .left { color: #7a5c5c; font-size: .9rem; margin-bottom: 18px; }
   .flash { padding: 10px 14px; border-radius: 8px; font-size: .88rem; margin-bottom: 16px; }
   .flash-ok { background: #d1fae5; color: #065f46; }
   .flash-err { background: #fde8eb; color: #7a1c2a; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-  .tab { font-size: .82rem; text-decoration: none; color: #7a5c5c; padding: .3rem .8rem; border-radius: 20px; border: 1px solid #e8dede; background: #fff; }
-  .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
-  .group { margin-bottom: 28px; }
-  .group-hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; border-bottom: 1px solid #e8dede; margin-bottom: 4px; }
-  .group-hd h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; }
-  .group-hd a { color: #9b2335; text-decoration: none; font-size: .82rem; }
-  .group-hd a:hover { text-decoration: underline; }
-  .group-title { flex-basis: 100%; color: #9a7878; font-size: .78rem; font-style: italic; }
-  .tag { display: inline-block; padding: .15rem .5rem; border-radius: 6px; font-size: .72rem; font-weight: 600; }
-  .tag-draft { background: #fef3c7; color: #92400e; }
-  .tag-published { background: #d1fae5; color: #065f46; }
-  .tag-lang { background: #f0ebe8; color: #5c3a3a; }
-  .item { border-bottom: 1px solid #f0e4e4; }
-  .item summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 3.2rem 9rem 1fr auto; gap: 12px; align-items: baseline; padding: 10px 2px; font-size: .9rem; }
+  .check { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; font-size: .8rem; color: #9a7878; margin-bottom: 22px; }
+  .check form { margin: 0; }
+  .list { list-style: none; }
+  .item { border-top: 1px solid #e8dede; }
+  .item:last-child { border-bottom: 1px solid #e8dede; }
+  .item summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 12px 4px; }
   .item summary::-webkit-details-marker { display: none; }
   .item summary:hover { background: #fff5f6; }
   .item[open] summary { background: #fff; }
-  .pos { color: #9a7878; font-size: .8rem; font-variant-numeric: tabular-nums; }
-  .chip { display: inline-block; padding: .12rem .5rem; border-radius: 10px; font-size: .7rem; font-weight: 600; background: #fde8eb; color: #7a1c2a; white-space: nowrap; }
-  .chip-drift { background: #fef3c7; color: #92400e; }
-  .chip-quality { background: #e8f4fd; color: #2c5282; }
-  .chip-flag { background: #ede9fe; color: #4c1d95; }
-  .note { background: #faf7ff; border-left: 3px solid #a78bfa; padding: 8px 11px; border-radius: 4px; line-height: 1.5; }
-  .chip-name { color: #7a5c5c; font-size: .74rem; margin-left: 4px; }
-  .lead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .meta { color: #9a7878; font-size: .78rem; white-space: nowrap; }
-  .body { padding: 6px 2px 18px; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } .item summary { grid-template-columns: 3rem 1fr; } .meta, .lead { grid-column: 2; } }
-  .col h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; margin-bottom: 6px; }
-  .stmt { font-size: .92rem; line-height: 1.55; white-space: pre-wrap; }
-  .stmt.old { color: #5c3a3a; }
-  textarea.stmt { width: 100%; min-height: 7.5em; font-family: inherit; font-size: .92rem; line-height: 1.55; border: 1px solid #e0c8c8; border-radius: 6px; padding: 8px 10px; background: #fff; resize: vertical; }
-  .cites { list-style: none; margin-top: 8px; font-size: .8rem; }
-  .cites li { padding: 4px 0; border-top: 1px dashed #f0e4e4; }
+  .item[open] summary .lead { display: none; }
+  .where { font-size: .78rem; color: #9a7878; }
+  .where b { color: #4a1223; font-weight: 600; }
+  .kind { font-size: .72rem; font-weight: 600; color: #7a1c2a; white-space: nowrap; text-align: right; }
+  .kind.drift { color: #92400e; }
+  .kind.unused { color: #5c3a3a; }
+  .lead { grid-column: 1 / -1; font-size: .88rem; color: #5c3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .body { padding: 2px 4px 20px; }
+  .why { font-size: .92rem; line-height: 1.55; margin-bottom: 12px; }
+  .answers { font-size: .84rem; color: #4c1d95; background: #faf7ff; border-left: 3px solid #a78bfa; padding: 6px 10px; margin-bottom: 12px; line-height: 1.5; }
+  .stmt { font-size: .95rem; line-height: 1.6; white-space: pre-wrap; background: #fff; border: 1px solid #e8dede; border-radius: 8px; padding: 12px 14px; }
+  .stmt del { color: #9b2335; text-decoration: line-through; text-decoration-thickness: 1.5px; background: #fde8eb; }
+  .stmt ins { color: #065f46; text-decoration: none; background: #d1fae5; }
+  .stmt.gone { color: #b7791f; background: #fffbeb; border-color: #f3e2b3; }
+  .cites { list-style: none; margin-top: 8px; font-size: .82rem; }
+  .cites li { padding: 4px 0; }
+  .cites .lbl { display: inline-block; min-width: 4.5rem; font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #9a7878; }
   .cites a { color: #9b2335; text-decoration: none; word-break: break-all; }
-  .cites .q { display: block; color: #5c3a3a; font-style: italic; margin-top: 2px; }
-  .cites .ok { color: #38a169; font-style: normal; }
-  .cites .unk { color: #b7791f; font-style: normal; }
-  .gone { color: #b7791f; font-size: .85rem; margin-bottom: 10px; }
-  .drift { margin-top: 14px; border: 1px solid #f3e2b3; background: #fffbeb; border-radius: 6px; padding: 10px 12px; font-size: .84rem; }
-  .drift .verdict { font-weight: 600; color: #92400e; margin: 0 0 6px; }
-  .drift .how { color: #7a5c5c; font-size: .78rem; margin: 0 0 10px; }
-  .drift .passages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .drift h4 { margin: 0 0 4px; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: #7a5c5c; }
-  .drift p { margin: 0; white-space: pre-wrap; line-height: 1.45; }
-  .drift mark { background: #fde68a; padding: 0 1px; }
-  .drift .absent { color: #9b2335; font-style: italic; }
-  @media (max-width: 760px) { .drift .passages { grid-template-columns: 1fr; } }
-  .evidence { margin-top: 14px; }
-  .evidence summary { cursor: pointer; font-size: .78rem; color: #7a5c5c; }
-  .evidence pre { font-size: .76rem; background: #fff; border: 1px solid #e8dede; border-radius: 6px; padding: 10px; overflow-x: auto; margin-top: 6px; white-space: pre-wrap; }
+  .cites .q { color: #5c3a3a; font-style: italic; }
+  .cites .unk { color: #b7791f; font-style: normal; font-size: .76rem; }
+  .drift-verdict { font-size: .84rem; color: #92400e; margin-bottom: 8px; }
+  .passage { font-size: .9rem; line-height: 1.55; margin-bottom: 8px; }
+  .passage .lbl { display: block; font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #9a7878; margin-bottom: 3px; }
+  .passage del { color: #9b2335; text-decoration: line-through; background: #fde8eb; }
+  .passage ins { color: #065f46; text-decoration: none; background: #d1fae5; }
+  .passage .absent { color: #9b2335; font-style: italic; }
+  .under { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #9a7878; margin: 14px 0 4px; }
+  textarea.stmt { width: 100%; min-height: 7em; font-family: inherit; resize: vertical; display: none; }
+  .editing textarea.stmt { display: block; }
+  .editing .stmt.diff { display: none; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   .actions form { display: flex; gap: 6px; align-items: center; margin: 0; }
-  .actions input[type=text] { font-family: inherit; font-size: .82rem; padding: .35rem .6rem; border: 1px solid #e0c8c8; border-radius: 6px; width: 16rem; max-width: 100%; }
-  .actions select { font-family: inherit; font-size: .82rem; padding: .35rem .4rem; border: 1px solid #e0c8c8; border-radius: 6px; background: #fff; }
-  .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .85rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
-  .btn-success { background: #38a169; color: #fff; }
-  .btn-success:hover { background: #2f855a; }
-  .btn-mute { background: #fdf0f2; color: #7a1c2a; border: 1px solid #f0c0c8; }
-  .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
-  .btn-link { background: transparent; color: #9b2335; text-decoration: underline; padding-left: 0; }
-  .decision { font-size: .82rem; color: #7a5c5c; margin-top: 10px; }
-  .empty { text-align: center; padding: 60px 24px; color: #b08080; background: #fff; border: 1px solid #e8dede; border-radius: 10px; }
-  .panel { background: #fff; border-radius: 10px; border: 1px solid #e8dede; padding: 14px 18px; margin-bottom: 22px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-  .panel form { margin: 0; }
-  .panel p { color: #7a5c5c; font-size: .8rem; line-height: 1.5; flex: 1 1 30ch; }
+  .actions input[type=text] { font-family: inherit; font-size: .82rem; padding: .38rem .6rem; border: 1px solid #e0c8c8; border-radius: 6px; width: 15rem; max-width: 100%; }
+  .btn { display: inline-block; padding: .42rem .95rem; border-radius: 6px; font-size: .85rem; font-family: inherit; cursor: pointer; border: none; text-decoration: none; font-weight: 500; }
+  .btn-apply { background: #38a169; color: #fff; }
+  .btn-apply:hover { background: #2f855a; }
+  .btn-no { background: transparent; color: #7a1c2a; border: 1px solid #f0c0c8; }
   .btn-primary { background: #9b2335; color: #fff; }
-  .btn-primary:hover { background: #7a1c2a; }
   .btn-primary[disabled] { background: #d9a0a8; cursor: default; }
-  .badge-free { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 6px; }
-  .chip-unused { background: #f0ebe8; color: #5c3a3a; }
-  .src summary { grid-template-columns: 9rem 1fr auto; }
-  .src .url { color: #9a7878; font-size: .76rem; word-break: break-all; }
-  .src .inuse { color: #b7791f; font-size: .85rem; margin-bottom: 10px; }
+  .small { font-size: .78rem; color: #9a7878; background: none; border: none; cursor: pointer; font-family: inherit; text-decoration: underline; padding: 0; }
+  a.small { text-decoration: none; }
+  .decision { font-size: .82rem; color: #7a5c5c; margin-top: 10px; }
+  .empty { padding: 48px 16px; color: #b08080; text-align: center; }
+  h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; margin: 36px 0 10px; }
+  .footer { margin-top: 36px; font-size: .78rem; color: #9a7878; }
+  .footer a { color: #9b2335; text-decoration: none; margin-right: 10px; }
+  .footer a.active { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -114,145 +94,121 @@
 <div class="page">
   <div class="crumb"><a href="/">← Dashboard</a></div>
   <h1>Proposed changes</h1>
-  <p class="note">Changes waiting for a decision. Reviewer notes are not here; read them on each statement's card. One statement per item, with what it says now beside what is proposed. Approve saves the page with that statement swapped, under your name. Edit the proposed text first if it needs it. Reject keeps your note as the record. A live page still has to pass the publish gate. Sources no page cites are listed last, as proposals to delete them.</p>
+  {{$st := .Status}}
+  <p class="left">{{if eq $st "pending"}}{{if .Count}}{{.Count}} left. Apply saves the page with that statement swapped, under your name; a live page still has to pass the publish gate.{{else}}Nothing waiting.{{end}}{{else}}{{.Count}} {{$st}}.{{end}}</p>
 
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
 
-  <div class="panel">
-    <form method="post" action="/check-sources"><button class="btn btn-primary" type="submit" {{if .Checking}}disabled{{end}}>{{if .Checking}}Checking sources…{{else}}Re-check all sources for changes{{end}}</button></form>
-    <p><span class="badge-free" style="margin:0 6px 0 0">free · no AI</span>Re-fetches every cited source and confirms the exact text we quoted still appears. Where it does not, the statement citing it gets a proposal here with the nearest passage attached. Sources no page cites are filed for deletion. Dynamic page content (dates, banners) won't trigger it.</p>
+  <div class="check">
+    <form method="post" action="/check-sources"><button class="btn btn-primary" type="submit" {{if .Checking}}disabled{{end}}>{{if .Checking}}Checking sources…{{else}}Re-check sources{{end}}</button></form>
+    <span>Re-fetches every cited source and files a finding here for each quote it no longer sees. No AI.</span>
   </div>
 
-  <div class="tabs">
-    {{$st := .Status}}
-    <a class="tab {{if eq $st "pending"}}active{{end}}" href="/queue?status=pending">pending</a>
-    <a class="tab {{if eq $st "snoozed"}}active{{end}}" href="/queue?status=snoozed">snoozed</a>
-    <a class="tab {{if eq $st "approved"}}active{{end}}" href="/queue?status=approved">approved</a>
-    <a class="tab {{if eq $st "rejected"}}active{{end}}" href="/queue?status=rejected">rejected</a>
-    <a class="tab {{if eq $st "superseded"}}active{{end}}" href="/queue?status=superseded">superseded</a>
-    <span style="flex-basis:100%"></span>
-    <a class="tab {{if eq .Kind ""}}active{{end}}" href="/queue?status={{$st}}">everything</a>
-    <a class="tab {{if eq .Kind "drift"}}active{{end}}" href="/queue?status={{$st}}&kind=drift">source drift</a>
-    <a class="tab {{if eq .Kind "other"}}active{{end}}" href="/queue?status={{$st}}&kind=other">other changes</a>
-  </div>
+  {{if or .Items .Sources}}
+  <ol class="list">
+    {{range .Items}}
+    <li>
+    <details class="item" id="p{{.ID}}" {{if eq .ID $.Open}}open{{end}}>
+      <summary>
+        <span class="where"><b>{{.JurisdictionName}} · {{.TopicName}}</b>{{if .OnPage}} · statement {{.Position}}{{end}} · {{.TargetStatus}}</span>
+        <span class="kind {{if .Drift}}drift{{end}}">{{if eq .ReasonLabel "source-drift"}}quote moved{{else}}edit{{end}} · {{.ProposedBy}} · {{.Age}}</span>
+        <span class="lead">{{if .Drift}}“{{.Drift.OldQuote}}”{{else if .Why}}{{.Why}}{{else if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
+      </summary>
+      <div class="body" id="b{{.ID}}">
+        {{if not .OnPage}}<p class="stmt gone">No statement with this key is on the page any more. There is nothing to change: say Not this, or fix it in the editor.</p>{{end}}
 
-  {{if or .Groups .Sources}}
-    {{range .Groups}}
-    <section class="group">
-      {{/* Place and topic name the page; the title is an SEO question now
-           and reads as copy, not identity, so it is demoted to a caption. */}}
-      <div class="group-hd">
-        <h2>{{.JurisdictionName}} · {{.TopicName}}</h2>
-        <span class="tag tag-{{.TargetStatus}}">{{.TargetStatus}}</span>
-        <span class="tag tag-lang">{{.Language}}</span>
-        <a href="/edit/{{.TargetPlaybookID}}" target="_blank" rel="noopener">Open in editor ↗</a>
-        <span class="group-title">{{.Title}}</span>
-      </div>
-      {{range .Items}}
-      <details class="item" id="p{{.ID}}">
-        <summary>
-          <span class="pos">{{if .OnPage}}#{{.Position}}{{else}}—{{end}}</span>
-          <span><span class="chip {{if eq .ReasonLabel "source-drift"}}chip-drift{{else if eq .ReasonLabel "source-quality"}}chip-quality{{else if .Note}}chip-flag{{end}}">{{if .Note}}reviewer note{{else}}{{.ReasonLabel}}{{end}}</span>{{if and .ReasonName (not .Note)}}<span class="chip-name">{{.ReasonName}}</span>{{end}}</span>
-          <span class="lead">{{if .Note}}{{.Note}}{{else if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
-          <span class="meta">{{.ProposedBy}} · {{.Age}}</span>
-        </summary>
-        <div class="body">
-          {{if not .OnPage}}<p class="gone">No statement with this key is on the page any more. There is nothing to replace: reject this, or handle it in the editor.</p>{{end}}
-          <div class="cols">
-            <div class="col">
-              <h3>Now</h3>
-              {{if .OnPage}}<div class="stmt old">{{.CurrentBody}}</div>
-              <ul class="cites">{{range .CurrentCitations}}<li>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}}<span class="q">“{{.Quote}}”</span>{{end}}{{end}}</li>{{end}}</ul>
-              {{else}}<div class="stmt old">—</div>{{end}}
-            </div>
-            <div class="col">
-              <h3>{{if .Proposed}}Proposed{{else}}Finding{{end}}</h3>
-              {{range .Answers}}<div class="stmt note">Answers: {{.}}</div>{{end}}
-              {{if .Proposed}}
-              <form method="post" action="/queue/{{.ID}}/approve" id="approve{{.ID}}">
-                <input type="hidden" name="status" value="{{$st}}">
-                <textarea class="stmt" name="body">{{.Proposed.BodyMD}}</textarea>
-              </form>
-              <ul class="cites">{{range .Proposed.Citations}}<li>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}}<span class="q">“{{.Quote}}” {{if .Checked}}<span class="ok">✓ confirmed by proposer</span>{{else}}<span class="unk">will be checked live on approve</span>{{end}}</span>{{end}}{{end}}</li>{{end}}</ul>
-              {{else if .Note}}<div class="stmt note">{{.Note}}</div>{{else}}<div class="stmt">No replacement offered. The evidence below says what was found.</div>{{end}}
-            </div>
-          </div>
-          {{with .Drift}}
-          <div class="drift">
-            <p class="verdict">{{.Verdict}}</p>
-            <p class="how">Read now via {{if .FetchedVia}}{{.FetchedVia}}{{else}}an unrecorded tier{{end}}{{if .Locator}} · {{.Locator}}{{end}}{{if .NewQuote}} · nearest passage is {{.SimilarityPct}}% the same words{{end}}</p>
-            <div class="passages">
-              <div>
-                <h4>Confirmed then</h4>
-                {{if .OldContext}}<p>{{highlight .OldContext .OldQuote}}</p>{{else}}<p><mark>{{.OldQuote}}</mark></p><p class="absent">No surrounding passage was recorded when this quote was confirmed.</p>{{end}}
-              </div>
-              <div>
-                <h4>On the page now</h4>
-                {{if .NewContext}}<p>{{highlight .NewContext .NewQuote}}</p>{{else if .NewQuote}}<p><mark>{{.NewQuote}}</mark></p>{{else}}<p class="absent">Nothing resembling the quote was found.</p>{{end}}
-              </div>
-            </div>
-          </div>
-          {{end}}
-          {{if .EvidenceText}}<details class="evidence"><summary>Raw evidence</summary><pre>{{.EvidenceText}}</pre></details>{{end}}
-          {{if or (eq .Status "pending") (eq .Status "snoozed")}}
-          <div class="actions">
-            {{if .Proposed}}
-              {{if .OnPage}}<button class="btn btn-success" type="submit" form="approve{{.ID}}">Approve{{if eq .TargetStatus "published"}} &amp; publish{{end}}</button>{{end}}
-            {{else if .Note}}
-              {{/* A note is a question about the claim. The three answers:
-                   it stands as written, it needs an edit, the edit is done. */}}
-              <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="note" value="Read; the statement stands as written"><button class="btn btn-success">Fine as is</button></form>
-              {{if .EditorHref}}<a class="btn btn-mute" href="{{.EditorHref}}">Fix in editor</a>{{end}}
-              <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Fixed</button></form>
-            {{else}}
-              <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Resolved in editor</button></form>
-            {{end}}
-            {{if not .Note}}<form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why (kept as the record)"><button class="btn btn-danger">Reject</button></form>{{end}}
-            <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute">Snooze</button></form>
-          </div>
-          {{else}}
-          <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
-          {{end}}
-        </div>
-      </details>
-      {{end}}
-    </section>
-    {{end}}
+        {{with .Drift}}
+        <p class="drift-verdict">{{.Verdict}}{{if .Locator}} ({{.Locator}}){{end}}</p>
+        <div class="passage"><span class="lbl">Confirmed then</span>{{.OldQuote}}</div>
+        <div class="passage"><span class="lbl">On the page now</span>{{if .NewQuote}}{{wordDiff .OldQuote .NewQuote}}{{else}}<span class="absent">Nothing resembling the quote was found.</span>{{end}}</div>
+        {{if .SourceURL}}<p class="passage"><a class="small" href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}} ↗</a></p>{{end}}
+        {{else}}
+        {{if .Why}}<p class="why">{{.Why}}</p>{{end}}
+        {{end}}
+        {{range .Answers}}<div class="answers">Answers the note: {{.}}</div>{{end}}
 
-    {{if .Sources}}
-    <section class="group">
-      <div class="group-hd">
-        <h2>Sources no page cites</h2>
-        <span class="group-title">Each one still costs a fetch on every check run and clutters the source picker. Approve deletes the row; reject with a note keeps it and stops it being asked about again.</span>
-      </div>
-      {{range .Sources}}
-      <details class="item src" id="s{{.ID}}">
-        <summary>
-          <span><span class="chip chip-unused">unused-source</span></span>
-          <span class="lead">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}} <span class="url">{{.URL}}</span></span>
-          <span class="meta">{{.ProposedBy}} · {{.Age}}</span>
-        </summary>
-        <div class="body">
-          {{if .InUse}}<p class="inuse">A page cites this source again. It cannot be deleted: reject this proposal.</p>{{end}}
-          <p class="stmt"><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a>{{if .Kind}} <span class="url">· {{.Kind}}</span>{{end}}{{if .OrphanCitations}}<br><span class="url">{{.OrphanCitations}} citation(s) from statements no page carries any more go with it.</span>{{end}}</p>
-          {{if or (eq .Status "pending") (eq .Status "snoozed")}}
-          <div class="actions">
-            {{if and .SourceID (not .InUse)}}<form method="post" action="/queue/sources/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-success">Delete source</button></form>{{end}}
-            <form method="post" action="/queue/sources/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why keep it (kept as the record)"><button class="btn btn-danger">Reject</button></form>
-            <form method="post" action="/queue/sources/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><select name="days"><option value="7">1 week</option><option value="30">1 month</option><option value="90">3 months</option></select><button class="btn btn-mute">Snooze</button></form>
-          </div>
+        {{if .Proposed}}
+        {{if .Drift}}<div class="under">The statement</div>{{end}}
+        <form method="post" action="/queue/{{.ID}}/approve" id="approve{{.ID}}">
+          <input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="self" value="{{.ID}}"><input type="hidden" name="next" value="{{.Next}}">
+          {{if .OnPage}}<div class="stmt diff">{{wordDiff .CurrentBody .Proposed.BodyMD}}</div>{{else}}<div class="stmt diff">{{.Proposed.BodyMD}}</div>{{end}}
+          <textarea class="stmt" name="body">{{.Proposed.BodyMD}}</textarea>
+        </form>
+        {{/* A drift item's only citation change is the quote swap shown above. */}}
+        {{if and (not .Drift) (or .NewCitations .GoneCitations)}}
+        <ul class="cites">
+          {{range .GoneCitations}}<li><span class="lbl">Drops</span>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}} <span class="q">“{{.Quote}}”</span>{{end}}{{end}}</li>{{end}}
+          {{range .NewCitations}}<li><span class="lbl">Adds</span>{{if .Editorial}}Site editorial guidance{{else}}<a href="{{.URL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</a>{{if .Locator}} · {{.Locator}}{{end}}{{if .Quote}} <span class="q">“{{.Quote}}”</span> {{if .Checked}}{{else}}<span class="unk">checked live on apply</span>{{end}}{{end}}{{end}}</li>{{end}}
+        </ul>
+        {{end}}
+        {{else if .OnPage}}
+        <div class="under">The statement</div>
+        <div class="stmt">{{.CurrentBody}}</div>
+        {{end}}
+
+        {{if or (eq .Status "pending") (eq .Status "snoozed")}}
+        <div class="actions">
+          {{if .Proposed}}
+            {{if .OnPage}}<button class="btn btn-apply" type="submit" form="approve{{.ID}}">Apply</button>
+            <button type="button" class="small" onclick="document.getElementById('b{{.ID}}').classList.add('editing');this.remove()">edit first</button>{{end}}
           {{else}}
-          <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
+            {{if .EditorHref}}<a class="btn btn-apply" href="{{.EditorHref}}">Fix in editor ↗</a>{{end}}
+            <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="self" value="{{.ID}}"><input type="hidden" name="next" value="{{.Next}}"><button class="btn btn-no">Fixed</button></form>
           {{end}}
+          <form method="post" action="/queue/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="self" value="{{.ID}}"><input type="hidden" name="next" value="{{.Next}}"><input type="text" name="note" placeholder="Why not (kept as the record)"><button class="btn btn-no">Not this</button></form>
+          <form method="post" action="/queue/{{.ID}}/snooze"><input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="self" value="{{.ID}}"><input type="hidden" name="next" value="{{.Next}}"><input type="hidden" name="days" value="30"><button class="small" title="Set aside for a month; a snoozed item does not block publishing">later</button></form>
+          {{if .EditorHref}}{{if .Proposed}}<a class="small" href="{{.EditorHref}}" target="_blank" rel="noopener">open in editor ↗</a>{{end}}{{end}}
         </div>
-      </details>
-      {{end}}
-    </section>
+        {{else}}
+        <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
+        {{end}}
+      </div>
+    </details>
+    </li>
     {{end}}
+  </ol>
+
+  {{if .Sources}}
+  <h2>Sources no page cites</h2>
+  <ol class="list">
+    {{range .Sources}}
+    <li>
+    <details class="item" id="s{{.ID}}">
+      <summary>
+        <span class="where"><b>{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</b>{{if .Kind}} · {{.Kind}}{{end}}</span>
+        <span class="kind unused">unused · {{.ProposedBy}} · {{.Age}}</span>
+        <span class="lead">{{.URL}}</span>
+      </summary>
+      <div class="body">
+        <p class="passage"><a class="small" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}} ↗</a>{{if .OrphanCitations}}<br>{{.OrphanCitations}} citation(s) from statements no page carries any more go with it.{{end}}</p>
+        {{if .InUse}}<p class="stmt gone">A page cites this source again. It cannot be deleted: say Keep.</p>{{end}}
+        {{if or (eq .Status "pending") (eq .Status "snoozed")}}
+        <div class="actions">
+          {{if and .SourceID (not .InUse)}}<form method="post" action="/queue/sources/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-apply">Delete</button></form>{{end}}
+          <form method="post" action="/queue/sources/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why keep it (kept as the record)"><button class="btn btn-no">Keep</button></form>
+        </div>
+        {{else}}
+        <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
+        {{end}}
+      </div>
+    </details>
+    </li>
+    {{end}}
+  </ol>
+  {{end}}
   {{else}}
     <div class="empty">Nothing {{.Status}}.</div>
   {{end}}
+
+  <div class="footer">
+    Decided:
+    <a class="{{if eq $st "approved"}}active{{end}}" href="/queue?status=approved">applied</a>
+    <a class="{{if eq $st "rejected"}}active{{end}}" href="/queue?status=rejected">not this</a>
+    <a class="{{if eq $st "snoozed"}}active{{end}}" href="/queue?status=snoozed">later</a>
+    <a class="{{if eq $st "superseded"}}active{{end}}" href="/queue?status=superseded">superseded</a>
+    {{if ne $st "pending"}}· <a href="/queue">back to waiting</a>{{end}}
+  </div>
 </div>
 </body>
 </html>
