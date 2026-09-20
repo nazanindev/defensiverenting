@@ -10,7 +10,7 @@ import (
 )
 
 // renderTimeout bounds a headless-render attempt, including browser launch.
-const renderTimeout = 25 * time.Second
+const renderTimeout = 45 * time.Second
 
 // chromeRender loads url in headless Chrome and returns the rendered page's
 // visible body text. This is the fallback for sources that a static HTTP
@@ -32,6 +32,13 @@ func (tb *Toolbelt) chromeRender(url string) (string, error) {
 		// rendering a real page (shm), rather than just being slow.
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
+		// The statute hosts that matter most (nysenate.gov, ilga.gov,
+		// leginfo.legislature.ca.gov, nycourts.gov) answer the old headless
+		// mode with a bot-check shell of a few hundred characters. The new
+		// headless mode with an ordinary browser identity gets the page.
+		chromedp.Flag("headless", "new"),
+		chromedp.Flag("disable-blink-features", "AutomationControlled"),
+		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"),
 	)
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelAlloc()
@@ -48,7 +55,7 @@ func (tb *Toolbelt) chromeRender(url string) (string, error) {
 		// name one DOM event that reliably means "content is in". This tool is
 		// already the last-resort fallback tier, so trading a few seconds of
 		// latency for working on more sites is the right side of that call.
-		chromedp.Sleep(3*time.Second),
+		chromedp.Sleep(8*time.Second),
 		chromedp.Text("body", &text, chromedp.NodeVisible, chromedp.ByQuery),
 	)
 	if err != nil {

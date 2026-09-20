@@ -118,13 +118,17 @@ func (tb *Toolbelt) httpFetch(url string) (Receipt, error) {
 	if err == nil && !direct.Thin {
 		return direct, nil
 	}
-	if r, ok := tb.renderTier(url); ok {
-		return r, nil
+	rendered, haveRender := tb.renderTier(url)
+	if haveRender && !rendered.Thin {
+		return rendered, nil
 	}
 	archive, aerr := tb.fetchDirect(tb.archiveBase+url, TierArchive)
 	if aerr == nil && !archive.Thin {
 		archive.URL = url
 		return archive, nil
+	}
+	if haveRender {
+		return rendered, nil // thin too, but a rendered section beats a script shell
 	}
 	if err == nil {
 		return direct, nil // direct was thin, but neither fallback was better
@@ -136,7 +140,11 @@ func (tb *Toolbelt) httpFetch(url string) (Receipt, error) {
 // process; see renderTier.
 var renderGate sync.Mutex
 
-// renderTier runs the headless-render fallback when one is configured and
+// renderTier runs the headless-render fallback when one is configured. ok
+// means a page rendered; the receipt says whether the text is thin. A thin
+// render still beats a thin direct fetch: on a script-driven statute page
+// the direct body is a shell and the render is the section, which may be
+// short. Callers return a thin render last, never a shell over it.
 // reports whether it produced a page worth quoting from.
 func (tb *Toolbelt) renderTier(url string) (Receipt, bool) {
 	if tb.render == nil {
@@ -153,7 +161,7 @@ func (tb *Toolbelt) renderTier(url string) (Receipt, bool) {
 		return Receipt{}, false
 	}
 	r := newReceipt(url, rtext, TierRender, ExtractorRender)
-	return r, !r.Thin
+	return r, true
 }
 
 // fetchDirect performs one GET and extracts readable text: PDF extraction for
@@ -222,10 +230,10 @@ func (tb *Toolbelt) fetchNoArchive(url string) (Receipt, error) {
 		return direct, nil
 	}
 	if r, ok := tb.renderTier(url); ok {
-		return r, nil
+		return r, nil // even thin: a rendered section beats a script shell
 	}
 	if err == nil {
-		return direct, nil // direct was thin, but render was no better; the receipt says so
+		return direct, nil // direct was thin and nothing rendered; the receipt says so
 	}
 	return Receipt{}, err
 }
