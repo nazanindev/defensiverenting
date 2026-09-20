@@ -21,9 +21,12 @@ import (
 // before anything is written; a passage that is not there is thrown away.
 // What the cited sections do not settle stays pending for a person.
 //
-//	triage decide flag                       the pending draft-page flags, with their citations
-//	triage decide flag <decisions.json> [-apply]
+//	triage decide flag [-published]          the pending flags, with their citations
+//	triage decide flag <decisions.json> [-apply] [-published]
 //	                                         close the listed flags as stands, each with its passage
+//
+// -published extends the rule to flags on live pages: closing a flag as
+// stands writes nothing to the page, so nothing a reader sees can change.
 //
 // The reader fetches sources with triage fetch, like the triage pass. It has
 // nothing the statement does not already cite.
@@ -64,14 +67,19 @@ func decideFlag(ctx context.Context, pg *store.PG, args []string) {
 		decideFlagFile(ctx, pg, args[0], args[1:])
 		return
 	}
-	items := pendingFlags(ctx, pg)
+	fs := flag.NewFlagSet("decide flag", flag.ExitOnError)
+	published := fs.Bool("published", false, "include flags on published pages (closing a flag changes nothing a reader sees)")
+	if err := fs.Parse(args); err != nil {
+		fatal(err)
+	}
+	items := pendingFlags(ctx, pg, *published)
 	emit(items)
 	fmt.Fprintf(os.Stderr, "%d flags on draft pages. Read each statement, its doubt, and its sources (triage fetch <url>); write decisions.json as [{id, verdict, passage, reason}]; then triage decide flag decisions.json [-apply].\n", len(items))
 }
 
 // pendingFlags lists every reviewer flag on a draft page whose statement is
 // still on it, with the statement and citations as they read now.
-func pendingFlags(ctx context.Context, pg *store.PG) []flagItem {
+func pendingFlags(ctx context.Context, pg *store.PG, published bool) []flagItem {
 	pending, err := pg.ListProposalsByReason(ctx, "pending", "note")
 	if err != nil {
 		fatal(err)
@@ -79,7 +87,7 @@ func pendingFlags(ctx context.Context, pg *store.PG) []flagItem {
 	pages := map[int64]store.PlaybookWithStatements{}
 	var items []flagItem
 	for _, p := range pending {
-		if p.TargetStatus != "draft" || !p.OnPage() {
+		if (p.TargetStatus != "draft" && !published) || !p.OnPage() {
 			continue
 		}
 		var ev store.ReviewerFlagEvidence
@@ -116,6 +124,7 @@ func pendingFlags(ctx context.Context, pg *store.PG) []flagItem {
 func decideFlagFile(ctx context.Context, pg *store.PG, path string, args []string) {
 	fs := flag.NewFlagSet("decide flag", flag.ExitOnError)
 	apply := fs.Bool("apply", false, "write the decisions; default prints them")
+	published := fs.Bool("published", false, "allow closing flags on published pages")
 	if err := fs.Parse(args); err != nil {
 		fatal(err)
 	}
@@ -128,7 +137,7 @@ func decideFlagFile(ctx context.Context, pg *store.PG, path string, args []strin
 		fatal(fmt.Errorf("decode %s: %w", path, err))
 	}
 	byID := map[int64]flagItem{}
-	for _, it := range pendingFlags(ctx, pg) {
+	for _, it := range pendingFlags(ctx, pg, *published) {
 		byID[it.ID] = it
 	}
 	fetched := map[string]flagSource{}
