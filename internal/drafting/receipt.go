@@ -136,11 +136,17 @@ func Context(text, quote string) string {
 	if needle == "" {
 		return ""
 	}
-	at := strings.Index(hay, needle)
+	at, n := strings.Index(hay, needle), len(needle)
 	if at < 0 {
-		return ""
+		// The quote may match only once typography is folded (see
+		// QuoteAppearsIn). Locate it in the folded text and map the span
+		// back, so the passage shown is the page's own punctuation.
+		at, n = foldedIndex(hay, FoldTypography(needle))
+		if at < 0 {
+			return ""
+		}
 	}
-	start, end := at-contextRadius, at+len(needle)+contextRadius
+	start, end := at-contextRadius, at+n+contextRadius
 	if start < 0 {
 		start = 0
 	}
@@ -165,3 +171,28 @@ func Context(text, quote string) string {
 }
 
 func isRuneStart(b byte) bool { return b&0xC0 != 0x80 }
+
+// foldedIndex finds needle (already folded) in the folded form of hay and
+// returns the byte offset and length of the matching span in hay itself, or
+// -1 when it is absent.
+func foldedIndex(hay, needle string) (int, int) {
+	var folded strings.Builder
+	folded.Grow(len(hay))
+	// origin[i] is the byte offset in hay of folded byte i; one extra entry
+	// marks the end.
+	origin := make([]int, 0, len(hay)+1)
+	for i, r := range hay {
+		f := FoldTypography(string(r))
+		for range []byte(f) {
+			origin = append(origin, i)
+		}
+		folded.WriteString(f)
+	}
+	origin = append(origin, len(hay))
+	at := strings.Index(folded.String(), needle)
+	if at < 0 {
+		return -1, 0
+	}
+	start, end := origin[at], origin[at+len(needle)]
+	return start, end - start
+}

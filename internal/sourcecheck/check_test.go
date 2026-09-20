@@ -22,6 +22,7 @@ type fakeStore struct {
 	statements  map[string]store.ProposedStatement // by key
 	alreadyOpen map[string]bool                    // key -> a drift proposal is already waiting
 	filed       []store.FileProposalParams
+	closed      []string // key\x00quote of drift items closed because the quote was found again
 	unusedFiled int
 }
 
@@ -57,6 +58,14 @@ func (f *fakeStore) StatementByKey(_ context.Context, key string) (store.Propose
 
 func (f *fakeStore) DriftAlreadyFiled(_ context.Context, key, _ string) (bool, error) {
 	return f.alreadyOpen[key], nil
+}
+
+func (f *fakeStore) CloseDriftFoundAgain(_ context.Context, key, quote, _ string) (int, error) {
+	if f.alreadyOpen[key] {
+		f.closed = append(f.closed, key+"\x00"+quote)
+		return 1, nil
+	}
+	return 0, nil
 }
 
 func (f *fakeStore) FileProposal(_ context.Context, p store.FileProposalParams) (int64, error) {
@@ -423,5 +432,59 @@ func TestRun_driftEvidenceShowsOldAndNewPassages(t *testing.T) {
 		if !strings.Contains(ev, want) {
 			t.Errorf("evidence lacks %s: %s", want, ev)
 		}
+	}
+}
+
+// The suggestion the queue shows must read as the page's own sentences. A
+// window the quote's length in words lands mid-sentence on both ends; the
+// items filed in September opened with "Rent or Vacate. A Notice…" and
+// closed with "…before the landlord can file an".
+func TestNearest_snapsToSentences(t *testing.T) {
+	text := "What is it? A Notice to Pay Rent or Vacate gives you a short time to pay the rent you owe or move out before the landlord can file an eviction in court. Then the next thing happens."
+	old := "A Notice to Pay Rent or Vacate gives you a short time to pay the rent you owe before the landlord can file an eviction in court."
+	got, score := Nearest(text, old)
+	want := "A Notice to Pay Rent or Vacate gives you a short time to pay the rent you owe or move out before the landlord can file an eviction in court."
+	if got != want {
+		t.Errorf("Nearest =\n  %q\nwant\n  %q", got, want)
+	}
+	if score < closeEnough {
+		t.Errorf("score %.2f, want at least %.2f", score, closeEnough)
+	}
+	// "Sec. 5" and "P.L. 69" are not sentence ends.
+	text = "Under Sec. 5 of P.L. 69 the landlord shall return the deposit within thirty days. Next sentence here."
+	got, _ = Nearest(text, "the landlord shall return the deposit within twenty days")
+	if got != "Under Sec. 5 of P.L. 69 the landlord shall return the deposit within thirty days." {
+		t.Errorf("Nearest = %q, want the whole statutory sentence", got)
+	}
+}
+
+// A PDF whose words arrive fused has nothing to compare word bags against;
+// the nearest window of it is a run of giant tokens, which was the evidence
+// on six Pennsylvania items.
+func TestNearest_fusedTextOffersNothing(t *testing.T) {
+	text := "THELANDLORDANDTENANTACTOF1951Cl.68ActofApr.6,1951,P.L.69,No.20ANACTRelatingtotherights obligationsandliabilitiesoflandlordandtenantandofpartiesdealingwiththem"
+	got, score := Nearest(text, "the notice shall specify that the tenant shall remove within ten days")
+	if got != "" || score != 0 {
+		t.Errorf("Nearest = %q %.2f, want nothing", got, score)
+	}
+}
+
+// A quote found again closes the drift item that its absence raised, so the
+// queue does not ask a person to decide what the page has answered.
+func TestRun_quoteFoundAgainClosesWaitingDrift(t *testing.T) {
+	const key = "55555555-5555-5555-5555-555555555555"
+	fs := &fakeStore{
+		rows:        []store.CitationCheckRow{{SourceID: 1, URL: "http://a", Quote: "the tenant’s consent", StatementKey: key}},
+		alreadyOpen: map[string]bool{key: true},
+	}
+	res, err := Run(context.Background(), fs, pages(map[string]string{"http://a": "without the tenants consent or prior notice"}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Closed != 1 || len(fs.closed) != 1 || res.Drifted != 0 {
+		t.Errorf("result = %+v, closed %v; want the waiting drift closed and no drift", res, fs.closed)
+	}
+	if len(fs.stamped[1]) != 1 {
+		t.Errorf("stamped = %v, want the quote confirmed", fs.stamped)
 	}
 }

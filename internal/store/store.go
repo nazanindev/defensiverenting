@@ -113,6 +113,10 @@ type Store interface {
 	// rejected, so repeated check runs do not refile what a person has
 	// already seen or decided.
 	DriftAlreadyFiled(ctx context.Context, key, missingQuote string) (bool, error)
+	// CloseDriftFoundAgain supersedes every waiting source-drift proposal
+	// for this key and quote, because a check run found the quote on the
+	// page again. Returns how many it closed.
+	CloseDriftFoundAgain(ctx context.Context, key, quote, via string) (int, error)
 	// Source proposals (ADR-014 D7): sources no page cites, filed for
 	// deletion and decided on the same queue.
 	FileUnusedSourceProposals(ctx context.Context, by string) (int, error)

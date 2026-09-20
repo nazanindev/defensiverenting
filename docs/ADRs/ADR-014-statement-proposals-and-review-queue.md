@@ -91,3 +91,15 @@ The check run files them, before its fetch loop, so they appear the moment a run
 - Every approval is an ordinary save by a named person and is subject to the publish gate, so the ADR-013 guarantee is unchanged.
 - The statement key is a migration and a form change that touch every save path. It ships first, alone, and is verified before any proposal is filed.
 - Order of work: D1; then D2, D3, D5 with `cmd/propose` as the only producer; then D4's checker change; then a quality scorer under its own ADR.
+
+## Amendment, 2026-09-19: the checker closes its own findings, and offers sentences
+
+Of 28 drift findings waiting on 2026-09-19, seven were the law changing. The rest were what a fetch failure looks like when it is filed as evidence: a statute PDF whose words arrived fused, a script wall, a redirect shell, and two quotes that differed from the page by an apostrophe. The passage offered as the new quote was a window of exactly the old quote's word count, so it opened and closed mid-sentence on every item.
+
+Three rules, all in the checker:
+
+- The verbatim match folds typography. Apostrophes and quotation marks in any style are dropped and dashes unified before comparing; the words and their order are still required. "tenants" against "tenant’s" is a confirmed quote, not drift.
+- A quote found again closes the drift finding its absence raised. When a run confirms a quote on a readable page, every pending or snoozed source-drift proposal for that key and quote is superseded under the checker's name, with how the text was read in the decision note. The queue does not ask a person to decide what the page has answered.
+- The offered passage is snapped to sentence boundaries, and fused text offers nothing. The nearest window still locates the passage and scores it; the passage then widens or trims to the nearest full stop within reach, so what the reviewer reads is the page's own sentence.
+
+Findings the checker filed before these rules, against pages it still cannot read, are closed by hand in one run: `triage reject <id>... -by <name> -note <why> -apply`, the drift counterpart of `triage stands`.

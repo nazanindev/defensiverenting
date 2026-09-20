@@ -21,7 +21,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -32,6 +34,7 @@ type Result struct {
 	Sources      int // sources read and examined
 	Drifted      int // sources with at least one cited quote no longer found
 	Proposed     int // source-drift proposals filed for the review queue
+	Closed       int // waiting source-drift proposals closed because the quote was found again
 	Failed       int // sources that could not be fetched at all
 	Unreadable   int // sources that answered with text too thin to examine (script shell, bot check)
 	Incomparable int // citations whose quote was not found but whose baseline extractor outranks this run's, so nothing was concluded
@@ -204,6 +207,22 @@ func checkSource(ctx context.Context, db store.Store, fetch FetchFunc, id int64,
 		}
 	}
 
+	// A quote found again closes the drift finding it once raised: the
+	// queue should not ask a person to decide what the page has answered.
+	for _, r := range a.rows {
+		if r.StatementKey == "" || !slices.ContainsFunc(present, func(q store.QuoteConfirmation) bool { return q.Quote == r.Quote }) {
+			continue
+		}
+		n, err := db.CloseDriftFoundAgain(ctx, r.StatementKey, r.Quote, rc.Describe())
+		if err != nil {
+			return fmt.Errorf("close drift found again: %w", err)
+		}
+		if n > 0 {
+			res.Closed += n
+			logf("  ✓ %s: quote is on the page again; %d waiting drift item(s) closed", a.url, n)
+		}
+	}
+
 	fetchReceipt := store.CheckReceipt{Via: rc.Tier, Extractor: rc.Extractor, Hash: rc.Hash}
 	// Stamp the quotes this fetch confirmed, even on a drifted or thin
 	// source: the quotes found were checked and found intact, and only
@@ -336,14 +355,22 @@ func textChanged(baseline, now string) string {
 	return "no"
 }
 
-// Nearest finds the window of text closest to quote, comparing whitespace-
-// normalized word bags, and returns it with a similarity in [0, 1]. Windows
-// are the quote's length in words, so a rewrite that kept most of the words
-// scores high and a repeal scores near zero. text is expected normalized.
+// Nearest finds the passage in text closest to quote and returns it with a
+// similarity in [0, 1]. Windows the quote's length in words are compared as
+// word bags, so a rewrite that kept most of the words scores high and a
+// repeal scores near zero; the best window is then widened or trimmed to
+// the nearest sentence boundaries (snapToSentences) so what is offered as
+// the new quote reads as the page's own sentences rather than a run of
+// words cut mid-thought. The similarity is the window's, before snapping.
+// text is expected normalized.
+//
+// Text whose words arrive fused ("THELANDLORDANDTENANTACT", a PDF that
+// encodes spacing by glyph position) has no words to compare, and the
+// nearest window of it is noise. Nearest returns nothing for it.
 func Nearest(text, quote string) (string, float64) {
 	words := strings.Fields(text)
 	qw := strings.Fields(normalize(quote))
-	if len(words) == 0 || len(qw) == 0 {
+	if len(words) == 0 || len(qw) == 0 || fused(words) {
 		return "", 0
 	}
 	want := map[string]int{}
@@ -378,7 +405,122 @@ func Nearest(text, quote string) (string, float64) {
 			}
 		}
 	}
-	return strings.Join(words[bestAt:bestAt+n], " "), best
+	start, end := snapToSentences(words, bestAt, bestAt+n)
+	return strings.Join(words[start:end], " "), best
+}
+
+// fused reports text whose words were never separated: more than a fifth
+// of them longer than any English word has a right to be.
+func fused(words []string) bool {
+	long := 0
+	for _, w := range words {
+		if len(w) > 30 {
+			long++
+		}
+	}
+	return long*5 > len(words)
+}
+
+// snapToSentences moves the window [start, end) to sentence boundaries when
+// one is near. Each edge looks up to slack words in both directions and
+// takes the nearer boundary, preferring to widen on a tie, so a window that
+// ends three words short of a full stop grows to include it and one that
+// opens with the tail of the previous sentence sheds it. An edge with no
+// boundary within reach stays where the match put it. The window never
+// collapses: if snapping would empty it, the original is returned.
+func snapToSentences(words []string, start, end int) (int, int) {
+	n := end - start
+	slack := 15 + n/2
+	ends := func(i int) bool { return i >= 0 && i < len(words) && sentenceEnd(words, i) }
+	if !anySentenceEnd(words) {
+		// Text with no sentences (a list, a fixture) has nothing to snap to.
+		return start, end
+	}
+	// A start is a boundary when the word before it ended a sentence.
+	newStart := start
+	if start > 0 && !ends(start-1) {
+		back, fwd := -1, -1
+		for d := 1; d <= slack && start-1-d >= 0; d++ {
+			if ends(start - 1 - d) {
+				back = start - d
+				break
+			}
+		}
+		if back < 0 && start <= slack {
+			back = 0 // the text opens within reach
+		}
+		for d := 1; d <= slack && start-1+d < end-1; d++ {
+			if ends(start - 1 + d) {
+				fwd = start + d
+				break
+			}
+		}
+		switch {
+		case back >= 0 && (fwd < 0 || start-back <= fwd-start):
+			newStart = back
+		case fwd >= 0:
+			newStart = fwd
+		}
+	}
+	newEnd := end
+	if end < len(words) && !ends(end-1) {
+		back, fwd := -1, -1
+		for d := 1; d <= slack && end-1+d < len(words); d++ {
+			if ends(end - 1 + d) {
+				fwd = end + d
+				break
+			}
+		}
+		if fwd < 0 && len(words)-end <= slack {
+			fwd = len(words) // the text closes within reach
+		}
+		for d := 1; d <= slack && end-1-d > newStart; d++ {
+			if ends(end - 1 - d) {
+				back = end - d
+				break
+			}
+		}
+		switch {
+		case fwd >= 0 && (back < 0 || fwd-end <= end-back):
+			newEnd = fwd
+		case back >= 0:
+			newEnd = back
+		}
+	}
+	if newEnd <= newStart {
+		return start, end
+	}
+	return newStart, newEnd
+}
+
+func anySentenceEnd(words []string) bool {
+	for i := range words {
+		if sentenceEnd(words, i) {
+			return true
+		}
+	}
+	return false
+}
+
+// sentenceEnd reports whether words[i] closes a sentence: it ends in a full
+// stop, question mark, or exclamation mark (closing quotes and brackets
+// allowed after), and the next word, if any, opens with a capital or a
+// bracket. Statutory text is thick with "Sec. 5", "P.L. 69" and "No. 20",
+// so a number after a stop does not split.
+func sentenceEnd(words []string, i int) bool {
+	w := strings.TrimRight(words[i], "\"'”’)]")
+	if w == "" || !strings.ContainsRune(".!?", rune(w[len(w)-1])) {
+		return false
+	}
+	if i+1 >= len(words) {
+		return true
+	}
+	next := strings.TrimLeft(words[i+1], "\"'“‘([")
+	if next == "" {
+		return false
+	}
+	r := []rune(next)[0]
+	return unicode.IsUpper(r) || r == '(' || r == '['
 }
 
 // fold makes the word comparison forgiving of case and trailing punctuation,

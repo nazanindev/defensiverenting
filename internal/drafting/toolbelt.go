@@ -259,11 +259,37 @@ func (htmlStripper) extract(body string) string {
 // already been bitten twice by a guardrail existing in more than one place.
 //
 // Matching is whitespace-insensitive in two directions. See normalizeForMatch
-// and stripAllWS; the requirement that every character appear in order is
-// unchanged either way.
+// and stripAllWS; the requirement that every word appear in order is
+// unchanged either way. Typography is folded first (FoldTypography): a curly
+// apostrophe, a straight one, or none at all read as the same word, and so
+// do the dash variants. Two of the drift items the checker filed in
+// September were "tenants" against "tenant’s", which is not the law changing.
 func QuoteAppearsIn(text, quote string) bool {
+	text, quote = FoldTypography(text), FoldTypography(quote)
 	return strings.Contains(normalizeForMatch(text), normalizeForMatch(quote)) ||
 		strings.Contains(stripAllWS(text), stripAllWS(quote))
+}
+
+// FoldTypography removes the punctuation that extractors and editors change
+// without changing the words: apostrophes and quotation marks in every
+// style are dropped, and every dash becomes a hyphen. The words and their
+// order are untouched, so a match after folding is still the same text.
+func FoldTypography(s string) string {
+	if !strings.ContainsAny(s, "'’‘`´\"“”„–—‐") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case '\'', '’', '‘', '`', '´', '"', '“', '”', '„':
+		case '–', '—', '‐':
+			b.WriteRune('-')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // normalizeForMatch collapses all runs of whitespace (including newlines) to a

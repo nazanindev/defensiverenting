@@ -90,3 +90,25 @@ func TestNewReceipt_makesTextValidUTF8(t *testing.T) {
 		t.Error("the readable words must survive")
 	}
 }
+
+// Apostrophes, quotation marks, and dashes are what extractors and editors
+// change without changing the words. "tenants" against "tenant’s" is not
+// the law changing, and the checker filed two such items in September.
+func TestQuoteAppearsIn_foldsTypography(t *testing.T) {
+	text := "A landlord may enter a tenant’s apartment with the tenant’s consent — or in an emergency. She said “no”."
+	for _, q := range []string{
+		"a tenants apartment with the tenant's consent",
+		"the tenant’s consent - or in an emergency",
+		`She said "no".`,
+	} {
+		if !QuoteAppearsIn(text, q) {
+			t.Errorf("QuoteAppearsIn(%q) = false, want true", q)
+		}
+	}
+	if QuoteAppearsIn(text, "a tenant apartment") {
+		t.Error("dropping a letter is not typography")
+	}
+	if got := Context(text, "a tenants apartment"); !strings.Contains(got, "a tenant’s apartment") {
+		t.Errorf("Context = %q, want the page's own punctuation around the folded match", got)
+	}
+}

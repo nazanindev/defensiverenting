@@ -11,11 +11,16 @@
 //	triage check <file.json>     lint bodies, confirm quotes, check resolves
 //	triage stands <file.json> -by <name> [-apply]
 //	                             reject the listed notes as "stands as written"
+//	triage reject <id>... -by <name> -note <why> [-apply]
+//	                             reject the listed drift findings with one note
 //
-// stands is the one subcommand that writes: it records a person's decision
-// that the statements a triage pass judged fine stand as written, in one
-// run instead of one click per note. Without -apply it prints what it
-// would decide. The person named in -by runs it.
+// stands and reject are the subcommands that write: each records a
+// person's decision over many items in one run instead of one click per
+// item. stands closes the notes a triage pass judged fine; reject closes
+// drift findings the checker should not have filed (a fetch that returned a
+// script shell, a redirect page, or fused PDF text), with the reason kept
+// as the record. Without -apply either prints what it would decide. The
+// person named in -by runs it.
 package main
 
 import (
@@ -80,6 +85,8 @@ func main() {
 		check(ctx, pg, tb, arg(2))
 	case "stands":
 		stands(ctx, pg, os.Args[2:])
+	case "reject":
+		rejectDrift(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
@@ -93,7 +100,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply]")
 	os.Exit(2)
 }
 
@@ -384,6 +391,69 @@ func stands(ctx context.Context, pg *store.PG, args []string) {
 		fmt.Printf("%d of %d notes decided by %s\n", decided, len(entries), *by)
 	} else {
 		fmt.Printf("%d entries; nothing written (add -apply)\n", len(entries))
+	}
+}
+
+// rejectDrift rejects the listed source-drift findings under one note, for
+// the case where the checker filed what a fetch failure looked like. It
+// refuses an id that is not a pending drift finding, so a mistyped number
+// cannot decide an edit. Flags may follow the ids.
+func rejectDrift(ctx context.Context, pg *store.PG, args []string) {
+	fs := flag.NewFlagSet("reject", flag.ExitOnError)
+	by := fs.String("by", "", "the person deciding (first name)")
+	note := fs.String("note", "", "why, kept as the record")
+	apply := fs.Bool("apply", false, "write the decisions; default prints them")
+	var ids []int64
+	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		id, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			fatal(fmt.Errorf("proposal id %q: %w", args[0], err))
+		}
+		ids = append(ids, id)
+		args = args[1:]
+	}
+	if err := fs.Parse(args); err != nil {
+		fatal(err)
+	}
+	if len(ids) == 0 {
+		usage()
+	}
+	if strings.TrimSpace(*by) == "" || strings.TrimSpace(*note) == "" {
+		fatal(fmt.Errorf("-by and -note are required: who decides, and why"))
+	}
+	pending, err := pg.ListProposalsByReason(ctx, "pending", "drift")
+	if err != nil {
+		fatal(err)
+	}
+	byID := map[int64]store.ProposalRow{}
+	for _, r := range pending {
+		byID[r.ID] = r
+	}
+	decided := 0
+	for _, id := range ids {
+		row, ok := byID[id]
+		if !ok {
+			fmt.Printf("#%d is not a pending drift finding; skipped\n", id)
+			continue
+		}
+		var ev struct {
+			SourceURL string `json:"source_url"`
+			OldQuote  string `json:"old_quote"`
+		}
+		_ = json.Unmarshal(row.Evidence, &ev)
+		fmt.Printf("#%d %s\n    source: %s\n    quote:  %s\n", id, row.Title, ev.SourceURL, truncate(ev.OldQuote, 120))
+		if !*apply {
+			continue
+		}
+		if err := pg.DecideProposal(ctx, id, "rejected", *by, strings.TrimSpace(*note), nil); err != nil {
+			fatal(fmt.Errorf("proposal %d: %w", id, err))
+		}
+		decided++
+	}
+	if *apply {
+		fmt.Printf("%d of %d findings rejected by %s\n", decided, len(ids), *by)
+	} else {
+		fmt.Printf("%d ids; nothing written (add -apply)\n", len(ids))
 	}
 }
 

@@ -698,6 +698,30 @@ func (pg *PG) DriftAlreadyFiled(ctx context.Context, key, missingQuote string) (
 	return exists, err
 }
 
+// CloseDriftFoundAgain supersedes the waiting source-drift proposals filed
+// for this key because this quote was missing, now that a check run has
+// found it on the page again: a matcher improvement, a page restored, or a
+// quote the checker could not read until this fetch. The decision is
+// recorded under the checker's name with how the text was read, so the
+// record says why the finding closed. Returns how many it closed.
+func (pg *PG) CloseDriftFoundAgain(ctx context.Context, key, quote, via string) (int, error) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return 0, nil
+	}
+	tag, err := pg.pool.Exec(ctx, `
+		UPDATE statement_proposals
+		   SET status = 'superseded', decided_by = $3, decided_at = NOW(), snoozed_until = NULL,
+		       decision_note = 'The quote is on the page again (' || $4 || ').'
+		 WHERE statement_key = $1::uuid AND reason = 'source-drift'
+		   AND status IN ('pending', 'snoozed') AND evidence->>'old_quote' = $2`,
+		key, quote, ActorSourceCheck, via)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // PendingChangesByKeys returns the pending proposals that are not reviewer
 // notes (replacements and drift findings) for a set of statement keys, so a
 // statement can show and decide its own change where it is read.
