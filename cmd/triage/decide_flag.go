@@ -141,9 +141,12 @@ func decideFlagFile(ctx context.Context, pg *store.PG, path string, args []strin
 		switch {
 		case err != nil:
 			s.Err = err.Error()
-		case !rc.Readable():
-			s.Err = "no readable text (" + rc.Describe() + ")"
+		case strings.TrimSpace(rc.Text) == "":
+			s.Err = "no text (" + rc.Describe() + ")"
 		default:
+			// Thin text is kept: the verbatim check below is the real test,
+			// and a short statute section renders short. A passage that is
+			// not in it fails on its own.
 			s.Text = rc.Text
 		}
 		fetched[url] = s
