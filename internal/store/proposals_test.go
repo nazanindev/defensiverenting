@@ -86,6 +86,47 @@ func TestProposal_newerFilingSupersedesOlder(t *testing.T) {
 	}
 }
 
+// A drift finding is the checker's report, not a competing edit. It must
+// not knock an unread edit out of the queue; an edit filed after it does
+// supersede the finding, and a second finding supersedes the first.
+func TestProposal_driftFindingDoesNotSupersedeAnEdit(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	page := seedPlaybook(t, pg, jID, tID, "draft", "Props")
+	key := firstKey(t, pg, page)
+	drift := func() int64 {
+		id, err := pg.FileProposal(ctx, store.FileProposalParams{
+			StatementKey: key, PlaybookID: page, Reason: store.ReasonSourceDrift, ProposedBy: store.ActorSourceCheck,
+			Evidence: []byte(`{"old_quote":"verbatim"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	status := func(id int64) string {
+		p, err := pg.GetProposal(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p.Status
+	}
+
+	edit := file(t, pg, key, page, "An edit someone has yet to read.")
+	first := drift()
+	if status(edit) != "pending" || status(first) != "pending" {
+		t.Errorf("after a drift finding: edit %s, finding %s; want both pending", status(edit), status(first))
+	}
+	second := drift()
+	if status(first) != "superseded" || status(second) != "pending" || status(edit) != "pending" {
+		t.Errorf("after a second finding: first %s, second %s, edit %s; want the first superseded and the edit untouched", status(first), status(second), status(edit))
+	}
+	later := file(t, pg, key, page, "A newer edit.")
+	if status(second) != "superseded" || status(edit) != "superseded" || status(later) != "pending" {
+		t.Errorf("after a newer edit: finding %s, old edit %s, new edit %s; want only the new edit pending", status(second), status(edit), status(later))
+	}
+}
+
 func TestProposal_rejectsBadReasonAndKey(t *testing.T) {
 	pg, jID, tID := revisionFixture(t)
 	ctx := context.Background()

@@ -186,9 +186,22 @@ func (pg *PG) FileProposal(ctx context.Context, p FileProposalParams) (int64, er
 // leave the reviewer choosing between them. A reviewer note (ADR-018 D1) is
 // a question, not a replacement: several can stand on one statement, and an
 // edit proposal arriving later does not answer them, so notes neither
-// supersede nor are superseded.
+// supersede nor are superseded. A source-drift finding is the checker's
+// report that a quote moved, not a replacement either: it supersedes only
+// an earlier drift finding on the key, never an edit someone has yet to
+// read. On 2026-09-20 a check run knocked three triage edits out of the
+// queue this way, unread. An edit filed after a drift finding does
+// supersede it, since the edit is the newer word on the statement.
 func insertProposal(ctx context.Context, tx pgx.Tx, key string, playbookID int64, reason string, proposed []byte, evidence json.RawMessage, by string) (int64, error) {
-	if reason != ReasonReviewerFlag {
+	switch reason {
+	case ReasonReviewerFlag:
+	case ReasonSourceDrift:
+		if _, err := tx.Exec(ctx, `
+			UPDATE statement_proposals SET status = 'superseded'
+			WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed') AND reason = $2`, key, ReasonSourceDrift); err != nil {
+			return 0, fmt.Errorf("supersede: %w", err)
+		}
+	default:
 		if _, err := tx.Exec(ctx, `
 			UPDATE statement_proposals SET status = 'superseded'
 			WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed') AND reason <> $2`, key, ReasonReviewerFlag); err != nil {
@@ -202,6 +215,10 @@ func insertProposal(ctx context.Context, tx pgx.Tx, key string, playbookID int64
 		key, playbookID, reason, proposed, evidence, by).Scan(&id)
 	return id, err
 }
+
+// ReasonSourceDrift is the reason code of the checker's finding that a
+// cited quote no longer appears at its source (ADR-014 D4).
+const ReasonSourceDrift = "source-drift"
 
 // ReasonReviewerFlag is the reason code of a work item filed from a
 // statement's reviewer note at save time (ADR-018 D1). The evidence is
