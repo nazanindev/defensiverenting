@@ -19,7 +19,7 @@ import (
 // person already read, confirmed verbatim at the live source.
 //
 //	triage decide widen [-apply] [-limit n]   decide pending widen-quote proposals
-//	triage decide flag [-apply] [-limit n]    a second reader closes draft-page flags the cited text answers
+//	triage decide flag [decisions.json] [-apply]  list draft-page flags; close the ones a reader answered from the cited text
 //	triage decide audit                       every proposal the agent decided
 func decide(ctx context.Context, pg *store.PG, args []string) {
 	if len(args) < 1 {
