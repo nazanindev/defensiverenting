@@ -72,7 +72,7 @@ func decideWiden(ctx context.Context, pg *store.PG, args []string) {
 		}
 		return store.CitedStatement{}, false
 	}
-	seen, approved, left := 0, 0, 0
+	seen, approved, closed, left := 0, 0, 0, 0
 	for _, p := range pending {
 		if p.Reason != ReasonWidenQuote {
 			continue
@@ -99,6 +99,21 @@ func decideWiden(ctx context.Context, pg *store.PG, args []string) {
 					break
 				}
 			}
+		}
+		if why == errNothingChanges {
+			// Not a judgement: the quote already reads as proposed, because
+			// a later edit carried it. The item is closed as already applied
+			// so it stops blocking the statement's stamp and the page.
+			fmt.Printf("#%d %s · %s\n    close: already applied; the quote already reads as proposed\n", p.ID, p.JurisdictionName, p.TopicName)
+			if *apply {
+				if err := pg.DecideProposal(ctx, p.ID, "rejected", store.ActorReviewAgent, "Review agent, rule widen: already applied; the quote already reads as proposed.", nil); err != nil {
+					left++
+					fmt.Printf("    left pending: %v\n", err)
+					continue
+				}
+			}
+			closed++
+			continue
 		}
 		if why != "" {
 			left++
@@ -130,11 +145,16 @@ func decideWiden(ctx context.Context, pg *store.PG, args []string) {
 		}
 	}
 	if *apply {
-		fmt.Printf("%d widen-quote proposals seen; %d approved by %s; %d left for a person\n", seen, approved, store.ActorReviewAgent, left)
+		fmt.Printf("%d widen-quote proposals seen; %d approved and %d closed as already applied by %s; %d left for a person\n", seen, approved, closed, store.ActorReviewAgent, left)
 	} else {
-		fmt.Printf("%d widen-quote proposals seen; %d would be approved; %d left for a person; nothing written (add -apply)\n", seen, approved, left)
+		fmt.Printf("%d widen-quote proposals seen; %d would be approved, %d closed as already applied; %d left for a person; nothing written (add -apply)\n", seen, approved, closed, left)
 	}
 }
+
+// errNothingChanges is widenVerdict's answer when the proposal's quotes
+// already read as proposed: a later edit carried the widening, and the
+// item is closed as already applied rather than left.
+const errNothingChanges = "nothing changes"
 
 // widenVerdict applies the widen rule to one proposal against the statement
 // as it reads on the target page today. It returns the citations whose
@@ -190,7 +210,7 @@ func widenVerdict(p store.ProposalRow, cur store.CitedStatement) ([]store.Propos
 		return nil, "a citation is added or dropped; only a quote may change"
 	}
 	if len(changed) == 0 {
-		return nil, "nothing changes"
+		return nil, errNothingChanges
 	}
 	return changed, ""
 }
