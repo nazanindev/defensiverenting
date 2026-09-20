@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nazanindev/defensiverenting/internal/discover"
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
@@ -271,53 +271,12 @@ func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 // approves it under a person's name. body overrides the proposed text when
 // the reviewer edited it first. Shared by the queue and the statement card.
 func (s *srv) applyApproval(ctx context.Context, p store.ProposalRow, body, by string) error {
-	if body == "" {
-		body = p.Proposed.BodyMD
-	}
-	stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: p.Proposed.Concept, TopicRefSlug: p.Proposed.TopicRef}
-	editorial, err := s.pg.GetEditorialSource(ctx)
-	if err != nil {
-		return err
-	}
-	pw, err := s.pg.AuthorGetPlaybook(ctx, p.TargetPlaybookID)
-	if err != nil {
-		return err
-	}
 	qv := newQuoteVerifier(s.pg, s.sourceCache)
-	for i, c := range p.Proposed.Citations {
-		if c.Editorial || c.Kind == "editorial" {
-			stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
-			continue
-		}
-		u := strings.TrimSpace(c.URL)
-		if u == "" {
-			return fmt.Errorf("citation %d has no URL; sources are stored by URL", i+1)
-		}
-		if discover.ReferenceOnly(u) {
-			return fmt.Errorf("citation %d (%s) is reference-only and can never become a source; reject this proposal or edit the page by hand", i+1, u)
-		}
-		src, err := s.pg.UpsertSource(ctx, store.UpsertSourceParams{
-			URL: u, Publisher: strings.TrimSpace(c.Publisher), Kind: sourceKindOrDefault(c.Kind), JurisdictionID: &pw.JurisdictionID,
-		})
-		if err != nil {
-			return fmt.Errorf("citation %d: %w", i+1, err)
-		}
-		cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
-		if strings.TrimSpace(c.Quote) != "" {
-			res := qv.check(ctx, p.Position, u, c.Quote)
-			switch {
-			case res.Verified:
-				cite.CheckedNow, cite.CheckedBy, cite.Checked = true, by, res.Receipt
-			case c.Checked && res.Overridable:
-				// This server could not read the page; the proposer did.
-				cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
-				cite.Checked = store.CheckReceipt{Via: c.CheckedVia}
-			}
-		}
-		stmt.Sources = append(stmt.Sources, cite)
+	check := func(ctx context.Context, stmtNo int, url, quote string) drafting.QuoteVerdict {
+		res := qv.check(ctx, stmtNo, url, quote)
+		return drafting.QuoteVerdict{Verified: res.Verified, Overridable: res.Overridable, Receipt: res.Receipt}
 	}
-
-	return s.pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: p.ID, By: by, Statement: stmt})
+	return drafting.ApplyProposal(ctx, s.pg, check, p, body, by, "")
 }
 
 func (s *srv) rejectProposal(w http.ResponseWriter, r *http.Request) {
@@ -416,14 +375,6 @@ func (s *srv) queueRedirect(w http.ResponseWriter, r *http.Request, msg, errMsg 
 		q.Set("err", errMsg)
 	}
 	http.Redirect(w, r, "/queue?"+q.Encode(), http.StatusSeeOther)
-}
-
-func sourceKindOrDefault(k string) string {
-	switch k {
-	case "statute", "regulation", "gov_guidance", "nonprofit", "court_ruling":
-		return k
-	}
-	return "gov_guidance"
 }
 
 func ago(t time.Time) string {

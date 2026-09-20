@@ -138,6 +138,11 @@ const (
 	// ActorSourceCheck marks quote confirmations stamped by the automated
 	// check-sources run, as opposed to a person saving or attesting.
 	ActorSourceCheck = "source check"
+	// ActorReviewAgent marks decisions an agent makes in the review queue
+	// (ADR-021). It approves through the same path a person does, under this
+	// name, and like the other non-human writers it never counts as review:
+	// a statement it changes stays unreviewed until a person reads it.
+	ActorReviewAgent = "review agent"
 )
 
 type AuthorUpdatePlaybookParams struct {

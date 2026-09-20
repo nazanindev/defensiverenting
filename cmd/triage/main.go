@@ -15,17 +15,21 @@
 //	                             widen those quotes to their subsection; a propose file
 //	triage stands <file.json> -by <name> [-apply]
 //	                             reject the listed notes as "stands as written"
+//	triage decide widen [-apply] the review agent approves widen-quote proposals by rule (ADR-021)
+//	triage decide audit          what the review agent has decided
 //	triage reject <id>... -by <name> -note <why> [-apply]
 //	                             reject the listed drift findings with one note
 //	triage merge [-apply]        re-file triage edits a widening superseded, quote carried
 //
-// stands and reject are the subcommands that write: each records a
-// person's decision over many items in one run instead of one click per
-// item. stands closes the notes a triage pass judged fine; reject closes
-// drift findings the checker should not have filed (a fetch that returned a
-// script shell, a redirect page, or fused PDF text), with the reason kept
-// as the record. Without -apply either prints what it would decide. The
-// person named in -by runs it.
+// stands, reject, and decide are the subcommands that write. stands and
+// reject each record a person's decision over many items in one run
+// instead of one click per item: stands closes the notes a triage pass
+// judged fine; reject closes drift findings the checker should not have
+// filed (a fetch that returned a script shell, a redirect page, or fused
+// PDF text), with the reason kept as the record. The person named in -by
+// runs them. decide is the review agent's own decision (ADR-021), recorded
+// under its name with the rule it applied; a person reads what it did
+// with decide audit. Without -apply each prints what it would decide.
 package main
 
 import (
@@ -102,6 +106,8 @@ func main() {
 		rejectDrift(ctx, pg, os.Args[2:])
 	case "merge":
 		merge(ctx, pg, os.Args[2:])
+	case "decide":
+		decide(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
@@ -115,7 +121,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide audit")
 	os.Exit(2)
 }
 

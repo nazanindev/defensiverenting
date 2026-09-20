@@ -1117,6 +1117,9 @@ func writeStatement(ctx context.Context, tx pgx.Tx, keys *keyChooser, jurisdicti
 	if err := fileReviewerFlag(ctx, tx, key, playbookID, sp.ReviewerNote, by); err != nil {
 		return fmt.Errorf("file reviewer note on statement %d: %w", i, err)
 	}
+	if err := carryStampIfWidened(ctx, tx, stmtID); err != nil {
+		return fmt.Errorf("carry stamp on statement %d: %w", i, err)
+	}
 	if isReviewer(by) {
 		if err := stampIfWritten(ctx, tx, stmtID, by); err != nil {
 			return fmt.Errorf("stamp statement %d: %w", i, err)

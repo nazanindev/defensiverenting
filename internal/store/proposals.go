@@ -108,6 +108,9 @@ type ApproveProposalParams struct {
 	// reference-only rule that live with the caller. Key and Language are
 	// set here from the proposal and the page.
 	Statement IngestStatementParams
+	// Note is the decision's record: what the approver checked. A person's
+	// click leaves it empty; an agent's approval says which rule it applied.
+	Note string
 }
 
 var (
@@ -527,8 +530,8 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 		// keep the save from stamping it and the live gate from passing.
 		if _, err := tx.Exec(ctx, `
 			UPDATE statement_proposals
-			   SET status = 'approved', decided_by = $2, decided_at = NOW(), snoozed_until = NULL
-			 WHERE id = $1`, p.ID, p.By); err != nil {
+			   SET status = 'approved', decided_by = $2, decided_at = NOW(), snoozed_until = NULL, decision_note = $3
+			 WHERE id = $1`, p.ID, p.By, p.Note); err != nil {
 			return err
 		}
 		// The questions this edit answers close with it, under the approver's

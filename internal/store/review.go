@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -32,13 +34,94 @@ const (
 )
 
 // isReviewer reports whether a save actor is a person whose edits count as
-// review. The drafting agent and the source checker are the two non-human
-// writers; everything else is a named person or a tool a person runs on
-// purpose (ingest, promote).
+// review. The drafting agent, the source checker, and the review agent are
+// the non-human writers; everything else is a named person or a tool a
+// person runs on purpose (ingest, promote).
 func isReviewer(by string) bool {
 	by = strings.TrimSpace(by)
-	return by != "" && by != ActorDraftingAgent && by != ActorSourceCheck
+	return by != "" && by != ActorDraftingAgent && by != ActorSourceCheck && by != ActorReviewAgent
 }
+
+// carryStampIfWidened keeps a person's review stamp on a statement whose
+// only change since they read it is a quote grown to hold more of the same
+// passage (ADR-021 D2). The stamp is a hash of the body, tags, and every
+// citation, so a widened quote would otherwise read as unreviewed; but the
+// claim and its evidence are what they were, with more of the evidence
+// shown. The stamp moves onto the new hash under the same name and time.
+// Anything else that differs, a word of the body, a source, a locator, a
+// quote that does not contain the old one, leaves the stamp behind.
+func carryStampIfWidened(ctx context.Context, tx pgx.Tx, stmtID int64) error {
+	type cite struct{ URL, Locator, Quote string }
+	read := func(id int64) (body, concept, topic string, cites []cite, err error) {
+		if err = tx.QueryRow(ctx, `
+			SELECT s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, '')
+			FROM statements s LEFT JOIN concepts co ON co.id = s.concept_id LEFT JOIN topics tr ON tr.id = s.topic_ref
+			WHERE s.id = $1`, id).Scan(&body, &concept, &topic); err != nil {
+			return
+		}
+		rows, err := tx.Query(ctx, `
+			SELECT src.url, c.locator, c.quote FROM citations c JOIN sources src ON src.id = c.source_id
+			WHERE c.statement_id = $1 ORDER BY src.url, c.locator`, id)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var c cite
+			if err = rows.Scan(&c.URL, &c.Locator, &c.Quote); err != nil {
+				return
+			}
+			cites = append(cites, c)
+		}
+		err = rows.Err()
+		return
+	}
+	var priorID int64
+	var reviewedAt *time.Time
+	var reviewedBy string
+	err := tx.QueryRow(ctx, `
+		SELECT p.id, p.last_reviewed_at, p.reviewed_by
+		FROM statements s JOIN statements p ON p.key = s.key AND p.id <> s.id
+		JOIN statement_review_hash ph ON ph.statement_id = p.id
+		WHERE s.id = $1 AND p.last_reviewed_at IS NOT NULL AND p.reviewed_hash = ph.hash
+		ORDER BY p.id DESC LIMIT 1`, stmtID).Scan(&priorID, &reviewedAt, &reviewedBy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // nothing reviewed to carry
+	}
+	if err != nil {
+		return err
+	}
+	nb, nc, nt, ncites, err := read(stmtID)
+	if err != nil {
+		return err
+	}
+	pb, pc, pt, pcites, err := read(priorID)
+	if err != nil {
+		return err
+	}
+	if nb != pb || nc != pc || nt != pt || len(ncites) != len(pcites) {
+		return nil
+	}
+	for i := range ncites {
+		if ncites[i].URL != pcites[i].URL || ncites[i].Locator != pcites[i].Locator {
+			return nil
+		}
+		if !strings.Contains(collapseWS(ncites[i].Quote), collapseWS(pcites[i].Quote)) {
+			return nil
+		}
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE statements s
+		   SET last_reviewed_at = $2, reviewed_by = $3, reviewed_hash = h.hash
+		  FROM statement_review_hash h
+		 WHERE s.id = $1 AND h.statement_id = s.id AND NOT `+undecidedSQL, stmtID, reviewedAt, reviewedBy)
+	return err
+}
+
+// collapseWS is the whitespace tolerance of the verbatim check: any run of
+// whitespace reads as one space. Two extractors of one page differ in line
+// breaks, never in words.
+func collapseWS(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // stampIfWritten stamps a freshly saved statement as reviewed by the person
 // saving it, when they wrote it: the statement is new to its key, or its
