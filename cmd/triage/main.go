@@ -29,9 +29,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -325,9 +327,20 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 		if strings.TrimSpace(e.Proposed.BodyMD) == "" {
 			bad(i, "proposed.body_md is empty; use null proposed for a work item")
 		}
+		// The check judges what the proposal changes. A body it leaves as
+		// it reads today, or a citation it carries over unchanged, is not
+		// the proposal's doing: an older statement that trips a lint rule
+		// written since, or cites a source that blocks the fetcher, must
+		// not stop a widened quote on another of its citations.
+		current, err := pg.StatementByKey(ctx, key)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			fatal(err)
+		}
 		lang := "en"
-		if v := voice.LintAll(lang, map[string]string{"body_md": e.Proposed.BodyMD}); len(v) > 0 {
-			bad(i, "voice lint:\n  - %s", strings.Join(v, "\n  - "))
+		if e.Proposed.BodyMD != current.BodyMD {
+			if v := voice.LintAll(lang, map[string]string{"body_md": e.Proposed.BodyMD}); len(v) > 0 {
+				bad(i, "voice lint:\n  - %s", strings.Join(v, "\n  - "))
+			}
 		}
 		if len(e.Proposed.Citations) == 0 {
 			bad(i, "no citations")
@@ -335,6 +348,11 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 		for ci, c := range e.Proposed.Citations {
 			if c.Editorial {
 				continue
+			}
+			if slices.ContainsFunc(current.Citations, func(x store.ProposedCitation) bool {
+				return x.URL == c.URL && strings.TrimSpace(x.Quote) == strings.TrimSpace(c.Quote)
+			}) {
+				continue // carried over as it is
 			}
 			if c.URL == "" || strings.TrimSpace(c.Quote) == "" {
 				bad(i, "citation %d needs url and quote", ci+1)
