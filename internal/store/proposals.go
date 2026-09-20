@@ -546,7 +546,7 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 				return fmt.Errorf("close resolved notes: %w", err)
 			}
 		}
-		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.By)
+		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.By, true)
 	})
 }
 
@@ -559,16 +559,17 @@ func (pg *PG) ReplaceStatement(ctx context.Context, playbookID int64, key string
 		return fmt.Errorf("%q is not a statement key", key)
 	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return replaceStatementTx(ctx, tx, playbookID, key, st, by)
+		return replaceStatementTx(ctx, tx, playbookID, key, st, by, false)
 	})
 }
 
 // replaceStatementTx loads the page, substitutes the statement under key,
 // and saves through the one save path.
-func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, by string) error {
+func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, by string, approval bool) error {
 	var params AuthorUpdatePlaybookParams
 	params.ID = playbookID
 	params.UpdatedBy = by
+	params.Approval = approval
 	if err := tx.QueryRow(ctx, `
 		SELECT jurisdiction_id, topic_id, language, slug, title, intro_md, page_kind, author_notes
 		FROM playbooks WHERE id = $1`, playbookID,

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted 2026-09-20; D1, D2, D3 (rule widen) and D4 shipped 2026-09-20 |
+| Status | Accepted 2026-09-20; D1 to D6 (rule widen) shipped 2026-09-20 |
 | Date | 2026-09-20 |
 | Amends | ADR-014 (a third decider in the queue), ADR-018 D2 (a stamp survives a widened quote) |
 
@@ -45,6 +45,14 @@ Rules planned, in order of what a wrong decision can touch, each its own amendme
 ### D5. Where it runs
 
 Like the triage pass, the agent runs on a person's machine over the tunnel, by `triage decide widen -apply`. Nothing in production decides anything. Without `-apply` the command prints what it would do, and that dry run is the first thing to read before any batch.
+
+### D6. An approval on a live page is not a publish over the other open items (amendment, 2026-09-20)
+
+The first `-apply` run approved 39 and had 74 refused at the save: the page was live, and the gate's `undecided-item` check counted the other pending widen items on the same page, queued right behind the one being applied. On a page with five, the first four fail and only the last can go through. A person's Apply click had the same limit; it had simply never been hit five times on one page.
+
+The check exists so nobody publishes a page over an open question (ADR-018 D3). An approval is a decision about one change. The other items stay pending, stay visible, keep the statement unstampable and the page unpublishable by hand. So a save that applies a decided proposal (`AuthorUpdatePlaybookParams.Approval`) runs the live gate without `undecided-item`; every other check runs in full, and `AuthorPublishPlaybook` still counts it. In-place edits on the statement card are not approvals and keep the full gate.
+
+The same run showed that the D2 carry refused to carry when the statement had an open reviewer note. The note blocks a new stamp; the carried one is the old stamp, which the note never invalidated. The carry now ignores undecided items.
 
 ## Consequences
 

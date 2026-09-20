@@ -49,7 +49,9 @@ func isReviewer(by string) bool {
 // claim and its evidence are what they were, with more of the evidence
 // shown. The stamp moves onto the new hash under the same name and time.
 // Anything else that differs, a word of the body, a source, a locator, a
-// quote that does not contain the old one, leaves the stamp behind.
+// quote that does not contain the old one, leaves the stamp behind. An
+// undecided queue item does not stop the carry: it stops a new stamp, and
+// this is the old one, which the item never invalidated.
 func carryStampIfWidened(ctx context.Context, tx pgx.Tx, stmtID int64) error {
 	type cite struct{ URL, Locator, Quote string }
 	read := func(id int64) (body, concept, topic string, cites []cite, err error) {
@@ -114,7 +116,7 @@ func carryStampIfWidened(ctx context.Context, tx pgx.Tx, stmtID int64) error {
 		UPDATE statements s
 		   SET last_reviewed_at = $2, reviewed_by = $3, reviewed_hash = h.hash
 		  FROM statement_review_hash h
-		 WHERE s.id = $1 AND h.statement_id = s.id AND NOT `+undecidedSQL, stmtID, reviewedAt, reviewedBy)
+		 WHERE s.id = $1 AND h.statement_id = s.id`, stmtID, reviewedAt, reviewedBy)
 	return err
 }
 

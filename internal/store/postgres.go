@@ -1368,7 +1368,7 @@ func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdateP
 		// The gate runs after the write so it judges exactly what was saved,
 		// and inside the tx so a refusal rolls the whole save back.
 		if status == "published" {
-			if err := validatePublishable(ctx, tx, params.ID); err != nil {
+			if err := validatePublishable(ctx, tx, params.ID, params.Approval); err != nil {
 				return err
 			}
 		}
@@ -1457,7 +1457,7 @@ func (pg *PG) AuthorPublishPlaybook(ctx context.Context, id int64, actor string)
 	// it used to say survives. Retiring must happen first or the one-published-
 	// per-slot index rejects the swap.
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := validatePublishable(ctx, tx, id); err != nil {
+		if err := validatePublishable(ctx, tx, id, false); err != nil {
 			return err
 		}
 		var jurisdictionID, topicID int64

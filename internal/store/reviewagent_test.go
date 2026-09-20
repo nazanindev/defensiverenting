@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -94,5 +95,46 @@ func TestReviewAgent_shrunkOrMovedQuoteDropsTheStamp(t *testing.T) {
 	after, _ := pg.AuthorGetPlaybook(ctx, draft)
 	if st := after.Statements[0]; st.ReviewedAt != nil {
 		t.Errorf("a quote that no longer contains what the person read kept their stamp (by %q)", st.ReviewedBy)
+	}
+}
+
+func TestApproval_onLivePageIgnoresOtherPendingItems(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	live := seedPlaybook(t, pg, jID, tID, "published", "Siblings")
+	key := firstKey(t, pg, live)
+	src := sourceOf(t, pg, live)
+
+	// An open question on the statement (a work item) and, filed after it,
+	// the widening. Approving the widening is a decision about the widening
+	// alone; the question stays open.
+	flag, err := pg.FileProposal(ctx, store.FileProposalParams{
+		StatementKey: key, PlaybookID: live, Reason: store.ReasonReviewerFlag,
+		Evidence: json.RawMessage(`{"note":"is 30 days right?"}`), ProposedBy: "test agent",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	widen := file(t, pg, key, live, "A claim. Siblings")
+	err = pg.ApproveProposal(ctx, store.ApproveProposalParams{
+		ID: widen, By: store.ActorReviewAgent, Statement: widened(src, "A claim. Siblings", "verbatim and the rest of the subsection"),
+	})
+	if err != nil {
+		t.Fatalf("approval on a live page with another pending item: %v (ADR-021 D6: the gate ignores the other items on an approval)", err)
+	}
+	after, _ := pg.AuthorGetPlaybook(ctx, live)
+	if q := after.Statements[0].Citations[0].Quote; q != "verbatim and the rest of the subsection" {
+		t.Errorf("live page quote = %q, want the widened one", q)
+	}
+	f, _ := pg.GetProposal(ctx, flag)
+	if f.Status != "pending" {
+		t.Errorf("the open question was %s by the approval; it must stay pending", f.Status)
+	}
+	// Publishing the page by hand still refuses over it.
+	if _, err := pg.Pool().Exec(ctx, `UPDATE playbooks SET status='draft' WHERE id=$1`, live); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.AuthorPublishPlaybook(ctx, live, "Nazanin"); err == nil {
+		t.Error("publish went through over an undecided item; the gate must still refuse a publish")
 	}
 }

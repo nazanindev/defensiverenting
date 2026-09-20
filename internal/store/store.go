@@ -160,6 +160,11 @@ type AuthorUpdatePlaybookParams struct {
 	// a history.
 	UpdatedBy  string
 	Statements []IngestStatementParams
+	// Approval marks a save that applies one decided proposal (ADR-021 D6).
+	// On a live page the gate then ignores the other pending queue items:
+	// the decision is about this change, and the rest stay pending, visible,
+	// and still blocking Done and publish. Every other check runs in full.
+	Approval bool
 }
 
 type UpsertJurisdictionParams struct {

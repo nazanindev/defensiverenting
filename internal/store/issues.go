@@ -78,13 +78,26 @@ func (pg *PG) AuthorDraftIssues(ctx context.Context) (map[int64][]PageIssue, err
 
 // validatePublishable is the publish gate: it refuses when the page carries
 // any critical issue. Run inside the transaction that publishes (or that saves
-// a live page), so a refused page changes nothing.
-func validatePublishable(ctx context.Context, q rowQuerier, playbookID int64) error {
+// a live page), so a refused page changes nothing. approval says the save
+// applies one decided proposal, in which case undecided-item is not counted
+// (ADR-021 D6): the queue's other open items are not published over by an
+// edit to one statement, they stay pending and keep blocking publish.
+func validatePublishable(ctx context.Context, q rowQuerier, playbookID int64, approval bool) error {
 	m, err := collectIssues(ctx, q, "pb.id = $1", playbookID)
 	if err != nil {
 		return err
 	}
-	if issues := m[playbookID]; len(issues) > 0 {
+	issues := m[playbookID]
+	if approval {
+		kept := issues[:0]
+		for _, is := range issues {
+			if is.Code != "undecided-item" {
+				kept = append(kept, is)
+			}
+		}
+		issues = kept
+	}
+	if len(issues) > 0 {
 		return &NotPublishableError{Issues: issues}
 	}
 	return nil
