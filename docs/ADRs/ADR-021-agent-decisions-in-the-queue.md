@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted 2026-09-20; D1 to D6 (rule widen) shipped 2026-09-20 |
+| Status | Accepted 2026-09-20; D1 to D6 shipped 2026-09-20 with rules widen and flag |
 | Date | 2026-09-20 |
 | Amends | ADR-014 (a third decider in the queue), ADR-018 D2 (a stamp survives a widened quote) |
 
@@ -36,7 +36,9 @@ The agent decides only what a stated rule decides. A rule is a pure function ove
 
 **Rule widen** (shipped): the proposal's reason is `agent-pass:widen-quote`; body, concept and topic reference identical to the current statement; the same non-editorial sources at the same locators, none added or dropped; every quote that changes contains the current quote and stays under the widen cap of 2,500 words; at least one changes; and every changed quote is found verbatim at the live source, direct or rendered, never a snapshot. A source that cannot be read from here leaves the item for a person; the agent does not take a proposer's word for a quote.
 
-Rules planned, in order of what a wrong decision can touch, each its own amendment here: reviewer flags whose answer is in the cited section (a work item closed as "stands" with the passage as the note); triage edits on draft pages; drift findings that re-cite the same section. Body edits on published pages stay a person's decision until the earlier rules have a clean audit.
+**Rule flag** (shipped 2026-09-20, the first rule with judgement in it): a reviewer flag (`agent-pass:flag`) on a draft page is read by a second model, Claude Opus 5, independent of the drafter, which sees only what the card shows: the statement, the doubt, and the fetched text of each cited source, cut at 80,000 characters and told so. It has no tools and cannot look anywhere the statement does not already cite. It answers "stands" only by quoting the passage that settles the doubt. The invariants in code: the passage must appear verbatim in one fetched source (the same match the checker uses), be at most 150 words, and come with a reason. A "stands" that fails any of these is thrown away and the item stays pending. A "stands" that passes closes the flag the way `triage stands` does for a person, rejected with the model, the reason, and the passage in the decision note. Everything else stays for a person. Published pages are out of scope for this rule.
+
+Rules planned, in order of what a wrong decision can touch, each its own amendment here: triage edits on draft pages; drift findings that re-cite the same section. Body edits on published pages stay a person's decision until the earlier rules have a clean audit.
 
 ### D4. The audit is one command, and overturns are the measure
 

@@ -16,6 +16,7 @@
 //	triage stands <file.json> -by <name> [-apply]
 //	                             reject the listed notes as "stands as written"
 //	triage decide widen [-apply] the review agent approves widen-quote proposals by rule (ADR-021)
+//	triage decide flag [-apply]  a second reader closes draft-page flags the cited text answers
 //	triage decide audit          what the review agent has decided
 //	triage reject <id>... -by <name> -note <why> [-apply]
 //	                             reject the listed drift findings with one note
@@ -121,7 +122,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide audit")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [-apply] [-limit n] [-model id] | decide audit")
 	os.Exit(2)
 }
 

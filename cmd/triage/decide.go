@@ -19,6 +19,7 @@ import (
 // person already read, confirmed verbatim at the live source.
 //
 //	triage decide widen [-apply] [-limit n]   decide pending widen-quote proposals
+//	triage decide flag [-apply] [-limit n]    a second reader closes draft-page flags the cited text answers
 //	triage decide audit                       every proposal the agent decided
 func decide(ctx context.Context, pg *store.PG, args []string) {
 	if len(args) < 1 {
@@ -27,6 +28,8 @@ func decide(ctx context.Context, pg *store.PG, args []string) {
 	switch args[0] {
 	case "widen":
 		decideWiden(ctx, pg, args[1:])
+	case "flag":
+		decideFlag(ctx, pg, args[1:])
 	case "audit":
 		audit(ctx, pg)
 	default:
