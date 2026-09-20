@@ -24,7 +24,7 @@ import (
 //
 //	triage widen <narrow.json> > proposals.json
 //	triage widen -dry <narrow.json>     fetch and widen, print each result, file nothing
-func widen(ctx context.Context, pg *store.PG, args []string) {
+func widen(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, args []string) {
 	dry := len(args) > 0 && args[0] == "-dry"
 	if dry {
 		args = args[1:]
@@ -59,10 +59,22 @@ func widen(ctx context.Context, pg *store.PG, args []string) {
 			if e, bad := fetchErr[r.URL]; bad {
 				err = e
 			} else {
-				rc, err = drafting.FetchExtract(r.URL)
+				// The toolbelt's tiers: direct, then a headless render, then
+				// an archive snapshot. Legislature sites refuse a plain fetch.
+				// A passage read from a snapshot is filed unchecked; the
+				// approval reads the live page from the authoring server.
+				var out drafting.FetchSourceOutput
+				out, err = tb.FetchSource(ctx, drafting.FetchSourceInput{URL: r.URL})
 				if err != nil {
 					fetchErr[r.URL] = err
 				} else {
+					rc = drafting.Receipt{URL: r.URL, Text: out.Text, Tier: drafting.TierDirect}
+					if out.Via != "" {
+						rc.Tier = drafting.TierArchive
+						if out.Via == "headless render" {
+							rc.Tier = drafting.TierRender
+						}
+					}
 					texts[r.URL] = rc
 				}
 			}
@@ -71,6 +83,11 @@ func widen(ctx context.Context, pg *store.PG, args []string) {
 				fmt.Fprintf(os.Stderr, "manual: page %d #%d %s: fetch failed: %v\n", r.PlaybookID, r.Position+1, r.Locator, err)
 				continue
 			}
+		}
+		if lowerLoc := strings.ToLower(r.Locator); strings.Contains(lowerLoc, "history") || strings.Contains(lowerLoc, "s.b.") || strings.Contains(lowerLoc, "h.b.") || strings.Contains(r.URL, "/billtext/") {
+			manual++
+			fmt.Fprintf(os.Stderr, "manual: page %d #%d %s: a legislative-history citation is not a provision; left as it is\n", r.PlaybookID, r.Position+1, r.Locator)
+			continue
 		}
 		passage, why := widenQuote(rc.Text, r.Quote, r.Locator)
 		if why != "" {
@@ -98,7 +115,10 @@ func widen(ctx context.Context, pg *store.PG, args []string) {
 			if c.URL == r.URL && strings.TrimSpace(c.Quote) == strings.TrimSpace(r.Quote) {
 				c.Quote = passage
 				c.Checked = rc.Live()
-				c.CheckedVia = rc.Describe()
+				c.CheckedVia = ""
+				if c.Checked {
+					c.CheckedVia = rc.Describe()
+				}
 				replaced = true
 			}
 		}
@@ -129,9 +149,10 @@ func widen(ctx context.Context, pg *store.PG, args []string) {
 }
 
 // widenCap is the longest passage widen offers on its own. Massachusetts
-// writes sections of seven hundred words; beyond this a marker was likely
-// missed, and an agent should read it.
-const widenCap = 800
+// writes sections of seven hundred words and Washington's landlord duties
+// run to two thousand; the point is to watch the whole provision, so the
+// cap is only a guard against a marker missed on a page-long run.
+const widenCap = 2500
 
 var (
 	// subsectionRE matches one parenthesised part of a locator: (a), (3), (ii).
@@ -166,6 +187,12 @@ func widenQuote(text, quote, locator string) (string, string) {
 		first = parts[len(parts)-2][1]
 	}
 	start := markerBefore(hay, at, first)
+	if start < 0 && (first == "a" || first == "1" || first == "i" || first == "A") {
+		// The first subsection follows the section heading, which ends in
+		// no punctuation on most code sites ("Late Payment of Rent; Fees
+		// (a) A landlord…"), so the nearest plain occurrence will do.
+		start = markerBeforeLoose(hay, at, first)
+	}
 	if start < 0 {
 		return "", fmt.Sprintf("marker (%s) not found before the quote", first)
 	}
@@ -223,7 +250,7 @@ func widenSection(hay string, at, qEnd int, locator string) (string, string) {
 // subdivisions of a section that way. The dotted form is used only when
 // the page never writes the bracketed one, since "Sec. 1. " would match it.
 func markerForms(hay, x string) []string {
-	forms := []string{"(" + x + ") "}
+	forms := []string{"(" + x + ") ", "(" + x + ")("}
 	if x[0] >= '0' && x[0] <= '9' && !strings.Contains(hay, "("+x+") ") {
 		forms = append(forms, x+". ")
 	}
@@ -248,6 +275,18 @@ func markerBefore(hay string, pos int, x string) int {
 				return j
 			}
 			from = j
+		}
+	}
+	return -1
+}
+
+// markerBeforeLoose is markerBefore without the opening-position test,
+// for the first subsection of a section. Returns the nearest occurrence
+// within reach, or -1.
+func markerBeforeLoose(hay string, pos int, x string) int {
+	for _, marker := range markerForms(hay, x) {
+		if j := strings.LastIndex(hay[:pos], marker); j >= 0 && pos-j <= 8000 {
+			return j
 		}
 	}
 	return -1
@@ -352,13 +391,20 @@ var sectionHeadingRE = regexp.MustCompile(`(?:^ ?|[.;:] )(?:§+ ?[0-9]|Sec(?:tio
 // Stats. 2025", "(Source: P.A. 103-224", "Source:", "History:".
 var historyRE = regexp.MustCompile(`(?:^ ?|[.;:)] )(?:\(?(?:Added|Amended|Repealed|Renumbered) (?:by |\(as )|Acts [0-9]{4}|\(?Source: |History: |\[Statutory Authority|Credits )`)
 
+// chromeRE matches the page furniture that follows the last provision on a
+// code site: footers, share bars, "up to date" stamps.
+var chromeRE = regexp.MustCompile(`(?:^| )(?:NYSenate\.gov|Skip to |Share this|Sign up|Follow us|Subscribe|Contact Us|Privacy Policy|Terms of Use|© ?[0-9]{4}|Up to date|Verified:|Stay Connected|Remove ads|Disclaimer:|Print |Email )`)
+
 // sectionBoundaryAfter finds where the next section begins after pos, or
-// where the section's legislative history starts, so a subsection that is
-// the last in its section ends there. Returns -1 when neither follows.
+// where the section's legislative history or the page's own furniture
+// starts, so a subsection that is the last in its section ends there.
+// Returns -1 when none follows.
 func sectionBoundaryAfter(hay string, pos int) int {
 	loc := sectionHeadingRE.FindStringIndex(hay[pos:])
-	if h := historyRE.FindStringIndex(hay[pos:]); h != nil && (loc == nil || h[0] < loc[0]) {
-		loc = h
+	for _, re := range []*regexp.Regexp{historyRE, chromeRE} {
+		if h := re.FindStringIndex(hay[pos:]); h != nil && (loc == nil || h[0] < loc[0]) {
+			loc = h
+		}
 	}
 	if loc == nil {
 		return -1

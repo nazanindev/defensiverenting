@@ -94,6 +94,27 @@ func TestWidenQuote_trailersAndInsertedSubsections(t *testing.T) {
 	}
 }
 
+func TestWidenQuote_firstSubsectionAfterHeading(t *testing.T) {
+	text := "Prop. Code Section 92.052 Landlord’s Duty to Repair or Remedy (a) A landlord shall make a diligent effort to repair or remedy a condition if: (1) the tenant specifies the condition in a notice; and (2) the tenant is not delinquent in the payment of rent. (b) Unless the condition was caused by normal wear and tear, the landlord does not have a duty."
+	got, why := widenQuote(text, "the tenant is not delinquent in the payment of rent", "Tex. Prop. Code § 92.052(a)")
+	if why != "" || !strings.HasPrefix(got, "(a) A landlord shall") || !strings.HasSuffix(got, "payment of rent.") {
+		t.Errorf("(a) after a heading = %q %s", got, why)
+	}
+}
+
+func TestWidenQuote_fusedMarkersAndChrome(t *testing.T) {
+	wa := "(10) Provide reasonable locks. (11) Provide facilities adequate to supply heat and water and hot water as reasonably required by the tenant; (12)(a) The landlord may not effect an involuntary change. (b) More."
+	got, why := widenQuote(wa, "supply heat and water", "RCW 59.18.060(11)")
+	if why != "" || got != "(11) Provide facilities adequate to supply heat and water and hot water as reasonably required by the tenant;" {
+		t.Errorf("(11) before (12)(a) = %q %s", got, why)
+	}
+	ny := "2. Something. 3. Any failure to comply with this section is a misdemeanor. NYSenate.gov Socials Follow the New York State Senate"
+	got, why = widenQuote(ny, "is a misdemeanor", "GOL § 7-105(3)")
+	if why != "" || got != "3. Any failure to comply with this section is a misdemeanor." {
+		t.Errorf("chrome not cut = %q %s", got, why)
+	}
+}
+
 func TestNextLabel(t *testing.T) {
 	for in, want := range map[string]string{"a": "b", "z": "", "B": "C", "3": "4", "9": "10", "ii": "iii", "iv": "v", "IV": "V"} {
 		if got := nextLabel(in); got != want {
