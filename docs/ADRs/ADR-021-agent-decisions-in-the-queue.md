@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted 2026-09-20; D1 to D6 shipped 2026-09-20 with rules widen and flag |
+| Status | Accepted 2026-09-20; D1 to D6 shipped 2026-09-20 with rules widen, flag and edit |
 | Date | 2026-09-20 |
 | Amends | ADR-014 (a third decider in the queue), ADR-018 D2 (a stamp survives a widened quote) |
 
@@ -38,7 +38,9 @@ The agent decides only what a stated rule decides. A rule is a pure function ove
 
 **Rule flag** (shipped 2026-09-20, the first rule with judgement in it): a reviewer flag (`agent-pass:flag`) on a draft page is read by a second reader: the agent working `triage decide flag` in a local session, the way the triage pass is worked, not a model call inside the command. `triage decide flag` lists the flags with the statement, the doubt, and the citations; the reader fetches each source with `triage fetch` and writes a decisions file. It may answer "stands" only by quoting the passage that settles the doubt. The invariants in code, checked before anything is written: the passage must appear verbatim in one cited source as fetched now (the same match the checker uses), be at most 150 words, and come with a reason. A "stands" that fails any of these is thrown away and the item stays pending. A "stands" that passes closes the flag the way `triage stands` does for a person, rejected under the review agent's name with the reason and the passage in the decision note. Everything else stays for a person. Published pages are out of scope for this rule. The reader has nothing the statement does not already cite; a doubt whose answer lies outside the cited sources is a person's question by design.
 
-Rules planned, in order of what a wrong decision can touch, each its own amendment here: triage edits on draft pages; drift findings that re-cite the same section. Body edits on published pages stay a person's decision until the earlier rules have a clean audit.
+**Rule edit** (shipped 2026-09-20, after the flag pass audited clean): a pending replacement on a draft page, filed by triage or as a drift suggestion, is read by the same local reader through `triage decide edit`: the statement as it reads, the replacement, the note that says why, and the sources. The reader says apply or leave with a reason. Before an apply is written the command holds the replacement to more than a person's click: the body passes the voice lint, no citation is reference-only, every citation carries a quote, and every quote is found verbatim at the live source now. A source this machine cannot read leaves the item for a person; the agent takes nobody's word for a quote. The apply then goes through `drafting.ApplyProposal` under the review agent's name, closing any flags the proposal resolves, and the statement reads as unreviewed until the person's page read, which is the backstop for this rule. Widen-quote items are rule widen's; published pages are out of scope.
+
+Rules planned: drift findings that re-cite the same section. Body edits on published pages stay a person's decision until the earlier rules have a clean audit.
 
 ### D4. The audit is one command, and overturns are the measure
 
