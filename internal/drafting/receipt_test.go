@@ -105,6 +105,11 @@ func TestQuoteAppearsIn_foldsTypography(t *testing.T) {
 			t.Errorf("QuoteAppearsIn(%q) = false, want true", q)
 		}
 	}
+	// pdftotext passes a Windows-1252 apostrophe through as the C1 control
+	// U+0092, which is what the Beacon PDF actually contains.
+	if !QuoteAppearsIn("without the tenant\u0092s \nconsent or prior notice.", "without the tenants consent or prior notice.") {
+		t.Error("a C1-control apostrophe from a PDF must fold away")
+	}
 	if QuoteAppearsIn(text, "a tenant apartment") {
 		t.Error("dropping a letter is not typography")
 	}

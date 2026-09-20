@@ -284,16 +284,20 @@ func QuoteAppearsIn(text, quote string) bool {
 // without changing the words: apostrophes and quotation marks in every
 // style are dropped, and every dash becomes a hyphen. The words and their
 // order are untouched, so a match after folding is still the same text.
+//
+// The C1 controls U+0091 to U+0097 are the Windows-1252 quotes and dashes
+// as pdftotext passes them through from a PDF whose font encoding it could
+// not resolve; the Beacon tenants' rights PDF writes "tenant\x92s".
 func FoldTypography(s string) string {
-	if !strings.ContainsAny(s, "'’‘`´\"“”„–—‐") {
+	if !strings.ContainsAny(s, "'’‘`´\"“”„–—‐\u0091\u0092\u0093\u0094\u0096\u0097") {
 		return s
 	}
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
 		switch r {
-		case '\'', '’', '‘', '`', '´', '"', '“', '”', '„':
-		case '–', '—', '‐':
+		case '\'', '’', '‘', '`', '´', '"', '“', '”', '„', '\u0091', '\u0092', '\u0093', '\u0094':
+		case '–', '—', '‐', '\u0096', '\u0097':
 			b.WriteRune('-')
 		default:
 			b.WriteRune(r)
