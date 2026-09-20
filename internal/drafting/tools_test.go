@@ -788,7 +788,32 @@ func TestSaveDraft_ReviewerNoteReachesIngest(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := fs.ingested.Statements[0].ReviewerNote
-	if got != "The 30-day figure is from guidance; the statute says thirty days after termination." {
-		t.Errorf("reviewer note = %q", got)
+	want := "The 30-day figure is from guidance; the statute says thirty days after termination."
+	if !strings.HasPrefix(got, want+" ") {
+		t.Errorf("reviewer note = %q, want the agent's note first", got)
+	}
+	// The fixture quotes 13 words of § 15B: the quote-monitor lint appends
+	// its note after the agent's rather than rejecting the save.
+	if !strings.Contains(got, "Quote monitor: the citation of § 15B quotes 13 words") {
+		t.Errorf("reviewer note = %q, want the narrow-quote lint appended", got)
+	}
+}
+
+// A statute quoted in full raises no note; the lint is about monitoring the
+// provision, not about long quotes.
+func TestSaveDraft_WholeSubsectionQuoteRaisesNoNote(t *testing.T) {
+	fs := &fakeStore{}
+	full := "A lessor shall, within thirty days after the termination of the tenancy, return to the tenant the security deposit or any balance thereof, together with interest, after deducting only the amounts the lessor may lawfully withhold under this section."
+	tb := newTestToolbelt(fs, map[string]string{depositURL: "<p>" + full + "</p>"})
+	mustFetch(t, tb, depositURL)
+	st := stmt("Your landlord must return your deposit within 30 days.", depositURL, full)
+	if _, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits",
+		Title: "Boston Security Deposits", IntroMD: "Intro.", Statements: []StatementInput{st},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := fs.ingested.Statements[0].ReviewerNote; got != "" {
+		t.Errorf("reviewer note = %q, want none", got)
 	}
 }

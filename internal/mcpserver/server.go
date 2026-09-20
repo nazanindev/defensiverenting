@@ -38,8 +38,13 @@ func New(db store.Store) *mcp.Server {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "save_draft_playbook",
 		Description: "Save a DRAFT page (statements + citations) for the author to verify and " +
-			"publish. Every citation's quote must be a verbatim line from a source you fetched " +
+			"publish. Every citation's quote must be verbatim text from a source you fetched " +
 			"via fetch_source, or the save is rejected. This never publishes anything.\n\n" +
+			"The quote is what the site watches for the law changing, and only the quoted text " +
+			"is watched. For a statute or regulation, quote the whole subsection the locator " +
+			"names, from its marker to its end, never just the sentence that makes the point; a " +
+			"short statute quote is saved but files a reviewer note. For guidance, quote the " +
+			"paragraph.\n\n" +
 			"topic_slug and page_kind are two different things and are chosen separately.\n" +
 			"  topic_slug is WHAT THE PAGE IS ABOUT. It comes from list_topics and cannot be invented.\n" +
 			"  page_kind is HOW IT IS LAID OUT: \"playbook\" renders statements as a numbered " +

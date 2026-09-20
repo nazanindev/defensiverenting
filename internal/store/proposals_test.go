@@ -450,3 +450,28 @@ func listPending(t *testing.T, pg *store.PG) []store.ProposalRow {
 	}
 	return rows
 }
+
+// The widening pass starts from this list: statute quotes a sentence long,
+// on the page where the next version is assembled.
+func TestListNarrowQuotes(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	page := seedPlaybook(t, pg, jID, tID, "published", "Narrow") // seeds a one-word statute quote at § 1
+	rows, err := pg.ListNarrowQuotes(ctx, 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mine []store.NarrowQuoteRow
+	for _, r := range rows {
+		if r.PlaybookID == page {
+			mine = append(mine, r)
+		}
+	}
+	if len(mine) != 1 || mine[0].Words != 1 || mine[0].Locator != "§ 1" || mine[0].Position != 0 || mine[0].StatementKey == "" {
+		t.Fatalf("narrow quotes on the page = %+v, want the one-word § 1 quote at position 0 (positions are zero-based in the table)", mine)
+	}
+	// A wide quote is not listed.
+	if rows, err := pg.ListNarrowQuotes(ctx, 1); err != nil || len(rows) != 0 {
+		t.Errorf("with maxWords 1: %d rows, err %v; want none", len(rows), err)
+	}
+}

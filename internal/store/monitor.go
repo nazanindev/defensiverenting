@@ -48,6 +48,69 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 	return out, rows.Err()
 }
 
+// NarrowQuoteRow is one statute or regulation citation whose quote is too
+// short to monitor its provision (drafting.NarrowQuote), with the page and
+// statement it sits on so a widening pass can file an edit against the key.
+type NarrowQuoteRow struct {
+	PlaybookID       int64
+	Title            string
+	JurisdictionSlug string
+	TopicSlug        string
+	PageStatus       string
+	StatementKey     string
+	Position         int // zero-based, as playbook_statements stores it
+	BodyMD           string
+	SourceID         int64
+	URL              string
+	Publisher        string
+	Kind             string
+	Locator          string
+	Quote            string
+	Words            int
+}
+
+// ListNarrowQuotes returns the statute and regulation citations on live and
+// draft pages whose quote has fewer than maxWords words, in page order. A
+// page with a draft revision beside it reports the draft only, since that
+// is where the next version is assembled.
+func (pg *PG) ListNarrowQuotes(ctx context.Context, maxWords int) ([]NarrowQuoteRow, error) {
+	rows, err := pg.pool.Query(ctx, `
+		WITH target AS (
+		  SELECT pb.* FROM playbooks pb
+		  WHERE pb.status IN ('draft', 'published') AND pb.language = ANY($2)
+		    AND NOT (pb.status = 'published' AND EXISTS (
+		      SELECT 1 FROM playbooks d WHERE d.status = 'draft' AND d.jurisdiction_id = pb.jurisdiction_id
+		        AND d.topic_id = pb.topic_id AND d.language = pb.language))
+		)
+		SELECT pb.id, pb.title, j.slug, t.slug, pb.status, st.key::text, ps.position, st.body_md,
+		       s.id, s.url, s.publisher, s.kind, c.locator, c.quote,
+		       array_length(regexp_split_to_array(btrim(c.quote), '\s+'), 1)
+		FROM target pb
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		JOIN topics t ON t.id = pb.topic_id
+		JOIN playbook_statements ps ON ps.playbook_id = pb.id
+		JOIN statements st ON st.id = ps.statement_id
+		JOIN citations c ON c.statement_id = st.id
+		JOIN sources s ON s.id = c.source_id
+		WHERE s.kind IN ('statute', 'regulation') AND btrim(c.quote) <> ''
+		  AND array_length(regexp_split_to_array(btrim(c.quote), '\s+'), 1) < $1
+		ORDER BY j.slug, t.slug, pb.id, ps.position, s.id`, maxWords, ContentLanguages)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []NarrowQuoteRow
+	for rows.Next() {
+		var r NarrowQuoteRow
+		if err := rows.Scan(&r.PlaybookID, &r.Title, &r.JurisdictionSlug, &r.TopicSlug, &r.PageStatus, &r.StatementKey, &r.Position, &r.BodyMD,
+			&r.SourceID, &r.URL, &r.Publisher, &r.Kind, &r.Locator, &r.Quote, &r.Words); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // CountUncheckableCitations returns how many citations ListCitationsForCheck
 // silently drops because they carry no verbatim quote.
 //

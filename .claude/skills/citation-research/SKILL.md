@@ -36,6 +36,14 @@ case, never a quotable fact:
 - `brave-search` (once connected — see below) and Claude Code's own
   `WebSearch` / hosted `web_search` — general web discovery, same rule.
 
+**How much to quote.** The quote is also what the site watches for the law
+changing, and only the quoted text is watched. For a statute or regulation,
+quote the whole subsection the locator names, from its marker to its end,
+never just the sentence that makes the point; a statute quote under 25 words
+saves but files a reviewer note (`drafting.NarrowQuote`), and `triage narrow`
+lists the ones already on the site. For guidance, quote the paragraph. A
+single line is only for a directory entry or a figure.
+
 **The only path to a quotable citation:** discover a URL → run it through
 `fetch_source` → quote from what that call returns. This holds even when the
 URL came from courtlistener or a search result you're confident about.

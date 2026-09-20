@@ -9,6 +9,7 @@
 //	triage fetch <url>           readable text of a source, via the toolbelt
 //	triage find <jurisdiction>   candidate primary sources for a place
 //	triage check <file.json>     lint bodies, confirm quotes, check resolves
+//	triage narrow                statute quotes too short to monitor their provision
 //	triage stands <file.json> -by <name> [-apply]
 //	                             reject the listed notes as "stands as written"
 //	triage reject <id>... -by <name> -note <why> [-apply]
@@ -75,6 +76,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "note: text was truncated for length")
 		}
 		fmt.Println(out.Text)
+	case "narrow":
+		narrow(ctx, pg)
 	case "find":
 		out, err := tb.FindSources(ctx, drafting.FindSourcesInput{JurisdictionSlug: arg(2)})
 		if err != nil {
@@ -100,7 +103,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply]")
 	os.Exit(2)
 }
 
@@ -143,6 +146,40 @@ func pages(ctx context.Context, pg *store.PG) {
 		}
 		out = append(out, pageRow{PlaybookID: r.TargetPlaybookID, Title: r.Title, Status: r.TargetStatus,
 			Jurisdiction: pw.Jurisdiction.Slug, Topic: pw.Topic.Slug, Notes: 1})
+	}
+	emit(out)
+}
+
+type narrowOut struct {
+	PlaybookID   int64  `json:"playbook_id"`
+	Title        string `json:"title"`
+	Status       string `json:"status"`
+	Jurisdiction string `json:"jurisdiction_slug"`
+	Topic        string `json:"topic_slug"`
+	Position     int    `json:"position"`
+	Key          string `json:"statement_key"`
+	BodyMD       string `json:"body_md"`
+	URL          string `json:"url"`
+	Publisher    string `json:"publisher"`
+	Kind         string `json:"kind"`
+	Locator      string `json:"locator"`
+	Quote        string `json:"quote"`
+	Words        int    `json:"words"`
+}
+
+// narrow lists the statute and regulation citations whose quote is too
+// short to monitor the provision (drafting.NarrowQuote): the input to a
+// widening pass, which fetches each source, replaces the sentence with the
+// whole subsection, and files the result as an edit with cmd/propose.
+func narrow(ctx context.Context, pg *store.PG) {
+	rows, err := pg.ListNarrowQuotes(ctx, drafting.NarrowQuoteWords)
+	if err != nil {
+		fatal(err)
+	}
+	out := make([]narrowOut, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, narrowOut{PlaybookID: r.PlaybookID, Title: r.Title, Status: r.PageStatus, Jurisdiction: r.JurisdictionSlug, Topic: r.TopicSlug,
+			Position: r.Position, Key: r.StatementKey, BodyMD: r.BodyMD, URL: r.URL, Publisher: r.Publisher, Kind: r.Kind, Locator: r.Locator, Quote: r.Quote, Words: r.Words})
 	}
 	emit(out)
 }
@@ -319,6 +356,10 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 			}
 			if text != "" && !drafting.QuoteAppearsIn(text, c.Quote) {
 				bad(i, "citation %d quote is not verbatim in %s: %q", ci+1, c.URL, truncate(c.Quote, 100))
+			}
+			if n := drafting.NarrowQuote(c.Kind, c.Locator, c.Quote); n != "" {
+				// A warning, as at save time: the entry still files.
+				fmt.Printf("entry %d: citation %d: %s\n", i+1, ci+1, n)
 			}
 		}
 	}

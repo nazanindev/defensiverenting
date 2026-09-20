@@ -61,7 +61,7 @@ type FetchSourceInput struct {
 type FetchSourceOutput struct {
 	URL       string `json:"url"`
 	Host      string `json:"host"`
-	Text      string `json:"text" jsonschema:"readable text of the source; cite verbatim lines from this"`
+	Text      string `json:"text" jsonschema:"readable text of the source; quote verbatim from this, the whole subsection for a statute"`
 	Truncated bool   `json:"truncated" jsonschema:"true if text was cut for length (full text is still cached for citation checks)"`
 	Via       string `json:"via,omitempty" jsonschema:"how the text was obtained when a fallback was needed, e.g. \"web.archive.org snapshot\"; tell the human reviewer when set. A quote taken from a snapshot is saved unverified: only a person who opens the live page can confirm it"`
 }
@@ -94,7 +94,7 @@ type CitationInput struct {
 	Publisher string `json:"publisher"`
 	Kind      string `json:"kind" jsonschema:"statute|regulation|gov_guidance|nonprofit|editorial|court_ruling"`
 	Locator   string `json:"locator" jsonschema:"section pointer, e.g. \"§ 15B\" (optional)"`
-	Quote     string `json:"quote" jsonschema:"the verbatim line from the source that backs the statement"`
+	Quote     string `json:"quote" jsonschema:"verbatim text from the source that backs the statement. The quote is also what the site watches for the law changing, and only the quoted text is watched: for a statute or regulation, quote the WHOLE subsection the locator names, from its marker to its end, never just the sentence that makes the point. For guidance, quote the paragraph. A single line is only for a directory entry or a figure."`
 }
 
 type StatementInput struct {
@@ -317,7 +317,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			Language:     lang,
 			ConceptSlug:  strings.TrimSpace(st.Concept),
 			TopicRefSlug: strings.TrimSpace(st.TopicRef),
-			ReviewerNote: strings.TrimSpace(st.ReviewerNote),
+			ReviewerNote: withNarrowQuoteNotes(strings.TrimSpace(st.ReviewerNote), st.Citations),
 			Sources:      cites,
 		})
 	}
@@ -673,8 +673,28 @@ func (tb *Toolbelt) ProposeStatement(ctx context.Context, in ProposeStatementInp
 	msg := "Filed for review. Nothing changed on the page; a person decides on the review queue."
 	if proposed == nil {
 		msg = "Filed as a finding with no replacement. Nothing changed on the page."
+	} else if in.Statement != nil {
+		if warn := withNarrowQuoteNotes("", in.Statement.Citations); warn != "" {
+			msg += " " + warn
+		}
 	}
 	return ProposeStatementOutput{ProposalID: id, Page: row.JurisdictionName + " · " + row.TopicName, Message: msg}, nil
+}
+
+// withNarrowQuoteNotes appends the quote-monitor lint (NarrowQuote) to a
+// statement's reviewer note, one line per statute citation quoted too
+// narrowly. A lint, not a rejection: the save goes through and the note
+// lands on the statement's card for the reviewer, like any agent doubt.
+func withNarrowQuoteNotes(note string, cites []CitationInput) string {
+	for _, c := range cites {
+		if n := NarrowQuote(defaultKind(c.Kind), c.Locator, c.Quote); n != "" {
+			if note != "" {
+				note += " "
+			}
+			note += n
+		}
+	}
+	return note
 }
 
 // languageOfKey finds the language of the page carrying a statement key, so
