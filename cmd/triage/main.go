@@ -16,6 +16,7 @@
 //	                             reject the listed notes as "stands as written"
 //	triage reject <id>... -by <name> -note <why> [-apply]
 //	                             reject the listed drift findings with one note
+//	triage merge [-apply]        re-file triage edits a widening superseded, quote carried
 //
 // stands and reject are the subcommands that write: each records a
 // person's decision over many items in one run instead of one click per
@@ -96,6 +97,8 @@ func main() {
 		stands(ctx, pg, os.Args[2:])
 	case "reject":
 		rejectDrift(ctx, pg, os.Args[2:])
+	case "merge":
+		merge(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
@@ -109,7 +112,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply]")
 	os.Exit(2)
 }
 
