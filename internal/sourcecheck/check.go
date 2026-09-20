@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
@@ -100,20 +101,67 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 
 	order, bySrc := groupBySource(rows)
 
-	res := Result{Skipped: skipped, Unused: unused}
+	// Sources are checked Concurrency at a time. A fetch is mostly waiting
+	// on a remote server, and a run over three hundred sources took most of
+	// an hour one at a time. Renders still queue behind one Chrome (see
+	// drafting.renderTier), so the overlap is in the direct fetches. Each
+	// worker counts into its own Result and the log is serialised, so the
+	// totals and the lines are the same as a sequential run would give,
+	// only not in source order.
+	var (
+		mu   sync.Mutex
+		res  = Result{Skipped: skipped, Unused: unused}
+		wg   sync.WaitGroup
+		slot = make(chan struct{}, max(Concurrency, 1))
+	)
+	log := func(format string, a ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		logf(format, a...)
+	}
 	for _, id := range order {
 		if err := ctx.Err(); err != nil {
+			wg.Wait()
 			return res, err
 		}
-		// One source's failure is that source's problem. Until 2026-09-12 a
-		// database error here ended the run, which is why weekly runs kept
-		// stopping after a handful of sources and most were never rechecked.
-		if err := checkSource(ctx, db, fetch, id, bySrc[id], logf, &res); err != nil {
-			res.Errored++
-			logf("✗ %s: %v (continuing)", bySrc[id].url, err)
-		}
+		slot <- struct{}{}
+		wg.Add(1)
+		go func(id int64, a *agg) {
+			defer wg.Done()
+			defer func() { <-slot }()
+			var local Result
+			// One source's failure is that source's problem. Until 2026-09-12
+			// a database error here ended the run, which is why weekly runs
+			// kept stopping after a handful of sources and most were never
+			// rechecked.
+			if err := checkSource(ctx, db, fetch, id, a, log, &local); err != nil {
+				local.Errored++
+				log("✗ %s: %v (continuing)", a.url, err)
+			}
+			mu.Lock()
+			res.add(local)
+			mu.Unlock()
+		}(id, bySrc[id])
 	}
+	wg.Wait()
 	return res, nil
+}
+
+// Concurrency is how many sources a run fetches at once.
+var Concurrency = 4
+
+// add folds another Result's counts into r.
+func (r *Result) add(o Result) {
+	r.Sources += o.Sources
+	r.Drifted += o.Drifted
+	r.Proposed += o.Proposed
+	r.Closed += o.Closed
+	r.Failed += o.Failed
+	r.Unreadable += o.Unreadable
+	r.Incomparable += o.Incomparable
+	r.Skipped += o.Skipped
+	r.Unused += o.Unused
+	r.Errored += o.Errored
 }
 
 // agg is one source's cited quotes, gathered for a single fetch.

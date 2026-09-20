@@ -132,12 +132,22 @@ func (tb *Toolbelt) httpFetch(url string) (Receipt, error) {
 	return Receipt{}, err
 }
 
+// renderGate serialises headless renders across every Toolbelt in the
+// process; see renderTier.
+var renderGate sync.Mutex
+
 // renderTier runs the headless-render fallback when one is configured and
 // reports whether it produced a page worth quoting from.
 func (tb *Toolbelt) renderTier(url string) (Receipt, bool) {
 	if tb.render == nil {
 		return Receipt{}, false
 	}
+	// One headless Chrome at a time. Each render launches a browser, and the
+	// authoring machine has 512 MB; a check run fetching several sources at
+	// once (sourcecheck.Run) may overlap its direct fetches freely but must
+	// queue here.
+	renderGate.Lock()
+	defer renderGate.Unlock()
 	rtext, rerr := tb.render(url)
 	if rerr != nil {
 		return Receipt{}, false

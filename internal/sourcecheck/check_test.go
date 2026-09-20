@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
@@ -13,6 +14,7 @@ import (
 
 type fakeStore struct {
 	store.Store
+	mu          sync.Mutex // Run checks sources concurrently
 	rows        []store.CitationCheckRow
 	marks       map[int64]bool     // sourceID -> checked (read and examined)
 	unreadable  map[int64]string   // sourceID -> note from a fetch that examined nothing
@@ -45,10 +47,14 @@ func page(u, text string) drafting.Receipt {
 }
 
 func (f *fakeStore) FileUnusedSourceProposals(context.Context, string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.unusedFiled, nil
 }
 
 func (f *fakeStore) StatementByKey(_ context.Context, key string) (store.ProposedStatement, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	st, ok := f.statements[key]
 	if !ok {
 		return st, store.ErrNotFound
@@ -57,10 +63,14 @@ func (f *fakeStore) StatementByKey(_ context.Context, key string) (store.Propose
 }
 
 func (f *fakeStore) DriftAlreadyFiled(_ context.Context, key, _ string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.alreadyOpen[key], nil
 }
 
 func (f *fakeStore) CloseDriftFoundAgain(_ context.Context, key, quote, _ string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.alreadyOpen[key] {
 		f.closed = append(f.closed, key+"\x00"+quote)
 		return 1, nil
@@ -69,19 +79,27 @@ func (f *fakeStore) CloseDriftFoundAgain(_ context.Context, key, quote, _ string
 }
 
 func (f *fakeStore) FileProposal(_ context.Context, p store.FileProposalParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.filed = append(f.filed, p)
 	return int64(len(f.filed)), nil
 }
 
 func (f *fakeStore) ListCitationsForCheck(context.Context) ([]store.CitationCheckRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.rows, nil
 }
 
 func (f *fakeStore) CountUncheckableCitations(context.Context) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.uncheckable, nil
 }
 
 func (f *fakeStore) MarkSourceChecked(_ context.Context, id int64, _ string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.marks == nil {
 		f.marks = map[int64]bool{}
 	}
@@ -90,6 +108,8 @@ func (f *fakeStore) MarkSourceChecked(_ context.Context, id int64, _ string) err
 }
 
 func (f *fakeStore) MarkSourceUnreadable(_ context.Context, id int64, note string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.unreadable == nil {
 		f.unreadable = map[int64]string{}
 	}
@@ -98,6 +118,8 @@ func (f *fakeStore) MarkSourceUnreadable(_ context.Context, id int64, note strin
 }
 
 func (f *fakeStore) MarkQuotesChecked(_ context.Context, id int64, rc store.CheckReceipt, quotes []store.QuoteConfirmation) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.stamped == nil {
 		f.stamped = map[int64][]string{}
 		f.receipts = map[int64]store.CheckReceipt{}
