@@ -10,6 +10,8 @@
 //	triage find <jurisdiction>   candidate primary sources for a place
 //	triage check <file.json>     lint bodies, confirm quotes, check resolves
 //	triage narrow                statute quotes too short to monitor their provision
+//	triage widen [-dry] <narrow.json>
+//	                             widen those quotes to their subsection; a propose file
 //	triage stands <file.json> -by <name> [-apply]
 //	                             reject the listed notes as "stands as written"
 //	triage reject <id>... -by <name> -note <why> [-apply]
@@ -78,6 +80,8 @@ func main() {
 		fmt.Println(out.Text)
 	case "narrow":
 		narrow(ctx, pg)
+	case "widen":
+		widen(ctx, pg, os.Args[2:])
 	case "find":
 		out, err := tb.FindSources(ctx, drafting.FindSourcesInput{JurisdictionSlug: arg(2)})
 		if err != nil {
@@ -103,7 +107,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply]")
 	os.Exit(2)
 }
 

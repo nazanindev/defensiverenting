@@ -17,6 +17,12 @@ func TestNarrowQuote(t *testing.T) {
 	if got := NarrowQuote("statute", "§ 1", long); got != "" {
 		t.Errorf("a whole subsection is not narrow: %q", got)
 	}
+	if got := NarrowQuote("statute", "§ 1947.12(l)", "(l) Any waiver of the rights under this section shall be void as contrary to public policy."); got != "" {
+		t.Errorf("a short subdivision quoted whole is not narrow: %q", got)
+	}
+	if got := NarrowQuote("statute", "§ 1161(6)", "6. A landlord or its agent shall not charge a tenant a fee for serving any notice."); got != "" {
+		t.Errorf("a dotted subdivision quoted whole is not narrow: %q", got)
+	}
 	if got := NarrowQuote("gov_guidance", "Deposits", short); got != "" {
 		t.Errorf("guidance is quoted for the line: %q", got)
 	}

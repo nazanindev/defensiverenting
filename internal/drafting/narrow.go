@@ -2,6 +2,7 @@ package drafting
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -22,7 +23,7 @@ func NarrowQuote(kind, locator, quote string) string {
 		return ""
 	}
 	n := len(strings.Fields(quote))
-	if n >= NarrowQuoteWords {
+	if n >= NarrowQuoteWords || quotedWhole(quote) {
 		return ""
 	}
 	where := "the provision"
@@ -30,4 +31,15 @@ func NarrowQuote(kind, locator, quote string) string {
 		where = l
 	}
 	return fmt.Sprintf("Quote monitor: the citation of %s quotes %d words, so a change elsewhere in it would pass unnoticed. Quote the whole subsection, from its marker to its end.", where, n)
+}
+
+// wholeRE is the shape of a subsection quoted whole: it opens with its
+// marker, "(c) " or "2. ", and closes on the punctuation that ends it.
+var wholeRE = regexp.MustCompile(`^(?:\([A-Za-z0-9]+\)|[0-9]+\.) .*[.;:]$`)
+
+// quotedWhole reports a quote that is a subsection from marker to end. A
+// short subdivision ("(l) Any waiver of the rights under this section
+// shall be void.") is the whole provision and monitors it entirely.
+func quotedWhole(quote string) bool {
+	return wholeRE.MatchString(strings.TrimSpace(strings.Join(strings.Fields(quote), " ")))
 }
