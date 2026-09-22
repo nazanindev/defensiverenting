@@ -288,7 +288,7 @@ func repoint(ctx context.Context, pool *pgxpool.Pool, snapID int64, live string,
 			       CASE WHEN quote <> '' THEN $6 ELSE checked_hash END,
 			       CASE WHEN quote <> '' THEN '' ELSE checked_context END
 			FROM citations WHERE source_id = $2
-			ON CONFLICT (statement_id, source_id) DO NOTHING`, liveID, snapID, checkedBy, rc.Tier, rc.Extractor, rc.Hash); err != nil {
+			ON CONFLICT (statement_id, source_id, md5(quote)) DO NOTHING`, liveID, snapID, checkedBy, rc.Tier, rc.Extractor, rc.Hash); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM citations WHERE source_id = $1`, snapID); err != nil {

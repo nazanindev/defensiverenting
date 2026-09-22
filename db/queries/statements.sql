@@ -4,9 +4,9 @@ VALUES ($1, $2, $3)
 RETURNING id, jurisdiction_id, language, body_md, last_reviewed_at, created_at;
 
 -- name: InsertCitation :exec
-INSERT INTO citations (statement_id, source_id, locator)
-VALUES ($1, $2, $3)
-ON CONFLICT (statement_id, source_id) DO UPDATE SET locator = EXCLUDED.locator;
+INSERT INTO citations (statement_id, source_id, locator, quote)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (statement_id, source_id, md5(quote)) DO UPDATE SET locator = EXCLUDED.locator;
 
 -- name: GetStatementCitations :many
 SELECT

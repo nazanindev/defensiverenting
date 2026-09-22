@@ -423,7 +423,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 		JOIN citations  c   ON c.statement_id = s.id
 		JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1
-		ORDER BY ps.position, c.source_id`, p.Playbook.ID)
+		ORDER BY ps.position, c.source_id, c.id`, p.Playbook.ID)
 	if err != nil {
 		return p, err
 	}
@@ -858,7 +858,7 @@ const insertCitationSQL = `
 		WHERE c2.source_id = $2::bigint AND c2.quote = $4::text AND c2.checked_at IS NOT NULL
 		ORDER BY c2.checked_at DESC LIMIT 1
 	) AS prior ON true
-	ON CONFLICT (statement_id, source_id) DO UPDATE SET
+	ON CONFLICT (statement_id, source_id, md5(quote)) DO UPDATE SET
 		locator = EXCLUDED.locator, quote = EXCLUDED.quote,
 		manually_verified = EXCLUDED.manually_verified,
 		checked_at = EXCLUDED.checked_at, checked_by = EXCLUDED.checked_by,
@@ -1274,7 +1274,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		LEFT JOIN citations  c   ON c.statement_id = s.id
 		LEFT JOIN sources    src ON src.id = c.source_id
 		WHERE ps.playbook_id = $1
-		ORDER BY ps.position, c.source_id`, p.Playbook.ID)
+		ORDER BY ps.position, c.source_id, c.id`, p.Playbook.ID)
 	if err != nil {
 		return p, err
 	}

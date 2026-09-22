@@ -163,7 +163,7 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 		LEFT JOIN citations c ON c.statement_id = s.id
 		LEFT JOIN sources src ON src.id = c.source_id
 		WHERE `+reviewScopeSQL+` AND `+scope+`
-		ORDER BY j.name, t.name, pb.status, ps.position, c.source_id`, ContentLanguages, arg)
+		ORDER BY j.name, t.name, pb.status, ps.position, c.source_id, c.id`, ContentLanguages, arg)
 	if err != nil {
 		return nil, fmt.Errorf("review statements: %w", err)
 	}

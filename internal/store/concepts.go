@@ -298,7 +298,7 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 		JOIN citations c ON c.statement_id = s.id
 		JOIN sources src ON src.id = c.source_id
 		WHERE s.concept_id = $1 AND pb.status = 'published' AND pb.language = $2
-		ORDER BY (j.kind <> 'country'), j.name, s.id, c.source_id`,
+		ORDER BY (j.kind <> 'country'), j.name, s.id, c.source_id, c.id`,
 		d.Concept.ID, language)
 	if err != nil {
 		return d, err

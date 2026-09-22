@@ -407,7 +407,7 @@ const proposalRowSQL = `
 		            'url', src.url, 'publisher', src.publisher, 'kind', src.kind,
 		            'locator', c.locator, 'quote', c.quote,
 		            'checked', c.checked_at IS NOT NULL OR c.manually_verified,
-		            'editorial', src.kind = 'editorial') ORDER BY c.source_id)
+		            'editorial', src.kind = 'editorial') ORDER BY c.source_id, c.id)
 		          FROM citations c JOIN sources src ON src.id = c.source_id
 		         WHERE c.statement_id = s.id) AS citations
 		FROM playbook_statements ps JOIN statements s ON s.id = ps.statement_id
@@ -648,7 +648,7 @@ func statementParams(ctx context.Context, tx pgx.Tx, playbookID int64) ([]Ingest
 		LEFT JOIN topics tr ON tr.id = s.topic_ref
 		LEFT JOIN citations c ON c.statement_id = s.id
 		WHERE ps.playbook_id = $1
-		ORDER BY ps.position, c.source_id`, playbookID)
+		ORDER BY ps.position, c.source_id, c.id`, playbookID)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +713,7 @@ func (pg *PG) StatementByKey(ctx context.Context, key string) (ProposedStatement
 		            'url', src.url, 'publisher', src.publisher, 'kind', src.kind,
 		            'locator', c.locator, 'quote', c.quote,
 		            'checked', c.checked_at IS NOT NULL OR c.manually_verified,
-		            'editorial', src.kind = 'editorial') ORDER BY c.source_id)
+		            'editorial', src.kind = 'editorial') ORDER BY c.source_id, c.id)
 		          FROM citations c JOIN sources src ON src.id = c.source_id
 		         WHERE c.statement_id = s.id), '[]'::json)
 		FROM playbook_statements ps

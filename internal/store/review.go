@@ -63,7 +63,7 @@ func carryStampIfWidened(ctx context.Context, tx pgx.Tx, stmtID int64) error {
 		}
 		rows, err := tx.Query(ctx, `
 			SELECT src.url, c.locator, c.quote FROM citations c JOIN sources src ON src.id = c.source_id
-			WHERE c.statement_id = $1 ORDER BY src.url, c.locator`, id)
+			WHERE c.statement_id = $1 ORDER BY src.url, c.locator, c.id`, id)
 		if err != nil {
 			return
 		}
