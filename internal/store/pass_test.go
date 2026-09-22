@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -124,5 +125,61 @@ func TestSplit_followersLandAfterTheReplacedStatement(t *testing.T) {
 	}
 	if pw.Statements[1].ReviewedAt != nil {
 		t.Error("a follower starts unreviewed")
+	}
+}
+
+func TestFlagStatement_recordsAnOverturnOfTheAgentsStamp(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	draft := seedPlaybook(t, pg, jID, tID, "draft", "Flag")
+	key := firstKey(t, pg, draft)
+	src := sourceOf(t, pg, draft)
+	if _, err := pg.Pool().Exec(ctx, `UPDATE statements SET last_reviewed_at = NULL, reviewed_by = '', reviewed_hash = ''`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.PassStatement(ctx, draft, key, store.PassEvidence{SourceURL: src.SourceURL, Passage: "verbatim", Reason: "r"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.FlagStatement(ctx, draft, key, "the statute has an exception this leaves out", "Nazanin"); err != nil {
+		t.Fatalf("flag: %v", err)
+	}
+	rows, _ := pg.ListProposalsByReason(ctx, "pending", "note")
+	var found bool
+	for _, r := range rows {
+		if r.StatementKey != key {
+			continue
+		}
+		found = true
+		var ev store.ReviewerFlagEvidence
+		if err := json.Unmarshal(r.Evidence, &ev); err != nil {
+			t.Fatal(err)
+		}
+		if ev.Overturned != store.ActorReviewAgent {
+			t.Errorf("overturned = %q, want the review agent whose stamp it contradicts", ev.Overturned)
+		}
+		if r.ProposedBy != "Nazanin" {
+			t.Errorf("flag filed by %q, want the person", r.ProposedBy)
+		}
+	}
+	if !found {
+		t.Fatal("no note filed")
+	}
+	// The open item stops the page publishing.
+	issues, _ := pg.AuthorPlaybookIssues(ctx, draft)
+	var blocked bool
+	for _, is := range issues {
+		if is.Code == "undecided-item" {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Error("a flagged statement does not block the page")
+	}
+	// An agent cannot flag, and a flag needs a reason.
+	if err := pg.FlagStatement(ctx, draft, key, "x", store.ActorReviewAgent); err == nil {
+		t.Error("the review agent was allowed to flag a statement")
+	}
+	if err := pg.FlagStatement(ctx, draft, key, "  ", "Nazanin"); err == nil {
+		t.Error("a flag with no reason was accepted")
 	}
 }

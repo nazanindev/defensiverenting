@@ -87,6 +87,62 @@ func (pg *PG) PassStatement(ctx context.Context, playbookID int64, key string, e
 	})
 }
 
+// FlagStatement files a person's doubt about a statement as a reviewer note
+// (ADR-024): the reader read the page and something looked wrong, so the
+// triage agent takes it from there. The note carries the person's name, so
+// the loop can tell a person's flag from an agent's.
+//
+// When the statement currently carries a review agent's stamp, the note
+// records that it overturns it. That is the measure ADR-021 named and had
+// no way to collect: a rule whose passes a person keeps flagging is a rule
+// that has to narrow.
+func (pg *PG) FlagStatement(ctx context.Context, playbookID int64, key, note, by string) error {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return fmt.Errorf("%q is not a statement key", key)
+	}
+	if strings.TrimSpace(note) == "" {
+		return fmt.Errorf("a flag needs a reason: what looks wrong")
+	}
+	if !isReviewer(by) {
+		return fmt.Errorf("%q cannot flag a statement: a flag is a person's doubt", by)
+	}
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var stampedBy string
+		err := tx.QueryRow(ctx, `
+			SELECT COALESCE(`+reviewedBySQL+`, '')
+			FROM statements s JOIN playbook_statements ps ON ps.statement_id = s.id
+			JOIN statement_review_hash h ON h.statement_id = s.id
+			WHERE ps.playbook_id = $1 AND s.key = $2::uuid`, playbookID, key).Scan(&stampedBy)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		ev := ReviewerFlagEvidence{Note: strings.TrimSpace(note)}
+		if stampedBy != "" && !isReviewer(stampedBy) {
+			ev.Overturned = stampedBy
+		}
+		evidence, err := json.Marshal(ev)
+		if err != nil {
+			return err
+		}
+		var dup bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (SELECT 1 FROM statement_proposals
+				WHERE statement_key = $1::uuid AND reason = $2 AND status = 'pending' AND evidence = $3::jsonb)`,
+			key, ReasonReviewerFlag, evidence).Scan(&dup); err != nil {
+			return err
+		}
+		if dup {
+			return nil
+		}
+		_, err = insertProposal(ctx, tx, key, playbookID, ReasonReviewerFlag, nil, evidence, by)
+		return err
+	})
+}
+
 // FileReaderNote files what a reader left as a reviewer note on the
 // statement, under the review agent's name (ADR-022): the reason a PASS or
 // an apply was refused becomes a work item the triage agent proposes a fix

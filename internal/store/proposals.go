@@ -239,6 +239,10 @@ const ReasonReviewerFlag = "agent-pass:flag"
 // ReviewerFlagEvidence is the evidence shape behind ReasonReviewerFlag.
 type ReviewerFlagEvidence struct {
 	Note string `json:"note"`
+	// Overturned names the actor whose review stamp this flag contradicts,
+	// set when a person flags a statement the review agent had passed
+	// (ADR-024). It is how the overturn rate of a rule is counted.
+	Overturned string `json:"overturned,omitempty"`
 }
 
 // resolvesEvidence is the optional "resolves" list any proposal's evidence

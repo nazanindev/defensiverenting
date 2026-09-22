@@ -242,6 +242,28 @@ func (s *srv) statementDone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// statementFlag is the reader's doubt: they read the statement as a renter
+// would and something looked wrong. It files a reviewer note under their
+// name for the triage agent to answer (ADR-024), and the open item stops the
+// page publishing until it is decided.
+func (s *srv) statementFlag(w http.ResponseWriter, r *http.Request) {
+	pid, err := strconv.ParseInt(r.FormValue("playbook"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid playbook", http.StatusBadRequest)
+		return
+	}
+	f := readFilter(r.Form)
+	err = s.pg.FlagStatement(r.Context(), pid, r.FormValue("key"), r.FormValue("note"), actor(r))
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		http.Redirect(w, r, f.path("That statement is no longer on the page."), http.StatusSeeOther) //nolint:gosec // see filter.path
+	case err != nil:
+		http.Redirect(w, r, f.path("Not flagged: "+err.Error()), http.StatusSeeOther) //nolint:gosec // see filter.path
+	default:
+		http.Redirect(w, r, f.path(""), http.StatusSeeOther) //nolint:gosec // see filter.path
+	}
+}
+
 // statementSave is edit in place: the card's form posts the statement's
 // text and, per citation, its quote and locator. A quote that changed is
 // checked against the fetched source text the way the editor does; found,
