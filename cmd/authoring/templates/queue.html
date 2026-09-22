@@ -134,6 +134,7 @@
           <input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="self" value="{{.ID}}"><input type="hidden" name="next" value="{{.Next}}">
           {{if .OnPage}}<div class="stmt diff">{{wordDiff .CurrentBody .Proposed.BodyMD}}</div>{{else}}<div class="stmt diff">{{.Proposed.BodyMD}}</div>{{end}}
           <textarea class="stmt" name="body">{{.Proposed.BodyMD}}</textarea>
+          {{range $i, $f := .Proposed.Followers}}<div class="under">Then, as its own statement</div><div class="stmt diff">{{$f.BodyMD}}</div>{{end}}
         </form>
         {{/* A drift item's only citation change is the quote swap shown above. */}}
         {{if and (not .Drift) (or .NewCitations .GoneCitations)}}

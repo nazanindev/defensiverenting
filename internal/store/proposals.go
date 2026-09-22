@@ -47,6 +47,12 @@ type ProposedStatement struct {
 	Concept   string             `json:"concept,omitempty"`
 	TopicRef  string             `json:"topic_ref,omitempty"`
 	Citations []ProposedCitation `json:"citations"`
+	// Followers are statements inserted right after this one when the
+	// proposal is applied: a split (ADR-023). One claim that grew into a
+	// paragraph becomes the rule, then its exceptions, then its remedy,
+	// each with its own citations. The replaced statement keeps its key;
+	// followers are new statements and start unreviewed.
+	Followers []ProposedStatement `json:"followers,omitempty"`
 }
 
 type Proposal struct {
@@ -108,6 +114,8 @@ type ApproveProposalParams struct {
 	// reference-only rule that live with the caller. Key and Language are
 	// set here from the proposal and the page.
 	Statement IngestStatementParams
+	// Followers are inserted after Statement, in order (a split).
+	Followers []IngestStatementParams
 	// Note is the decision's record: what the approver checked. A person's
 	// click leaves it empty; an agent's approval says which rule it applied.
 	Note string
@@ -546,7 +554,7 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 				return fmt.Errorf("close resolved notes: %w", err)
 			}
 		}
-		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.By, true)
+		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.Followers, p.By, true)
 	})
 }
 
@@ -559,13 +567,13 @@ func (pg *PG) ReplaceStatement(ctx context.Context, playbookID int64, key string
 		return fmt.Errorf("%q is not a statement key", key)
 	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return replaceStatementTx(ctx, tx, playbookID, key, st, by, false)
+		return replaceStatementTx(ctx, tx, playbookID, key, st, nil, by, false)
 	})
 }
 
 // replaceStatementTx loads the page, substitutes the statement under key,
 // and saves through the one save path.
-func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, by string, approval bool) error {
+func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, followers []IngestStatementParams, by string, approval bool) error {
 	var params AuthorUpdatePlaybookParams
 	params.ID = playbookID
 	params.UpdatedBy = by
@@ -587,6 +595,15 @@ func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key st
 			st.Key = key
 			st.Language = params.Language
 			current[i] = st
+			if len(followers) > 0 {
+				tail := append([]IngestStatementParams{}, current[i+1:]...)
+				current = current[:i+1]
+				for _, f := range followers {
+					f.Key, f.Language = "", params.Language
+					current = append(current, f)
+				}
+				current = append(current, tail...)
+			}
 			replaced = true
 			break
 		}

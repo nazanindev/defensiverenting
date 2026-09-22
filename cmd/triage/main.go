@@ -363,7 +363,19 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 		if len(e.Proposed.Citations) == 0 {
 			bad(i, "no citations")
 		}
-		for ci, c := range e.Proposed.Citations {
+		for fi, f := range e.Proposed.Followers {
+			if v := voice.LintAll(lang, map[string]string{"body_md": f.BodyMD}); len(v) > 0 {
+				bad(i, "follower %d voice lint:\n  - %s", fi+1, strings.Join(v, "\n  - "))
+			}
+			if len(f.Citations) == 0 {
+				bad(i, "follower %d has no citations", fi+1)
+			}
+		}
+		cites := append([]store.ProposedCitation{}, e.Proposed.Citations...)
+		for _, f := range e.Proposed.Followers {
+			cites = append(cites, f.Citations...)
+		}
+		for ci, c := range cites {
 			if c.Editorial {
 				continue
 			}

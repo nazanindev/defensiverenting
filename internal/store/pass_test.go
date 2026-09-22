@@ -92,3 +92,37 @@ func TestReaderNote_filesOnceUnderTheAgentsName(t *testing.T) {
 		t.Errorf("reader notes on the key = %d, want exactly 1", n)
 	}
 }
+
+func TestSplit_followersLandAfterTheReplacedStatement(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	draft := seedPlaybook(t, pg, jID, tID, "draft", "Split")
+	key := firstKey(t, pg, draft)
+	src := sourceOf(t, pg, draft)
+	id := file(t, pg, key, draft, "The rule.")
+	err := pg.ApproveProposal(ctx, store.ApproveProposalParams{
+		ID: id, By: store.ActorReviewAgent, Note: "split",
+		Statement: replacement(src, "The rule.", true),
+		Followers: []store.IngestStatementParams{replacement(src, "The exception.", true), replacement(src, "The remedy.", true)},
+	})
+	if err != nil {
+		t.Fatalf("split approval: %v", err)
+	}
+	pw, _ := pg.AuthorGetPlaybook(ctx, draft)
+	var bodies []string
+	for _, st := range pw.Statements {
+		bodies = append(bodies, st.BodyMD)
+	}
+	if len(bodies) != 3 || bodies[0] != "The rule." || bodies[1] != "The exception." || bodies[2] != "The remedy." {
+		t.Fatalf("page after split = %v", bodies)
+	}
+	if pw.Statements[0].Key != key {
+		t.Error("the replaced statement lost its key")
+	}
+	if pw.Statements[1].Key == key || pw.Statements[2].Key == key || pw.Statements[1].Key == pw.Statements[2].Key {
+		t.Error("followers must be new statements with their own keys")
+	}
+	if pw.Statements[1].ReviewedAt != nil {
+		t.Error("a follower starts unreviewed")
+	}
+}

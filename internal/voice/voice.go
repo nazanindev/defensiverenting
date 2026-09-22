@@ -18,6 +18,13 @@ import (
 // evidence, rather than guessing an adjustment now.
 const maxSentenceWords = 25
 
+// MaxStatementWords is the longest a statement body may run. A statement is
+// one claim a renter can act on (ADR-003); a rule with its exceptions and
+// its remedy is three claims and reads as three statements. The loop of
+// ADR-022 showed what happens without a cap: every fix adds a condition and
+// none removes a sentence, and a statement grows into a paragraph.
+const MaxStatementWords = 90
+
 type bannedRule struct {
 	re  *regexp.Regexp
 	fix string
@@ -323,6 +330,11 @@ func LintAll(lang string, labeled map[string]string) []string {
 	const maxViolations = 10
 	var out []string
 	for _, label := range sortedKeys(labeled) {
+		if strings.HasSuffix(label, "body_md") {
+			if n := len(wordRe.FindAllString(labeled[label], -1)); n > MaxStatementWords {
+				out = append(out, fmt.Sprintf("%s: statement runs %d words (max %d); split it into separate statements, one claim each", label, n, MaxStatementWords))
+			}
+		}
 		for _, v := range Lint(lang, labeled[label]) {
 			if len(out) == maxViolations {
 				out = append(out, "…and more; fix these first and retry")

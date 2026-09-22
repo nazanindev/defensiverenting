@@ -49,7 +49,6 @@ func ApplyProposal(ctx context.Context, pg ApprovalStore, check QuoteCheck, p st
 	if body == "" {
 		body = p.Proposed.BodyMD
 	}
-	stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: p.Proposed.Concept, TopicRefSlug: p.Proposed.TopicRef}
 	editorial, err := pg.GetEditorialSource(ctx)
 	if err != nil {
 		return err
@@ -58,39 +57,55 @@ func ApplyProposal(ctx context.Context, pg ApprovalStore, check QuoteCheck, p st
 	if err != nil {
 		return err
 	}
-	for i, c := range p.Proposed.Citations {
-		if c.Editorial || c.Kind == "editorial" {
-			stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
-			continue
-		}
-		u := strings.TrimSpace(c.URL)
-		if u == "" {
-			return fmt.Errorf("citation %d has no URL; sources are stored by URL", i+1)
-		}
-		if discover.ReferenceOnly(u) {
-			return fmt.Errorf("citation %d (%s) is reference-only and can never become a source; reject this proposal or edit the page by hand", i+1, u)
-		}
-		src, err := pg.UpsertSource(ctx, store.UpsertSourceParams{
-			URL: u, Publisher: strings.TrimSpace(c.Publisher), Kind: SourceKindOrDefault(c.Kind), JurisdictionID: &pw.JurisdictionID,
-		})
-		if err != nil {
-			return fmt.Errorf("citation %d: %w", i+1, err)
-		}
-		cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
-		if strings.TrimSpace(c.Quote) != "" {
-			v := check(ctx, p.Position, u, c.Quote)
-			switch {
-			case v.Verified:
-				cite.CheckedNow, cite.CheckedBy, cite.Checked = true, by, v.Receipt
-			case c.Checked && v.Overridable:
-				// This server could not read the page; the proposer did.
-				cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
-				cite.Checked = store.CheckReceipt{Via: c.CheckedVia}
+	resolve := func(ps store.ProposedStatement, body string) (store.IngestStatementParams, error) {
+		stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: ps.Concept, TopicRefSlug: ps.TopicRef}
+		for i, c := range ps.Citations {
+			if c.Editorial || c.Kind == "editorial" {
+				stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
+				continue
 			}
+			u := strings.TrimSpace(c.URL)
+			if u == "" {
+				return stmt, fmt.Errorf("citation %d has no URL; sources are stored by URL", i+1)
+			}
+			if discover.ReferenceOnly(u) {
+				return stmt, fmt.Errorf("citation %d (%s) is reference-only and can never become a source; reject this proposal or edit the page by hand", i+1, u)
+			}
+			src, err := pg.UpsertSource(ctx, store.UpsertSourceParams{
+				URL: u, Publisher: strings.TrimSpace(c.Publisher), Kind: SourceKindOrDefault(c.Kind), JurisdictionID: &pw.JurisdictionID,
+			})
+			if err != nil {
+				return stmt, fmt.Errorf("citation %d: %w", i+1, err)
+			}
+			cite := store.IngestCitationParams{SourceID: src.ID, Locator: c.Locator, Quote: c.Quote}
+			if strings.TrimSpace(c.Quote) != "" {
+				v := check(ctx, p.Position, u, c.Quote)
+				switch {
+				case v.Verified:
+					cite.CheckedNow, cite.CheckedBy, cite.Checked = true, by, v.Receipt
+				case c.Checked && v.Overridable:
+					// This server could not read the page; the proposer did.
+					cite.CheckedNow, cite.CheckedBy = true, p.ProposedBy
+					cite.Checked = store.CheckReceipt{Via: c.CheckedVia}
+				}
+			}
+			stmt.Sources = append(stmt.Sources, cite)
 		}
-		stmt.Sources = append(stmt.Sources, cite)
+		return stmt, nil
 	}
-	return pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: p.ID, By: by, Statement: stmt, Note: note})
+	stmt, err := resolve(*p.Proposed, body)
+	if err != nil {
+		return err
+	}
+	var followers []store.IngestStatementParams
+	for i, f := range p.Proposed.Followers {
+		fs, err := resolve(f, f.BodyMD)
+		if err != nil {
+			return fmt.Errorf("follower %d: %w", i+1, err)
+		}
+		followers = append(followers, fs)
+	}
+	return pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: p.ID, By: by, Statement: stmt, Followers: followers, Note: note})
 }
 
 // SourceKindOrDefault maps a proposed citation's kind onto the source
