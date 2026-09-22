@@ -151,9 +151,13 @@ var enRuleset = ruleset{
 		mustExplain(`(money |eviction )?judge?ments?`, enMarkers, `"a judgment (the court's final decision in your case)"`),
 		mustExplain(`mediations?`, enMarkers, `"mediation (a meeting with a neutral person who helps you and your landlord reach an agreement)"`),
 		mustExplain(`rental assistance`, enMarkers, `"rental assistance (money to help pay rent)"`),
-		mustExplain(`(normal |ordinary )?wear and tear`, enMarkers, `"normal wear and tear (normal use over time, like faded paint or small nail holes)"`),
+		// No examples in the hint: faded paint and nail holes are not in the
+		// statutes, and a gloss must say only what a stored quote says.
+		mustExplain(`(normal |ordinary )?wear and tear`, enMarkers, `"normal wear and tear (normal use over time)"; add examples only if a quote gives them`),
 		mustExplain(`harassment`, enMarkers, `"harassment (repeated pressure to make you move out)"`),
 		mustExplain(`grace periods?`, enMarkers, `"a grace period (extra days to pay before late fees start)"`),
+		// A renter does not know which side has to prove what.
+		mustExplain(`(rebuttable )?presum(e|es|ed|ption|ptions)`, enMarkers, `"presumed (the court treats it as true unless your landlord proves it is not)", naming who has to prove what`),
 	},
 }
 

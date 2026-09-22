@@ -214,7 +214,7 @@ func TestLint_jargonBans2026_08(t *testing.T) {
 }
 
 // Official terms (judgment, mediation, rental assistance, wear and tear,
-// harassment, grace period) may be named, but the same text block must
+// harassment, grace period, presumption) may be named, but the same text block must
 // explain them: a parenthetical right after, or "<term> means ...".
 func TestLint_explainRequired(t *testing.T) {
 	bare := []string{
@@ -224,6 +224,9 @@ func TestLint_explainRequired(t *testing.T) {
 		"Your landlord cannot charge you for normal wear and tear.",
 		"This counts as harassment.",
 		"Your lease may give you a grace period.",
+		"The law presumes the eviction is retaliation.",
+		"There is a presumption of retaliation.",
+		"The eviction is presumed not to be retaliation.",
 	}
 	for _, s := range bare {
 		v := Lint("en", s)
@@ -242,9 +245,10 @@ func TestLint_explainRequired(t *testing.T) {
 		"The court can enter a judgment (its final decision in your case) against you.",
 		"Mediation means a meeting with a neutral person. You can ask the court for it.",
 		"Apply for rental assistance (money to help pay rent) today.",
-		"Normal wear and tear (normal use over time, like faded paint) is not damage you pay for.",
+		"Normal wear and tear (normal use over time) is not damage you pay for.",
 		"Harassment means repeated pressure to make you move out. Write down each time it happens.",
 		"A grace period (extra days to pay before late fees start) is not required by law.",
+		"The eviction is presumed (the court treats it as true unless your landlord proves it is not) to be retaliation.",
 	}
 	for _, s := range explained {
 		if v := Lint("en", s); len(v) != 0 {
