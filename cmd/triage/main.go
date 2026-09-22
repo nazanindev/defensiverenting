@@ -20,6 +20,8 @@
 //	                             list draft-page flags; close those the reader answered with a verbatim passage
 //	triage decide edit [<decisions.json> [-apply]]
 //	                             list draft-page edits; apply those the reader accepted, every quote confirmed live
+//	triage decide pass [<decisions.json> [-apply]]
+//	                             list unstamped draft statements; stamp those the reader passed with a passage (ADR-022)
 //	triage decide audit          what the review agent has decided
 //	triage reject <id>... -by <name> -note <why> [-apply]
 //	                             reject the listed drift findings with one note
@@ -125,7 +127,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide audit")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide audit")
 	os.Exit(2)
 }
 

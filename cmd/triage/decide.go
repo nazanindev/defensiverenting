@@ -21,6 +21,7 @@ import (
 //	triage decide widen [-apply] [-limit n]   decide pending widen-quote proposals
 //	triage decide flag [decisions.json] [-apply]  list draft-page flags; close the ones a reader answered from the cited text
 //	triage decide edit [decisions.json] [-apply]  list draft-page edits; apply the ones a reader accepted, quotes confirmed live
+//	triage decide pass [decisions.json] [-apply]  list unstamped draft statements; stamp the ones a reader passed with a verbatim passage (ADR-022)
 //	triage decide audit                       every proposal the agent decided
 func decide(ctx context.Context, pg *store.PG, args []string) {
 	if len(args) < 1 {
@@ -33,6 +34,8 @@ func decide(ctx context.Context, pg *store.PG, args []string) {
 		decideFlag(ctx, pg, args[1:])
 	case "edit":
 		decideEdit(ctx, pg, args[1:])
+	case "pass":
+		decidePass(ctx, pg, args[1:])
 	case "audit":
 		audit(ctx, pg)
 	default:

@@ -67,7 +67,7 @@ The same run showed that the D2 carry refused to carry when the statement had an
 
 ## Rejected
 
-- **Letting the agent stamp statements Done.** The stamp is the site's claim that a person read the sentence. An agent's pass is a different fact and deserves a different column; ADR-021's successor for statement review, if there is one, adds that column rather than borrowing this one.
+- **Letting the agent stamp statements Done.** Rejected here on 2026-09-20; withdrawn by ADR-022 on 2026-09-21, which lets a PASS with a verbatim passage on record write the stamp under the agent's name. The column records who.
 - **A general "agent-approved" flag on proposals.** The decision is the same decision whoever makes it. The actor name and the note carry the difference; a second status would fork the queue.
 - **Auto-rejecting what the rule cannot decide.** "Not decidable by this rule" is not "wrong". Those stay pending.
 - **Running the agent in production on a schedule.** The pipeline's shape is: production detects, a local agent proposes and now decides over the tunnel, a person reads the audit. No AI runs in production.
