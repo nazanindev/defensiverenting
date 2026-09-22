@@ -105,7 +105,7 @@ func decidePassFile(ctx context.Context, pg *store.PG, path string, args []strin
 		byKey[fmt.Sprintf("%d/%s", it.PlaybookID, it.Key)] = it
 	}
 	check := drafting.LiveQuoteCheck()
-	seen, passed, left := 0, 0, 0
+	seen, passed, left, noted := 0, 0, 0, 0
 	for _, d := range decisions {
 		it, ok := byKey[fmt.Sprintf("%d/%s", d.PlaybookID, strings.ToLower(strings.TrimSpace(d.Key)))]
 		if !ok {
@@ -117,7 +117,17 @@ func decidePassFile(ctx context.Context, pg *store.PG, path string, args []strin
 		why := passVerdict(ctx, d, it, check)
 		if why != "" {
 			left++
-			fmt.Printf("    left for a person: %s\n", why)
+			fmt.Printf("    left: %s\n", why)
+			if *apply && strings.HasPrefix(why, "left by the reader: ") {
+				// The reason becomes a note for the triage agent to propose
+				// a fix for (ADR-022); a refusal by the command itself is
+				// printed only, since it says nothing about the claim.
+				if err := pg.FileReaderNote(ctx, it.PlaybookID, it.Key, strings.TrimPrefix(why, "left by the reader: ")); err != nil {
+					fmt.Printf("    could not file the note: %v\n", err)
+				} else {
+					noted++
+				}
+			}
 			continue
 		}
 		fmt.Printf("    pass: %s\n", strings.TrimSpace(d.Reason))
@@ -138,9 +148,9 @@ func decidePassFile(ctx context.Context, pg *store.PG, path string, args []strin
 		}
 	}
 	if *apply {
-		fmt.Printf("%d statements; %d passed by %s; %d left for a person\n", seen, passed, store.ActorReviewAgent, left)
+		fmt.Printf("%d statements; %d passed by %s; %d left, %d of them noted for the triage agent\n", seen, passed, store.ActorReviewAgent, left, noted)
 	} else {
-		fmt.Printf("%d statements; %d would pass; %d left for a person; nothing written (add -apply)\n", seen, passed, left)
+		fmt.Printf("%d statements; %d would pass; %d left; nothing written (add -apply)\n", seen, passed, left)
 	}
 }
 

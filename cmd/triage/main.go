@@ -127,7 +127,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide audit")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide audit")
 	os.Exit(2)
 }
 

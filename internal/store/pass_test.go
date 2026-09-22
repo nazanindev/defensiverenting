@@ -70,3 +70,25 @@ func TestPass_refusesAnUndecidedStatement(t *testing.T) {
 		t.Error("PASS with no evidence accepted")
 	}
 }
+
+func TestReaderNote_filesOnceUnderTheAgentsName(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	draft := seedPlaybook(t, pg, jID, tID, "draft", "Note")
+	key := firstKey(t, pg, draft)
+	for i := 0; i < 2; i++ {
+		if err := pg.FileReaderNote(ctx, draft, key, "the statute narrows this to 5 days"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, _ := pg.ListProposalsByReason(ctx, "pending", "note")
+	n := 0
+	for _, r := range rows {
+		if r.StatementKey == key && r.ProposedBy == store.ActorReviewAgent {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("reader notes on the key = %d, want exactly 1", n)
+	}
+}

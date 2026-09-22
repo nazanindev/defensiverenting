@@ -86,3 +86,18 @@ func (pg *PG) PassStatement(ctx context.Context, playbookID int64, key string, e
 		return nil
 	})
 }
+
+// FileReaderNote files what a reader left as a reviewer note on the
+// statement, under the review agent's name (ADR-022): the reason a PASS or
+// an apply was refused becomes a work item the triage agent proposes a fix
+// for, instead of a line in a file. An identical note already on the key
+// is not filed twice.
+func (pg *PG) FileReaderNote(ctx context.Context, playbookID int64, key, note string) error {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return fmt.Errorf("%q is not a statement key", key)
+	}
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return fileReviewerFlag(ctx, tx, key, playbookID, note, ActorReviewAgent)
+	})
+}

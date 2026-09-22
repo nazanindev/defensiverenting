@@ -24,6 +24,8 @@ The agent can already do the reading. Rule flag (ADR-021) has run clean: a reade
 
 **What comes to a person is what the reader left**, with the reason, on the statements screen and in the queue. That is the necessary labour, and it is the only labour.
 
+**What a reader leaves is filed, not printed (amendment, 2026-09-21).** A refused PASS or a held edit files the reader's reason as a reviewer note on the statement, under the review agent's name, one per distinct reason. That note is the triage agent's work: `triage decide work` lists it with the statement and its sources, the triage agent proposes a fix, a separate judge applies it, and the statement goes back through PASS. Rule flag does not read the review agent's own notes, so nothing bounces. What reaches a person is what survives that loop: the triage agent skips it as editorial, or a judge holds the fix again.
+
 **Overturns remain the measure.** An edit to a passed statement, a flag filed on one, or a page taken down are the signals. If they arrive, the rule narrows. The revert is one line: the gate counts only stamps whose `reviewed_by` is a person.
 
 ## Consequences

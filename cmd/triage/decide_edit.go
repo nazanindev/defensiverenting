@@ -114,6 +114,14 @@ func decideEditFile(ctx context.Context, pg *store.PG, path string, args []strin
 		if why != "" {
 			left++
 			fmt.Printf("    left pending: %s\n", why)
+			if *apply && strings.HasPrefix(why, "left by the reader: ") {
+				// The hold becomes a note on the statement for the triage
+				// agent, which re-proposes with the reason in hand (ADR-022).
+				note := fmt.Sprintf("Proposal #%d held: %s", p.ID, strings.TrimPrefix(why, "left by the reader: "))
+				if err := pg.FileReaderNote(ctx, p.TargetPlaybookID, p.StatementKey, note); err != nil {
+					fmt.Printf("    could not file the note: %v\n", err)
+				}
+			}
 			continue
 		}
 		fmt.Printf("    apply: %s\n", strings.TrimSpace(d.Reason))

@@ -90,6 +90,12 @@ func pendingFlags(ctx context.Context, pg *store.PG, published bool) []flagItem 
 		if (p.TargetStatus != "draft" && !published) || !p.OnPage() {
 			continue
 		}
+		if p.ProposedBy == store.ActorReviewAgent {
+			// A note the review agent itself left (a refused PASS or a
+			// held edit) is the triage agent's to fix, not a doubt for
+			// rule flag to answer; answering it would only bounce.
+			continue
+		}
 		var ev store.ReviewerFlagEvidence
 		if json.Unmarshal(p.Evidence, &ev) != nil || strings.TrimSpace(ev.Note) == "" {
 			continue
