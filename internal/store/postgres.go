@@ -912,16 +912,16 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 	var stmtID int64
 	err := tx.QueryRow(ctx, `
 		INSERT INTO statements (jurisdiction_id, language, body_md, concept_id, topic_ref, key,
-		                        last_reviewed_at, reviewed_by, reviewed_hash)
+		                        last_reviewed_at, reviewed_by, reviewed_hash, stale_after)
 		SELECT $1, $2, $3, $4, $5, k.key,
-		       prior.last_reviewed_at, COALESCE(prior.reviewed_by, ''), COALESCE(prior.reviewed_hash, '')
+		       prior.last_reviewed_at, COALESCE(prior.reviewed_by, ''), COALESCE(prior.reviewed_hash, ''), $7
 		FROM (SELECT COALESCE(NULLIF($6, '')::uuid, gen_random_uuid()) AS key) k
 		LEFT JOIN LATERAL (
 			SELECT p.last_reviewed_at, p.reviewed_by, p.reviewed_hash
 			FROM statements p WHERE p.key = k.key ORDER BY p.id DESC LIMIT 1
 		) prior ON true
 		RETURNING id`,
-		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID, key,
+		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID, key, sp.StaleAfter,
 	).Scan(&stmtID)
 	return stmtID, err
 }

@@ -35,6 +35,10 @@
   .item[open] summary .lead { display: none; }
   .where { font-size: .78rem; color: #9a7878; }
   .where b { color: #4a1223; font-weight: 600; }
+  /* Why this item sits where it does in the list (ADR-024). The order is
+     computed; this is the phrase that explains it, not a control. */
+  .rank { font-size: .68rem; letter-spacing: .03em; text-transform: uppercase; color: #7a5c5c; background: #f6eeee; border-radius: 4px; padding: .1rem .45rem; margin-left: .5rem; white-space: nowrap; }
+  .rank.hot { color: #8a1c2e; background: #fbe6e9; }
   .kind { font-size: .72rem; font-weight: 600; color: #7a1c2a; white-space: nowrap; text-align: right; }
   .kind.drift { color: #92400e; }
   .kind.unused { color: #5c3a3a; }
@@ -112,7 +116,7 @@
     <details class="item" id="p{{.ID}}" {{if eq .ID $.Open}}open{{end}}>
       <summary>
         <span class="where"><b>{{.JurisdictionName}} · {{.TopicName}}</b>{{if .OnPage}} · statement {{.Position}}{{end}} · {{.TargetStatus}}</span>
-        <span class="kind {{if .Drift}}drift{{end}}">{{if eq .ReasonLabel "source-drift"}}quote moved{{else}}edit{{end}} · {{.ProposedBy}} · {{.Age}}</span>
+        <span class="kind {{if .Drift}}drift{{end}}">{{if eq .ReasonLabel "source-drift"}}quote moved{{else}}edit{{end}} · {{.ProposedBy}} · {{.Age}}</span>{{if .RankWhy}}<span class="rank{{if eq .Rank 1}} hot{{end}}">{{.RankWhy}}</span>{{end}}
         <span class="lead">{{if .Drift}}“{{.Drift.OldQuote}}”{{else if .Why}}{{.Why}}{{else if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
       </summary>
       <div class="body" id="b{{.ID}}">

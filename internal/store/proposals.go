@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -90,6 +91,15 @@ type ProposalRow struct {
 	Position         int
 	CurrentBody      string
 	CurrentCitations []ProposedCitation
+	// Rank orders the queue (ADR-024). It is computed, never set by hand:
+	// 1 a live page carrying a claim someone says is wrong, 2 anything else
+	// on a live page, 3 the last open item on a draft that is otherwise
+	// ready to publish, 4 the rest. RankWhy says which, in a few words.
+	Rank    int
+	RankWhy string
+	// OpenOnPage counts the pending items on the target page, including
+	// this one; it is what makes rank 3 computable.
+	OpenOnPage int
 }
 
 // OnPage reports whether the target page still carries the statement.
@@ -456,7 +466,11 @@ func (pg *PG) ListProposals(ctx context.Context, status string) ([]ProposalRow, 
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rankProposals(out)
+	return out, nil
 }
 
 func (pg *PG) GetProposal(ctx context.Context, id int64) (ProposalRow, error) {
@@ -787,4 +801,50 @@ func (pg *PG) PendingChangesByKeys(ctx context.Context, keys []string) (map[stri
 		out[r.StatementKey] = append(out[r.StatementKey], r)
 	}
 	return out, rows.Err()
+}
+
+// rankProposals computes each row's rank and the phrase that says why, then
+// orders the list by it (ADR-024). The inputs are facts the queue already
+// has: whether the target page is live, whether anyone has said the claim is
+// wrong, and how many open items stand between that page and publishing.
+// Nobody sets a priority by hand; a queue where anyone can mark their own
+// item urgent stops ranking anything.
+func rankProposals(rows []ProposalRow) {
+	open := map[int64]int{}
+	for _, r := range rows {
+		open[r.TargetPlaybookID]++
+	}
+	for i := range rows {
+		r := &rows[i]
+		r.OpenOnPage = open[r.TargetPlaybookID]
+		live := r.TargetStatus == "published"
+		switch {
+		case live && r.saysTheClaimIsWrong():
+			r.Rank, r.RankWhy = 1, "live page, claim disputed"
+		case live:
+			r.Rank, r.RankWhy = 2, "live page"
+		case r.OpenOnPage == 1:
+			r.Rank, r.RankWhy = 3, "last item on this page"
+		default:
+			r.Rank = 4
+		}
+	}
+	sort.SliceStable(rows, func(a, b int) bool { return rows[a].Rank < rows[b].Rank })
+}
+
+// saysTheClaimIsWrong reports whether this item asserts the statement is
+// wrong as it stands, rather than asking a question or offering a better
+// quote: a person's flag, or a checker note that the law moved under it.
+func (r ProposalRow) saysTheClaimIsWrong() bool {
+	if r.Reason != ReasonReviewerFlag {
+		return false
+	}
+	var ev ReviewerFlagEvidence
+	if json.Unmarshal(r.Evidence, &ev) != nil {
+		return false
+	}
+	if ev.Overturned != "" {
+		return true // a person contradicted a review stamp
+	}
+	return r.ProposedBy == ActorSourceCheck || isReviewer(r.ProposedBy)
 }

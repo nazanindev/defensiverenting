@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -14,6 +15,8 @@ import (
 
 type fakeStore struct {
 	store.Store
+	notes       []string
+	stale       []store.StaleStatement
 	mu          sync.Mutex // Run checks sources concurrently
 	rows        []store.CitationCheckRow
 	marks       map[int64]bool     // sourceID -> checked (read and examined)
@@ -44,6 +47,19 @@ func pages(m map[string]string, failing ...string) FetchFunc {
 
 func page(u, text string) drafting.Receipt {
 	return drafting.Receipt{URL: u, Text: text, Tier: drafting.TierDirect, Extractor: drafting.ExtractorHTML, Chars: len(text), Hash: "hash:" + text}
+}
+
+// notes records what the checker filed under ADR-024: the law around a
+// quote moved, or a dated claim is coming due.
+func (f *fakeStore) FileCheckerNote(_ context.Context, key, note string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.notes = append(f.notes, key+": "+note)
+	return nil
+}
+
+func (f *fakeStore) StatementsGoingStale(context.Context, time.Duration) ([]store.StaleStatement, error) {
+	return f.stale, nil
 }
 
 func (f *fakeStore) FileUnusedSourceProposals(context.Context, string) (int, error) {
@@ -508,5 +524,61 @@ func TestRun_quoteFoundAgainClosesWaitingDrift(t *testing.T) {
 	}
 	if len(fs.stamped[1]) != 1 {
 		t.Errorf("stamped = %v, want the quote confirmed", fs.stamped)
+	}
+}
+
+// A quote that survives an amendment is not evidence the statement did:
+// when the passage around it moved, the checker files a note (ADR-024 D2).
+func TestRun_NotesWhenTheLawAroundAQuoteMoves(t *testing.T) {
+	const quote = "the landlord shall return the deposit"
+	before := "(a) Before the change. " + quote + " within 30 days of the tenant vacating the premises."
+	after := "(a) Before the change. " + quote + " within 30 days, except where subsection (c) applies to a tenancy ended for cause."
+	f := &fakeStore{rows: []store.CitationCheckRow{{
+		SourceID: 1, URL: "https://law.example.gov/s1", Quote: quote, StatementKey: "11111111-1111-1111-1111-111111111111",
+		CheckedExtractor: "html", CheckedHash: "oldhash", CheckedContext: before,
+	}}}
+	fetch := func(string) (drafting.Receipt, error) {
+		return drafting.Receipt{URL: "https://law.example.gov/s1", Text: after, Tier: "direct", Extractor: "html", Hash: "newhash", Chars: len(after)}, nil
+	}
+	res, err := Run(context.Background(), f, fetch, func(string, ...any) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Moved != 1 || len(f.notes) != 1 {
+		t.Fatalf("moved = %d, notes = %v; want one note about the passage moving", res.Moved, f.notes)
+	}
+	if res.Drifted != 0 || res.Proposed != 0 {
+		t.Errorf("the quote is still there, so nothing drifted: %+v", res)
+	}
+
+	// The same text on a re-check is not a change.
+	f2 := &fakeStore{rows: []store.CitationCheckRow{{
+		SourceID: 1, URL: "https://law.example.gov/s1", Quote: quote, StatementKey: "11111111-1111-1111-1111-111111111111",
+		CheckedExtractor: "html", CheckedHash: "newhash", CheckedContext: after,
+	}}}
+	res2, err := Run(context.Background(), f2, fetch, func(string, ...any) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Moved != 0 || len(f2.notes) != 0 {
+		t.Errorf("an unchanged page filed a note: %+v %v", res2, f2.notes)
+	}
+}
+
+// A claim with a date goes stale with nothing at the source changing, so the
+// run raises it ahead of the date (ADR-024 D3).
+func TestRun_NotesAClaimComingDue(t *testing.T) {
+	f := &fakeStore{stale: []store.StaleStatement{{
+		Key: "22222222-2222-2222-2222-222222222222", BodyMD: "This rule lasts until January 1, 2030.",
+		StaleAfter: time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC),
+	}}}
+	res, err := Run(context.Background(), f, func(string) (drafting.Receipt, error) {
+		return drafting.Receipt{}, nil
+	}, func(string, ...any) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Stale != 1 || len(f.notes) != 1 || !strings.Contains(f.notes[0], "2030-01-01") {
+		t.Fatalf("stale = %d, notes = %v; want one note naming the date", res.Stale, f.notes)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
@@ -40,9 +41,16 @@ type Result struct {
 	Unreadable   int // sources that answered with text too thin to examine (script shell, bot check)
 	Incomparable int // citations whose quote was not found but whose baseline extractor outranks this run's, so nothing was concluded
 	Skipped      int // citations carrying no quote, so nothing could be verified
+	Moved        int // quotes that survived but whose surrounding text changed; a note was filed (ADR-024)
+	Stale        int // statements whose dated claim is about to pass; a note was filed (ADR-024)
 	Unused       int // unused-source deletion proposals filed for the review queue
 	Errored      int // sources whose check hit an error other than fetching; logged and skipped
 }
+
+// StaleWindow is how far ahead of its date a dated claim is raised. Long
+// enough that a person has time to decide and a page never goes wrong
+// quietly, short enough that the queue is not full of next year's work.
+const StaleWindow = 30 * 24 * time.Hour
 
 // FetchFunc returns the readable text of a URL with its receipt (e.g.
 // drafting.FetchExtract).
@@ -144,6 +152,22 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		}(id, bySrc[id])
 	}
 	wg.Wait()
+	// A claim that depends on a date goes stale with no source change at
+	// all, so it is checked here rather than per source (ADR-024). The
+	// window is ahead of the date: the fix belongs in the queue while the
+	// page is still right.
+	stale, serr := db.StatementsGoingStale(ctx, StaleWindow)
+	if serr != nil {
+		logf("stale statements: %v", serr)
+	}
+	for _, st := range stale {
+		note := fmt.Sprintf("This statement's claim stops being true on %s. Read it against the law as it will read then, and say what replaces it.", st.StaleAfter.Format("2006-01-02"))
+		if err := db.FileCheckerNote(ctx, st.Key, note); err != nil {
+			logf("  stale note on %s: %v", st.Key, err)
+			continue
+		}
+		res.Stale++
+	}
 	return res, nil
 }
 
@@ -160,6 +184,8 @@ func (r *Result) add(o Result) {
 	r.Unreadable += o.Unreadable
 	r.Incomparable += o.Incomparable
 	r.Skipped += o.Skipped
+	r.Moved += o.Moved
+	r.Stale += o.Stale
 	r.Unused += o.Unused
 	r.Errored += o.Errored
 }
@@ -242,7 +268,21 @@ func checkSource(ctx context.Context, db store.Store, fetch FetchFunc, id int64,
 			// in. No matching needed, and no matcher can disagree.
 			present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: r.CheckedContext})
 		case drafting.QuoteAppearsIn(rc.Text, r.Quote):
-			present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: drafting.Context(rc.Text, r.Quote)})
+			now := drafting.Context(rc.Text, r.Quote)
+			present = append(present, store.QuoteConfirmation{Quote: r.Quote, Context: now})
+			// The quote survived, but the law around it may not have. An
+			// amendment that adds an exception leaves every stored quote
+			// intact and makes the statement incomplete, which no
+			// quote-presence check can see (ADR-024). Compare the passage
+			// the quote sat in; when it moved, the statement is re-read.
+			if moved(r, rc, now) {
+				if err := db.FileCheckerNote(ctx, r.StatementKey, store.NoteSourceMoved); err != nil {
+					logf("  note on %s: %v", r.StatementKey, err)
+				} else {
+					res.Moved++
+					logf("  the text around a quote moved: %s", r.URL)
+				}
+			}
 		case rc.Thin:
 			// A quote absent from a script shell or a bot-check page is
 			// not evidence of anything.
@@ -312,6 +352,31 @@ func checkSource(ctx context.Context, db store.Store, fetch FetchFunc, id int64,
 }
 
 // fileDrift files one proposal per (statement, missing quote) on a source.
+// moved reports whether the passage a quote sits in changed since the last
+// check. It compares only what is comparable: both baselines present, the
+// same extractor family, and the page text not identical to what was stored
+// (that case is handled above). Whitespace and typography are folded, since
+// extractors differ on both without the law differing.
+func moved(r store.CitationCheckRow, rc drafting.Receipt, now string) bool {
+	if r.CheckedContext == "" || now == "" || r.CheckedHash == "" {
+		return false // no baseline to compare against
+	}
+	if r.CheckedHash == rc.Hash {
+		return false // the same page text
+	}
+	if !drafting.Comparable(r.CheckedExtractor, rc.Extractor) {
+		return false // a different extractor reads the same page differently
+	}
+	return foldPassage(r.CheckedContext) != foldPassage(now)
+}
+
+// foldPassage normalizes a passage for comparison: typography folded the way
+// the verbatim matcher folds it, whitespace collapsed. What is left is the
+// words, so a difference is a difference in the law's text.
+func foldPassage(s string) string {
+	return strings.Join(strings.Fields(drafting.FoldTypography(s)), " ")
+}
+
 func fileDrift(ctx context.Context, db store.Store, url, publisher string, rc drafting.Receipt, missing []store.CitationCheckRow, logf func(string, ...any)) (int, error) {
 	hay := normalize(rc.Text)
 	filed := 0

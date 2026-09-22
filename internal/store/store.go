@@ -70,6 +70,11 @@ type Store interface {
 	// present at the URL. Quotes that went missing are not stamped: their last
 	// confirmation stays at the run that last actually saw them.
 	MarkQuotesChecked(ctx context.Context, sourceID int64, fetch CheckReceipt, quotes []QuoteConfirmation) error
+	// FileCheckerNote files a reviewer note from the automated checker
+	// (ADR-024): the law around a quote moved, or a dated claim is about
+	// to pass. The loop takes it from there.
+	FileCheckerNote(ctx context.Context, key, note string) error
+	StatementsGoingStale(ctx context.Context, within time.Duration) ([]StaleStatement, error)
 	ListUnusedSources(ctx context.Context) ([]Source, error)
 
 	// Concepts (ADR-011) and the reference layer built on them (ADR-012)
@@ -219,6 +224,10 @@ type IngestStatementParams struct {
 	// leaves it untagged. An unknown slug fails the save — the registry is
 	// closed, and silently dropping a tag would hide the mistake.
 	ConceptSlug string
+	// StaleAfter is the date the claim stops being true, for a claim that
+	// depends on one: a sunset, a figure set for one year, a program with an
+	// end date (ADR-024). Nil when the claim does not depend on a date.
+	StaleAfter *time.Time
 	// TopicRefSlug marks the statement as a whole-topic summary (ADR-011 D7),
 	// pointing at a registry topic. Mutually exclusive with ConceptSlug; the
 	// save fails when both are set rather than picking one silently.

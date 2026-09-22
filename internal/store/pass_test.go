@@ -183,3 +183,49 @@ func TestFlagStatement_recordsAnOverturnOfTheAgentsStamp(t *testing.T) {
 		t.Error("a flag with no reason was accepted")
 	}
 }
+
+func TestRankProposals_ordersByWhatItKnows(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	// Two slots, so a live page and a draft page do not resolve to the
+	// same target (a draft beside a live page IS that page's next version).
+	t2, err := pg.UpsertTopic(ctx, store.UpsertTopicParams{Slug: "rank-topic-" + t.Name(), Name: "Rank Topic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := seedPlaybook(t, pg, jID, tID, "published", "Ranked")
+	draft := seedPlaybook(t, pg, jID, t2.ID, "draft", "Ranked draft")
+	liveKey, draftKey := firstKey(t, pg, live), firstKey(t, pg, draft)
+	file(t, pg, draftKey, draft, "A draft edit.")
+	file(t, pg, liveKey, live, "A live edit.")
+	if err := pg.FlagStatement(ctx, live, liveKey, "this reads wrong to me", "Nazanin"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pg.ListProposals(ctx, "pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) < 3 {
+		t.Fatalf("want at least 3 pending, got %d", len(rows))
+	}
+	if rows[0].Rank != 1 || rows[0].RankWhy != "live page, claim disputed" {
+		t.Errorf("first item is rank %d (%q); a disputed claim on a live page comes first", rows[0].Rank, rows[0].RankWhy)
+	}
+	var sawLive, sawLast bool
+	for _, r := range rows {
+		if r.Rank == 2 && r.TargetStatus == "published" {
+			sawLive = true
+		}
+		if r.Rank == 3 && r.RankWhy == "last item on this page" {
+			sawLast = true
+		}
+	}
+	if !sawLive || !sawLast {
+		t.Errorf("ranks 2 and 3 not both present: live=%v last=%v", sawLive, sawLast)
+	}
+	for i := 1; i < len(rows); i++ {
+		if rows[i-1].Rank > rows[i].Rank {
+			t.Fatalf("the list is not ordered by rank: %d before %d", rows[i-1].Rank, rows[i].Rank)
+		}
+	}
+}

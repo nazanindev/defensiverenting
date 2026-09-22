@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -156,4 +157,70 @@ func (pg *PG) FileReaderNote(ctx context.Context, playbookID int64, key, note st
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return fileReviewerFlag(ctx, tx, key, playbookID, note, ActorReviewAgent)
 	})
+}
+
+// ReasonSourceMoved is the note a checker run files when the law around a
+// quote changed although the quote itself survived, or when a claim's date
+// is about to pass (ADR-024). It is a reviewer note like any other: the
+// triage agent proposes the fix, a judge applies it, a reader re-reads.
+const NoteSourceMoved = "The text around this quote changed at the source since it was last checked. Read the statement against the section as it reads now."
+
+// FileCheckerNote files a note on a statement from the automated checker,
+// under the source check's name. Deduplicated on the note text, so a run
+// that sees the same change again does not pile up items.
+func (pg *PG) FileCheckerNote(ctx context.Context, key, note string) error {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) || strings.TrimSpace(note) == "" {
+		return fmt.Errorf("a checker note needs a statement key and a reason")
+	}
+	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var playbookID int64
+		err := tx.QueryRow(ctx, `
+			SELECT ps.playbook_id FROM playbook_statements ps JOIN statements s ON s.id = ps.statement_id
+			JOIN playbooks pb ON pb.id = ps.playbook_id
+			WHERE s.key = $1::uuid AND pb.status IN ('draft','published')
+			ORDER BY (pb.status = 'draft') DESC LIMIT 1`, key).Scan(&playbookID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // the statement is not on a live or draft page
+		}
+		if err != nil {
+			return err
+		}
+		return fileReviewerFlag(ctx, tx, key, playbookID, note, ActorSourceCheck)
+	})
+}
+
+// StaleStatement is a statement whose claim depends on a date that is about
+// to pass, for the checker to file a note about.
+type StaleStatement struct {
+	Key        string
+	BodyMD     string
+	StaleAfter time.Time
+}
+
+// StatementsGoingStale lists statements whose stale_after falls within the
+// window, on a live or draft page. The window is deliberately ahead of the
+// date: the point is to have the fix in the queue while the page is still
+// right (ADR-024).
+func (pg *PG) StatementsGoingStale(ctx context.Context, within time.Duration) ([]StaleStatement, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT s.key::text, s.body_md, s.stale_after
+		FROM statements s JOIN playbook_statements ps ON ps.statement_id = s.id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		WHERE s.stale_after IS NOT NULL AND s.stale_after <= (CURRENT_DATE + $1::int)
+		  AND pb.status IN ('draft','published')
+		ORDER BY s.stale_after`, int(within.Hours()/24))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []StaleStatement
+	for rows.Next() {
+		var st StaleStatement
+		if err := rows.Scan(&st.Key, &st.BodyMD, &st.StaleAfter); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
 }
