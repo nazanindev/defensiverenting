@@ -875,19 +875,21 @@ func citationArgs(stmtID int64, cite IngestCitationParams) []any {
 // the registry. An unknown slug is an error, not a silently dropped tag: the
 // registry is closed (ADR-011 D1), both tagging paths validate before save,
 // and a tag that vanished quietly would surface later as a coverage lie.
-func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp IngestStatementParams, key string) (int64, error) {
+// insertStatement returns the row id and the key the row carries: the one
+// passed in, or the one the database generated when none was.
+func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp IngestStatementParams, key string) (int64, string, error) {
 	if sp.ConceptSlug != "" && sp.TopicRefSlug != "" {
-		return 0, fmt.Errorf("statement carries both concept %q and topic reference %q: a statement is one claim or one summary, never both (ADR-011 D7)", sp.ConceptSlug, sp.TopicRefSlug)
+		return 0, "", fmt.Errorf("statement carries both concept %q and topic reference %q: a statement is one claim or one summary, never both (ADR-011 D7)", sp.ConceptSlug, sp.TopicRefSlug)
 	}
 	var conceptID *int64
 	if sp.ConceptSlug != "" {
 		var id int64
 		err := tx.QueryRow(ctx, `SELECT id FROM concepts WHERE slug = $1`, sp.ConceptSlug).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, fmt.Errorf("unknown concept slug %q: concepts are a closed registry (ADR-011), added by migration", sp.ConceptSlug)
+			return 0, "", fmt.Errorf("unknown concept slug %q: concepts are a closed registry (ADR-011), added by migration", sp.ConceptSlug)
 		}
 		if err != nil {
-			return 0, err
+			return 0, "", err
 		}
 		conceptID = &id
 	}
@@ -896,10 +898,10 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 		var id int64
 		err := tx.QueryRow(ctx, `SELECT id FROM topics WHERE slug = $1`, sp.TopicRefSlug).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, fmt.Errorf("unknown topic reference %q: topics are a closed registry (ADR-005 D5)", sp.TopicRefSlug)
+			return 0, "", fmt.Errorf("unknown topic reference %q: topics are a closed registry (ADR-005 D5)", sp.TopicRefSlug)
 		}
 		if err != nil {
-			return 0, err
+			return 0, "", err
 		}
 		topicRefID = &id
 	}
@@ -920,10 +922,10 @@ func insertStatement(ctx context.Context, tx pgx.Tx, jurisdictionID int64, sp In
 			SELECT p.last_reviewed_at, p.reviewed_by, p.reviewed_hash
 			FROM statements p WHERE p.key = k.key ORDER BY p.id DESC LIMIT 1
 		) prior ON true
-		RETURNING id`,
+		RETURNING id, key::text`,
 		jurisdictionID, sp.Language, sp.BodyMD, conceptID, topicRefID, key, sp.StaleAfter,
-	).Scan(&stmtID)
-	return stmtID, err
+	).Scan(&stmtID, &key)
+	return stmtID, key, err
 }
 
 // uuidRE accepts the textual form statements.key is read back in. An explicit
@@ -1099,7 +1101,7 @@ func writeStatement(ctx context.Context, tx pgx.Tx, keys *keyChooser, jurisdicti
 	if err != nil {
 		return err
 	}
-	stmtID, err := insertStatement(ctx, tx, jurisdictionID, sp, key)
+	stmtID, key, err := insertStatement(ctx, tx, jurisdictionID, sp, key)
 	if err != nil {
 		return fmt.Errorf("insert statement %d: %w", i, err)
 	}

@@ -150,3 +150,22 @@ func TestFileReviewerNote_backfillFilesOnceAndReportsIt(t *testing.T) {
 		t.Errorf("pending flags = %d, want 1", n)
 	}
 }
+
+// A brand-new statement has no key until the insert generates one. The note
+// must file on that generated key; it used to look up the empty string and
+// fail the whole save (2026-09-22, a narrow statute quote on a new draft).
+func TestReviewerNote_filesOnTheGeneratedKeyOfANewStatement(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	id := seedPlaybook(t, pg, jID, tID, "draft", "New note")
+
+	resave(t, pg, id, jID, tID, store.IngestStatementParams{
+		BodyMD: "A claim no earlier save carried.", ReviewerNote: "Quote is shorter than its subsection.",
+	})
+	keys := statementKeys(t, pg, id)
+	if len(keys) != 1 || keys[0] == "" {
+		t.Fatalf("keys = %v, want one generated key", keys)
+	}
+	if got := flagsFor(t, pg, keys[0], "pending"); len(got) != 1 {
+		t.Fatalf("pending notes on the generated key = %d, want 1", len(got))
+	}
+}
