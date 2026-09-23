@@ -135,3 +135,17 @@ func TestFileProposal_refusesMalformedActions(t *testing.T) {
 		}
 	}
 }
+
+func TestPageAction_mergeIntoLeadAndFollower(t *testing.T) {
+	pg, id, keys, src := threeStatements(t, "draft")
+	ctx := context.Background()
+	lead := store.IngestStatementParams{BodyMD: "A and part of B.", Sources: []store.IngestCitationParams{{SourceID: src, Locator: "§ 1", Quote: "other"}}}
+	follower := store.IngestStatementParams{BodyMD: "The rest of B.", Sources: []store.IngestCitationParams{{SourceID: src, Locator: "§ 1", Quote: "verbatim"}}}
+	p := fileAction(t, pg, keys[0], id, store.ProposedStatement{Action: store.ActionMerge, MergeKey: keys[1], BodyMD: "A and part of B.", Citations: []store.ProposedCitation{{URL: "https://example.gov/x", Quote: "other"}}})
+	if err := pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: p, By: store.ActorReviewAgent, Statement: lead, Followers: []store.IngestStatementParams{follower}, Action: store.ActionMerge, MergeKey: keys[1]}); err != nil {
+		t.Fatalf("a citation carried by the follower still counts: %v", err)
+	}
+	if got := bodies(t, pg, id); !slices.Equal(got, []string{"A and part of B.", "The rest of B.", "C."}) {
+		t.Errorf("after merge with follower: %v", got)
+	}
+}

@@ -729,9 +729,14 @@ func pageActionTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, 
 			src   int64
 			quote string
 		}
+		// The merged statement may be split into a lead and followers
+		// (ADR-023); every citation of both originals must survive
+		// somewhere in that set.
 		have := map[cite]bool{}
-		for _, c := range p.Statement.Sources {
-			have[cite{c.SourceID, strings.TrimSpace(c.Quote)}] = true
+		for _, s := range append([]IngestStatementParams{p.Statement}, p.Followers...) {
+			for _, c := range s.Sources {
+				have[cite{c.SourceID, strings.TrimSpace(c.Quote)}] = true
+			}
 		}
 		for _, k := range []int{i, j} {
 			for _, c := range current[k].Sources {
@@ -742,9 +747,23 @@ func pageActionTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, 
 		}
 		st := p.Statement
 		st.Key, st.Language = key, params.Language
-		current[i] = st
+		merged := []IngestStatementParams{st}
+		for _, f := range p.Followers {
+			f.Key, f.Language = "", params.Language
+			merged = append(merged, f)
+		}
+		next := make([]IngestStatementParams, 0, len(current)+len(p.Followers))
+		for n, s := range current {
+			switch n {
+			case i:
+				next = append(next, merged...)
+			case j:
+			default:
+				next = append(next, s)
+			}
+		}
 		gone = mk
-		current = append(current[:j], current[j+1:]...)
+		current = next
 	case ActionReorder:
 		if len(p.Order) != len(current) {
 			return fmt.Errorf("reorder lists %d keys; the page has %d statements", len(p.Order), len(current))
