@@ -314,3 +314,33 @@ func TestLint_riskyStepNeedsWarning(t *testing.T) {
 		}
 	}
 }
+
+// Calling the inspector is the right step, and for very bad conditions it can
+// end with the home condemned and everyone ordered out. The statement that
+// sends the renter there says so (editorial guidance, 2026-09-22).
+func TestLint_inspectionNeedsCondemnationWarning(t *testing.T) {
+	has := func(s string) bool {
+		for _, v := range LintAll("en", map[string]string{"body_md": s}) {
+			if strings.Contains(v, "sends the renter to an inspector") {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("If your landlord does not fix it, call 311 and ask for an inspection.") {
+		t.Error("a call-the-inspector statement with no warning must be flagged")
+	}
+	if has("Call 311 and ask for an inspection. For very bad conditions, a code office can condemn the home and make everyone leave.") {
+		t.Error("a statement carrying the warning must pass")
+	}
+	if has("The inspector writes a report after the visit.") {
+		t.Error("mentioning an inspector without sending the renter there must pass")
+	}
+	if v := LintAll("en", map[string]string{"intro_md": "This guide explains when to call the code office for an inspection."}); len(v) > 0 {
+		for _, x := range v {
+			if strings.Contains(x, "sends the renter to an inspector") {
+				t.Error("intros are exempt")
+			}
+		}
+	}
+}
