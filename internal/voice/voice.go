@@ -414,7 +414,7 @@ func policeViolation(lang, text string) string {
 	return ""
 }
 
-var depositInspection = regexp.MustCompile(`(?i)\b(initial|pre-move-out|move-?out|move-?in|joint|walk-?through|final)\s+(inspection|walk-?through)s?\b`)
+var depositInspection = regexp.MustCompile(`(?i)\b(initial|pre-move-out|move-?out|move-?in|joint|walk[- ]?through|final)\s+(inspection|walk[- ]?through)s?\b`)
 
 var notAnAward = regexp.MustCompile(`(?i)[^.]*\b(assistance|program|grant|fund|benefit|voucher)s?\b[^.]*\.?|\bsue you\b|\blate (fee|penalt(y|ies))s?\b`)
 

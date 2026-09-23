@@ -339,6 +339,9 @@ func TestLint_inspectionNeedsCondemnationWarning(t *testing.T) {
 	if has("Ask your landlord for an initial inspection before you move out.") {
 		t.Error("a landlord's move-out deposit inspection is not a code inspection")
 	}
+	if has("Before you move out, you can ask for a walk through inspection.") {
+		t.Error("a walk through inspection, spelled as two words, is a deposit inspection")
+	}
 	if has("The inspector writes a report after the visit.") {
 		t.Error("mentioning an inspector without sending the renter there must pass")
 	}
