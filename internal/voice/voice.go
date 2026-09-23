@@ -81,6 +81,11 @@ type ruleset struct {
 	// should never have to do the multiplication themselves.
 	moneyMultiplier *regexp.Regexp
 	moneyWord       *regexp.Regexp
+	// riskyStep finds a statement telling the renter they can end the
+	// lease, move out and stop paying, or withhold rent. Each of these is
+	// decided by a court only afterwards, so the same statement must carry
+	// the risk (riskWarning): it travels alone onto concept pages.
+	riskyStep, riskWarning *regexp.Regexp
 	// timeSpan matches one time period ("30 days"); three or more in one
 	// block with no ordering cue (orderCue) is a pile of deadlines nobody can
 	// act on: either the steps happen in an order that must be written out,
@@ -140,6 +145,8 @@ var enRuleset = ruleset{
 	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
 	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),
 	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
+	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b`),
+	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid)`),
 	moneyWord:       regexp.MustCompile(`(?i)\b(deposit|rent|damages|amount|penalty)\b`),
 	timeSpan:        regexp.MustCompile(`(?i)\b\d+\s*(business\s+)?(day|days|hour|hours|week|weeks|month|months)\b`),
 	orderCue:        regexp.MustCompile(`(?i)\b(first|then|next|after|before|step|until|once|start(s|ing)?|count(s|ing)?)\b`),
@@ -330,6 +337,20 @@ func Lint(lang, text string) []string {
 // LintAll lints several labeled texts against lang's ruleset and returns
 // violations prefixed with their label, capped so a rejection message stays
 // readable.
+// riskViolation is the statement-only rule for riskyStep. A page intro may
+// name the step ("when you can end your lease"); a statement that tells the
+// renter they can take it must say the risk too.
+func riskViolation(lang, text string) string {
+	rs, ok := rulesets[lang]
+	if !ok || rs.riskyStep == nil {
+		return ""
+	}
+	if m := rs.riskyStep.FindString(text); m != "" && !rs.riskWarning.MatchString(text) {
+		return fmt.Sprintf(`%q is a step a court judges only afterwards: say the risk in this statement, like "If a court later disagrees, you can owe the rent and face eviction. Get legal help first."`, m)
+	}
+	return ""
+}
+
 func LintAll(lang string, labeled map[string]string) []string {
 	const maxViolations = 10
 	var out []string
@@ -337,6 +358,9 @@ func LintAll(lang string, labeled map[string]string) []string {
 		if strings.HasSuffix(label, "body_md") {
 			if n := len(wordRe.FindAllString(labeled[label], -1)); n > MaxStatementWords {
 				out = append(out, fmt.Sprintf("%s: statement runs %d words (max %d); split it into separate statements, one claim each", label, n, MaxStatementWords))
+			}
+			if v := riskViolation(lang, labeled[label]); v != "" {
+				out = append(out, label+": "+v)
 			}
 		}
 		for _, v := range Lint(lang, labeled[label]) {

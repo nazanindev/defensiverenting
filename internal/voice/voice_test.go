@@ -272,3 +272,44 @@ func TestLint_explainRequired_spanish(t *testing.T) {
 		t.Error("bare 'asistencia de renta' must be flagged")
 	}
 }
+
+// Ending the lease, moving out and stopping rent, and withholding rent are
+// judged by a court only afterwards, so the statement must say the risk.
+func TestLint_riskyStepNeedsWarning(t *testing.T) {
+	bare := []string{
+		"If the landlord does not fix it, you can end your lease and move out.",
+		"If the problem is serious, you may stop paying rent until it is fixed.",
+		"You can move out and stop paying rent from that day.",
+		"This is called rent withholding.",
+		"You may move out and stop paying rent. Courts call this constructive eviction.",
+	}
+	for _, s := range bare {
+		found := false
+		for _, v := range LintAll("en", map[string]string{"body_md": s}) {
+			if strings.Contains(v, "court judges only afterwards") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("LintAll(en, body_md %q) wants a risk warning", s)
+		}
+	}
+	warned := []string{
+		"You can end your lease and move out. If a court later disagrees, you can owe the rent. Get legal help first.",
+		"You may withhold rent, but your landlord can try to evict you.",
+		"Your landlord cannot end your lease for complaining.",
+	}
+	for _, s := range warned {
+		for _, v := range LintAll("en", map[string]string{"body_md": s}) {
+			if strings.Contains(v, "court judges only afterwards") {
+				t.Errorf("LintAll(en, body_md %q) = %v, want no risk violation", s, v)
+			}
+		}
+	}
+	intro := map[string]string{"intro_md": "This guide covers when you can end your lease early."}
+	for _, v := range LintAll("en", intro) {
+		if strings.Contains(v, "court judges only afterwards") {
+			t.Errorf("an intro naming the step must not need the warning, got %v", v)
+		}
+	}
+}
