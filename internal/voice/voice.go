@@ -337,6 +337,8 @@ func Lint(lang, text string) []string {
 // LintAll lints several labeled texts against lang's ruleset and returns
 // violations prefixed with their label, capped so a rejection message stays
 // readable.
+var rentWithholdingAct = regexp.MustCompile(`(?i)\brent withholding act\b`)
+
 // riskViolation is the statement-only rule for riskyStep. A page intro may
 // name the step ("when you can end your lease"); a statement that tells the
 // renter they can take it must say the risk too.
@@ -345,7 +347,9 @@ func riskViolation(lang, text string) string {
 	if !ok || rs.riskyStep == nil {
 		return ""
 	}
-	if m := rs.riskyStep.FindString(text); m != "" && !rs.riskWarning.MatchString(text) {
+	// Naming a law is not telling the renter to act under it.
+	named := rentWithholdingAct.ReplaceAllString(text, " ")
+	if m := rs.riskyStep.FindString(named); m != "" && !rs.riskWarning.MatchString(text) {
 		return fmt.Sprintf(`%q is a step a court judges only afterwards: say the risk in this statement, like "If a court later disagrees, you can owe the rent and face eviction. Get legal help first."`, m)
 	}
 	return ""

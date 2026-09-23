@@ -298,6 +298,7 @@ func TestLint_riskyStepNeedsWarning(t *testing.T) {
 		"You can end your lease and move out. If a court later disagrees, you can owe the rent. Get legal help first.",
 		"You may withhold rent, but your landlord can try to evict you.",
 		"Your landlord cannot end your lease for complaining.",
+		"The Rent Withholding Act covers cities only, like Philadelphia and Pittsburgh.",
 	}
 	for _, s := range warned {
 		for _, v := range LintAll("en", map[string]string{"body_md": s}) {
