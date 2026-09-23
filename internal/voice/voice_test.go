@@ -336,6 +336,9 @@ func TestLint_inspectionNeedsCondemnationWarning(t *testing.T) {
 	if has("For free legal advice, call 311 and ask for the Tenant Helpline.") {
 		t.Error("311 used for something other than an inspection must pass")
 	}
+	if has("Ask your landlord for an initial inspection before you move out.") {
+		t.Error("a landlord's move-out deposit inspection is not a code inspection")
+	}
 	if has("The inspector writes a report after the visit.") {
 		t.Error("mentioning an inspector without sending the renter there must pass")
 	}

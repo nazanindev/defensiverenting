@@ -164,7 +164,7 @@ var enRuleset = ruleset{
 	policeChoice:    regexp.MustCompile(`(?i)\b(if you feel safe|you can (choose|decide|ask)|you may (choose|want)|your choice|it is up to you)\b`),
 	policeAlt:       regexp.MustCompile(`(?i)\b(legal aid|lawyer|write down|photos?|videos?|tenant (hotline|helpline|union)|311|keep (a )?records?|witness)`),
 	policeDanger:    regexp.MustCompile(`(?i)\b(in danger|unsafe right now|you are hurt|threatens? you with (harm|violence)|emergency)\b`),
-	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|building department|health department|housing code)\b`),
+	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|code department|building department|health department|housing code)\b`),
 	inspectWarning:  regexp.MustCompile(`(?i)\b(condemn(s|ed)?|order (everyone|you) (to leave|out)|make everyone leave|unfit to live in|have to move out|must move out)`),
 	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid)`),
 	moneyWord:       regexp.MustCompile(`(?i)\b(deposit|rent|damages|amount|penalty)\b`),
@@ -402,12 +402,17 @@ func policeViolation(lang, text string) string {
 	return ""
 }
 
+var depositInspection = regexp.MustCompile(`(?i)\b(initial|pre-move-out|move-?out|move-?in|joint|walk-?through|final)\s+(inspection|walk-?through)s?\b`)
+
 // inspectViolation is the statement-only rule for inspectStep.
 func inspectViolation(lang, text string) string {
 	rs, ok := rulesets[lang]
 	if !ok || rs.inspectStep == nil {
 		return ""
 	}
+	// A landlord's move-in or move-out deposit inspection is not a code
+	// inspection and carries no condemnation risk.
+	text = depositInspection.ReplaceAllString(text, " ")
 	if m := rs.inspectStep.FindString(text); m != "" && !rs.inspectWarning.MatchString(text) {
 		return fmt.Sprintf(`%q sends the renter to an inspector: say in this statement that for very bad conditions an inspector can condemn the home and make everyone leave (editorial guidance; cite the editorial source)`, m)
 	}
