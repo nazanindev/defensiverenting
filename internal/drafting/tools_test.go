@@ -13,6 +13,7 @@ import (
 // fakeStore implements only the store.Store methods SaveDraft touches; the
 // embedded nil interface panics if any other method is called (none are here).
 type fakeStore struct {
+	pageStatements []store.CitedStatement // returned by GetPlaybook when the page exists
 	store.Store
 	ingested       *store.IngestPlaybookParams
 	nextSrcID      int64
@@ -33,7 +34,7 @@ func (f *fakeStore) GetPlaybook(_ context.Context, _, _, lang string) (store.Pla
 		covered = "en" // legacy tests set publishedTopic without caring about language
 	}
 	if covered != "" && lang == covered {
-		return store.PlaybookWithStatements{Playbook: store.Playbook{Title: "T", Language: lang}}, nil
+		return store.PlaybookWithStatements{Playbook: store.Playbook{Title: "T", Language: lang}, Statements: f.pageStatements}, nil
 	}
 	return store.PlaybookWithStatements{}, store.ErrNotFound
 }
@@ -815,5 +816,23 @@ func TestSaveDraft_WholeSubsectionQuoteRaisesNoNote(t *testing.T) {
 	}
 	if got := fs.ingested.Statements[0].ReviewerNote; got != "" {
 		t.Errorf("reviewer note = %q, want none", got)
+	}
+}
+
+// A city page redrafted over its state page reuses the state statement's
+// concept tag for the same rule, so get_playbook must return the tags; the
+// first Pittsburgh redraft dropped every tag because it could not see them.
+func TestGetPlaybook_ReturnsConceptAndTopicRef(t *testing.T) {
+	fs := &fakeStore{coveredLanguage: "en", pageStatements: []store.CitedStatement{
+		{Key: "k1", BodyMD: "Cap.", ConceptSlug: "deposit-cap"},
+		{Key: "k2", BodyMD: "Summary.", TopicRefSlug: "repairs-and-habitability"},
+	}}
+	tb := newTestToolbelt(fs, nil)
+	out, err := tb.GetPlaybook(context.Background(), GetPlaybookInput{JurisdictionSlug: "pennsylvania", TopicSlug: "security-deposits"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Statements[0].Concept != "deposit-cap" || out.Statements[1].TopicRef != "repairs-and-habitability" {
+		t.Errorf("statements = %+v, want concept and topic_ref carried through", out.Statements)
 	}
 }

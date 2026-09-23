@@ -460,8 +460,13 @@ type GetPlaybookOutput struct {
 type StatementOut struct {
 	// Key is the statement's durable identity; pass it back on
 	// save_draft_playbook when revising this statement.
-	Key       string        `json:"key"`
-	BodyMD    string        `json:"body_md"`
+	Key    string `json:"key"`
+	BodyMD string `json:"body_md"`
+	// Concept and TopicRef are the statement's registry tags. A city page
+	// redrafted over its state page reuses the state statement's tag for
+	// the same rule, so the two stay matchable.
+	Concept   string        `json:"concept,omitempty"`
+	TopicRef  string        `json:"topic_ref,omitempty"`
 	Citations []CitationOut `json:"citations"`
 }
 
@@ -486,7 +491,7 @@ func (tb *Toolbelt) GetPlaybook(ctx context.Context, in GetPlaybookInput) (GetPl
 	}
 	out := GetPlaybookOutput{Title: pb.Title, IntroMD: pb.IntroMD, Language: lang}
 	for _, st := range pb.Statements {
-		so := StatementOut{Key: st.Key, BodyMD: st.BodyMD}
+		so := StatementOut{Key: st.Key, BodyMD: st.BodyMD, Concept: st.ConceptSlug, TopicRef: st.TopicRefSlug}
 		for _, c := range st.Citations {
 			so.Citations = append(so.Citations, CitationOut{
 				SourceURL: c.SourceURL, Publisher: c.Publisher, Locator: c.Locator, Quote: c.Quote,
