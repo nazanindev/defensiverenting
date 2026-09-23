@@ -382,3 +382,38 @@ func TestLint_policeIsTheRentersChoice(t *testing.T) {
 		}
 	}
 }
+
+// Money a court or agency awards against the landlord arrives only if the
+// renter wins and the landlord pays; a renter reading "you can get 2 times
+// your deposit" should not think it simply arrives (2026-09-22).
+func TestLint_awardSaysYouMustWinAndBePaid(t *testing.T) {
+	flagged := func(s string) bool {
+		for _, v := range LintAll("en", map[string]string{"body_md": s}) {
+			if strings.Contains(v, "money a court or agency awards") {
+				return true
+			}
+		}
+		return false
+	}
+	for _, s := range []string{
+		"If your landlord keeps your deposit, you can get 2 times the deposit. For a $1,000 deposit that is $2,000.",
+		"The landlord can owe you up to $2,000 for an illegal lockout.",
+		"You can sue in small claims court to get the money back.",
+	} {
+		if !flagged(s) {
+			t.Errorf("want a violation for %q", s)
+		}
+	}
+	for _, s := range []string{
+		"If the court finds your landlord kept your deposit in bad faith, you can get 2 times the deposit. For a $1,000 deposit that is $2,000. You get this money only if you win your case and your landlord pays.",
+		"Your landlord must return your deposit within 30 days.",
+		"Your landlord must pay you interest on the deposit each year.",
+		"If you skip your last month's rent, a court can order you to pay 3 times the rent withheld.",
+		"The city's rental assistance program helps with a crisis. You may qualify for up to $6,000 toward back rent.",
+		"Your lease may set a late penalty. You can get the lease terms in writing.",
+	} {
+		if flagged(s) {
+			t.Errorf("want no award violation for %q", s)
+		}
+	}
+}

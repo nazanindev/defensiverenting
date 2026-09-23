@@ -99,6 +99,14 @@ type ruleset struct {
 	// (policeAlt). A sentence about being in danger (policeDanger) is left as
 	// it is: that is safety, not the rental dispute.
 	police, policeOrder, policeChoice, policeAlt, policeDanger *regexp.Regexp
+	// award finds a statement promising money a court or agency awards
+	// against the landlord (a multiple of the rent or deposit, a penalty,
+	// money for losses, a lawsuit). A renter reads that as money that simply
+	// arrives, so the same statement says it comes only if they win
+	// (awardWin) and the landlord actually pays (awardPaid). A duty the
+	// landlord owes without any case (returning a deposit, deposit interest)
+	// is not an award.
+	award, awardToYou, awardWin, awardPaid *regexp.Regexp
 	// timeSpan matches one time period ("30 days"); three or more in one
 	// block with no ordering cue (orderCue) is a pile of deadlines nobody can
 	// act on: either the steps happen in an order that must be written out,
@@ -164,6 +172,10 @@ var enRuleset = ruleset{
 	policeChoice:    regexp.MustCompile(`(?i)\b(if you feel safe|you can (choose|decide|ask)|you may (choose|want)|your choice|it is up to you)\b`),
 	policeAlt:       regexp.MustCompile(`(?i)\b(legal aid|lawyer|write down|photos?|videos?|tenant (hotline|helpline|union)|311|keep (a )?records?|witness)`),
 	policeDanger:    regexp.MustCompile(`(?i)\b(in danger|unsafe right now|you are hurt|threatens? you with (harm|violence)|emergency)\b`),
+	award:           regexp.MustCompile(`(?i)\b(\d+ times|double|triple|twice) (the|your|a|that|what)\b|\bup to \$[\d,]+|\b(civil )?penalt(y|ies)\b|\bmoney (for your losses|the landlord must pay you)|\b(sue|lawsuit|small claims)\b[^.]{0,80}\b(money|\$[\d,]+|rent|deposit|damage)`),
+	awardToYou:      regexp.MustCompile(`(?i)\b(pay|pays|paid|owes?|award|give)s? you\b|\byou (can|may|could|might) (also )?(get|recover|collect|win|receive|be owed|sue)\b`),
+	awardWin:        regexp.MustCompile(`(?i)\b(if|when|only if) (you|the court|a court|a judge|the (agency|commission)) (win|wins|finds|rules|decides|orders)|\bwin (your|the) case\b`),
+	awardPaid:       regexp.MustCompile(`(?i)\b(landlord|they) (actually )?pays?\b|\bcollect(ing)? (the|this|that) money\b|\bget paid\b`),
 	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|code department|building department|health department|housing code)\b`),
 	inspectWarning:  regexp.MustCompile(`(?i)\b(condemn(s|ed)?|order (everyone|you) (to leave|out)|make everyone leave|unfit to live in|have to move out|must move out)`),
 	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid)`),
@@ -404,6 +416,37 @@ func policeViolation(lang, text string) string {
 
 var depositInspection = regexp.MustCompile(`(?i)\b(initial|pre-move-out|move-?out|move-?in|joint|walk-?through|final)\s+(inspection|walk-?through)s?\b`)
 
+var notAnAward = regexp.MustCompile(`(?i)[^.]*\b(assistance|program|grant|fund|benefit|voucher)s?\b[^.]*\.?|\bsue you\b|\blate (fee|penalt(y|ies))s?\b`)
+
+// A statement about an assistance program with no case in it is about aid,
+// not an award.
+var (
+	assistanceProgram = regexp.MustCompile(`(?i)\b(assistance|program|grant|fund)s?\b`)
+	caseWord          = regexp.MustCompile(`(?i)\b(court|judge|sue|lawsuit|small claims|hearing)\b`)
+)
+
+// awardViolation is the statement-only rule for award money.
+func awardViolation(lang, text string) string {
+	rs, ok := rulesets[lang]
+	if !ok || rs.award == nil {
+		return ""
+	}
+	// Assistance programs pay out without a case, and a suit against the
+	// renter is not money to the renter.
+	if assistanceProgram.MatchString(text) && !caseWord.MatchString(text) {
+		return ""
+	}
+	text = notAnAward.ReplaceAllString(text, " ")
+	m := rs.award.FindString(text)
+	if m == "" || !rs.awardToYou.MatchString(text) {
+		return "" // money the renter owes, or no money to the renter at all
+	}
+	if !rs.awardWin.MatchString(text) || !rs.awardPaid.MatchString(text) {
+		return fmt.Sprintf(`%q is money a court or agency awards: say in this statement that you get it only if you win your case and your landlord pays, like "You get this money only if you win your case and your landlord pays."`, m)
+	}
+	return ""
+}
+
 // inspectViolation is the statement-only rule for inspectStep.
 func inspectViolation(lang, text string) string {
 	rs, ok := rulesets[lang]
@@ -434,6 +477,9 @@ func LintAll(lang string, labeled map[string]string) []string {
 				out = append(out, label+": "+v)
 			}
 			if v := policeViolation(lang, labeled[label]); v != "" {
+				out = append(out, label+": "+v)
+			}
+			if v := awardViolation(lang, labeled[label]); v != "" {
 				out = append(out, label+": "+v)
 			}
 		}
