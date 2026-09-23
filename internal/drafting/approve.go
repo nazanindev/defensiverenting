@@ -60,7 +60,7 @@ func ApplyProposal(ctx context.Context, pg ApprovalStore, check QuoteCheck, p st
 	resolve := func(ps store.ProposedStatement, body string) (store.IngestStatementParams, error) {
 		stmt := store.IngestStatementParams{BodyMD: body, ConceptSlug: ps.Concept, TopicRefSlug: ps.TopicRef}
 		for i, c := range ps.Citations {
-			if c.Editorial || c.Kind == "editorial" {
+			if c.Editorial || c.Kind == "editorial" || strings.TrimSpace(c.URL) == "/editorial" {
 				stmt.Sources = append(stmt.Sources, store.IngestCitationParams{SourceID: editorial.ID})
 				continue
 			}

@@ -397,7 +397,9 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 			cites = append(cites, f.Citations...)
 		}
 		for ci, c := range cites {
-			if c.Editorial {
+			// Site guidance, however an agent spells it: the flag, the kind,
+			// or the /editorial url the reader lists show.
+			if c.Editorial || c.Kind == "editorial" || c.URL == editorialURL {
 				continue
 			}
 			if slices.ContainsFunc(current.Citations, func(x store.ProposedCitation) bool {
