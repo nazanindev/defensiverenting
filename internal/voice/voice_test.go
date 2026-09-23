@@ -347,3 +347,35 @@ func TestLint_inspectionNeedsCondemnationWarning(t *testing.T) {
 		}
 	}
 }
+
+// The site never tells a renter to call the police: for some renters police
+// make things worse, and the call is theirs to judge. It may offer the police
+// as a choice beside a route without them. Immediate danger is set aside.
+func TestLint_policeIsTheRentersChoice(t *testing.T) {
+	flagged := func(s string) bool {
+		for _, v := range LintAll("en", map[string]string{"body_md": s}) {
+			if strings.Contains(v, "police") {
+				return true
+			}
+		}
+		return false
+	}
+	for _, s := range []string{
+		"If your landlord locks you out, call the police.",
+		"Your landlord cannot change the locks. Contact the police and ask for a report.",
+		"A police report can help prove an illegal lockout.",
+	} {
+		if !flagged(s) {
+			t.Errorf("want a violation for %q", s)
+		}
+	}
+	for _, s := range []string{
+		"If you feel safe doing so, you can ask the police to write a report. A report can be evidence. You can also take photos and call legal aid.",
+		"If you are in danger, call 911. Then write down what happened and call legal aid.",
+		"Your landlord cannot lock you out without a court order.",
+	} {
+		if flagged(s) {
+			t.Errorf("want no police violation for %q", s)
+		}
+	}
+}

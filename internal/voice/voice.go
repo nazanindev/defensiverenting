@@ -92,6 +92,13 @@ type ruleset struct {
 	// (inspectWarning). This is editorial guidance from legal aid, not a
 	// rule of law: the warning cites the site's editorial source.
 	inspectStep, inspectWarning *regexp.Regexp
+	// police finds a statement that mentions calling the police or 911. For
+	// some renters police make things worse, and whether to call is theirs to
+	// judge, so the site never instructs it (policeOrder) and offers it only
+	// as a choice (policeChoice) beside a route that does not involve police
+	// (policeAlt). A sentence about being in danger (policeDanger) is left as
+	// it is: that is safety, not the rental dispute.
+	police, policeOrder, policeChoice, policeAlt, policeDanger *regexp.Regexp
 	// timeSpan matches one time period ("30 days"); three or more in one
 	// block with no ordering cue (orderCue) is a pile of deadlines nobody can
 	// act on: either the steps happen in an order that must be written out,
@@ -152,6 +159,11 @@ var enRuleset = ruleset{
 	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),
 	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
 	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b`),
+	police:          regexp.MustCompile(`(?i)\b(police|911|cops?)\b`),
+	policeOrder:     regexp.MustCompile(`(?i)(^|[.!?]\s+)(then |first |also )?(call|contact|phone|get) (the )?(police|911|cops)\b`),
+	policeChoice:    regexp.MustCompile(`(?i)\b(if you feel safe|you can (choose|decide|ask)|you may (choose|want)|your choice|it is up to you)\b`),
+	policeAlt:       regexp.MustCompile(`(?i)\b(legal aid|lawyer|write down|photos?|videos?|tenant (hotline|helpline|union)|311|keep (a )?records?|witness)`),
+	policeDanger:    regexp.MustCompile(`(?i)\b(in danger|unsafe right now|you are hurt|threatens? you with (harm|violence)|emergency)\b`),
 	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|building department|health department|housing code)\b`),
 	inspectWarning:  regexp.MustCompile(`(?i)\b(condemn(s|ed)?|order (everyone|you) (to leave|out)|make everyone leave|unfit to live in|have to move out|must move out)`),
 	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid)`),
@@ -363,6 +375,33 @@ func riskViolation(lang, text string) string {
 	return ""
 }
 
+// policeViolation is the statement-only rule for police. Sentences about
+// immediate danger are set aside first; what remains may offer the police
+// only as the renter's choice, beside a route that does not involve them.
+func policeViolation(lang, text string) string {
+	rs, ok := rulesets[lang]
+	if !ok || rs.police == nil {
+		return ""
+	}
+	var rest []string
+	for _, s := range sentenceEnd.Split(text, -1) {
+		if !rs.policeDanger.MatchString(s) {
+			rest = append(rest, s)
+		}
+	}
+	body := strings.Join(rest, ". ")
+	if !rs.police.MatchString(body) {
+		return ""
+	}
+	if rs.policeOrder.MatchString(body) {
+		return `tells the renter to call the police: offer it as their choice, like "If you feel safe doing so, you can ask the police to write a report", and name a route without police (legal aid, photos, writing down what happened); a sentence about being in danger may say "call 911" as it is`
+	}
+	if !rs.policeChoice.MatchString(body) || !rs.policeAlt.MatchString(body) {
+		return `mentions the police: make it the renter's choice ("if you feel safe", "you can choose") and name a route without police in the same statement (legal aid, photos, writing down what happened)`
+	}
+	return ""
+}
+
 // inspectViolation is the statement-only rule for inspectStep.
 func inspectViolation(lang, text string) string {
 	rs, ok := rulesets[lang]
@@ -387,6 +426,9 @@ func LintAll(lang string, labeled map[string]string) []string {
 				out = append(out, label+": "+v)
 			}
 			if v := inspectViolation(lang, labeled[label]); v != "" {
+				out = append(out, label+": "+v)
+			}
+			if v := policeViolation(lang, labeled[label]); v != "" {
 				out = append(out, label+": "+v)
 			}
 		}
