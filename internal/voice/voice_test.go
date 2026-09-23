@@ -327,11 +327,14 @@ func TestLint_inspectionNeedsCondemnationWarning(t *testing.T) {
 		}
 		return false
 	}
-	if !has("If your landlord does not fix it, call 311 and ask for an inspection.") {
+	if !has("If your landlord does not fix it, call 311 and ask for an inspection.") || !has("Call the code office to report the problem.") {
 		t.Error("a call-the-inspector statement with no warning must be flagged")
 	}
 	if has("Call 311 and ask for an inspection. For very bad conditions, a code office can condemn the home and make everyone leave.") {
 		t.Error("a statement carrying the warning must pass")
+	}
+	if has("For free legal advice, call 311 and ask for the Tenant Helpline.") {
+		t.Error("311 used for something other than an inspection must pass")
 	}
 	if has("The inspector writes a report after the visit.") {
 		t.Error("mentioning an inspector without sending the renter there must pass")

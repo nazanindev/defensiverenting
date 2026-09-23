@@ -152,7 +152,7 @@ var enRuleset = ruleset{
 	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),
 	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
 	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b`),
-	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|building department|health department|311)\b`),
+	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|building department|health department|housing code)\b`),
 	inspectWarning:  regexp.MustCompile(`(?i)\b(condemn(s|ed)?|order (everyone|you) (to leave|out)|make everyone leave|unfit to live in|have to move out|must move out)`),
 	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid)`),
 	moneyWord:       regexp.MustCompile(`(?i)\b(deposit|rent|damages|amount|penalty)\b`),
