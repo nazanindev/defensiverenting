@@ -39,6 +39,8 @@ func decide(ctx context.Context, pg *store.PG, args []string) {
 		decidePass(ctx, pg, args[1:])
 	case "work":
 		decideWork(ctx, pg)
+	case "page":
+		decidePage(ctx, pg, args[1:])
 	case "audit":
 		audit(ctx, pg)
 	default:
