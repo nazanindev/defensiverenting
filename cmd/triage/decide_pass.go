@@ -75,9 +75,9 @@ func unstamped(ctx context.Context, pg *store.PG) []passItem {
 			}
 			it := passItem{PlaybookID: pw.ID, Key: st.Key, Page: pw.Jurisdiction.Name + " · " + pw.Topic.Name, Position: i + 1, BodyMD: st.BodyMD, Concept: st.ConceptSlug}
 			for _, c := range st.Citations {
-				if c.SourceKind == "editorial" {
-					continue
-				}
+				// Site guidance is listed too (url /editorial, no quote): a
+				// reader who cannot see it leaves every risk warning as
+				// unbacked.
 				it.Citations = append(it.Citations, citationOut{URL: c.SourceURL, Publisher: c.Publisher, Kind: c.SourceKind, Locator: c.Locator, Quote: c.Quote})
 			}
 			items = append(items, it)

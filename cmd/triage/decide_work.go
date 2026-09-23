@@ -59,9 +59,9 @@ func decideWork(ctx context.Context, pg *store.PG) {
 				Page: pw.Jurisdiction.Name + " · " + pw.Topic.Name, Position: p.Position, BodyMD: st.BodyMD, Concept: st.ConceptSlug,
 				Proposed: p.Proposed, Evidence: p.Evidence}
 			for _, c := range st.Citations {
-				if c.SourceKind == "editorial" {
-					continue
-				}
+				// Site guidance is listed too (url /editorial, no quote): a
+				// reader who cannot see it leaves every risk warning as
+				// unbacked.
 				it.Citations = append(it.Citations, citationOut{URL: c.SourceURL, Publisher: c.Publisher, Kind: c.SourceKind, Locator: c.Locator, Quote: c.Quote})
 			}
 			items = append(items, it)
