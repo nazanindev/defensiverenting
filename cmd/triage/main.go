@@ -110,6 +110,8 @@ func main() {
 		stands(ctx, pg, os.Args[2:])
 	case "reject":
 		rejectDrift(ctx, pg, os.Args[2:])
+	case "withdraw":
+		withdraw(ctx, pg, os.Args[2:])
 	case "merge":
 		merge(ctx, pg, os.Args[2:])
 	case "decide":
@@ -127,7 +129,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide audit")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide audit")
 	os.Exit(2)
 }
 
@@ -556,3 +558,46 @@ func truncate(s string, n int) string {
 	}
 	return s
 }
+
+// withdraw takes back the triage agent's own pending replacements, for a
+// batch filed by mistake. The store refuses anything the triage agent did
+// not file, and any note.
+func withdraw(ctx context.Context, pg *store.PG, args []string) {
+	fs := flag.NewFlagSet("withdraw", flag.ExitOnError)
+	note := fs.String("note", "", "why, kept as the record")
+	apply := fs.Bool("apply", false, "write the withdrawals; default prints them")
+	var ids []int64
+	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		id, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			fatal(fmt.Errorf("proposal id %q: %w", args[0], err))
+		}
+		ids = append(ids, id)
+		args = args[1:]
+	}
+	if err := fs.Parse(args); err != nil {
+		fatal(err)
+	}
+	if len(ids) == 0 || strings.TrimSpace(*note) == "" {
+		usage()
+	}
+	done := 0
+	for _, id := range ids {
+		if !*apply {
+			fmt.Printf("#%d would be withdrawn: %s\n", id, *note)
+			continue
+		}
+		if err := pg.WithdrawProposal(ctx, id, triageAgent, *note); err != nil {
+			fmt.Printf("#%d not withdrawn: %v\n", id, err)
+			continue
+		}
+		done++
+	}
+	if *apply {
+		fmt.Printf("%d of %d withdrawn by %s\n", done, len(ids), triageAgent)
+	}
+}
+
+// triageAgent is the name cmd/propose files the triage agent's proposals
+// under (-by "triage agent"); withdraw acts only on those.
+const triageAgent = "triage agent"

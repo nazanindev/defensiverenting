@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -473,5 +474,35 @@ func TestListNarrowQuotes(t *testing.T) {
 	// A wide quote is not listed.
 	if rows, err := pg.ListNarrowQuotes(ctx, 1); err != nil || len(rows) != 0 {
 		t.Errorf("with maxWords 1: %d rows, err %v; want none", len(rows), err)
+	}
+}
+
+func TestWithdrawProposal_onlyTheProposersOwnPendingReplacement(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	id := seedPlaybook(t, pg, jID, tID, "draft", "Withdraw")
+	key := statementKeys(t, pg, id)[0]
+	mine, err := pg.FileProposal(ctx, store.FileProposalParams{
+		StatementKey: key, PlaybookID: id, Reason: "agent-pass:triage", ProposedBy: "triage agent",
+		Proposed: &store.ProposedStatement{BodyMD: "Claim one, reworded."},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.WithdrawProposal(ctx, mine, "review agent", "not mine"); err == nil {
+		t.Error("only the proposer may withdraw")
+	}
+	if err := pg.WithdrawProposal(ctx, mine, "triage agent", ""); err == nil {
+		t.Error("a withdrawal needs a reason")
+	}
+	if err := pg.WithdrawProposal(ctx, mine, "triage agent", "filed by mistake"); err != nil {
+		t.Fatalf("withdraw: %v", err)
+	}
+	p, _ := pg.GetProposal(ctx, mine)
+	if p.Status != "rejected" || p.DecidedBy != "triage agent" || !strings.HasPrefix(p.DecisionNote, "Withdrawn by the proposer") {
+		t.Errorf("after withdraw: %q by %q note %q", p.Status, p.DecidedBy, p.DecisionNote)
+	}
+	if err := pg.WithdrawProposal(ctx, mine, "triage agent", "again"); err == nil {
+		t.Error("an already decided proposal cannot be withdrawn")
 	}
 }

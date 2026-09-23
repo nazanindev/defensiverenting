@@ -520,6 +520,30 @@ func (pg *PG) DecideProposal(ctx context.Context, id int64, status, by, note str
 	return nil
 }
 
+// WithdrawProposal lets a proposer take back its own replacement before
+// anyone decides it: the triage agent that filed a wrong batch closes it
+// instead of leaving it for a person to reject by hand. Only the proposer
+// can withdraw, only a pending or snoozed replacement (never a note, which is
+// a question someone else must answer), and the record says so.
+func (pg *PG) WithdrawProposal(ctx context.Context, id int64, by, note string) error {
+	if strings.TrimSpace(note) == "" {
+		return errors.New("a withdrawal needs a reason")
+	}
+	tag, err := pg.pool.Exec(ctx, `
+		UPDATE statement_proposals
+		   SET status = 'rejected', decided_by = $2, decided_at = NOW(),
+		       decision_note = 'Withdrawn by the proposer: ' || $3, snoozed_until = NULL
+		 WHERE id = $1 AND status IN ('pending', 'snoozed') AND proposed_by = $2
+		   AND proposed IS NOT NULL AND jsonb_typeof(proposed) = 'object'`, id, by, strings.TrimSpace(note))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("proposal #%d is not a pending replacement filed by %q", id, by)
+	}
+	return nil
+}
+
 // ApproveProposal applies the replacement statement to the target page
 // through the ordinary author save (D3) and marks the proposal approved, in
 // one transaction. On a live page the save runs the publish gate; a refusal
