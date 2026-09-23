@@ -649,6 +649,20 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 				return fmt.Errorf("close resolved notes: %w", err)
 			}
 		}
+		// A judge who leaves an edit files "Proposal #N held: why" on the key.
+		// Once a later edit to the same statement is approved, the text that
+		// note was about is gone, so it closes too, instead of costing another
+		// round of unchanged re-files to close it.
+		if _, err := tx.Exec(ctx, `
+			UPDATE statement_proposals
+			   SET status = 'superseded', decided_by = $2, decided_at = NOW(), snoozed_until = NULL,
+			       decision_note = 'Closed by proposal #' || $1::bigint::text || ', a later edit of this statement'
+			 WHERE statement_key = $3::uuid AND reason = $4 AND status IN ('pending', 'snoozed')
+			   AND evidence->>'note' LIKE 'Proposal #% held:%'
+			   AND id < $1`,
+			p.ID, p.By, key, ReasonReviewerFlag); err != nil {
+			return fmt.Errorf("close held notes: %w", err)
+		}
 		if p.Action != "" {
 			return pageActionTx(ctx, tx, targetID, key, p, p.ID)
 		}

@@ -443,6 +443,55 @@ func TestProposal_resolvesClosesFlagsOnApproval(t *testing.T) {
 	}
 }
 
+// A judge who leaves an edit files "Proposal #N held: why". When a later edit
+// of the same statement is approved, that note is about text that is gone,
+// so it closes with the approval; an ordinary reviewer note does not.
+func TestProposal_approvalClosesHeldNotesOnTheKey(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	page := seedPlaybook(t, pg, jID, tID, "draft", "Held notes")
+	key := firstKey(t, pg, page)
+
+	for _, n := range []string{"Proposal #1 held: drops a condition.", "Rests on guidance only."} {
+		if _, err := pg.FileReviewerNote(ctx, page, key, n, "review agent"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var held, plain int64
+	for _, row := range listPending(t, pg) {
+		if row.StatementKey != key || row.Reason != store.ReasonReviewerFlag {
+			continue
+		}
+		p, err := pg.GetProposal(ctx, row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(p.Evidence), "Proposal #1 held") {
+			held = row.ID
+		} else {
+			plain = row.ID
+		}
+	}
+	if held == 0 || plain == 0 {
+		t.Fatal("notes not filed")
+	}
+	id, err := pg.FileProposal(ctx, store.FileProposalParams{StatementKey: key, PlaybookID: page, Reason: "agent-pass:triage", ProposedBy: "triage agent",
+		Proposed: &store.ProposedStatement{BodyMD: "With a statute.", Citations: []store.ProposedCitation{{URL: "https://example.gov/x", Quote: "verbatim"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := sourceOf(t, pg, page)
+	if err := pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: id, By: "review agent", Statement: replacement(src, "With a statute.", true)}); err != nil {
+		t.Fatal(err)
+	}
+	if !inList(t, pg, "superseded", held) {
+		t.Error("the held note stayed open after a later edit was approved")
+	}
+	if !inList(t, pg, "pending", plain) {
+		t.Error("an ordinary reviewer note closed without being resolved")
+	}
+}
+
 func listPending(t *testing.T, pg *store.PG) []store.ProposalRow {
 	t.Helper()
 	rows, err := pg.ListProposals(context.Background(), "pending")
