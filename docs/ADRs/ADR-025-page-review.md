@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted 2026-09-22 (Nazanin). Step 1 (D1-D3, drafts only) shipped the same day: `triage decide page`. D4 verbs and D6 outline in the command follow. |
+| Status | Accepted 2026-09-22 (Nazanin). Step 1 (D1-D3, drafts only) shipped the same day: `triage decide page`. D4 verbs shipped the same day; on drafts they are applied by agents (D5 amended below). D6 outline in the command follows. |
 | Date | 2026-09-22 |
 | Amends | ADR-014 (new proposal kinds), ADR-021 (a new rung on the ladder), ADR-022 (PASS readers see the page outline) |
 
@@ -80,3 +80,12 @@ PASS readers and judges also get a one-line outline of the rest of the page: pos
 ## Step 1 as built
 
 A finding `{playbook_id, kind, keys, note}` is filed as an ordinary reviewer note on the first key it names, prefixed `Page review (<kind>):` and listing the positions involved, under the review agent. It reuses the note machinery on purpose: it shows on the statement card, it holds the page from publishing until decided, and it needs no new table. Refused: unknown kinds, empty notes, keys not on the page, and any page that is not a draft.
+
+## Amendment: agents apply page-level changes on drafts (2026-09-22)
+
+Nazanin, after the first run: "I actually think the page agent should be able to make changes like the other agents, not just proposals." So D5 steps 1 and 2 are skipped for drafts and step 3 applies at once, with removals included:
+
+- The page reviewer files a finding (a note); the triage agent answers it with a remove, merge or reorder proposal (`action` on the proposed statement); a different agent judges it and applies it through `triage decide edit`, under the review agent. The proposer is never the judge.
+- Drafts only. `ApproveProposal` refuses a page-level change on a published page unless a person approves it. No queue screen for page-level proposals is built yet; until it is, none are filed on published pages.
+- Invariants in the store: a page keeps at least one statement; a merge keeps every citation of both statements and the first statement's key; a reorder keeps the same set of statements. Open items on a statement that leaves the page close with it, pointing at the proposal.
+- Overturns stay the measure: a person who flags a page-level change undoes it by hand and the flag records it.

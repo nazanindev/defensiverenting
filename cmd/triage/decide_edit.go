@@ -159,6 +159,11 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, check
 	if p.Proposed == nil {
 		return "no replacement to apply; left"
 	}
+	// A remove or reorder carries no text to check; the store holds the
+	// invariants (ADR-025 D4). A merge carries the merged statement.
+	if a := p.Proposed.Action; a == store.ActionRemove || a == store.ActionReorder {
+		return ""
+	}
 	if why := statementVerdict(ctx, *p.Proposed, p.Language, p.Position, check); why != "" {
 		return why
 	}

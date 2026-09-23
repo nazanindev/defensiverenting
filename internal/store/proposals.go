@@ -54,6 +54,47 @@ type ProposedStatement struct {
 	// each with its own citations. The replaced statement keeps its key;
 	// followers are new statements and start unreviewed.
 	Followers []ProposedStatement `json:"followers,omitempty"`
+	// Action makes this a page-level change (ADR-025 D4) instead of a
+	// replacement: "remove" takes the statement off the page, "merge" folds
+	// MergeKey's statement into this one (the body and citations above are
+	// the merged statement), "reorder" sets the page to Order, a full list
+	// of the page's keys. Empty is an ordinary replacement.
+	Action   string   `json:"action,omitempty"`
+	MergeKey string   `json:"merge_key,omitempty"`
+	Order    []string `json:"order,omitempty"`
+}
+
+// Page-level proposal actions (ADR-025 D4).
+const (
+	ActionRemove  = "remove"
+	ActionMerge   = "merge"
+	ActionReorder = "reorder"
+)
+
+// checkAction refuses a malformed page-level proposal at filing, so a bad
+// file never reaches the queue.
+func checkAction(ps *ProposedStatement) error {
+	switch ps.Action {
+	case "":
+		if strings.TrimSpace(ps.BodyMD) == "" {
+			return errors.New("a proposed statement needs a body; omit proposed entirely for a work item")
+		}
+	case ActionRemove:
+	case ActionMerge:
+		if !uuidRE.MatchString(strings.TrimSpace(ps.MergeKey)) {
+			return errors.New("a merge names the statement it folds in: merge_key")
+		}
+		if strings.TrimSpace(ps.BodyMD) == "" || len(ps.Citations) == 0 {
+			return errors.New("a merge carries the merged statement: body and every citation of both")
+		}
+	case ActionReorder:
+		if len(ps.Order) == 0 {
+			return errors.New("a reorder lists every key on the page in the new order")
+		}
+	default:
+		return fmt.Errorf("action %q is not remove, merge, or reorder", ps.Action)
+	}
+	return nil
 }
 
 type Proposal struct {
@@ -126,6 +167,11 @@ type ApproveProposalParams struct {
 	Statement IngestStatementParams
 	// Followers are inserted after Statement, in order (a split).
 	Followers []IngestStatementParams
+	// Action, MergeKey and Order carry a page-level change (ADR-025 D4);
+	// Statement is the merged statement for a merge and unused otherwise.
+	Action   string
+	MergeKey string
+	Order    []string
 	// Note is the decision's record: what the approver checked. A person's
 	// click leaves it empty; an agent's approval says which rule it applied.
 	Note string
@@ -158,8 +204,10 @@ func (pg *PG) FileProposal(ctx context.Context, p FileProposalParams) (int64, er
 	if strings.TrimSpace(p.ProposedBy) == "" {
 		return 0, errors.New("proposed_by is required")
 	}
-	if p.Proposed != nil && strings.TrimSpace(p.Proposed.BodyMD) == "" {
-		return 0, errors.New("a proposed statement needs a body; omit proposed entirely for a work item")
+	if p.Proposed != nil {
+		if err := checkAction(p.Proposed); err != nil {
+			return 0, err
+		}
 	}
 	var proposed []byte
 	if p.Proposed != nil {
@@ -551,20 +599,20 @@ func (pg *PG) WithdrawProposal(ctx context.Context, id int64, by, note string) e
 // stays pending.
 func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		var key, status string
+		var key, status, targetStatus string
 		var targetID int64
 		var evidence json.RawMessage
 		err := tx.QueryRow(ctx, `
-			SELECT p.statement_key::text, p.status, tgt.id, p.evidence
+			SELECT p.statement_key::text, p.status, tgt.id, p.evidence, tgt.status
 			FROM statement_proposals p
 			JOIN playbooks obs ON obs.id = p.playbook_id
 			JOIN LATERAL (
-				SELECT pb.id FROM playbooks pb
+				SELECT pb.id, pb.status FROM playbooks pb
 				WHERE pb.jurisdiction_id = obs.jurisdiction_id AND pb.topic_id = obs.topic_id
 				  AND pb.language = obs.language AND pb.status IN ('draft', 'published')
 				ORDER BY (pb.status = 'draft') DESC LIMIT 1
 			) tgt ON true
-			WHERE p.id = $1 FOR UPDATE OF p`, p.ID).Scan(&key, &status, &targetID, &evidence)
+			WHERE p.id = $1 FOR UPDATE OF p`, p.ID).Scan(&key, &status, &targetID, &evidence, &targetStatus)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -573,6 +621,11 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 		}
 		if status != "pending" && status != "snoozed" {
 			return ErrProposalNotPending
+		}
+		// Removing, merging or reordering a live page is a person's
+		// decision; agents make page-level changes on drafts only (ADR-025).
+		if p.Action != "" && targetStatus != "draft" && !isReviewer(p.By) {
+			return fmt.Errorf("a %s on a published page is a person's decision; %q applies page-level changes to drafts only", p.Action, p.By)
 		}
 
 		// Decided before the save: the approval is the reviewer's sign-off
@@ -596,6 +649,9 @@ func (pg *PG) ApproveProposal(ctx context.Context, p ApproveProposalParams) erro
 				return fmt.Errorf("close resolved notes: %w", err)
 			}
 		}
+		if p.Action != "" {
+			return pageActionTx(ctx, tx, targetID, key, p, p.ID)
+		}
 		return replaceStatementTx(ctx, tx, targetID, key, p.Statement, p.Followers, p.By, true)
 	})
 }
@@ -615,7 +671,9 @@ func (pg *PG) ReplaceStatement(ctx context.Context, playbookID int64, key string
 
 // replaceStatementTx loads the page, substitutes the statement under key,
 // and saves through the one save path.
-func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, followers []IngestStatementParams, by string, approval bool) error {
+// pageParamsTx reads a page's save parameters and current statements, the
+// starting point every approval edits and saves back.
+func pageParamsTx(ctx context.Context, tx pgx.Tx, playbookID int64, by string, approval bool) (AuthorUpdatePlaybookParams, []IngestStatementParams, error) {
 	var params AuthorUpdatePlaybookParams
 	params.ID = playbookID
 	params.UpdatedBy = by
@@ -625,9 +683,102 @@ func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key st
 		FROM playbooks WHERE id = $1`, playbookID,
 	).Scan(&params.JurisdictionID, &params.TopicID, &params.Language, &params.Slug,
 		&params.Title, &params.IntroMD, &params.PageKind, &params.AuthorNotes); err != nil {
-		return fmt.Errorf("read target page: %w", err)
+		return params, nil, fmt.Errorf("read target page: %w", err)
 	}
 	current, err := statementParams(ctx, tx, playbookID)
+	return params, current, err
+}
+
+// pageActionTx applies a remove, merge or reorder (ADR-025 D4) through the
+// same page save as a replacement, so stamps, keys and the publish gate
+// behave the same. Invariants: a page keeps at least one statement; a merge
+// keeps every citation of both statements; a reorder keeps the same set of
+// statements. Open items on a statement that leaves the page close with it.
+func pageActionTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, p ApproveProposalParams, proposalID int64) error {
+	params, current, err := pageParamsTx(ctx, tx, playbookID, p.By, true)
+	if err != nil {
+		return err
+	}
+	idx := func(k string) int {
+		for i := range current {
+			if current[i].Key == k {
+				return i
+			}
+		}
+		return -1
+	}
+	i := idx(key)
+	if i < 0 {
+		return ErrProposalTargetGone
+	}
+	var gone string
+	switch p.Action {
+	case ActionRemove:
+		if len(current) < 2 {
+			return errors.New("remove would leave the page with no statements")
+		}
+		gone = key
+		current = append(current[:i], current[i+1:]...)
+	case ActionMerge:
+		mk := strings.ToLower(strings.TrimSpace(p.MergeKey))
+		j := idx(mk)
+		if j < 0 || mk == key {
+			return fmt.Errorf("merge: statement %s is not another statement on this page", p.MergeKey)
+		}
+		type cite struct {
+			src   int64
+			quote string
+		}
+		have := map[cite]bool{}
+		for _, c := range p.Statement.Sources {
+			have[cite{c.SourceID, strings.TrimSpace(c.Quote)}] = true
+		}
+		for _, k := range []int{i, j} {
+			for _, c := range current[k].Sources {
+				if !have[cite{c.SourceID, strings.TrimSpace(c.Quote)}] {
+					return fmt.Errorf("merge drops a citation of statement %s; the merged statement keeps every citation of both", current[k].Key)
+				}
+			}
+		}
+		st := p.Statement
+		st.Key, st.Language = key, params.Language
+		current[i] = st
+		gone = mk
+		current = append(current[:j], current[j+1:]...)
+	case ActionReorder:
+		if len(p.Order) != len(current) {
+			return fmt.Errorf("reorder lists %d keys; the page has %d statements", len(p.Order), len(current))
+		}
+		next := make([]IngestStatementParams, 0, len(current))
+		used := map[string]bool{}
+		for _, k := range p.Order {
+			k = strings.ToLower(strings.TrimSpace(k))
+			n := idx(k)
+			if n < 0 || used[k] {
+				return fmt.Errorf("reorder: %s is not a statement on this page, or appears twice", k)
+			}
+			used[k] = true
+			next = append(next, current[n])
+		}
+		current = next
+	default:
+		return fmt.Errorf("action %q is not remove, merge, or reorder", p.Action)
+	}
+	if gone != "" {
+		if _, err := tx.Exec(ctx, `
+			UPDATE statement_proposals
+			   SET status = 'superseded', decided_by = $2, decided_at = NOW(), snoozed_until = NULL,
+			       decision_note = 'The statement left the page by proposal #' || $3::bigint::text
+			 WHERE statement_key = $1::uuid AND status IN ('pending', 'snoozed')`, gone, p.By, proposalID); err != nil {
+			return fmt.Errorf("close items on the removed statement: %w", err)
+		}
+	}
+	params.Statements = current
+	return authorUpdatePlaybookTx(ctx, tx, params)
+}
+
+func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, st IngestStatementParams, followers []IngestStatementParams, by string, approval bool) error {
+	params, current, err := pageParamsTx(ctx, tx, playbookID, by, approval)
 	if err != nil {
 		return err
 	}

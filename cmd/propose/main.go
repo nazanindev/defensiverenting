@@ -62,7 +62,7 @@ func main() {
 		if !store.ValidReason(e.Reason) {
 			fatal(fmt.Errorf("entry %d: reason %q is not source-drift, agent-pass:<name>, or source-quality:<signal>", i+1, e.Reason))
 		}
-		if e.Proposed != nil && e.Proposed.BodyMD == "" {
+		if e.Proposed != nil && e.Proposed.Action == "" && e.Proposed.BodyMD == "" {
 			fatal(fmt.Errorf("entry %d: proposed has no body_md; use null for a work item", i+1))
 		}
 	}

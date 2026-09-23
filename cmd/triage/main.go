@@ -344,6 +344,25 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 		if e.Proposed == nil {
 			continue
 		}
+		// A remove or reorder carries no statement text; the store checks
+		// it against the page when it is applied (ADR-025 D4).
+		switch e.Proposed.Action {
+		case store.ActionRemove:
+			continue
+		case store.ActionReorder:
+			if len(e.Proposed.Order) == 0 {
+				bad(i, "a reorder lists every key on the page in the new order")
+			}
+			continue
+		case store.ActionMerge:
+			if strings.TrimSpace(e.Proposed.MergeKey) == "" {
+				bad(i, "a merge names merge_key, the statement it folds in")
+			}
+		case "":
+		default:
+			bad(i, "action %q is not remove, merge, or reorder", e.Proposed.Action)
+			continue
+		}
 		if strings.TrimSpace(e.Proposed.BodyMD) == "" {
 			bad(i, "proposed.body_md is empty; use null proposed for a work item")
 		}

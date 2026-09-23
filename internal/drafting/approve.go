@@ -105,7 +105,10 @@ func ApplyProposal(ctx context.Context, pg ApprovalStore, check QuoteCheck, p st
 		}
 		followers = append(followers, fs)
 	}
-	return pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: p.ID, By: by, Statement: stmt, Followers: followers, Note: note})
+	return pg.ApproveProposal(ctx, store.ApproveProposalParams{
+		ID: p.ID, By: by, Statement: stmt, Followers: followers, Note: note,
+		Action: p.Proposed.Action, MergeKey: p.Proposed.MergeKey, Order: p.Proposed.Order,
+	})
 }
 
 // SourceKindOrDefault maps a proposed citation's kind onto the source
