@@ -90,7 +90,7 @@ func (tb *Toolbelt) FetchSource(_ context.Context, in FetchSourceInput) (FetchSo
 // ---- save_draft_playbook ---------------------------------------------------
 
 type CitationInput struct {
-	URL       string `json:"url" jsonschema:"source URL, must have been fetched via fetch_source"`
+	URL       string `json:"url" jsonschema:"source URL, must have been fetched via fetch_source. Omit (with quote) when kind is editorial."`
 	Publisher string `json:"publisher"`
 	Kind      string `json:"kind" jsonschema:"statute|regulation|gov_guidance|nonprofit|editorial|court_ruling"`
 	Locator   string `json:"locator" jsonschema:"section pointer, e.g. \"§ 15B\" (optional)"`
@@ -228,8 +228,15 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			return SaveDraftOutput{}, reject("statement %d (%q) has no citations — every statement must cite a source", si+1, truncate(st.BodyMD, 60))
 		}
 		for ci, c := range st.Citations {
+			// Site guidance (a risk warning, "only if you win and the
+			// landlord pays") cites the editorial source, not a page of
+			// this site: it has no URL or quote to verify.
+			if c.Kind == "editorial" {
+				citationCount++
+				continue
+			}
 			if strings.TrimSpace(c.URL) == "" || strings.TrimSpace(c.Quote) == "" {
-				return SaveDraftOutput{}, reject("statement %d citation %d needs both a url and a quote", si+1, ci+1)
+				return SaveDraftOutput{}, reject("statement %d citation %d needs both a url and a quote (or kind \"editorial\" for site guidance)", si+1, ci+1)
 			}
 			// Reference-only sites (lawyer marketing, content mills) may be
 			// fetched to orient, never cited. Rejected here with the fix
@@ -254,8 +261,19 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	// Upsert each distinct source and map URL -> source id.
 	jID := jur.ID
 	srcID := map[string]int64{}
+	var editorialID int64
 	for _, st := range in.Statements {
 		for _, c := range st.Citations {
+			if c.Kind == "editorial" {
+				if editorialID == 0 {
+					ed, err := tb.db.GetEditorialSource(ctx)
+					if err != nil {
+						return SaveDraftOutput{}, err
+					}
+					editorialID = ed.ID
+				}
+				continue
+			}
 			u := strings.TrimSpace(c.URL)
 			if _, done := srcID[u]; done {
 				continue
@@ -296,6 +314,10 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	for _, st := range in.Statements {
 		cites := make([]store.IngestCitationParams, 0, len(st.Citations))
 		for _, c := range st.Citations {
+			if c.Kind == "editorial" {
+				cites = append(cites, store.IngestCitationParams{SourceID: editorialID})
+				continue
+			}
 			// The guardrail above matched this quote against the text
 			// fetch_source returned in this session. That is a confirmation
 			// only when the text was the live page: a quote matched against

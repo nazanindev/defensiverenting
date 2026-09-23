@@ -62,6 +62,10 @@ func (f *fakeStore) UpsertSource(_ context.Context, p store.UpsertSourceParams) 
 	return store.Source{ID: f.nextSrcID, URL: p.URL, Publisher: p.Publisher, Kind: p.Kind}, nil
 }
 
+func (f *fakeStore) GetEditorialSource(context.Context) (store.Source, error) {
+	return store.Source{ID: 999, Kind: "editorial"}, nil
+}
+
 // Topics are a closed registry: SaveDraft looks one up, it never creates one.
 // unknownTopic makes the lookup miss, so the rejection path can be tested.
 func (f *fakeStore) GetTopicBySlug(_ context.Context, slug string) (store.Topic, error) {
@@ -153,6 +157,33 @@ func TestSaveDraft_HappyPath(t *testing.T) {
 	}
 	if out.CitationCount != 1 || out.Status != "draft" {
 		t.Errorf("output = %+v", out)
+	}
+}
+
+// Site guidance cites the editorial source with no URL or quote, the same as
+// a proposal does, so a drafter never cites a page of this site to carry it.
+func TestSaveDraft_EditorialCitation(t *testing.T) {
+	fs := &fakeStore{}
+	tb := newTestToolbelt(fs, map[string]string{
+		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
+	})
+	mustFetch(t, tb, depositURL)
+	st := stmt("Your landlord must return your deposit within 30 days of the tenancy ending. Keep proof of your new address.",
+		depositURL, "within thirty days after the termination of the tenancy, return the security deposit")
+	st.Citations = append(st.Citations, CitationInput{Kind: "editorial"})
+	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
+		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "Boston Security Deposits",
+		Statements: []StatementInput{st},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	srcs := fs.ingested.Statements[0].Sources
+	if len(srcs) != 2 || srcs[1].SourceID != 999 || srcs[1].Quote != "" {
+		t.Errorf("editorial citation = %+v, want the editorial source with no quote", srcs)
+	}
+	if out.CitationCount != 2 {
+		t.Errorf("citation count = %d, want 2", out.CitationCount)
 	}
 }
 
