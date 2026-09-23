@@ -154,6 +154,9 @@ func decidePassFile(ctx context.Context, pg *store.PG, path string, args []strin
 	}
 }
 
+// editorialURL is the site's own guidance source (migration 000001).
+const editorialURL = "/editorial"
+
 // passVerdict holds a reader's PASS to the rule: the source is one the
 // statement cites, the passage is at most flagPassageCap words and is found
 // verbatim in that source as fetched live now, and there is a reason.
@@ -184,6 +187,18 @@ func passVerdict(ctx context.Context, d passDecision, it passItem, check draftin
 	}
 	if !cited {
 		return "the passage's source is not one the statement cites; left"
+	}
+	// A statement that is site guidance alone (the private-inspector note)
+	// has no source text to find the passage in: the editorial citation is
+	// the backing. A statement with any other citation makes a legal claim,
+	// and its passage must come from that source.
+	if u == editorialURL {
+		for _, c := range it.Citations {
+			if c.URL != editorialURL {
+				return "the statement cites a source besides site guidance; give the passage from that source; left"
+			}
+		}
+		return ""
 	}
 	v := check(ctx, it.Position, u, passage)
 	switch {

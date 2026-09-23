@@ -42,3 +42,18 @@ func TestPassVerdict(t *testing.T) {
 		t.Errorf("unreadable source: %q", why)
 	}
 }
+
+// Site guidance alone passes on its editorial citation; a statement that also
+// cites a law must give its passage from the law.
+func TestPassVerdictEditorial(t *testing.T) {
+	check := func(context.Context, int, string, string) drafting.QuoteVerdict { return drafting.QuoteVerdict{} }
+	d := passDecision{Verdict: "pass", SourceURL: editorialURL, Passage: "site guidance", Reason: "private-inspector guidance"}
+	only := passItem{Citations: []citationOut{{URL: editorialURL, Kind: "editorial"}}}
+	if why := passVerdict(context.Background(), d, only, check); why != "" {
+		t.Fatalf("site guidance refused: %s", why)
+	}
+	mixed := passItem{Citations: []citationOut{{URL: editorialURL, Kind: "editorial"}, {URL: "https://law.example.gov/s1"}}}
+	if why := passVerdict(context.Background(), d, mixed, check); why == "" {
+		t.Error("a statement citing a law passed on its editorial citation")
+	}
+}
