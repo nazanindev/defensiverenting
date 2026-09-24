@@ -23,7 +23,13 @@ const maxSentenceWords = 25
 // its remedy is three claims and reads as three statements. The loop of
 // ADR-022 showed what happens without a cap: every fix adds a condition and
 // none removes a sentence, and a statement grows into a paragraph.
-const MaxStatementWords = 90
+//
+// The cap was 90 until 2026-09-24. At 90, agents fitting a statement under
+// the line reached for denser, harder words, which the voice rules exist to
+// prevent. 120 is the hard stop; the agents aim for about 80 and split or cut
+// a fact when a statement runs long, never trade a plain phrase for a short
+// technical one.
+const MaxStatementWords = 120
 
 type bannedRule struct {
 	re  *regexp.Regexp
@@ -496,7 +502,7 @@ func LintAll(lang string, labeled map[string]string) []string {
 	for _, label := range sortedKeys(labeled) {
 		if strings.HasSuffix(label, "body_md") {
 			if n := len(wordRe.FindAllString(labeled[label], -1)); n > MaxStatementWords {
-				out = append(out, fmt.Sprintf("%s: statement runs %d words (max %d); split it into separate statements, one claim each", label, n, MaxStatementWords))
+				out = append(out, fmt.Sprintf("%s: statement runs %d words (max %d); split it into separate statements, one claim each, or cut a fact. Do not swap in harder words to make it shorter", label, n, MaxStatementWords))
 			}
 			if v := riskViolation(lang, labeled[label]); v != "" {
 				out = append(out, label+": "+v)
@@ -511,6 +517,9 @@ func LintAll(lang string, labeled map[string]string) []string {
 				out = append(out, label+": "+v)
 			}
 			if v := mailRecordViolation(lang, labeled[label]); v != "" {
+				out = append(out, label+": "+v)
+			}
+			for _, v := range readabilityViolations(lang, labeled[label]) {
 				out = append(out, label+": "+v)
 			}
 		}

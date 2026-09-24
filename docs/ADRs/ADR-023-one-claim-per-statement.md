@@ -33,3 +33,13 @@ ADR-003 says a statement is one atomic claim. Nothing enforced it. The drafting 
 - **Trimming conditions to fit.** Puts back the overstatements the readers caught.
 - **A per-page cap on statements.** Wrong axis; the count should follow the law.
 - **A soft guideline instead of a lint rule.** The loop showed that without a hard cap every fix adds and nothing removes.
+
+## Amendment, 2026-09-24: 120 words, with a readability floor
+
+The 90-word cap pushed agents to fit statements under the line by reaching for denser, harder words, the opposite of the voice rules. The cap is now 120 words, and three readability rules make that trade fail instead of relying on the prompt:
+
+- **Grade cap.** A statement body above Flesch-Kincaid grade 10 fails the lint (`voice.MaxStatementGrade`). Agents aim for about grade 8; the score is noisy on short statements, so 10 is the hard stop. Measured before shipping: median 6.6, 7% of 1,778 statements above 10.
+- **Hard words.** A word of 4+ syllables fails unless it is on the everyday list or is an official term followed at once by a plain gloss in parentheses (`voice.HardWords`). Capitalized names and web addresses are skipped.
+- **No harder edits.** In `triage check` and the judge's apply rule, a replacement may not add a hard word the current body lacks, and may not raise the grade by more than 1 when it lands above grade 8 (`voice.HarderThan`).
+
+Existing statements that break the new rules are not blocked; the lint runs on saves and edits, and the loop fixes them as it touches them.

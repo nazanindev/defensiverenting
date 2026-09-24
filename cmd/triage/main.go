@@ -380,6 +380,9 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 			if v := voice.LintAll(lang, map[string]string{"body_md": e.Proposed.BodyMD}); len(v) > 0 {
 				bad(i, "voice lint:\n  - %s", strings.Join(v, "\n  - "))
 			}
+			if why := voice.HarderThan(lang, current.BodyMD, e.Proposed.BodyMD); why != "" {
+				bad(i, "%s", why)
+			}
 		}
 		if len(e.Proposed.Citations) == 0 {
 			bad(i, "no citations")

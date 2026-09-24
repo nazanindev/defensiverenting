@@ -167,6 +167,11 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, check
 	if why := statementVerdict(ctx, *p.Proposed, p.Language, p.Position, check); why != "" {
 		return why
 	}
+	if p.Proposed.BodyMD != p.CurrentBody {
+		if why := voice.HarderThan(p.Language, p.CurrentBody, p.Proposed.BodyMD); why != "" {
+			return why + "; left"
+		}
+	}
 	for i, f := range p.Proposed.Followers {
 		if why := statementVerdict(ctx, f, p.Language, p.Position, check); why != "" {
 			return fmt.Sprintf("follower %d: %s", i+1, why)
