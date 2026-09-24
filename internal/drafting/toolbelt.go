@@ -179,7 +179,7 @@ func (tb *Toolbelt) fetchDirect(url, tier string) (Receipt, error) {
 		return Receipt{}, err
 	}
 	req.Header.Set("User-Agent", userAgent)
-	client := &http.Client{Timeout: fetchTimeout}
+	client := fetchClient(fetchTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return Receipt{}, err
