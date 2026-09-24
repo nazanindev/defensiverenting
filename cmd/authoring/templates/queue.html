@@ -120,6 +120,7 @@
         <span class="lead">{{if .Drift}}“{{.Drift.OldQuote}}”{{else if .Why}}{{.Why}}{{else if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
       </summary>
       <div class="body" id="b{{.ID}}">
+        <p class="small"><a href="/statements?page={{.TargetPlaybookID}}">Review this page's statements</a></p>
         {{if not .OnPage}}<p class="stmt gone">No statement with this key is on the page any more. There is nothing to change: say Not this, or fix it in the editor.</p>{{end}}
 
         {{with .Drift}}
