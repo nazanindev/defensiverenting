@@ -67,6 +67,7 @@ func funcMap() template.FuncMap {
 		"ui":             UIString,
 		"uif":            UIStringf,
 		"pageLang":       pageLang,
+		"headerFor":      headerFor,
 	}
 }
 
@@ -199,6 +200,7 @@ type IndexPage struct {
 	// Terms is the homepage's reference section (ADR-012 D3): concepts the
 	// national pages define, so the list grows with editorial output.
 	Terms          []store.Term
+	TermCount      int // every term /terms lists, for the "All N terms" link
 	StructuredData template.JS // JSON-LD WebSite + Organization schema, pre-marshaled
 }
 
@@ -315,13 +317,53 @@ type AuthorsPage struct{}
 // /j/massachusetts said "no playbooks yet" and never linked to Boston.
 type JurisdictionPage struct {
 	Jurisdiction store.Jurisdiction
-	Topics       []store.Topic
-	Cities       []store.Jurisdiction
+	// Guides is every topic this place resolves to, its own and its
+	// ancestors', each linked to the guide it lands on (see GuideLinks).
+	Guides []GuideLink
+	Cities []store.Jurisdiction
 	// Language is the language Topics is filtered to (see ADR-007 D5) — "en"
 	// or "es". Drives <html lang> and the language-prefixed links this page
 	// renders. Cities is not language-scoped: a jurisdiction hub lists its
 	// child cities regardless of what language they have content in yet.
 	Language string
+}
+
+// GuideLink is one row of a situation list for a chosen place: the topic, the
+// guide it lands on, and whose law that guide is when it is not the place's
+// own. From is what keeps the list honest. A Boston reader who clicks a topic
+// Boston has no page for lands on the Massachusetts guide, and the row says
+// "Massachusetts law" before the click instead of surprising them after it.
+type GuideLink struct {
+	Name string
+	Path string
+	From string // empty when the guide is the place's own
+}
+
+// GuideLinks turns a place's resolved guides into situation rows, in lang.
+func GuideLinks(lang string, place store.Jurisdiction, guides []store.TopicGuide) []GuideLink {
+	out := make([]GuideLink, 0, len(guides))
+	for _, g := range guides {
+		out = append(out, GuideLink{
+			Name: g.Topic.Name,
+			Path: g.Jurisdiction.TopicPathIn(lang, g.Topic.Slug),
+			From: GuideFrom(lang, place, g.Jurisdiction),
+		})
+	}
+	return out
+}
+
+// GuideFrom names whose law a guide is, for a reader who picked place: empty
+// for the place's own guide, "Nationwide" for the national one, and
+// "{State} law" for an ancestor state.
+func GuideFrom(lang string, place, guide store.Jurisdiction) string {
+	switch {
+	case guide.ID == place.ID:
+		return ""
+	case guide.Kind == "country":
+		return UIString(lang, "nationwide")
+	default:
+		return UIStringf(lang, "place-law", guide.Name)
+	}
 }
 
 // PlaybookPage is a single topic playbook with cited statements.

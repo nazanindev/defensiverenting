@@ -125,8 +125,14 @@ func (s *stubStore) GetNearestTopicJurisdiction(_ context.Context, jurisdictionI
 	return store.Jurisdiction{}, store.ErrNotFound
 }
 
-func (s *stubStore) ListTopicsByJurisdictionRecursive(_ context.Context, _ int64, _ string) ([]store.Topic, error) {
-	return s.topics, nil
+func (s *stubStore) ListNearestTopicGuides(ctx context.Context, jurisdictionID int64, lang string) ([]store.TopicGuide, error) {
+	var out []store.TopicGuide
+	for _, t := range s.topics {
+		if j, err := s.GetNearestTopicJurisdiction(ctx, jurisdictionID, t.ID, lang); err == nil {
+			out = append(out, store.TopicGuide{Topic: t, Jurisdiction: j})
+		}
+	}
+	return out, nil
 }
 
 func (s *stubStore) ListPublishedChildCities(_ context.Context, parentID int64) ([]store.Jurisdiction, error) {
@@ -700,7 +706,6 @@ func TestConceptPage_answersForThePlaceFirst(t *testing.T) {
 		t.Error("an unknown slug is ignored and the page asks")
 	}
 }
-
 
 func TestTermsIndexAndHomepageSection(t *testing.T) {
 	stub := &stubStore{

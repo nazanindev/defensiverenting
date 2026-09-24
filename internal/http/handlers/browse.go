@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type browseStore interface {
 	GetJurisdictionBySlug(ctx context.Context, slug string) (store.Jurisdiction, error)
 	GetNearestTopicJurisdiction(ctx context.Context, jurisdictionID, topicID int64, lang string) (store.Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, id int64, lang string) ([]store.Topic, error)
-	ListTopicsByJurisdictionRecursive(ctx context.Context, id int64, lang string) ([]store.Topic, error)
+	ListNearestTopicGuides(ctx context.Context, id int64, lang string) ([]store.TopicGuide, error)
 	GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, language string) (store.PlaybookWithStatements, error)
 	GetTopicBySlug(ctx context.Context, slug string) (store.Topic, error)
 	ListPublishedTopics(ctx context.Context, language string) ([]store.Topic, error)
@@ -259,6 +260,9 @@ func canonicalTopic(ctx context.Context, db browseStore, slug string) string {
 	return slug
 }
 
+// homeTerms is how many legal terms the homepage shows.
+const homeTerms = 8
+
 func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		jurisdictions, err := db.ListPublishedCityJurisdictions(r.Context())
@@ -274,16 +278,25 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 		// The reference section lists terms the national pages define
-		// (ADR-012 D3), so its size is governed by editorial output. A
+		// (ADR-012 D3), capped at homeTerms so the homepage stays a fixed
+		// size as the reference layer grows; /terms has the rest. The ones
+		// shown are those the most places give their own answer for. A
 		// lookup failure degrades the section away rather than 500ing the
 		// homepage.
 		var terms []store.Term
+		termCount := 0
 		if all, terr := db.ListTerms(r.Context(), "en"); terr == nil {
+			termCount = len(all)
 			for _, t := range all {
 				if t.HasNational {
 					terms = append(terms, t)
 				}
 			}
+			sort.SliceStable(terms, func(i, j int) bool { return terms[i].Localized > terms[j].Localized })
+			if len(terms) > homeTerms {
+				terms = terms[:homeTerms]
+			}
+			sort.SliceStable(terms, func(i, j int) bool { return terms[i].Name < terms[j].Name })
 		} else {
 			logger.ErrorContext(r.Context(), "list terms", slog.Any("err", terr))
 		}
@@ -301,6 +314,7 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			CityCount:      len(jurisdictions),
 			Topics:         topics,
 			Terms:          terms,
+			TermCount:      termCount,
 			StructuredData: siteSchema(),
 		})
 	}
@@ -456,11 +470,13 @@ func locations(db browseStore, logger *slog.Logger) http.HandlerFunc {
 	}
 }
 
-// coverage serves /api/coverage?j={slug}: the topic slugs that resolve to a
+// coverage serves /api/coverage?j={slug}: the topics that resolve to a
 // published guide for that location, walking up its ancestor chain the same
-// way the ?j= redirect on /t/{topic} does. The homepage's situation list
-// fetches this after a location is chosen and hides the situations that would
-// fall through to the picker. It is a separate request on purpose: browse HTML
+// way the ?j= redirect on /t/{topic} does, with the guide each one lands on and
+// whose law it is. The homepage's situation list fetches this after a location
+// is chosen: it hides the situations that would fall through to the picker,
+// links the rest straight to their guide, and labels any guide that is not the
+// place's own. The site header uses the place's name and path. It is a separate request on purpose: browse HTML
 // is served from a shared public cache, so the page itself cannot be
 // personalised, and shipping every location's coverage with the page would
 // grow it with every city (see the scope-script comment in layout.html).
@@ -483,26 +499,43 @@ func coverage(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		topics, err := db.ListTopicsByJurisdictionRecursive(r.Context(), j.ID, "en")
+		guides, err := db.ListNearestTopicGuides(r.Context(), j.ID, "en")
 		if err != nil {
-			logger.ErrorContext(r.Context(), "coverage: list topics", slog.Any("err", err))
+			logger.ErrorContext(r.Context(), "coverage: list guides", slog.Any("err", err))
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		slugs := make([]string, 0, len(topics))
-		for _, t := range topics {
-			slugs = append(slugs, t.Slug)
+		type guide struct {
+			Topic string `json:"topic"`
+			Path  string `json:"path"`
+			From  string `json:"from,omitempty"`
+		}
+		slugs := make([]string, 0, len(guides))
+		out := make([]guide, 0, len(guides))
+		for _, g := range guides {
+			slugs = append(slugs, g.Topic.Slug)
+			out = append(out, guide{
+				Topic: g.Topic.Slug,
+				Path:  g.Jurisdiction.TopicPathIn("en", g.Topic.Slug),
+				From:  tmpl.GuideFrom("en", j, g.Jurisdiction),
+			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"j": j.Slug, "topics": slugs})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"j": j.Slug, "name": j.Name, "path": j.Path(),
+			"topics": slugs, "guides": out,
+		})
 	}
 }
 
 // renderJurisdiction renders a hub page for a state, country, or city, in lang.
 func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, logger *slog.Logger, j store.Jurisdiction, lang string) {
-	topics, err := db.ListTopicsByJurisdiction(r.Context(), j.ID, lang)
+	// Every topic the place resolves to, not only its own pages: a city hub
+	// that listed only the city's guides disagreed with the homepage scoped to
+	// that same city. Rows for an ancestor's guide say whose law it is.
+	guides, err := db.ListNearestTopicGuides(r.Context(), j.ID, lang)
 	if err != nil {
-		logger.ErrorContext(r.Context(), "list topics", slog.Any("err", err))
+		logger.ErrorContext(r.Context(), "list guides", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -524,7 +557,7 @@ func renderJurisdiction(w http.ResponseWriter, r *http.Request, db browseStore, 
 		}
 	}
 
-	render(w, r, http.StatusOK, tmpl.JurisdictionPage{Jurisdiction: j, Topics: topics, Cities: cities, Language: lang})
+	render(w, r, http.StatusOK, tmpl.JurisdictionPage{Jurisdiction: j, Guides: tmpl.GuideLinks(lang, j, guides), Cities: cities, Language: lang})
 }
 
 // servePlaybook renders one playbook for an already-resolved jurisdiction in

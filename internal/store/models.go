@@ -222,6 +222,14 @@ type SourceUsage struct {
 	Locators   []string
 }
 
+// TopicGuide is one topic as a location resolves it: the topic, and the
+// jurisdiction whose published guide answers it. The jurisdiction is the
+// location itself or one of its ancestors (see ListNearestTopicGuides).
+type TopicGuide struct {
+	Topic        Topic
+	Jurisdiction Jurisdiction
+}
+
 type Topic struct {
 	ID   int64
 	Slug string

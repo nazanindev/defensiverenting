@@ -261,18 +261,21 @@ func TestNearestTopicJurisdiction_walksUpTheChain(t *testing.T) {
 		t.Errorf("nearest = %s, want the country %s", got.Slug, country.Slug)
 	}
 
-	topics, err := pg.ListTopicsByJurisdictionRecursive(ctx, city.ID, "en")
+	guides, err := pg.ListNearestTopicGuides(ctx, city.ID, "en")
 	if err != nil {
-		t.Fatalf("recursive topics: %v", err)
+		t.Fatalf("nearest guides: %v", err)
 	}
 	foundTopic := false
-	for _, tp := range topics {
-		if tp.ID == topic.ID {
+	for _, g := range guides {
+		if g.Topic.ID == topic.ID {
 			foundTopic = true
+			if g.Jurisdiction.ID != country.ID {
+				t.Errorf("guide for the national topic = %s, want the country %s", g.Jurisdiction.Slug, country.Slug)
+			}
 		}
 	}
 	if !foundTopic {
-		t.Error("recursive topic list from the city is missing the national topic")
+		t.Error("nearest guides from the city are missing the national topic")
 	}
 
 	hubs, err := pg.ListPublishedHubJurisdictions(ctx)

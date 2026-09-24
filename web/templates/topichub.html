@@ -23,16 +23,7 @@
 </head>
 <body class="has-hero-search">
   {{$l := .Language}}
-  <header class="site-header">
-    <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
-        <button type="submit">{{ui $l "search"}}</button>
-      </form>
-      <a class="header-account" href="/account" data-account-link>Sign in</a>
-    </div>
-  </header>
+  {{template "site-header" .}}
 
   <main class="wrap">
     <div class="halo" aria-hidden="true"></div>
@@ -60,7 +51,7 @@
           </h3>
           <ul class="city-list">
             {{range .Cities}}
-            <li><a href="{{.TopicPathIn $.Language $topic.Slug}}">{{.Name}}</a></li>
+            <li><a href="{{.TopicPathIn $.Language $topic.Slug}}" data-set-location="{{.Slug}}">{{.Name}}</a></li>
             {{end}}
           </ul>
         </section>

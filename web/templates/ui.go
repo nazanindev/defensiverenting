@@ -20,9 +20,16 @@ var uiStrings = map[string]map[string]string{
 	// Shared header and footer
 	"search-placeholder": {"en": "Search by situation…", "es": "Busque su situación…"},
 	"search":             {"en": "Search", "es": "Buscar"},
+	"tagline":            {"en": "Tenant law in plain language", "es": "La ley para inquilinos, en palabras simples"},
+	"choose-location":    {"en": "Choose your location", "es": "Elija su lugar"},
+	"your-location":      {"en": "Your location", "es": "Su lugar"},
+	"header-terms":       {"en": "Legal terms", "es": "Términos legales"},
+	"footer-promise":     {"en": "Every statement links to the law it comes from.", "es": "Cada afirmación enlaza a la ley de donde viene."},
+	"footer-guides":      {"en": "Guides", "es": "Guías"},
+	"footer-about-us":    {"en": "About us", "es": "Quiénes somos"},
 	"footer-disclaimer": {
-		"en": "This site gives general information. It is not a substitute for a lawyer. Every statement links to the law it comes from, so you can check it yourself.",
-		"es": "Este sitio ofrece información general. No reemplaza a un abogado. Cada afirmación enlaza a la ley de donde viene, para que usted mismo pueda verificarla.",
+		"en": "This site gives general information. It is not a substitute for a lawyer.",
+		"es": "Este sitio ofrece información general. No reemplaza a un abogado.",
 	},
 	"not-legal-advice": {"en": "Not legal advice.", "es": "Esto no es asesoría legal."},
 	"footer-locations": {"en": "All locations", "es": "Todos los lugares"},
@@ -77,7 +84,8 @@ var uiStrings = map[string]map[string]string{
 	},
 	"hub-search-placeholder": {"en": "e.g. heat stopped working…", "es": "por ejemplo: la calefacción no funciona…"},
 	"nationwide-guides":      {"en": "Nationwide guides", "es": "Guías nacionales"},
-	"statewide-rules":        {"en": "%s statewide rules", "es": "Reglas estatales de %s"},
+	"statewide-rules":        {"en": "For all of %s", "es": "Para todo %s"},
+	"place-law":              {"en": "%s law", "es": "Ley de %s"},
 	"pick-a-topic":           {"en": "Or pick a topic", "es": "Elija un tema"},
 	"cities-in":              {"en": "Cities in %s", "es": "Ciudades en %s"},
 	"ordinances-stack": {
@@ -162,6 +170,38 @@ func UIDate(lang string, t time.Time) string {
 // pageLang reports the language a page renders in, for templates shared
 // across page types (the footer, the header search). English-only pages fall
 // through to "en" without needing a language field of their own.
+// Header is what the shared site header needs from a page. Most pages need
+// nothing but their language; see headerFor.
+type Header struct {
+	Lang string
+	// Scope is the jurisdiction slug the header search is scoped to, so a
+	// search from a Boston page searches Boston. Empty searches everywhere.
+	Scope string
+	// NoSearch drops the header search on a page that is itself a search.
+	NoSearch bool
+	// SignedIn is known server-side only on the uncached account page. On
+	// every other page the header script flips "Sign in" from the cookie.
+	SignedIn bool
+}
+
+// headerFor derives the header's inputs from a page, the way pageLang derives
+// its language, so each template calls one line instead of repeating the
+// header's markup.
+func headerFor(v any) Header {
+	h := Header{Lang: pageLang(v)}
+	switch p := v.(type) {
+	case PlaybookPage:
+		h.Scope = p.Jurisdiction.Slug
+	case JurisdictionPage:
+		h.Scope = p.Jurisdiction.Slug
+	case SearchPage:
+		h.NoSearch = true
+	case AccountPage:
+		h.SignedIn = p.SignedIn
+	}
+	return h
+}
+
 func pageLang(v any) string {
 	switch p := v.(type) {
 	case PlaybookPage:

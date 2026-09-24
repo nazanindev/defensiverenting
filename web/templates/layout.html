@@ -1,6 +1,115 @@
 {{/* layout.html — shared template fragments */}}
 
 {{/*
+  site-header — one header for every public page.
+
+  The HTML is shared-cache, so it never knows who is reading it. It always
+  renders "Choose your location" and "Sign in"; the script below swaps in the
+  reader's remembered place and "Account" after load. Where the place comes
+  from: this device's saved choice, and for a signed-in reader their account
+  (ADR-017), which wins. A reader picks a place with the homepage select, or by
+  clicking a place in a list that asks where they rent (data-set-location).
+*/}}
+{{define "site-header"}}
+{{- $h := headerFor . -}}
+{{- $l := $h.Lang -}}
+<header class="site-header">
+  <div class="wrap">
+    <a class="site-logo" href="/"><img src="/static/favicon.png" alt="" class="site-logo-img" /><span>RenterLaw</span></a>
+    <span class="site-tagline">{{ui $l "tagline"}}</span>
+    {{if not $h.NoSearch}}
+    <form class="header-search" action="/search" method="get" role="search">
+      <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
+      {{with $h.Scope}}<input type="hidden" name="j" value="{{.}}" />{{end}}
+      <button type="submit">{{ui $l "search"}}</button>
+    </form>
+    {{end}}
+    <nav class="header-nav" aria-label="Site">
+      <a class="header-place" href="/locations" data-place-link data-label="{{ui $l "your-location"}}">
+        <svg class="header-place-pin" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+        <span data-place-name>{{ui $l "choose-location"}}</span>
+      </a>
+      <a class="header-link" href="/terms">{{ui $l "header-terms"}}</a>
+      <a class="header-account" href="/account" data-account-link>{{if $h.SignedIn}}Account{{else}}Sign in{{end}}</a>
+    </nav>
+  </div>
+</header>
+<script>
+(function () {
+  var KEY = 'renterlaw.location';
+  var signedIn = /(^|; )rl_in=1(;|$)/.test(document.cookie);
+  if (signedIn) {
+    var acct = document.querySelector('[data-account-link]');
+    if (acct) acct.textContent = 'Account';
+  }
+  var link = document.querySelector('[data-place-link]');
+  if (!link || !window.fetch) return;
+  var nameEl = link.querySelector('[data-place-name]');
+  var blank = { href: link.getAttribute('href'), text: nameEl.textContent };
+
+  function saved() {
+    try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; }
+  }
+
+  // The place's name and hub come from the same coverage endpoint the
+  // homepage list uses, so the header ships no place table of its own.
+  var req = 0;
+  function show(slug) {
+    var id = ++req;
+    function reset() {
+      if (id !== req) return;
+      link.setAttribute('href', blank.href);
+      link.removeAttribute('aria-label');
+      nameEl.textContent = blank.text;
+    }
+    if (!slug) { reset(); return; }
+    fetch('/api/coverage?j=' + encodeURIComponent(slug))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (id !== req) return;
+        if (!d || !d.name || !d.path) { reset(); return; }
+        link.setAttribute('href', d.path);
+        link.setAttribute('aria-label', link.getAttribute('data-label') + ': ' + d.name);
+        nameEl.textContent = d.name;
+      })
+      .catch(reset);
+  }
+
+  show(saved());
+  // The homepage select announces a change here.
+  document.addEventListener('renterlaw:location', function (e) { show(e.detail || ''); });
+
+  // Clicking a place in a list that asks where the reader rents is picking
+  // it. keepalive lets the account write finish after the page navigates.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('[data-set-location]');
+    if (!a) return;
+    var slug = a.getAttribute('data-set-location');
+    try { localStorage.setItem(KEY, slug); } catch (err) {}
+    if (signedIn) {
+      fetch('/api/me/location', {
+        method: 'PUT', credentials: 'same-origin', keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location: slug })
+      }).catch(function () {});
+    }
+  });
+
+  // A signed-in reader's account place wins over this device's.
+  if (!signedIn) return;
+  fetch('/api/me', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (me) {
+      if (!me || !me.signed_in || !me.location || me.location === saved()) return;
+      try { localStorage.setItem(KEY, me.location); } catch (e) {}
+      show(me.location);
+    })
+    .catch(function () {});
+})();
+</script>
+{{end}}
+
+{{/*
   scope-search — the search box with a location scope attached.
 
   The location is a <select name="j"> submitted with the query, so it costs no
@@ -83,15 +192,19 @@
       labels[j].hidden = !name;
     }
     filterTopics(slug);
+    try { document.dispatchEvent(new CustomEvent('renterlaw:location', { detail: slug })); } catch (e) {}
   }
 
   // Hide situations the chosen location has no guide for, up its whole chain
   // (its city, then its state, then nationwide) — the same walk the ?j=
-  // redirect makes, so a visible situation always lands on a real guide. The
+  // redirect makes, so a visible situation always lands on a real guide. Each
+  // visible row then links straight to that guide and, when the guide is not
+  // the place's own, says whose law it is ("Massachusetts law"), so a reader
+  // who picked Boston is told before the click, not surprised after it. The
   // coverage list is fetched per location rather than shipped with the page:
   // the HTML is shared-cache, and a full location×topic map would grow with
-  // every city. Any failure leaves the list unfiltered, which is just the
-  // pre-filter behavior.
+  // every city. Any failure leaves the ?j= links and an unfiltered list,
+  // which is just the pre-filter behavior.
   var covReq = 0;
   function filterTopics(slug) {
     var cards = document.querySelectorAll('[data-topic-path]');
@@ -101,7 +214,14 @@
       for (var i = 0; i < cards.length; i++) {
         var item = cards[i].closest ? (cards[i].closest('li') || cards[i]) : cards[i];
         var topic = cards[i].getAttribute('data-topic-path').split('/t/')[1];
-        item.hidden = !!covered && !covered[topic];
+        var g = covered && covered[topic];
+        item.hidden = !!covered && !g;
+        if (g) cards[i].setAttribute('href', g.path);
+        var from = cards[i].querySelector('[data-from]');
+        if (from) {
+          from.textContent = g && g.from ? g.from : '';
+          from.hidden = !(g && g.from);
+        }
       }
     }
     if (!slug || !window.fetch) { show(null); return; }
@@ -109,9 +229,9 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         if (id !== covReq) return; // a newer selection superseded this fetch
-        if (!data || !data.topics) { show(null); return; }
+        if (!data || !data.guides) { show(null); return; }
         var covered = {};
-        for (var i = 0; i < data.topics.length; i++) covered[data.topics[i]] = true;
+        for (var i = 0; i < data.guides.length; i++) covered[data.guides[i].topic] = data.guides[i];
         show(covered);
       })
       .catch(function () { if (id === covReq) show(null); });
@@ -210,28 +330,33 @@
 {{end}}
 
 {{define "site-footer"}}
-<script>
-(function () {
-  // The header is shared-cache HTML, so it always says "Sign in"; the cookie
-  // set at sign-in has no secret in it and exists so this line can run.
-  if (/(^|; )rl_in=1(;|$)/.test(document.cookie)) {
-    var a = document.querySelector('[data-account-link]');
-    if (a) a.textContent = 'Account';
-  }
-})();
-</script>
 <footer class="site-footer">
   {{$l := pageLang .}}
   <div class="wrap">
-    <p class="disclaimer"><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "footer-disclaimer"}}</p>
-    <p class="footer-links">
-      <a href="/locations">{{ui $l "footer-locations"}}</a> ·
-      <a href="/about">{{ui $l "footer-about"}}</a> ·
-      <a href="/support">{{ui $l "footer-support"}}</a> ·
-      <a href="/editorial">{{ui $l "footer-editorial"}}</a> ·
-      <a href="/report">{{ui $l "footer-report"}}</a> ·
-      <a href="/contact">{{ui $l "footer-contact"}}</a>
+    <p class="footer-brand">
+      <a class="footer-name" href="/">RenterLaw</a>
+      <span class="footer-promise">{{ui $l "footer-promise"}}</span>
     </p>
+    <nav class="footer-groups" aria-label="Footer">
+      <div>
+        <h2 class="footer-heading">{{ui $l "footer-guides"}}</h2>
+        <ul class="footer-list">
+          <li><a href="/locations">{{ui $l "footer-locations"}}</a></li>
+          <li><a href="/terms">{{ui $l "header-terms"}}</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="footer-heading">{{ui $l "footer-about-us"}}</h2>
+        <ul class="footer-list">
+          <li><a href="/about">{{ui $l "footer-about"}}</a></li>
+          <li><a href="/editorial">{{ui $l "footer-editorial"}}</a></li>
+          <li><a href="/support">{{ui $l "footer-support"}}</a></li>
+          <li><a href="/report">{{ui $l "footer-report"}}</a></li>
+          <li><a href="/contact">{{ui $l "footer-contact"}}</a></li>
+        </ul>
+      </div>
+    </nav>
+    <p class="disclaimer"><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "footer-disclaimer"}}</p>
   </div>
 </footer>
 {{/*

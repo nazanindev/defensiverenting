@@ -15,12 +15,7 @@
 {{/* has-hero-search hides the header search: the scoped control below the
      heading is the one search box on this page. */}}
 <body class="has-hero-search">
-  <header class="site-header">
-    <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <a class="header-account" href="/account" data-account-link>Sign in</a>
-    </div>
-  </header>
+  {{template "site-header" .}}
 
   <main class="wrap">
     <h1 class="search-heading">

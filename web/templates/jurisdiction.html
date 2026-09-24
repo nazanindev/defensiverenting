@@ -30,17 +30,7 @@
 </head>
 <body class="has-hero-search">
   {{$l := .Language}}
-  <header class="site-header">
-    <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
-        <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
-        <button type="submit">{{ui $l "search"}}</button>
-      </form>
-      <a class="header-account" href="/account" data-account-link>Sign in</a>
-    </div>
-  </header>
+  {{template "site-header" .}}
 
   <main class="wrap">
     <div class="halo" aria-hidden="true"></div>
@@ -61,16 +51,17 @@
       </form>
     </section>
 
-    {{if .Topics}}
+    {{if .Guides}}
     <section aria-labelledby="topics-heading">
       <h2 id="topics-heading" class="section-title">
         {{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide-guides"}}{{else if .Cities}}{{uif $l "statewide-rules" .Jurisdiction.Name}}{{else}}{{ui $l "pick-a-topic"}}{{end}}
       </h2>
       <ul class="situation-list">
-        {{range .Topics}}
+        {{range .Guides}}
         <li>
-          <a href="{{$.Jurisdiction.TopicPathIn $.Language .Slug}}">
+          <a href="{{.Path}}">
             <span class="situation-name">{{.Name}}</span>
+            {{if .From}}<span class="situation-from">{{.From}}</span>{{end}}
             <span class="situation-arrow" aria-hidden="true">→</span>
           </a>
         </li>
@@ -91,7 +82,7 @@
     </section>
     {{end}}
 
-    {{if and (not .Topics) (not .Cities)}}
+    {{if and (not .Guides) (not .Cities)}}
     <p class="empty-state">{{uif $l "no-playbooks-yet" .Jurisdiction.Name}} <a href="/locations">{{ui $l "see-all-locations"}}</a></p>
     {{end}}
   </main>

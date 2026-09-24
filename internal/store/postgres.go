@@ -221,31 +221,48 @@ func (pg *PG) ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64
 	return scanTopics(rows)
 }
 
-// ListTopicsByJurisdictionRecursive returns topics that have a published
-// playbook for the jurisdiction or any of its ancestors, in the language. This
-// is the coverage set a location actually resolves to under the upward-only
-// rule: the topics /t/{topic}?j={slug} would land on a real guide for, which
-// is what the homepage's situation list filters against once a location is
-// chosen.
-func (pg *PG) ListTopicsByJurisdictionRecursive(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error) {
+// ListNearestTopicGuides returns, for every topic a location resolves to under
+// the upward-only rule, the guide it lands on: the location's own page when it
+// has one, else its state's, else the national guide. It is the per-topic
+// form of GetNearestTopicJurisdiction, so a situation list can link straight
+// to the guide and say whose law it is instead of redirecting the reader
+// somewhere they did not pick. Sorted by topic name.
+func (pg *PG) ListNearestTopicGuides(ctx context.Context, jurisdictionID int64, language string) ([]TopicGuide, error) {
 	rows, err := pg.pool.Query(ctx, `
 		WITH RECURSIVE ancestors AS (
-			SELECT id, parent_id FROM jurisdictions WHERE id = $1
+			SELECT id, parent_id, 0 AS depth FROM jurisdictions WHERE id = $1
 			UNION ALL
-			SELECT j.id, j.parent_id FROM jurisdictions j
+			SELECT j.id, j.parent_id, a.depth + 1 FROM jurisdictions j
 			JOIN ancestors a ON j.id = a.parent_id
+		), nearest AS (
+			SELECT DISTINCT ON (p.topic_id) p.topic_id, a.id AS jurisdiction_id
+			FROM playbooks p
+			JOIN ancestors a ON a.id = p.jurisdiction_id
+			WHERE p.language = $2 AND p.status = 'published'
+			ORDER BY p.topic_id, a.depth
 		)
-		SELECT DISTINCT t.id, t.slug, t.name
-		FROM topics t
-		JOIN playbooks p ON p.topic_id = t.id
-		JOIN ancestors a ON a.id = p.jurisdiction_id
-		WHERE p.language = $2 AND p.status = 'published'
+		SELECT t.id, t.slug, t.name,
+		       j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, '')
+		FROM nearest n
+		JOIN topics t ON t.id = n.topic_id
+		JOIN jurisdictions j ON j.id = n.jurisdiction_id
+		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 		ORDER BY t.name`, jurisdictionID, language)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTopics(rows)
+	var out []TopicGuide
+	for rows.Next() {
+		var g TopicGuide
+		if err := rows.Scan(&g.Topic.ID, &g.Topic.Slug, &g.Topic.Name,
+			&g.Jurisdiction.ID, &g.Jurisdiction.ParentID, &g.Jurisdiction.Kind, &g.Jurisdiction.Name,
+			&g.Jurisdiction.Slug, &g.Jurisdiction.ParentSlug, &g.Jurisdiction.ParentName); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
 }
 
 func scanTopics(rows pgx.Rows) ([]Topic, error) {

@@ -258,3 +258,36 @@ func TestCoverage_reportsTopicsForALocation(t *testing.T) {
 		t.Errorf("missing j: status = %d, want 400", rec.Code)
 	}
 }
+
+// A city with no page of its own for a topic still lists it, linked straight
+// to the nearest guide and labeled with whose law that guide is. The reader
+// sees "Massachusetts law" before the click instead of landing somewhere they
+// did not pick. The homepage gets the same answer from /api/coverage.
+func TestCityHub_labelsGuidesFromUpTheChain(t *testing.T) {
+	stub := nationalStub()
+	stub.topicCoverage = map[int64]bool{10: true, 100: true}
+
+	body := serve(t, stub, "/j/massachusetts/boston").Body.String()
+	if !strings.Contains(body, `href="/j/massachusetts/security-deposits"`) {
+		t.Error("city hub should link the state guide for a topic the city has no page for")
+	}
+	if !strings.Contains(body, "Massachusetts law") {
+		t.Error("city hub should label the state guide as Massachusetts law")
+	}
+
+	cov := serve(t, stub, "/api/coverage?j=boston").Body.String()
+	for _, want := range []string{
+		`"path":"/j/massachusetts/security-deposits"`,
+		`"from":"Massachusetts law"`,
+		`"name":"Boston"`,
+	} {
+		if !strings.Contains(cov, want) {
+			t.Errorf("coverage missing %s: %s", want, cov)
+		}
+	}
+
+	stub.topicCoverage = map[int64]bool{100: true}
+	if cov := serve(t, stub, "/api/coverage?j=boston").Body.String(); !strings.Contains(cov, `"from":"Nationwide"`) {
+		t.Errorf("a national guide should be labeled Nationwide: %s", cov)
+	}
+}

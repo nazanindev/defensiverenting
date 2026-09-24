@@ -22,9 +22,9 @@ type Store interface {
 	// its ancestor chain: city, else state, else country.
 	GetNearestTopicJurisdiction(ctx context.Context, jurisdictionID, topicID int64, language string) (Jurisdiction, error)
 	ListTopicsByJurisdiction(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error)
-	// ListTopicsByJurisdictionRecursive is the coverage set that same walk
-	// resolves for a location: its own topics plus every ancestor's.
-	ListTopicsByJurisdictionRecursive(ctx context.Context, jurisdictionID int64, language string) ([]Topic, error)
+	// ListNearestTopicGuides is that same walk for every topic at once: the
+	// coverage set a location resolves to, with the guide each topic lands on.
+	ListNearestTopicGuides(ctx context.Context, jurisdictionID int64, language string) ([]TopicGuide, error)
 	GetTopicBySlug(ctx context.Context, slug string) (Topic, error)
 	// ListTopicRegistry returns the whole canonical topic set, not just topics
 	// already published somewhere. Drafting a new city must see the vocabulary

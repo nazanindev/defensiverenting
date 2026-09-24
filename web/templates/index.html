@@ -24,24 +24,15 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body class="has-hero-search">
-  <header class="site-header">
-    <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
-        <button type="submit">Search</button>
-      </form>
-      <a class="header-account" href="/account" data-account-link>Sign in</a>
-    </div>
-  </header>
+  {{template "site-header" .}}
 
   <main class="wrap">
     <div class="halo" aria-hidden="true"></div>
     <div class="pulse" aria-hidden="true"></div>
 
     <section class="hero">
-      <h1>Tenant law, in plain language.</h1>
-      <p class="lede">Search your situation. Every statement links to the law it comes from.</p>
+      <h1>Every statement links to the law it comes from.</h1>
+      <p class="lede">Search your situation, or pick one below.</p>
       {{template "scope-search" .Scope}}
       {{if .CityCount}}
       <p class="scope-hint">
@@ -61,6 +52,7 @@
         <li>
           <a href="/t/{{.Slug}}" data-topic-path="/t/{{.Slug}}">
             <span class="situation-name">{{.Name}}</span>
+            <span class="situation-from" data-from hidden></span>
             <span class="situation-arrow" aria-hidden="true">→</span>
           </a>
         </li>
@@ -85,7 +77,7 @@
         </li>
         {{end}}
       </ul>
-      <p class="term-all"><a href="/terms">All terms →</a></p>
+      <p class="term-all"><a href="/terms">All {{.TermCount}} terms →</a></p>
     </section>
     {{end}}
 

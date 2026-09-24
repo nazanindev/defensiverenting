@@ -34,17 +34,7 @@
   <div role="status" style="background:#92400e;color:#fef3c7;text-align:center;font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.45rem 1rem">Draft preview. This page is not published. Links here lead to the real site.</div>
   {{end}}
   {{$l := .Playbook.Language}}
-  <header class="site-header">
-    <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
-        <input type="hidden" name="j" value="{{.Jurisdiction.Slug}}" />
-        <button type="submit">{{ui $l "search"}}</button>
-      </form>
-      <a class="header-account" href="/account" data-account-link>Sign in</a>
-    </div>
-  </header>
+  {{template "site-header" .}}
 
   <div class="layout-wrap">
     <div class="halo" aria-hidden="true"></div>

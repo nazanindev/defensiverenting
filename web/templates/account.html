@@ -12,16 +12,7 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body>
-  <header class="site-header">
-    <div class="wrap">
-      <a class="site-logo" href="/"><img src="/static/favicon.png" alt="RenterLaw" class="site-logo-img" /><span>RenterLaw</span></a>
-      <form class="header-search" action="/search" method="get" role="search">
-        <input type="search" name="q" placeholder="Search by situation…" aria-label="Search" />
-        <button type="submit">Search</button>
-      </form>
-      <a class="header-account" href="/account" data-account-link>{{if .SignedIn}}Account{{else}}Sign in{{end}}</a>
-    </div>
-  </header>
+  {{template "site-header" .}}
 
   <main class="wrap">
     <nav class="breadcrumb" aria-label="Breadcrumb">
