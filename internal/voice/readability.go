@@ -1,168 +1,195 @@
 package voice
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
 	"strings"
 )
 
-// Readability rules (2026-09-24). The word cap alone pushed agents to fit a
-// statement under the line by reaching for denser, harder words, which the
-// voice rules exist to prevent. These rules make that trade fail the lint, so
-// the only ways to shorten a statement are to split it or cut a fact.
+// Readability rules (2026-09-24). A renter reads a statement once, often on a
+// phone in the middle of the problem. What stops them is an unfamiliar word,
+// not a long one: "utility" is short and opaque, "refrigerator" is long and
+// plain. So the rules measure familiarity, not syllables:
 //
-// Measured on 1,778 statements before the rules shipped: median grade 6.6,
-// 7% above grade 10, 132 statements with two or more words of 4+ syllables.
+//   - UnfamiliarWords flags words outside everyday English. Each must be
+//     replaced, or glossed in parentheses right after it.
+//   - ReadingScore is the New Dale-Chall score, which grades text by its share
+//     of unfamiliar words and its sentence length. A statement at 6.5 or above
+//     fails, which keeps statements near a grade 7 reader.
+//   - HarderThan stops an edit from making a statement harder to read, which is
+//     how review loops compress text.
+//
+// Measured on 1,778 statements before shipping: median Dale-Chall score 5.4,
+// 11% at 6.5 or above, 460 with a word outside everyday English.
 
-// MaxStatementGrade is the highest Flesch-Kincaid grade a statement body may
-// read at. The score is noisy for short statements, so the hard stop sits at
-// 10 and agents aim for about 8.
-const MaxStatementGrade = 10.0
+// MaxStatementScore is the New Dale-Chall score a statement body must stay
+// under. 6.0 to 6.9 is the grade 7-8 band; 6.5 keeps statements near grade 7.
+// With the common-word additions the median statement scored 5.4 and 11%
+// were at 6.5 or above when this shipped.
+const MaxStatementScore = 6.5
 
-// maxGradeRise is how much harder an edit may make a statement read, once the
-// edit lands above targetGrade. Below the target a fix may add a condition
-// freely; the rule is there to stop loops compressing text into density.
+// An edit may raise the score by at most maxScoreRise, once it lands at or
+// above targetScore. Below the target a fix may add a condition freely.
 const (
-	maxGradeRise = 1.0
-	targetGrade  = 8.0
+	maxScoreRise = 0.5
+	targetScore  = 6.0
 )
 
-var (
-	hardToken    = regexp.MustCompile(`[A-Za-z][A-Za-z'’-]*`)
-	webAddress   = regexp.MustCompile(`(?i)https?://\S+|\S+\.(org|gov|com|net|us|info)(/\S*)?`)
-	glossFollows = regexp.MustCompile(`^\s*\(`)
-	readWord     = regexp.MustCompile(`[A-Za-z][A-Za-z'’]*`)
-	readSent     = regexp.MustCompile(`[.!?:;]+(\s|$)|\n+`)
-	vowelRuns    = regexp.MustCompile(`[aeiouy]+`)
-)
+// familiarList holds everyday English words for UnfamiliarWords: every
+// lowercase word with a Zipf frequency of 3.5 or more in wordfreq 3.1.1. To
+// regenerate: wordfreq.top_n_list('en', 80000), keep [a-z]+ words with
+// zipf_frequency >= 3.5.
+//
+//go:embed wordlists/familiar_en.txt
+var familiarList string
 
-// syllables estimates the syllables in one English word. It is a heuristic:
-// good enough to rank text, not to hyphenate it.
-func syllables(w string) int {
-	w = strings.ToLower(w)
-	w = strings.Trim(w, "'’")
-	if len(w) <= 3 {
-		return 1
-	}
-	for _, suf := range []string{"es", "ed", "e"} {
-		if strings.HasSuffix(w, suf) && !strings.HasSuffix(w, "le") {
-			w = strings.TrimSuffix(w, suf)
-			break
+// daleChallList is the Dale-Chall familiar-word list. It defines the scale of
+// the Dale-Chall score and is used only for ReadingScore; it is too dated
+// (it lacks "landlord" and "email") to judge single words.
+//
+//go:embed wordlists/dale_chall_en.txt
+var daleChallList string
+
+// commonList adds very common English words (Zipf 5.0 or more) to the
+// Dale-Chall list for the score: the list dates from children's reading of
+// the 1940s and misses "within", "problem" and "local".
+//
+//go:embed wordlists/common_en.txt
+var commonList string
+
+// renterWords are words our readers meet every day in their situation. Both
+// word checks treat them as familiar; asking for a gloss on "landlord" in
+// every statement would help no one.
+var renterWords = strings.Fields(`landlord landlords lease leases leasing renter renters
+	tenant tenants eviction evictions evict evicted evicting apartment apartments
+	deposit deposits repair repairs rent rents rental rentals email emails online website
+	websites internet phone text texts app court judge legal lawyer lawyers form forms
+	hotline hotlines helpline helplines checklist weekday weekdays subtract roaches
+	rodents thermostat railing railings remodel prepaid keyless outage stubs
+	underline underlined reachable`)
+
+// contraction matches the contractions everyday English is made of.
+var contraction = regexp.MustCompile(`(?i)^[a-z]+('|’)(t|re|ll|ve|m|d)$`)
+
+var familiar, daleChall = map[string]bool{}, map[string]bool{}
+
+func init() {
+	load := func(dst map[string]bool, list string) {
+		for _, w := range strings.Split(list, "\n") {
+			if w = strings.TrimSpace(w); w != "" && !strings.HasPrefix(w, "#") {
+				dst[strings.ToLower(w)] = true
+			}
+		}
+		for _, w := range renterWords {
+			dst[w] = true
 		}
 	}
-	w = strings.TrimPrefix(w, "y")
-	n := len(vowelRuns.FindAllString(w, -1))
-	if n < 1 {
-		return 1
-	}
-	return n
+	load(familiar, familiarList)
+	load(daleChall, daleChallList)
+	load(daleChall, commonList)
 }
 
-// ReadingGrade is the Flesch-Kincaid grade of a statement body.
-func ReadingGrade(text string) float64 {
-	text = strings.NewReplacer("**", " ", "(", " ", ")", " ").Replace(text)
-	words := readWord.FindAllString(text, -1)
-	if len(words) == 0 {
+var (
+	wordTok      = regexp.MustCompile(`[A-Za-z][A-Za-z'’-]*`)
+	sentenceTok  = regexp.MustCompile(`[.!?:;]+(\s|$)|\n+`)
+	webAddress   = regexp.MustCompile(`(?i)https?://\S+|\S+\.(org|gov|com|net|us|info)(/\S*)?`)
+	glossFollows = regexp.MustCompile(`^\s*\(`)
+)
+
+// inList reports whether w, or a regular inflection of it, is in list.
+func inList(list map[string]bool, w string) bool {
+	w = strings.TrimSuffix(strings.ReplaceAll(strings.ToLower(w), "’", "'"), "'s")
+	w = strings.TrimSuffix(w, "'")
+	if list[w] {
+		return true
+	}
+	for _, s := range [][2]string{{"ies", "y"}, {"ied", "y"}, {"ier", "y"}, {"iest", "y"}, {"ily", "y"},
+		{"es", ""}, {"s", ""}, {"ed", ""}, {"ed", "e"}, {"d", ""}, {"ing", ""}, {"ing", "e"},
+		{"er", ""}, {"er", "e"}, {"est", ""}, {"ly", ""}, {"ness", ""}} {
+		if !strings.HasSuffix(w, s[0]) || len(w) <= len(s[0])+1 {
+			continue
+		}
+		stem := strings.TrimSuffix(w, s[0]) + s[1]
+		if list[stem] {
+			return true
+		}
+		// stopped, planning: a doubled final consonant.
+		if n := len(stem); n > 2 && stem[n-1] == stem[n-2] && list[stem[:n-1]] {
+			return true
+		}
+	}
+	return false
+}
+
+// words walks the renter-facing words of a statement body and reports, for
+// each, whether it is skipped: a capitalized name (a place, program, court),
+// or a term glossed in parentheses right after it. Web addresses are dropped
+// first.
+func words(text string, fn func(w string, skipped bool)) {
+	text = webAddress.ReplaceAllString(strings.ReplaceAll(text, "**", " "), " ")
+	for _, loc := range wordTok.FindAllStringIndex(text, -1) {
+		w := text[loc[0]:loc[1]]
+		skipped := (w[0] >= 'A' && w[0] <= 'Z') || glossFollows.MatchString(text[loc[1]:])
+		fn(w, skipped)
+	}
+}
+
+func unfamiliarIn(list map[string]bool, w string) bool {
+	if contraction.MatchString(w) {
+		return false
+	}
+	for _, part := range strings.Split(w, "-") {
+		if part != "" && !inList(list, part) {
+			return true
+		}
+	}
+	return false
+}
+
+// UnfamiliarWords returns the words in a statement body a renter may not
+// know, each once, in order.
+func UnfamiliarWords(text string) []string {
+	var out []string
+	seen := map[string]bool{}
+	words(text, func(w string, skipped bool) {
+		lw := strings.ToLower(w)
+		if skipped || seen[lw] || !unfamiliarIn(familiar, w) {
+			return
+		}
+		seen[lw] = true
+		out = append(out, lw)
+	})
+	return out
+}
+
+// ReadingScore is the New Dale-Chall readability score of a statement body.
+func ReadingScore(text string) float64 {
+	total, hard := 0, 0
+	words(text, func(w string, skipped bool) {
+		total++
+		if !skipped && unfamiliarIn(daleChall, w) {
+			hard++
+		}
+	})
+	if total == 0 {
 		return 0
 	}
 	sents := 0
-	for _, s := range readSent.Split(text, -1) {
-		if readWord.MatchString(s) {
+	for _, s := range sentenceTok.Split(webAddress.ReplaceAllString(text, " "), -1) {
+		if wordTok.MatchString(s) {
 			sents++
 		}
 	}
 	if sents == 0 {
 		sents = 1
 	}
-	syl := 0
-	for _, w := range words {
-		syl += syllables(w)
+	pdw := 100 * float64(hard) / float64(total)
+	score := 0.1579*pdw + 0.0496*float64(total)/float64(sents)
+	if pdw > 5 {
+		score += 3.6365
 	}
-	return 0.39*float64(len(words))/float64(sents) + 11.8*float64(syl)/float64(len(words)) - 15.59
-}
-
-// commonLong lists everyday words of 4+ syllables a renter reads without
-// trouble, and the official terms the site names on purpose (each official
-// term that needs it already carries a plain gloss under the explain rules).
-// Add to it when a flagged word is plainly common; never add a word only
-// because an agent used it.
-var commonLong = map[string]bool{}
-
-func init() {
-	for _, w := range strings.Fields(`
-		everything everyday everybody anybody anything
-		refrigerator temperature confidential seriously generally usually actually
-		automatically immediately especially definitely probably certainly
-		responsible ordinary electrical electricity improvements delivery differently
-		information application applications organization organizations
-		community communities available alternative alternatives necessary
-		apartment apartments utilities utility emergency emergencies security
-		television identification original particular individual individuals
-		january february
-		judgment judgments mediation mediator habitability eviction evictions
-		retaliation retaliatory discrimination disability disabilities accommodation
-		accommodations assistance municipal ordinance ordinances documentation
-		inspection inspector registration department departments authority
-		association agreement agreements representative representation
-		unreasonable unreasonably reasonable reasonably illegally unlawfully
-		enforcement immigration stabilization certificate certification
-		conditioning ventilation temporary understanding
-		affordable carelessness completely everywhere conversation replacement
-		elevator directory development management emotional military supervisor
-		education physically temperatures permanently temporarily communication
-		opportunity activity ability facility facilities officially organizing
-		participating associations disagreement significant voluntary residential
-		corporation interpreter citizenship investigate investigates investigator
-		investigation negotiating invitation orientation relocation automatic
-		privately peacefully unusable unlivable refundable nonrefundable
-		requirements foreclosure foreclosures amenity amenities approximate
-		interfering interference anonymous environmental competition operator
-		deliberately intentionally federally homelessness sanitation sanitary
-		manufactured legitimate discriminate discriminated stability advocacy
-		infestations interviewers resolution alterations
-		identify identity separately regularly typically carefully carelessly
-		repeatedly delivering arrangement arrangements responsibility liability
-		exercising unnecessary professional conversations categories anniversary
-		generator conditioner photographing reschedule depositing authorities
-		indirectly preferably localities territories relative's decorations
-		evacuation eligibility availability equivalent retaliating discriminates
-		discriminatory unauthorized disconnection inability commissioners
-		coordinators multilingual consultation organisations ventilating
-		intentional dishonestly recalculates characteristics terminations
-	`) {
-		commonLong[w] = true
-	}
-}
-
-// HardWords returns the words in text of 4+ syllables that are not on the
-// common list. Capitalized words (names of places, programs, courts), web
-// addresses, and a term followed at once by a gloss in parentheses are
-// skipped; a hyphenated compound is judged by its parts.
-func HardWords(text string) []string {
-	var out []string
-	seen := map[string]bool{}
-	text = webAddress.ReplaceAllString(text, " ")
-	for _, loc := range hardToken.FindAllStringIndex(text, -1) {
-		tok := text[loc[0]:loc[1]]
-		if tok[0] >= 'A' && tok[0] <= 'Z' {
-			continue
-		}
-		// An official term the renter will meet on court papers may stay
-		// when its plain meaning follows at once: "restitution (getting the
-		// home back)".
-		if glossFollows.MatchString(text[loc[1]:]) {
-			continue
-		}
-		for _, w := range strings.Split(tok, "-") {
-			lw := strings.ToLower(strings.Trim(w, "'’"))
-			if lw == "" || commonLong[lw] || seen[lw] || syllables(lw) < 4 {
-				continue
-			}
-			seen[lw] = true
-			out = append(out, lw)
-		}
-	}
-	return out
+	return score
 }
 
 // readabilityViolations is the statement-only readability rule.
@@ -171,37 +198,37 @@ func readabilityViolations(lang, text string) []string {
 		return nil
 	}
 	var out []string
-	if g := ReadingGrade(text); g > MaxStatementGrade {
-		out = append(out, fmt.Sprintf("reads at grade %.1f (max %.0f): use shorter sentences and plainer words, or split it into separate statements. Do not cut words by swapping in harder ones", g, MaxStatementGrade))
+	if uw := UnfamiliarWords(text); len(uw) > 0 {
+		out = append(out, fmt.Sprintf("words a renter may not know %q: use an everyday word, or keep an official term and explain it in parentheses right after it", uw))
 	}
-	if hw := HardWords(text); len(hw) > 0 {
-		out = append(out, fmt.Sprintf("hard words %q: use plainer words a renter reads without stopping", hw))
+	if s := ReadingScore(text); s >= MaxStatementScore {
+		out = append(out, fmt.Sprintf("reads too hard (Dale-Chall %.1f, must be under %.1f): use shorter sentences and everyday words, or split it into separate statements. Do not cut words by swapping in harder ones", s, MaxStatementScore))
 	}
 	return out
 }
 
 // HarderThan reports why a replacement body reads harder than the body it
 // replaces, or "" when it does not. An edit may fix a fact, but it may not
-// make the statement harder to read: that is how review loops compress text.
+// make the statement harder to read.
 func HarderThan(lang, oldBody, newBody string) string {
 	if lang != "en" || strings.TrimSpace(oldBody) == "" {
 		return ""
 	}
-	if og, ng := ReadingGrade(oldBody), ReadingGrade(newBody); ng > targetGrade && ng > og+maxGradeRise {
-		return fmt.Sprintf("the replacement reads at grade %.1f, harder than the current %.1f by more than %.0f: keep the words as plain as they were", ng, og, maxGradeRise)
+	if os, ns := ReadingScore(oldBody), ReadingScore(newBody); ns >= targetScore && ns > os+maxScoreRise {
+		return fmt.Sprintf("the replacement reads harder than the current text (Dale-Chall %.1f, was %.1f): keep the words as plain as they were", ns, os)
 	}
 	had := map[string]bool{}
-	for _, w := range HardWords(oldBody) {
+	for _, w := range UnfamiliarWords(oldBody) {
 		had[w] = true
 	}
 	var added []string
-	for _, w := range HardWords(newBody) {
+	for _, w := range UnfamiliarWords(newBody) {
 		if !had[w] {
 			added = append(added, w)
 		}
 	}
 	if len(added) > 0 {
-		return fmt.Sprintf("the replacement adds hard words %q the current text does not have", added)
+		return fmt.Sprintf("the replacement adds words a renter may not know %q that the current text does not have", added)
 	}
 	return ""
 }

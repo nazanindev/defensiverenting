@@ -136,7 +136,7 @@ func TestSaveDraft_HappyPath(t *testing.T) {
 		Title:            "Boston Security Deposits",
 		IntroMD:          "What Boston renters should know.",
 		Statements: []StatementInput{
-			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+			stmt("Your landlord must return your deposit within 30 days after the lease ends.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
 		},
 	})
@@ -168,7 +168,7 @@ func TestSaveDraft_EditorialCitation(t *testing.T) {
 		depositURL: `<p>A lessor shall, within thirty days after the termination of the tenancy, return the security deposit.</p>`,
 	})
 	mustFetch(t, tb, depositURL)
-	st := stmt("Your landlord must return your deposit within 30 days of the tenancy ending. Keep proof of your new address.",
+	st := stmt("Your landlord must return your deposit within 30 days after the lease ends. Keep proof of your new address.",
 		depositURL, "within thirty days after the termination of the tenancy, return the security deposit")
 	st.Citations = append(st.Citations, CitationInput{Kind: "editorial"})
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
@@ -289,7 +289,7 @@ func TestSaveDraft_DefaultsToEnglishLanguage(t *testing.T) {
 	out, err := tb.SaveDraft(context.Background(), SaveDraftInput{
 		JurisdictionSlug: "boston", TopicSlug: "security-deposits", Title: "T",
 		Statements: []StatementInput{
-			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+			stmt("Your landlord must return your deposit within 30 days after the lease ends.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
 		},
 	})
@@ -471,7 +471,7 @@ func TestSaveDraft_RejectsTopicNotInRegistry(t *testing.T) {
 		Title:            "Boston Deposit Rules",
 		IntroMD:          "What Boston renters should know.",
 		Statements: []StatementInput{
-			stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+			stmt("Your landlord must return your deposit within 30 days after the lease ends.",
 				depositURL, "within thirty days after the termination of the tenancy, return the security deposit"),
 		},
 	})
@@ -810,7 +810,7 @@ func TestSaveDraft_ReviewerNoteReachesIngest(t *testing.T) {
 	})
 	mustFetch(t, tb, depositURL)
 
-	st := stmt("Your landlord must return your deposit within 30 days of the tenancy ending.",
+	st := stmt("Your landlord must return your deposit within 30 days after the lease ends.",
 		depositURL, "within thirty days after the termination of the tenancy, return the security deposit")
 	st.ReviewerNote = "  The 30-day figure is from guidance; the statute says thirty days after termination.  "
 	if _, err := tb.SaveDraft(context.Background(), SaveDraftInput{

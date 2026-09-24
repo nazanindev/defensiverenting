@@ -36,10 +36,11 @@ ADR-003 says a statement is one atomic claim. Nothing enforced it. The drafting 
 
 ## Amendment, 2026-09-24: 120 words, with a readability floor
 
-The 90-word cap pushed agents to fit statements under the line by reaching for denser, harder words, the opposite of the voice rules. The cap is now 120 words, and three readability rules make that trade fail instead of relying on the prompt:
+The 90-word cap pushed agents to fit statements under the line by reaching for denser, harder words, the opposite of the voice rules. The cap is now 120 words, and readability rules in code make that trade fail instead of relying on the prompt. A first version counted syllables (Flesch-Kincaid, grade 10); it was replaced the same day because what stops a renter is an unfamiliar word, not a long one ("utility" is short and opaque, "refrigerator" is long and plain).
 
-- **Grade cap.** A statement body above Flesch-Kincaid grade 10 fails the lint (`voice.MaxStatementGrade`). Agents aim for about grade 8; the score is noisy on short statements, so 10 is the hard stop. Measured before shipping: median 6.6, 7% of 1,778 statements above 10.
-- **Hard words.** A word of 4+ syllables fails unless it is on the everyday list or is an official term followed at once by a plain gloss in parentheses (`voice.HardWords`). Capitalized names and web addresses are skipped.
-- **No harder edits.** In `triage check` and the judge's apply rule, a replacement may not add a hard word the current body lacks, and may not raise the grade by more than 1 when it lands above grade 8 (`voice.HarderThan`).
+- **Unfamiliar words.** A word outside everyday English fails unless it is replaced or glossed in parentheses right after it (`voice.UnfamiliarWords`). Everyday English is every word with a Zipf frequency of 3.5 or more in wordfreq 3.1.1 (CC BY-SA 4.0 data, `internal/voice/wordlists/familiar_en.txt`), plus a short list of words renters meet every day (landlord, lease, eviction, deposit, hotline). Capitalized names and web addresses are skipped.
+- **Utilities** always need a gloss (an explain rule): common in general English, opaque in the housing sense.
+- **Reading score.** A statement with a New Dale-Chall score of 6.5 or more fails (`voice.MaxStatementScore`), which keeps statements near a grade 7 reader. The score uses the Dale-Chall list plus very common English words (Zipf 5.0 or more, `wordlists/common_en.txt`), because the 1940s list misses "within", "problem" and "local". Measured before shipping: median 5.4, 11% at 6.5 or above; 460 statements had a word outside everyday English.
+- **No harder edits.** In `triage check` and the judge's apply rule, a replacement may not add an unfamiliar word the current body lacks, and may not raise the score by more than 0.5 once it reaches 6.0 (`voice.HarderThan`).
 
 Existing statements that break the new rules are not blocked; the lint runs on saves and edits, and the loop fixes them as it touches them.

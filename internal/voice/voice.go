@@ -200,6 +200,8 @@ var enRuleset = ruleset{
 		mustExplain(`(money |eviction )?judge?ments?`, enMarkers, `"a judgment (the court's final decision in your case)"`),
 		mustExplain(`mediations?`, enMarkers, `"mediation (a meeting with a neutral person who helps you and your landlord reach an agreement)"`),
 		mustExplain(`rental assistance`, enMarkers, `"rental assistance (money to help pay rent)"`),
+		// Common in general English, opaque in its housing sense.
+		mustExplain(`utilit(?:y|ies)`, enMarkers, `"utilities (water, electric, gas)"`),
 		// No examples in the hint: faded paint and nail holes are not in the
 		// statutes, and a gloss must say only what a stored quote says.
 		mustExplain(`(normal |ordinary )?wear and tear`, enMarkers, `"normal wear and tear (normal use over time)"; add examples only if a quote gives them`),
