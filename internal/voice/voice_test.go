@@ -424,3 +424,24 @@ func TestLint_awardSaysYouMustWinAndBePaid(t *testing.T) {
 		}
 	}
 }
+
+func TestMailRecordViolation(t *testing.T) {
+	cases := []struct {
+		name, text string
+		flag       bool
+	}{
+		{"renter told certified mail only", "Send your letter by certified mail with a return receipt.", true},
+		{"renter told certified mail and texts", "Send your letter by certified mail. Save texts and emails as well; they are also a record of what you sent.", false},
+		{"landlord's duty", "Your landlord must mail the list by registered or certified mail within 30 days.", false},
+		{"no mail", "Write down the date and keep a copy.", false},
+	}
+	for _, c := range cases {
+		got := mailRecordViolation("en", c.text) != ""
+		if got != c.flag {
+			t.Errorf("%s: flagged=%v, want %v", c.name, got, c.flag)
+		}
+	}
+	if mailRecordViolation("es", "Envíe la carta por certified mail.") != "" {
+		t.Error("rule should run on English only")
+	}
+}

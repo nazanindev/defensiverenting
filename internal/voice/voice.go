@@ -466,6 +466,30 @@ func inspectViolation(lang, text string) string {
 	return ""
 }
 
+// A renter told to send something by certified or registered mail is also
+// told that texts and emails they keep are a record: few renters buy postage
+// with a receipt, and most of their contact with a landlord is by phone. A
+// sentence about the landlord's, court's or clerk's own mailing duty is not
+// advice to the renter and is left alone.
+var (
+	postalMail    = regexp.MustCompile(`(?i)\b(certified|registered) mail\b`)
+	notRenterMail = regexp.MustCompile(`(?i)\b(landlord|lessor|owner|court|clerk|sheriff|they)\b`)
+	digitalRecord = regexp.MustCompile(`(?i)\b(texts?|text messages?|e-?mails?)\b`)
+)
+
+// mailRecordViolation is the statement-only rule for postal mail advice.
+func mailRecordViolation(lang, text string) string {
+	if lang != "en" || digitalRecord.MatchString(text) {
+		return ""
+	}
+	for _, sent := range sentenceEnd.Split(text, -1) {
+		if m := postalMail.FindString(sent); m != "" && !notRenterMail.MatchString(sent) {
+			return fmt.Sprintf(`%q: keep it if the law asks for it, and say in this statement that texts and emails you save are a record too, like "Save texts and emails as well; they are also a record of what you sent."`, m)
+		}
+	}
+	return ""
+}
+
 func LintAll(lang string, labeled map[string]string) []string {
 	const maxViolations = 10
 	var out []string
@@ -484,6 +508,9 @@ func LintAll(lang string, labeled map[string]string) []string {
 				out = append(out, label+": "+v)
 			}
 			if v := awardViolation(lang, labeled[label]); v != "" {
+				out = append(out, label+": "+v)
+			}
+			if v := mailRecordViolation(lang, labeled[label]); v != "" {
 				out = append(out, label+": "+v)
 			}
 		}
