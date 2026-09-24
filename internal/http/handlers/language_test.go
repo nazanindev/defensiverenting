@@ -152,7 +152,7 @@ func TestSpanishPlaybook_chromeSpeaksSpanish(t *testing.T) {
 	for _, want := range []string{
 		"Esto no es asesoría legal.",
 		"Fuentes verificadas el 30 de agosto de 2026",
-		"Última revisión por",
+		"Publicado por",
 		"Avísenos",
 		"Busque su situación…",
 		"Todos los lugares", // footer follows the page language too

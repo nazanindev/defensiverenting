@@ -122,6 +122,7 @@ body {
 
 .header-search {
   flex: 1;
+  min-width: 0;
   display: flex;
   gap: 8px;
   max-width: 520px;
@@ -130,6 +131,7 @@ body {
 
 .header-search input[type="search"] {
   flex: 1;
+  min-width: 0;
   padding: 8px 14px;
   border: 1.5px solid rgba(255,255,255,0.25);
   border-radius: 999px;
@@ -209,6 +211,11 @@ body {
 .header-place span { overflow: hidden; text-overflow: ellipsis; }
 .header-place-pin { flex-shrink: 0; }
 
+/* The tagline gives way first: to the header search on pages that carry
+   one, then to the place and account links on narrow screens. */
+@media (max-width: 1400px) {
+  body:not(.has-hero-search) .site-tagline { display: none; }
+}
 @media (max-width: 1080px) {
   .site-tagline { display: none; }
 }

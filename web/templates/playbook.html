@@ -59,7 +59,7 @@
         <header class="playbook-header">
           <span class="city-badge">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide"}}{{else}}{{.Jurisdiction.Name}}{{end}}</span>
           <h1>{{.Playbook.Title}}</h1>
-          <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{ui $l "last-verified"}} {{.ReviewedOn}}{{end}}</p>
+          <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}</p>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
         </header>
 

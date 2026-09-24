@@ -39,7 +39,7 @@ type browseStore interface {
 	GetConceptPage(ctx context.Context, slug, language string) (store.ConceptPageData, error)
 }
 
-// The authoring team, surfaced in the byline and as reviewedBy in JSON-LD.
+// The authoring team, surfaced in the byline and as editor in JSON-LD.
 // Both review guides; the split between them is everything before a guide
 // exists (Nazanin builds and runs the pipeline) and both bios live on the
 // team page at AuthorsPath. PublisherName is deliberately a first name only.
@@ -53,7 +53,7 @@ const (
 )
 
 // reviewerDisplay maps an updated_by stamp (a portal login, see cmd/authoring)
-// to the public "Last reviewed by" name. The byline follows the last save on
+// to the public "Published by" name. The byline follows the last save on
 // purpose: an edit to a live page moves the credit to whoever made it, not
 // whoever published first. Nazanin appears first-name-only by request. Every
 // other stamp — Cameron's login, the legacy shared credential, or the empty
@@ -999,7 +999,7 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		IsBasedOn     []string  `json:"isBasedOn,omitempty"`
 		Author        schemaOrg `json:"author"`
 		Publisher     schemaOrg `json:"publisher"`
-		ReviewedBy    schemaOrg `json:"reviewedBy"`
+		Editor        schemaOrg `json:"editor"`
 	}{
 		Type:        "Article",
 		Headline:    pb.Playbook.Title,
@@ -1009,7 +1009,7 @@ func playbookSchema(pb store.PlaybookWithStatements, canonical string, sourceURL
 		IsBasedOn:   sourceURLs,
 		Author:      schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
 		Publisher:   schemaOrg{Type: "Organization", Name: siteName, URL: tmpl.BaseURL()},
-		ReviewedBy:  schemaOrg{Type: "Person", Name: reviewerDisplay(pb.Playbook.UpdatedBy), URL: tmpl.BaseURL() + AuthorsPath},
+		Editor:      schemaOrg{Type: "Person", Name: reviewerDisplay(pb.Playbook.UpdatedBy), URL: tmpl.BaseURL() + AuthorsPath},
 	}
 	if pb.Playbook.PublishedAt != nil {
 		article.DatePublished = pb.Playbook.PublishedAt.Format(time.DateOnly)

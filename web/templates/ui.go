@@ -24,7 +24,7 @@ var uiStrings = map[string]map[string]string{
 	"choose-location":    {"en": "Choose your location", "es": "Elija su lugar"},
 	"your-location":      {"en": "Your location", "es": "Su lugar"},
 	"header-terms":       {"en": "Legal terms", "es": "Términos legales"},
-	"footer-promise":     {"en": "Every statement links to the law it comes from.", "es": "Cada afirmación enlaza a la ley de donde viene."},
+	"footer-promise":     {"en": "Every statement is cited. We check every source for changes each week.", "es": "Cada afirmación tiene su fuente. Revisamos cada fuente cada semana para ver si cambió."},
 	"footer-guides":      {"en": "Guides", "es": "Guías"},
 	"footer-about-us":    {"en": "About us", "es": "Quiénes somos"},
 	"footer-disclaimer": {
@@ -43,13 +43,12 @@ var uiStrings = map[string]map[string]string{
 	// Playbook page
 	"all-topics":    {"en": "← All topics", "es": "← Todos los temas"},
 	"nationwide":    {"en": "Nationwide", "es": "Todo el país"},
-	"reviewed-by":   {"en": "Last reviewed by", "es": "Última revisión por"},
-	"last-verified": {"en": "Last verified", "es": "Verificado por última vez el"},
+	"reviewed-by":   {"en": "Published by", "es": "Publicado por"},
 	"need-help-now": {"en": "Need help now?", "es": "¿Necesita ayuda ahora?"},
 	"in":            {"en": "in", "es": "en"},
 	"help-bar-tail": {"en": "legal aid, rent assistance, and who to call", "es": "ayuda legal, ayuda con la renta y a quién llamar"},
 	"page-disclaimer": {
-		"en": "Every statement below links to the law it comes from. Read the source before you act on it.",
+		"en": "Every statement below links to its source. Read the source before you act on it.",
 		"es": "Cada afirmación de abajo enlaza a la ley de donde viene. Lea la fuente antes de actuar.",
 	},
 	"page-disclaimer-help": {
@@ -79,7 +78,7 @@ var uiStrings = map[string]map[string]string{
 	// Jurisdiction hub
 	"whats-your-situation": {"en": "What’s your situation?", "es": "¿Cuál es su situación?"},
 	"hub-lede": {
-		"en": "Search your situation, or pick a topic below. Every statement links to the law it comes from.",
+		"en": "Search your situation, or pick a topic below. Every statement links to its source.",
 		"es": "Busque su situación o elija un tema abajo. Cada afirmación enlaza a la ley de donde viene.",
 	},
 	"hub-search-placeholder": {"en": "e.g. heat stopped working…", "es": "por ejemplo: la calefacción no funciona…"},
@@ -132,8 +131,8 @@ var uiStrings = map[string]map[string]string{
 	"nf-search-home":     {"en": "Search from the homepage", "es": "Busque desde la página principal"},
 	"nf-why-missing":     {"en": "Why some pages are missing", "es": "Por qué faltan algunas páginas"},
 	"nf-why-body": {
-		"en": "A person checks every citation before a guide is published. That is why coverage grows one place and one topic at a time. If we do not cover your city yet, your state’s guide and the nationwide guides still apply to you.",
-		"es": "Una persona verifica cada cita antes de publicar una guía. Por eso la cobertura crece lugar por lugar y tema por tema. Si aún no cubrimos su ciudad, la guía de su estado y las guías nacionales igual aplican para usted.",
+		"en": "Every citation is checked against its source, and a person publishes every guide. That is why coverage grows one place and one topic at a time. If we do not cover your city yet, your state’s guide and the nationwide guides still apply to you.",
+		"es": "Cada cita se verifica contra su fuente, y una persona publica cada guía. Por eso la cobertura crece lugar por lugar y tema por tema. Si aún no cubrimos su ciudad, la guía de su estado y las guías nacionales igual aplican para usted.",
 	},
 	"nf-ask-cover": {"en": "Ask us to cover your city →", "es": "Pídanos cubrir su ciudad →"},
 }

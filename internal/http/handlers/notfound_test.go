@@ -12,7 +12,7 @@ import (
 
 // Every 404 variant carries the same explanation of why a page can be
 // missing; this is the sentence the assertions below key on.
-const whyMissing = "checks every citation"
+const whyMissing = "checked against its source"
 
 // A URL that matches no route at all gets the styled fallback.
 func TestNotFound_fallbackExplainsManualCuration(t *testing.T) {

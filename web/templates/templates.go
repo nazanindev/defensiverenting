@@ -200,7 +200,7 @@ type IndexPage struct {
 	// Terms is the homepage's reference section (ADR-012 D3): concepts the
 	// national pages define, so the list grows with editorial output.
 	Terms          []store.Term
-	TermCount      int // every term /terms lists, for the "All N terms" link
+	TermCount      int         // every term /terms lists, for the "All N terms" link
 	StructuredData template.JS // JSON-LD WebSite + Organization schema, pre-marshaled
 }
 
@@ -377,7 +377,7 @@ type PlaybookPage struct {
 	Canonical      string               // absolute canonical URL
 	StructuredData template.JS          // JSON-LD Article + BreadcrumbList schema, pre-marshaled
 	Preview        bool                 // authoring-tool draft preview: shows a banner, never set on the live site
-	ReviewedOn     string               // human-readable last-verified date for the byline; empty hides the date
+	ReviewedOn     string               // human-readable publish date for the byline; empty hides the date
 	ReviewedByName string               // byline name of who last saved or published the page; falls back to the historical reviewer
 	SiblingTopics  []store.Topic        // other published topics in this city
 	OtherCities    []store.Jurisdiction // other cities with this topic published
