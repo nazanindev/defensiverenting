@@ -125,7 +125,10 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\bvoid\b`), `say what happens: "the court will not enforce it" or "does not count, even if you signed it"`},
 		{regexp.MustCompile(`(?i)\bunenforceable\b`), `say what happens: "the court will not enforce it"`},
 		{regexp.MustCompile(`(?i)\bwaiv(e|es|ed|er|ers|ing)\b`), `use "give up"`},
+		// A stressed renter cannot tell from "exempt" or "exception" whether
+		// they are covered: name who is left out (Nazanin, 2026-09-23).
 		{regexp.MustCompile(`(?i)\bexempt(s|ed|ion|ions)?\b`), `say who the rule does not cover: "this rule does not apply to ..."`},
+		{regexp.MustCompile(`(?i)\bexceptions?\b`), `name who or what is left out: "this rule does not apply to ..." or "... unless ..."`},
 		{regexp.MustCompile(`(?i)\bremed(y|ies)\b`), `use "what you can do about it" or name the options`},
 		{regexp.MustCompile(`(?i)\bpursuant\b`), `use "under" or "because of"`},
 		{regexp.MustCompile(`(?i)\bprovisions?\b`), `use "part of the lease" or "rule"`},

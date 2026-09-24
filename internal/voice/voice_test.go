@@ -11,6 +11,7 @@ func TestLint_cleanTextPasses(t *testing.T) {
 		"The late fee is capped at 5% of your rent. If your rent is $1,000, that is $50 at most.",
 		"A notice to quit (a letter saying you must move out) starts the clock.",
 		"Avoid paying cash without a receipt.", // "avoid" must not trip the \bvoid\b rule
+		"Your landlord cannot enter except in an emergency.", // plain "except" stays
 	}
 	for _, s := range clean {
 		if got := Lint("en", s); len(got) != 0 {
@@ -29,6 +30,7 @@ func TestLint_violations(t *testing.T) {
 		{"You waive this right.", "give up"},
 		{"New buildings are exempt from the cap.", "does not apply to"},
 		{"There is an exemption for small landlords.", "does not apply to"},
+		{"There are 2 exceptions to this rule.", "does not apply to"},
 		{"You have remedies.", "remed"},
 		{"Pursuant to the lease provision.", "Pursuant"},
 		{"The rent is due — pay it.", "dash"},
