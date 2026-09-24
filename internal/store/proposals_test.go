@@ -544,8 +544,20 @@ func TestWithdrawProposal_onlyTheProposersOwnPendingReplacement(t *testing.T) {
 	if err := pg.WithdrawProposal(ctx, mine, "triage agent", ""); err == nil {
 		t.Error("a withdrawal needs a reason")
 	}
+	if _, err := pg.FileReviewerNote(ctx, id, key, fmt.Sprintf("Proposal #%d held: drops a condition.", mine), "review agent"); err != nil {
+		t.Fatal(err)
+	}
+	var held int64
+	for _, row := range listPending(t, pg) {
+		if row.StatementKey == key && row.Reason == store.ReasonReviewerFlag {
+			held = row.ID
+		}
+	}
 	if err := pg.WithdrawProposal(ctx, mine, "triage agent", "filed by mistake"); err != nil {
 		t.Fatalf("withdraw: %v", err)
+	}
+	if held == 0 || !inList(t, pg, "superseded", held) {
+		t.Error("the judge's held note on a withdrawn proposal stayed open")
 	}
 	p, _ := pg.GetProposal(ctx, mine)
 	if p.Status != "rejected" || p.DecidedBy != "triage agent" || !strings.HasPrefix(p.DecisionNote, "Withdrawn by the proposer") {

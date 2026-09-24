@@ -589,7 +589,16 @@ func (pg *PG) WithdrawProposal(ctx context.Context, id int64, by, note string) e
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal #%d is not a pending replacement filed by %q", id, by)
 	}
-	return nil
+	// A judge's "Proposal #N held" note is about this proposal; with the
+	// proposal withdrawn there is nothing left for it to hold.
+	_, err = pg.pool.Exec(ctx, `
+		UPDATE statement_proposals
+		   SET status = 'superseded', decided_by = $2, decided_at = NOW(), snoozed_until = NULL,
+		       decision_note = 'Closed: proposal #' || $1::bigint::text || ' was withdrawn'
+		 WHERE reason = $3 AND status IN ('pending', 'snoozed')
+		   AND evidence->>'note' LIKE 'Proposal #' || $1::bigint::text || ' held:%'`,
+		id, by, ReasonReviewerFlag)
+	return err
 }
 
 // ApproveProposal applies the replacement statement to the target page
