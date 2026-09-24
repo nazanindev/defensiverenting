@@ -35,7 +35,7 @@
     <section class="hero">
       <h1>All locations</h1>
       <p class="lede">
-        {{if .CityCount}}Guides for {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}}, grouped by state. Pick yours to see every guide we have for it.{{else}}No city guides are published yet.{{end}}
+        {{if or .CityCount .StateCount}}Guides for {{placeCount .StateCount .CityCount}}, grouped by state. Pick your city, or your whole state if we do not cover your city yet.{{else}}No guides are published yet.{{end}}
       </p>
     </section>
 
@@ -62,9 +62,10 @@
       {{range .Groups}}
       <section class="state-group" data-state="{{.Name}}">
         <h2 class="state-name">
-          {{if .Path}}<a href="{{.Path}}">{{.Name}}</a>{{else}}Other{{end}}
+          {{if and .Path (not .Selectable)}}<a href="{{.Path}}">{{.Name}}</a>{{else if .Name}}{{.Name}}{{else}}Other{{end}}
         </h2>
         <ul class="city-list">
+          {{if .Selectable}}<li class="statewide-row" data-city="{{.Name}}"><a href="{{.Path}}" data-set-location="{{.Slug}}">All of {{.Name}} <span class="statewide-note">statewide</span></a></li>{{end}}
           {{range .Cities}}
           <li data-city="{{.Name}}"><a href="{{.Path}}" data-set-location="{{.Slug}}">{{.Name}}</a></li>
           {{end}}

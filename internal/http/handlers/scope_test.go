@@ -291,3 +291,17 @@ func TestCityHub_labelsGuidesFromUpTheChain(t *testing.T) {
 		t.Errorf("a national guide should be labeled Nationwide: %s", cov)
 	}
 }
+
+// A state with guides of its own is listed on /locations even when none of
+// its cities is covered, and the count names states as well as cities.
+func TestLocations_listsStatewideGuides(t *testing.T) {
+	stub := scopeStub()
+	stub.jurisdictions = append(stub.jurisdictions, store.Jurisdiction{ID: 50, Kind: "state", Name: "Vermont", Slug: "vermont"})
+
+	body := serve(t, stub, "/locations").Body.String()
+	for _, want := range []string{`href="/j/vermont"`, "All of Vermont", "All of Massachusetts", "2 states and "} {
+		if !strings.Contains(body, want) {
+			t.Errorf("/locations missing %q", want)
+		}
+	}
+}

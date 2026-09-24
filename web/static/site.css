@@ -1086,6 +1086,15 @@ a.result-title:hover { text-decoration: underline; }
 
 .city-list li { margin: 0 0 5px; }
 
+/* A state's own guides, above its cities. Set apart so a renter in a town
+   we do not cover sees that their state is. */
+.statewide-row a { font-weight: 600; }
+.statewide-note {
+  font-size: .85rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
 .city-list a {
   color: var(--ink);
   text-decoration: none;

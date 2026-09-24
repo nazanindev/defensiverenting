@@ -34,10 +34,10 @@
       <h1>Know your rights as a renter.</h1>
       <p class="lede">Plain answers for your city and state. Each answer links to where it comes from. We check those sources every week.</p>
       {{template "scope-search" .Scope}}
-      {{if .CityCount}}
+      {{if or .CityCount .StateCount}}
       <p class="scope-hint">
         Pick a location to search one place.
-        <a href="/locations">All {{.CityCount}} cit{{if eq .CityCount 1}}y{{else}}ies{{end}} we cover →</a>
+        <a href="/locations">See the {{placeCount .StateCount .CityCount}} we cover →</a>
       </p>
       {{end}}
     </section>

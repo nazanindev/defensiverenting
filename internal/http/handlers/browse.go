@@ -309,9 +309,16 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		} else {
 			logger.ErrorContext(r.Context(), "list state jurisdictions", slog.Any("err", serr))
 		}
+		stateCount := 0
+		for _, g := range groups {
+			if g.Selectable {
+				stateCount++
+			}
+		}
 		render(w, r, http.StatusOK, tmpl.IndexPage{
 			LocationGroups: groups,
 			CityCount:      len(jurisdictions),
+			StateCount:     stateCount,
 			Topics:         topics,
 			Terms:          terms,
 			TermCount:      termCount,
@@ -450,22 +457,26 @@ func locations(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		// National hubs get their own section; a state with statewide content
-		// is not listed separately because its heading in the grouped city
-		// index already links to its hub.
-		var national, cities []store.Jurisdiction
+		// National hubs get their own section. A state with guides of its
+		// own gets a statewide row at the top of its group, and a group of
+		// its own when none of its cities is covered yet: a renter in a town
+		// we do not cover should still see that their state is.
+		var national, states, cities []store.Jurisdiction
 		for _, j := range hubs {
 			switch j.Kind {
 			case "country":
 				national = append(national, j)
+			case "state":
+				states = append(states, j)
 			case "city":
 				cities = append(cities, j)
 			}
 		}
 		render(w, r, http.StatusOK, tmpl.LocationsPage{
-			National:  national,
-			Groups:    tmpl.GroupByState(cities),
-			CityCount: len(cities),
+			National:   national,
+			Groups:     tmpl.MarkStatewide(tmpl.GroupByState(cities), states),
+			CityCount:  len(cities),
+			StateCount: len(states),
 		})
 	}
 }

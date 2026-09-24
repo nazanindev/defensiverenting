@@ -68,6 +68,7 @@ func funcMap() template.FuncMap {
 		"uif":            UIStringf,
 		"pageLang":       pageLang,
 		"headerFor":      headerFor,
+		"placeCount":     PlaceCount,
 	}
 }
 
@@ -146,6 +147,27 @@ func (g StateGroup) PathIn(lang string) string {
 	return store.LangPrefix(lang) + "/j/" + g.Slug
 }
 
+// PlaceCount says how many places we cover in words: "5 states and 12
+// cities", "1 state", "3 cities". Places are counted by kind because a
+// renter reads "12 places" as 12 cities and misses that their state is
+// covered too.
+func PlaceCount(states, cities int) string {
+	part := func(n int, one, many string) string {
+		if n == 1 {
+			return "1 " + one
+		}
+		return fmt.Sprintf("%d %s", n, many)
+	}
+	switch {
+	case states > 0 && cities > 0:
+		return part(states, "state", "states") + " and " + part(cities, "city", "cities")
+	case states > 0:
+		return part(states, "state", "states")
+	default:
+		return part(cities, "city", "cities")
+	}
+}
+
 // GroupByState buckets cities under their parent state, preserving the order
 // the store returned them in (state name, then city name).
 //
@@ -196,6 +218,7 @@ func MarkStatewide(groups []StateGroup, states []store.Jurisdiction) []StateGrou
 type IndexPage struct {
 	LocationGroups []StateGroup
 	CityCount      int
+	StateCount     int           // states with statewide guides of their own
 	Topics         []store.Topic // topics with >=1 published playbook, shown as situations
 	// Terms is the homepage's reference section (ADR-012 D3): concepts the
 	// national pages define, so the list grows with editorial output.
@@ -283,9 +306,10 @@ func (p SearchPage) Scope() ScopeSearch {
 // listed in a section of their own: bucketed like a city, "United States"
 // would render under an empty state heading and read as a city you could pick.
 type LocationsPage struct {
-	National  []store.Jurisdiction
-	Groups    []StateGroup
-	CityCount int
+	National   []store.Jurisdiction
+	Groups     []StateGroup
+	CityCount  int
+	StateCount int // states with statewide guides of their own
 }
 
 // TopicHubPage lists every place that has a published playbook for one topic.
