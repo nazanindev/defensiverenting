@@ -27,6 +27,8 @@ func TestLint_violations(t *testing.T) {
 		{"This clause is void.", "void"},
 		{"That waiver is unenforceable.", "unenforceable"},
 		{"You waive this right.", "give up"},
+		{"New buildings are exempt from the cap.", "does not apply to"},
+		{"There is an exemption for small landlords.", "does not apply to"},
 		{"You have remedies.", "remed"},
 		{"Pursuant to the lease provision.", "Pursuant"},
 		{"The rent is due — pay it.", "dash"},
