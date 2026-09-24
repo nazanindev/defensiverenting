@@ -23,6 +23,8 @@ A statement is one informative claim, tagged with the concept whose question it 
 | landlord-entry | "Can my landlord come in? What about my locks?" | notice to enter, allowed reasons, emergencies, lock changes, lockouts, quiet enjoyment | eviction through court → **eviction-defense** |
 | rent-increase | "My landlord raised my rent. Is that allowed?" | notice periods, caps and rent control, increases during a lease, retaliatory increases | being told to leave at the end of a lease → **eviction-defense** / **lease-renewal** |
 | constructive-eviction | "My home is so bad I have to leave. Do I still owe rent?" | when conditions let you leave, the steps first, the risk | fixing the problem while staying → **repairs-and-habitability** |
+| discrimination | "I think I was treated unfairly because of who I am. What can I do?" | protected groups, what is illegal, accommodations for disability, where and when to file a complaint, what you can win | retaliation for complaining about repairs → **repairs-and-habitability** or the situation it happened in |
+| renting-fundamentals | "What rights does every renter have?" | a short overview of the core rights, each one pointing to its situation page | the full steps of any situation → that situation's page |
 | resource-directory | "Where can I get help?" | one organisation per entry: who it helps, how to reach it | rules of any kind → the topic they belong to |
 
 Cross-cutting rules (renting-fundamentals concepts: retaliation, court-eviction-only, illegal-lockout, records-and-evidence, fair-housing, mediation, small-claims-court, complaint-line) may appear on any playbook, but only where that situation needs them.
