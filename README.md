@@ -14,7 +14,7 @@ Renters search by situation or browse by place. A city page inherits its state's
 
 ## How a claim gets published
 
-One rule: a claim reaches the public only if every citation carries a quote that is a verbatim substring of text the system itself fetched, a person confirmed that quote, and a person published the page.
+One rule: a claim reaches the public only if every citation carries a quote that is a verbatim substring of text the system itself fetched, a reader confirmed the statement against a passage on record, and a person published the page. The reader is usually the review agent (ADR-022); what it cannot confirm goes to a person.
 
 ```mermaid
 flowchart LR
@@ -26,7 +26,8 @@ flowchart LR
     E --> S
     S --> R[Draft]
     M -- doubt --> Q
-    R --> W[Person reviews each statement]
+    R --> W[Review agent reads each statement]
+    W -- cannot confirm --> Q
     W --> P[Person publishes]
     P --> L[Public page]
     L --> V[Re-verify]
@@ -36,13 +37,15 @@ flowchart LR
 
 A model drafts. It sits above a trust boundary and the only thing that crosses is a tool call. The one tool that writes checks every quote against text the system fetched and refuses with a fix the model can act on. The model records anything it is unsure of as a note on that statement. The same tools run in the Go loop (`cmd/draft`) and over MCP (`cmd/mcp`), so drafting can be driven from Claude Code.
 
-A person reviews, one statement at a time. Publishing runs the gate inside the transaction: every statement cited, every quote confirmed, every statement stamped by a person. Drafts save freely; the gate only refuses publishing.
+A review agent reads each statement against its cited sources as fetched now. It passes a statement only with a passage, found verbatim at the live source, that supports the claim as written; the command refuses anything else. A pass writes the ordinary review stamp under the agent's name. A statement it cannot pass becomes a note: a triage agent proposes a fix, a separate judge applies it by stated rule (ADR-021), and the statement is read again. What no rule decides goes to a person. Every decision is logged with its actor and rule.
 
-After publishing, a checker re-fetches every cited source and confirms each quote still appears. Every fetch carries a receipt: which tier and extractor produced the text, and its hash. A quote that is gone from a readable, comparable fetch becomes a proposal against the statement, old passage beside new. A person decides. Approval is a save, so the gate holds again.
+Publishing is a person's click. It runs the gate inside the transaction: every statement cited, every quote confirmed, every statement stamped. Drafts save freely; the gate only refuses publishing.
+
+After publishing, a checker re-fetches every cited source and confirms each quote still appears. Every fetch carries a receipt: which tier and extractor produced the text, and its hash. The checker runs every Monday (`.github/workflows/check-sources.yml`). A quote that is gone from a readable, comparable fetch becomes a proposal against the statement, old passage beside new. It is decided like any other proposal, by rule or by a person. Approval is a save, so the gate holds again. Live pages are edited only by a person.
 
 ## The authoring service
 
-The authoring service is where drafts become published pages. A reviewer opens a page and works through its statements in order, reading each one against the quotes that support it. Marking a statement done records that a person read it with its evidence: any quote the checker never confirmed is attested under the reviewer's name, the model's notes on that statement are recorded as read, and the statement is stamped over a hash of its words and citations, so any later edit voids the stamp. Once every statement on a page has been reviewed, the page can be published.
+The authoring service is where drafts become published pages. A reviewer opens a page and works through its statements in order, reading each one against the quotes that support it. Marking a statement done records that a person read it with its evidence: any quote the checker never confirmed is attested under the reviewer's name, the model's notes on that statement are recorded as read, and the statement is stamped over a hash of its words and citations, so any later edit voids the stamp. A pass from the review agent writes the same stamp under the agent's name, and the card shows who stamped. Once every statement on a page is stamped, the page can be published.
 
 Sources can be read without leaving the page. The fetched text opens alongside the statements with the cited passage highlighted, and a reviewer can select a different passage to use as the quote. Statements can be edited in place, and the full editor handles adding, removing, and reordering them.
 
@@ -129,7 +132,6 @@ Known gaps:
 
 ## Roadmap
 
-- **Checker cadence.** The re-verify loop runs on demand, from the command line or a button. It should run on a schedule.
 - **More places.** Adding a city or state is research time, not infrastructure.
 - **Semantic search.** The `embedding` column exists. A vector index and an embedding step would let renters describe a situation in their own words.
 - **Spanish.** The plumbing is built and parked until there is a reviewer for it.
