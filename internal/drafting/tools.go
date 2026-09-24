@@ -56,35 +56,55 @@ func (tb *Toolbelt) FindSources(_ context.Context, in FindSourcesInput) (FindSou
 
 type FetchSourceInput struct {
 	URL string `json:"url" jsonschema:"the http(s) URL of the source to fetch and cache. Reference-only sites (Nolo, Justia, law firm blogs) MAY be fetched to orient your research and compare your own copy, but citations to them are rejected: cite the primary law they summarize."`
+	// Offset pages through a long source. The first call fetches and caches
+	// the page; a call with an offset reads the next part from the cache, so
+	// paging does not refetch and the quote check sees the same text.
+	Offset int `json:"offset,omitempty" jsonschema:"character offset to start reading from, for a long source that came back truncated: pass the next_offset of the previous call to read the next part. Omit for the start of the page."`
 }
 
 type FetchSourceOutput struct {
-	URL       string `json:"url"`
-	Host      string `json:"host"`
-	Text      string `json:"text" jsonschema:"readable text of the source; quote verbatim from this, the whole subsection for a statute"`
-	Truncated bool   `json:"truncated" jsonschema:"true if text was cut for length (full text is still cached for citation checks)"`
-	Via       string `json:"via,omitempty" jsonschema:"how the text was obtained when a fallback was needed, e.g. \"web.archive.org snapshot\"; tell the human reviewer when set. A quote taken from a snapshot is saved unverified: only a person who opens the live page can confirm it"`
+	URL        string `json:"url"`
+	Host       string `json:"host"`
+	Text       string `json:"text" jsonschema:"readable text of the source; quote verbatim from this, the whole subsection for a statute"`
+	Truncated  bool   `json:"truncated" jsonschema:"true if more text follows this part; call fetch_source again with offset = next_offset to read it (the full text is cached for citation checks)"`
+	Offset     int    `json:"offset" jsonschema:"character offset this part starts at"`
+	NextOffset int    `json:"next_offset,omitempty" jsonschema:"offset of the next part when truncated is true"`
+	TotalChars int    `json:"total_chars" jsonschema:"length of the whole source text in characters"`
+	Via        string `json:"via,omitempty" jsonschema:"how the text was obtained when a fallback was needed, e.g. \"web.archive.org snapshot\"; tell the human reviewer when set. A quote taken from a snapshot is saved unverified: only a person who opens the live page can confirm it"`
 }
 
 // FetchSource fetches a URL, caches its extracted text for the verbatim check,
-// and returns the (possibly truncated) text.
+// and returns up to maxReturnRune characters of it starting at in.Offset. A
+// call with an offset reads a URL already in the cache instead of fetching it
+// again, so every part an agent reads comes from the text quotes are checked
+// against.
 func (tb *Toolbelt) FetchSource(_ context.Context, in FetchSourceInput) (FetchSourceOutput, error) {
 	raw := strings.TrimSpace(in.URL)
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return FetchSourceOutput{}, reject("url must be a valid http(s) URL, got %q", raw)
 	}
-	f, err := tb.fetch(raw)
-	if err != nil {
-		return FetchSourceOutput{}, reject("could not fetch %s: %v", raw, err)
+	if in.Offset < 0 {
+		return FetchSourceOutput{}, reject("offset must be 0 or more, got %d", in.Offset)
 	}
-	tb.cache.put(raw, f)
+	f, cached := tb.cache.get(raw)
+	if in.Offset == 0 || !cached {
+		if f, err = tb.fetch(raw); err != nil {
+			return FetchSourceOutput{}, reject("could not fetch %s: %v", raw, err)
+		}
+		tb.cache.put(raw, f)
+	}
 
-	returned, truncated := f.Text, false
-	if r := []rune(f.Text); len(r) > maxReturnRune {
-		returned, truncated = string(r[:maxReturnRune]), true
+	r := []rune(f.Text)
+	if in.Offset > len(r) {
+		return FetchSourceOutput{}, reject("offset %d is past the end of %s (%d characters)", in.Offset, raw, len(r))
 	}
-	return FetchSourceOutput{URL: raw, Host: u.Host, Text: returned, Truncated: truncated, Via: f.Via()}, nil
+	end := min(in.Offset+maxReturnRune, len(r))
+	out := FetchSourceOutput{URL: raw, Host: u.Host, Text: string(r[in.Offset:end]), Offset: in.Offset, TotalChars: len(r), Via: f.Via()}
+	if end < len(r) {
+		out.Truncated, out.NextOffset = true, end
+	}
+	return out, nil
 }
 
 // ---- save_draft_playbook ---------------------------------------------------

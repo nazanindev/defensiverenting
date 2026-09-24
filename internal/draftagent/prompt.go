@@ -142,8 +142,11 @@ func toolDefs() []anthropic.ToolUnionParam {
 			[]string{"jurisdiction_slug"}),
 
 		customTool("fetch_source",
-			"Fetch a source URL and return its readable text. Read a source through this tool before citing it — quotes are verified against text returned here.",
-			map[string]any{"url": strProp("http(s) URL of the primary source")},
+			"Fetch a source URL and return its readable text. Read a source through this tool before citing it — quotes are verified against text returned here. Long sources come back in parts: when truncated is true, call again with offset = next_offset to read the next part.",
+			map[string]any{
+				"url":    strProp("http(s) URL of the primary source"),
+				"offset": map[string]any{"type": "integer", "description": "character offset to start reading from; pass next_offset from the previous call. Omit for the start."},
+			},
 			[]string{"url"}),
 
 		// Kept in step with drafting.SaveDraftInput by hand: the MCP front-end

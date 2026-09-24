@@ -867,3 +867,39 @@ func TestGetPlaybook_ReturnsConceptAndTopicRef(t *testing.T) {
 		t.Errorf("statements = %+v, want concept and topic_ref carried through", out.Statements)
 	}
 }
+
+func TestFetchSource_PagesLongSources(t *testing.T) {
+	const u = "https://example.gov/long"
+	long := strings.Repeat("a", maxReturnRune) + "TAIL of the guide"
+	fetches := 0
+	tb := &Toolbelt{db: &fakeStore{}, cache: newFetchCache(), extract: htmlStripper{}}
+	tb.fetch = func(string) (Receipt, error) {
+		fetches++
+		return newReceipt(u, long, TierDirect, ExtractorHTML), nil
+	}
+	ctx := context.Background()
+
+	first, err := tb.FetchSource(ctx, FetchSourceInput{URL: u})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Truncated || first.NextOffset != maxReturnRune || first.TotalChars != len(long) {
+		t.Fatalf("first part: truncated=%v next=%d total=%d", first.Truncated, first.NextOffset, first.TotalChars)
+	}
+	second, err := tb.FetchSource(ctx, FetchSourceInput{URL: u, Offset: first.NextOffset})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Text != "TAIL of the guide" || second.Truncated || second.NextOffset != 0 {
+		t.Fatalf("second part: text=%q truncated=%v next=%d", second.Text, second.Truncated, second.NextOffset)
+	}
+	if fetches != 1 {
+		t.Errorf("paging refetched the page: %d fetches", fetches)
+	}
+	if _, err := tb.FetchSource(ctx, FetchSourceInput{URL: u, Offset: len(long) + 1}); !isRejection(err) {
+		t.Errorf("offset past the end: got %v, want a rejection", err)
+	}
+	if _, err := tb.FetchSource(ctx, FetchSourceInput{URL: u, Offset: -1}); !isRejection(err) {
+		t.Errorf("negative offset: got %v, want a rejection", err)
+	}
+}

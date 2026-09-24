@@ -30,7 +30,8 @@ func New(db store.Store) *mcp.Server {
 		Name: "fetch_source",
 		Description: "Fetch a source URL and return its readable text. You MUST fetch a source " +
 			"through this tool before citing it: save_draft_playbook only accepts quotes that " +
-			"appear verbatim in text returned here.",
+			"appear verbatim in text returned here. Long sources come back in parts: when " +
+			"truncated is true, call again with offset = next_offset to read the next part.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drafting.FetchSourceInput) (*mcp.CallToolResult, drafting.FetchSourceOutput, error) {
 		return result(tb.FetchSource(ctx, in))
 	})
