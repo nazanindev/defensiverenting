@@ -82,7 +82,8 @@ func TestFetchClient_repairsMissingIntermediate(t *testing.T) {
 	// Untrusted root: repair cannot make it trusted.
 	aiaRoots = x509.NewCertPool()
 	aiaCache.Range(func(k, _ any) bool { aiaCache.Delete(k); return true })
-	if _, err := fetchClient(5 * time.Second).Get(srv.URL); err == nil {
+	if resp, err := fetchClient(5 * time.Second).Get(srv.URL); err == nil {
+		_ = resp.Body.Close()
 		t.Error("a chain to an untrusted root was accepted")
 	}
 }

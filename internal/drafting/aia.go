@@ -87,7 +87,9 @@ func fetchIssuer(c *x509.Certificate) (*x509.Certificate, error) {
 			continue
 		}
 		if v, ok := aiaCache.Load(url); ok {
-			return v.(*x509.Certificate), nil
+			if cert, ok := v.(*x509.Certificate); ok {
+				return cert, nil
+			}
 		}
 		der, err := aiaFetch(url)
 		if err != nil {
@@ -105,7 +107,10 @@ func fetchIssuer(c *x509.Certificate) (*x509.Certificate, error) {
 
 // fetchClient is the HTTP client source fetches use.
 func fetchClient(timeout time.Duration) *http.Client {
-	t := http.DefaultTransport.(*http.Transport).Clone()
+	t := &http.Transport{Proxy: http.ProxyFromEnvironment}
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		t = base.Clone()
+	}
 	t.TLSClientConfig = &tls.Config{
 		// Verification is not skipped: VerifyConnection runs the full chain
 		// and host name check itself, adding fetched intermediates when a
