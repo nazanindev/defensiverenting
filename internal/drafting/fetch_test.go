@@ -28,6 +28,28 @@ func TestHTTPFetch_directSuccess(t *testing.T) {
 	}
 }
 
+func TestHTTPFetch_retriesDefaultUserAgentOn403(t *testing.T) {
+	// A host that refuses our named user agent but serves Go's default one
+	// (mass.gov's regulation PDFs) is read on the direct tier.
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.UserAgent() == userAgent {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(longPage("RETRIED")))
+	}))
+	defer direct.Close()
+
+	tb := &Toolbelt{extract: htmlStripper{}, archiveBase: "http://127.0.0.1:1/"} // archive unreachable on purpose
+	got, err := tb.httpFetch(direct.URL)
+	if err != nil {
+		t.Fatalf("httpFetch: %v", err)
+	}
+	if !strings.Contains(got.Text, "RETRIED") || got.Via() != "" {
+		t.Errorf("got Via=%q text=%.40q, want the retried direct text and empty Via", got.Via(), got.Text)
+	}
+}
+
 func TestHTTPFetch_archiveFallbackOnBlock(t *testing.T) {
 	for name, handler := range map[string]http.HandlerFunc{
 		"403 block": func(w http.ResponseWriter, _ *http.Request) {

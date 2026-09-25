@@ -169,30 +169,23 @@ func (tb *Toolbelt) renderTier(url string) (Receipt, bool) {
 // labels the receipt: the same GET serves the direct tier and the archive
 // tier, which differ only in what the URL points at.
 func (tb *Toolbelt) fetchDirect(url, tier string) (Receipt, error) {
-	// context.Background rather than a caller's context: fetchDirect is reached
-	// through FetchExtract, whose signature carries no context, so there is no
-	// real one to thread yet. Making that explicit beats an implicit nil.
-	// Threading a context from sourcecheck.Run would let a long check be
-	// cancelled and is worth doing separately.
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	status, ctype, body, err := get(url, userAgent)
 	if err != nil {
 		return Receipt{}, err
 	}
-	req.Header.Set("User-Agent", userAgent)
-	client := fetchClient(fetchTimeout)
-	resp, err := client.Do(req)
-	if err != nil {
-		return Receipt{}, err
+	// Some government hosts answer our named user agent with 403 but serve
+	// Go's default one (mass.gov serves its regulation PDFs this way). One
+	// retry without our header is still a plain request, not a browser
+	// disguise; a host that blocks both falls through to the render tier.
+	if status == http.StatusForbidden {
+		if s2, c2, b2, err2 := get(url, ""); err2 == nil {
+			status, ctype, body = s2, c2, b2
+		}
 	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
-	if err != nil {
-		return Receipt{}, err
+	if status < 200 || status > 299 {
+		return Receipt{}, fmt.Errorf("status %d", status)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return Receipt{}, fmt.Errorf("status %d", resp.StatusCode)
-	}
-	if isPDF(resp.Header.Get("Content-Type"), body) {
+	if isPDF(ctype, body) {
 		text, extractor, err := pdfExtract(body)
 		if err != nil {
 			return Receipt{}, err
@@ -200,6 +193,33 @@ func (tb *Toolbelt) fetchDirect(url, tier string) (Receipt, error) {
 		return newReceipt(url, text, tier, extractor), nil
 	}
 	return newReceipt(url, tb.extract.extract(string(body)), tier, ExtractorHTML), nil
+}
+
+// get performs one GET and returns the status, content type and body. An
+// empty ua leaves Go's default User-Agent in place.
+func get(url, ua string) (int, string, []byte, error) {
+	// context.Background rather than a caller's context: fetchDirect is reached
+	// through FetchExtract, whose signature carries no context, so there is no
+	// real one to thread yet. Making that explicit beats an implicit nil.
+	// Threading a context from sourcecheck.Run would let a long check be
+	// cancelled and is worth doing separately.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	if ua != "" {
+		req.Header.Set("User-Agent", ua)
+	}
+	resp, err := fetchClient(fetchTimeout).Do(req)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+	if err != nil {
+		return 0, "", nil, err
+	}
+	return resp.StatusCode, resp.Header.Get("Content-Type"), body, nil
 }
 
 // FetchExtract fetches a URL and returns its extracted readable text using the
