@@ -24,6 +24,12 @@ func TestUnfamiliarWords(t *testing.T) {
 	if got := UnfamiliarWords("The sheriff carries out a writ (the court order to return the home to your landlord)."); len(got) != 0 {
 		t.Errorf("a glossed official term should pass, got %v", got)
 	}
+	if got := UnfamiliarWords("The clerk issues a writ of possession (the court order that lets the sheriff remove you)."); len(got) != 0 {
+		t.Errorf("a gloss after a short phrase should pass, got %v", got)
+	}
+	if got := UnfamiliarWords("The clerk issues a writ and then the sheriff comes to your home (after 24 hours)."); len(got) == 0 {
+		t.Error("a parenthesis far from the word is not its gloss")
+	}
 }
 
 func TestLintAll_readability(t *testing.T) {

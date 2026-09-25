@@ -94,7 +94,9 @@ var (
 	wordTok      = regexp.MustCompile(`[A-Za-z][A-Za-z'’-]*`)
 	sentenceTok  = regexp.MustCompile(`[.!?:;]+(\s|$)|\n+`)
 	webAddress   = regexp.MustCompile(`(?i)https?://\S+|\S+\.(org|gov|com|net|us|info)(/\S*)?`)
-	glossFollows = regexp.MustCompile(`^\s*\(`)
+	// A gloss may follow the flagged word or the short phrase it opens:
+	// "escrow (...)", "writ of possession (...)".
+	glossFollows = regexp.MustCompile(`^(\s+[A-Za-z'’-]+){0,3}\s*\(`)
 )
 
 // inList reports whether w, or a regular inflection of it, is in list.
