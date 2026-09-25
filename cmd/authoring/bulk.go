@@ -131,8 +131,9 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 	b.mu.Unlock()
 
 	by := actor(r)
+	// The run outlives the request that started it.
+	ctx := context.WithoutCancel(r.Context())
 	go func() {
-		ctx := context.Background()
 		failed := 0
 		for _, id := range ids {
 			// Read each one fresh: an earlier apply on the same page can
