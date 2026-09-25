@@ -50,6 +50,7 @@ type srv struct {
 	tmpl        *template.Template
 	jobs        *jobSet
 	sourceCache *sourceFetchCache
+	bulk        *bulkRun
 }
 
 // jobSet tracks in-flight AI draft generations by "city/topic" key, so the
@@ -215,7 +216,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet(), sourceCache: newSourceFetchCache(2 * time.Minute)}
+	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet(), sourceCache: newSourceFetchCache(2 * time.Minute), bulk: &bulkRun{}}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
@@ -248,6 +249,7 @@ func main() {
 	mux.HandleFunc("POST /candidates/{id}/reject", s.rejectCandidate)
 	mux.HandleFunc("POST /candidates/{id}/snooze", s.snoozeCandidate)
 	mux.HandleFunc("GET /queue", s.queue)
+	mux.HandleFunc("POST /queue/bulk", s.bulkApprove)
 	mux.HandleFunc("POST /queue/{id}/approve", s.approveProposal)
 	mux.HandleFunc("POST /queue/{id}/reject", s.rejectProposal)
 	mux.HandleFunc("POST /queue/{id}/snooze", s.snoozeProposal)

@@ -63,6 +63,8 @@ type queueItem struct {
 	// only what changed in the evidence. Nil when the citations are the same.
 	NewCitations  []store.ProposedCitation
 	GoneCitations []store.ProposedCitation
+	// Failed is why the last bulk apply left this item pending.
+	Failed string
 }
 
 // newQueueItem reads a proposal row into the shape the queue and the
@@ -194,6 +196,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 				item.Answers = append(item.Answers, n)
 			}
 		}
+		item.Failed = s.bulk.failure(row.ID)
 		items = append(items, item)
 	}
 	sort.SliceStable(items, func(i, j int) bool {
@@ -211,7 +214,13 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	if open == 0 && len(items) > 0 {
 		open = items[0].ID
 	}
+	var rules []bulkRule
+	if status == "pending" {
+		rules = bulkRules(items)
+	}
 	s.render(w, "queue.html", map[string]any{
+		"Rules":    rules,
+		"Bulk":     s.bulk.status(),
 		"Actor":    actor(r),
 		"Status":   status,
 		"Items":    items,
