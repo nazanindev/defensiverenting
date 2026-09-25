@@ -445,3 +445,19 @@ func TestMailRecordViolation(t *testing.T) {
 		t.Error("rule should run on English only")
 	}
 }
+
+func TestLint_slangBanned(t *testing.T) {
+	for _, txt := range []string{
+		"Your landlord cannot punish you with a rent hike.",
+		"Do not take your belongings without your written OK.",
+		"If your fridge breaks, tell your landlord.",
+		"Your landlord cannot kick you out without a court order.",
+	} {
+		if len(Lint("en", txt)) == 0 {
+			t.Errorf("slang passed: %q", txt)
+		}
+	}
+	if v := Lint("en", "Your landlord must fix a broken refrigerator."); len(v) != 0 {
+		t.Errorf("plain text flagged: %v", v)
+	}
+}

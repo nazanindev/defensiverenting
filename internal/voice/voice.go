@@ -171,6 +171,14 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\bempower(s|ed|ing|ment)?\b`), `figurative; say what the reader can do`},
 		{regexp.MustCompile(`(?i)\bjourney\b`), `figurative; name the concrete process`},
 		{regexp.MustCompile(`(?i)\brule of thumb\b`), `figurative; state the rule plainly`},
+		// Slang: plain is not casual. A renter reading a legal right should
+		// read it in the words the law and the lease use, kept simple.
+		{regexp.MustCompile(`(?i)\b(rent )?hikes?\b`), `slang; say "rent increase"`},
+		{regexp.MustCompile(`\b(OK|ok|okay|Okay)\b`), `slang; say "permission", "agreement" or "approval"`},
+		{regexp.MustCompile(`(?i)\bfridges?\b`), `slang; say "refrigerator"`},
+		{regexp.MustCompile(`(?i)\bkick(s|ed|ing)? (you |them |someone )?out\b`), `slang; say "make you leave" or "evict"`},
+		{regexp.MustCompile(`(?i)\b(cops?|stuff|gonna|a bunch of|tons of|pricey)\b`), `slang; use the plain standard word`},
+		{regexp.MustCompile(`(?i)\bbug problems?\b`), `slang; say "insects" or "pests"`},
 		{regexp.MustCompile(`(?i)\bkeep in mind\b`), `drop it; state the fact directly`},
 	},
 	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
