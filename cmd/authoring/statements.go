@@ -321,7 +321,7 @@ func (s *srv) statementSave(w http.ResponseWriter, r *http.Request) {
 	var npe *store.NotPublishableError
 	switch {
 	case errors.As(err, &npe):
-		http.Redirect(w, r, f.path("Not saved: this page is live and the change would leave it unpublishable. "+strings.Join(issueDetails(npe.Issues), "; ")), http.StatusSeeOther) //nolint:gosec // see filter.path
+		http.Redirect(w, r, f.path("Not saved: this page is live and the change adds a problem it did not have: "+strings.Join(issueDetails(npe.Issues), "; ")), http.StatusSeeOther) //nolint:gosec // see filter.path
 	case err != nil:
 		s.serverError(w, err)
 	default:
@@ -365,7 +365,7 @@ func (s *srv) statementChange(w http.ResponseWriter, r *http.Request) {
 	var npe *store.NotPublishableError
 	switch {
 	case errors.As(err, &npe):
-		http.Redirect(w, r, f.path("Not applied: the page is live and this change would leave it unpublishable. "+strings.Join(issueDetails(npe.Issues), "; ")), http.StatusSeeOther) //nolint:gosec // see filter.path
+		http.Redirect(w, r, f.path("Not applied: the page is live and this change adds a problem it did not have: "+strings.Join(issueDetails(npe.Issues), "; ")), http.StatusSeeOther) //nolint:gosec // see filter.path
 	case err != nil:
 		http.Redirect(w, r, f.path("Not applied: "+err.Error()), http.StatusSeeOther) //nolint:gosec // see filter.path
 	default:

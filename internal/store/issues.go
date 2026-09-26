@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -77,15 +78,27 @@ func (pg *PG) AuthorDraftIssues(ctx context.Context) (map[int64][]PageIssue, err
 }
 
 // validatePublishable is the publish gate: it refuses when the page carries
-// any critical issue. Run inside the transaction that publishes (or that saves
-// a live page), so a refused page changes nothing. approval says the save
-// applies one decided proposal, in which case undecided-item is not counted
-// (ADR-021 D6): the queue's other open items are not published over by an
-// edit to one statement, they stay pending and keep blocking publish.
+// any critical issue. Run inside the transaction that publishes, so a refused
+// page changes nothing.
 func validatePublishable(ctx context.Context, q rowQuerier, playbookID int64, approval bool) error {
-	m, err := collectIssues(ctx, q, "pb.id = $1", playbookID)
+	issues, err := gateIssues(ctx, q, playbookID, approval)
 	if err != nil {
 		return err
+	}
+	if len(issues) > 0 {
+		return &NotPublishableError{Issues: issues}
+	}
+	return nil
+}
+
+// gateIssues is one page's issues as the gate counts them. approval says the
+// save applies one decided proposal, in which case undecided-item is not
+// counted (ADR-021 D6): the queue's other open items are not published over
+// by an edit to one statement, they stay pending and keep blocking publish.
+func gateIssues(ctx context.Context, q rowQuerier, playbookID int64, approval bool) ([]PageIssue, error) {
+	m, err := collectIssues(ctx, q, "pb.id = $1", playbookID)
+	if err != nil {
+		return nil, err
 	}
 	issues := m[playbookID]
 	if approval {
@@ -97,10 +110,60 @@ func validatePublishable(ctx context.Context, q rowQuerier, playbookID int64, ap
 		}
 		issues = kept
 	}
-	if len(issues) > 0 {
-		return &NotPublishableError{Issues: issues}
+	return issues, nil
+}
+
+// validateNoWorse is the gate for saving a page that is already live: the
+// save may not add a problem the page did not have before it. A live page
+// published before the gate existed can carry old problems; those still
+// block any new publish, but they do not block an unrelated fix, because
+// refusing a good edit leaves renters reading the same problems anyway.
+// Run after the write and inside the save's transaction, so a refusal rolls
+// the whole save back. before is gateIssues read in the same transaction
+// before the write.
+func validateNoWorse(ctx context.Context, q rowQuerier, playbookID int64, approval bool, before []PageIssue) error {
+	after, err := gateIssues(ctx, q, playbookID, approval)
+	if err != nil {
+		return err
+	}
+	if added := addedIssues(before, after); len(added) > 0 {
+		return &NotPublishableError{Issues: added}
 	}
 	return nil
+}
+
+// stmtRefs matches the statement numbers an issue's detail names, "statement
+// 3" or "statement(s) 2, 4", which shift when a save adds or removes
+// statements above them.
+var stmtRefs = regexp.MustCompile(`(?i)statement(?:\(s\))? \d+(?:, \d+)*`)
+
+// addedIssues returns the issues in after that before did not have. Issues
+// are compared by what they say with the statement numbers taken out, and
+// weighed by how many statements they name, so moving a statement does not
+// read as a new problem but a second statement with the same problem does.
+func addedIssues(before, after []PageIssue) []PageIssue {
+	norm := func(is PageIssue) (string, int) {
+		n := 0
+		key := stmtRefs.ReplaceAllStringFunc(is.Detail, func(m string) string {
+			n += strings.Count(m, ",") + 1
+			return "statement #"
+		})
+		return is.Code + "|" + key, max(n, 1)
+	}
+	had := map[string]int{}
+	for _, is := range before {
+		k, n := norm(is)
+		had[k] += n
+	}
+	var out []PageIssue
+	for _, is := range after {
+		k, n := norm(is)
+		if n > had[k] {
+			out = append(out, is)
+		}
+		had[k] -= min(n, had[k])
+	}
+	return out
 }
 
 // collectIssues runs every invariant check over the playbooks selected by

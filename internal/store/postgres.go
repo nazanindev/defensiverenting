@@ -1353,6 +1353,12 @@ func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdateP
 		if err != nil {
 			return fmt.Errorf("read playbook %d: %w", params.ID, err)
 		}
+		var before []PageIssue
+		if status == "published" {
+			if before, err = gateIssues(ctx, tx, params.ID, params.Approval); err != nil {
+				return err
+			}
+		}
 		pageKind := params.PageKind
 		if pageKind == "" {
 			pageKind = "playbook"
@@ -1387,7 +1393,7 @@ func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdateP
 		// The gate runs after the write so it judges exactly what was saved,
 		// and inside the tx so a refusal rolls the whole save back.
 		if status == "published" {
-			if err := validatePublishable(ctx, tx, params.ID, params.Approval); err != nil {
+			if err := validateNoWorse(ctx, tx, params.ID, params.Approval, before); err != nil {
 				return err
 			}
 		}

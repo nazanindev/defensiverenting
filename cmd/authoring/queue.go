@@ -266,7 +266,7 @@ func (s *srv) approveProposal(w http.ResponseWriter, r *http.Request) {
 	var npe *store.NotPublishableError
 	switch {
 	case errors.As(err, &npe):
-		s.queueRedirect(w, r, "", "Not applied: the page is live and this change would leave it unpublishable. "+npe.Error())
+		s.queueRedirect(w, r, "", "Not applied: the page is live and this change adds a problem it did not have: "+strings.Join(issueDetails(npe.Issues), "; "))
 	case errors.Is(err, store.ErrProposalTargetGone):
 		s.queueRedirect(w, r, "", "Not applied: "+err.Error()+". Reject it, or edit the page by hand.")
 	case err != nil:

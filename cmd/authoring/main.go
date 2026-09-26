@@ -1972,7 +1972,7 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &npe) {
 			// Only a live page's save runs the gate; the refusal names every
 			// issue so one round trip shows the whole list.
-			editErr("This page is live, so a save must leave it publishable. Nothing was changed. Fix these first, or take the page down and edit it as a draft: " +
+			editErr("This page is live, so a save may not add a problem it did not have. Nothing was changed. New: " +
 				strings.Join(issueDetails(npe.Issues), "; "))
 			return
 		}
