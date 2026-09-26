@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -94,7 +95,20 @@ func (b *bulkRun) failure(id int64) string {
 }
 
 func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
+	// Either every item under one reason, or the items ticked on the page.
 	reason := r.FormValue("reason")
+	picked := map[int64]bool{}
+	if err := r.ParseForm(); err == nil {
+		for _, v := range r.Form["id"] {
+			if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+				picked[id] = true
+			}
+		}
+	}
+	label := "under " + reason
+	if len(picked) > 0 {
+		reason, label = "selected", "selected"
+	}
 	rows, err := s.pg.ListProposalsByReason(r.Context(), "pending", "")
 	if err != nil {
 		s.serverError(w, err)
@@ -102,7 +116,11 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	var ids []int64
 	for _, row := range rows {
-		if row.Reason == reason && bulkApplicable(row) {
+		match := row.Reason == reason
+		if len(picked) > 0 {
+			match = picked[row.ID]
+		}
+		if match && bulkApplicable(row) {
 			ids = append(ids, row.ID)
 		}
 	}
@@ -117,7 +135,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/queue?"+q.Encode(), http.StatusSeeOther)
 	}
 	if len(ids) == 0 {
-		back("", "Nothing under "+reason+" can be applied in bulk.")
+		back("", "Nothing "+label+" can be applied in bulk.")
 		return
 	}
 	b := s.bulk
@@ -158,5 +176,5 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 		b.mu.Unlock()
 		s.log.Info("bulk apply done", slog.String("reason", reason), slog.Int("total", len(ids)), slog.Int("failed", failed))
 	}()
-	back(fmt.Sprintf("Applying %d under %s. Refresh to see progress; any that fail stay in the list with the reason.", len(ids), reason), "")
+	back(fmt.Sprintf("Applying %d %s. Refresh to see progress; any that fail stay in the list with the reason.", len(ids), label), "")
 }

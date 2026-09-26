@@ -57,3 +57,30 @@ func TestQueueTemplateBulkAndPinnedActions(t *testing.T) {
 		t.Error("a running bulk apply should show progress and no second button")
 	}
 }
+
+// A draft replacement gets a tick box tied to the Apply selected form; an
+// item that cannot be applied in bulk gets none.
+func TestQueueTemplatePickBoxes(t *testing.T) {
+	row := store.ProposalRow{Proposal: store.Proposal{ID: 41, Status: "pending", Reason: "agent-pass:voice-readability", Proposed: &store.ProposedStatement{BodyMD: "x"}}, TargetStatus: "draft", Position: 1}
+	live := row
+	live.ID, live.TargetStatus = 42, "published"
+	items := []queueItem{newQueueItem(row), newQueueItem(live)}
+	items[0].Pickable, items[1].Pickable = bulkApplicable(row), bulkApplicable(live)
+	var buf bytes.Buffer
+	err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
+		"Actor": "Nazanin", "Status": "pending", "Items": items, "Open": int64(41), "Sources": nil, "Count": 2, "Checking": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	if !strings.Contains(html, `form="picked" name="id" value="41"`) {
+		t.Error("the draft item has no tick box")
+	}
+	if strings.Contains(html, `name="id" value="42"`) {
+		t.Error("the live-page item offers a tick box")
+	}
+	if !strings.Contains(html, `id="picked" method="post" action="/queue/bulk"`) {
+		t.Error("no Apply selected form")
+	}
+}

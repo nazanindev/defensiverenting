@@ -65,6 +65,8 @@ type queueItem struct {
 	GoneCitations []store.ProposedCitation
 	// Failed is why the last bulk apply left this item pending.
 	Failed string
+	// Pickable says the item may be ticked for Apply selected.
+	Pickable bool
 }
 
 // newQueueItem reads a proposal row into the shape the queue and the
@@ -197,6 +199,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		item.Failed = s.bulk.failure(row.ID)
+		item.Pickable = bulkApplicable(row)
 		items = append(items, item)
 	}
 	sort.SliceStable(items, func(i, j int) bool {
