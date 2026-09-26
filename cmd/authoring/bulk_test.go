@@ -8,7 +8,7 @@ import (
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// Only a pending replacement on a draft, still on the page, and not a drift
+// Only a pending replacement still on a draft or live page, and not a drift
 // finding or a note, may be applied in bulk.
 func TestBulkApplicable(t *testing.T) {
 	ok := store.ProposalRow{Proposal: store.Proposal{Status: "pending", Reason: "agent-pass:voice-readability", Proposed: &store.ProposedStatement{BodyMD: "x"}}, TargetStatus: "draft", Position: 2}
@@ -16,7 +16,7 @@ func TestBulkApplicable(t *testing.T) {
 		t.Fatal("a draft replacement is not applicable in bulk")
 	}
 	for name, mut := range map[string]func(*store.ProposalRow){
-		"live page":      func(r *store.ProposalRow) { r.TargetStatus = "published" },
+		"retired page":   func(r *store.ProposalRow) { r.TargetStatus = "superseded" },
 		"off the page":   func(r *store.ProposalRow) { r.Position = 0 },
 		"no replacement": func(r *store.ProposalRow) { r.Proposed = nil },
 		"drift":          func(r *store.ProposalRow) { r.Reason = store.ReasonSourceDrift },
@@ -29,6 +29,11 @@ func TestBulkApplicable(t *testing.T) {
 		}
 	}
 	rules := bulkRules([]queueItem{{ProposalRow: ok}, {ProposalRow: ok}})
+	live := ok
+	live.TargetStatus = "published"
+	if !bulkApplicable(live) {
+		t.Error("a live-page replacement is not applicable in bulk")
+	}
 	if len(rules) != 1 || rules[0].Count != 2 || rules[0].Name != "voice-readability" {
 		t.Errorf("rules = %+v", rules)
 	}
@@ -47,7 +52,7 @@ func TestQueueTemplateBulkAndPinnedActions(t *testing.T) {
 		return buf.String()
 	}
 	html := render(map[string]any{"Rules": []bulkRule{{Reason: "agent-pass:voice-readability", Name: "voice-readability", Count: 575}}})
-	for _, want := range []string{`action="/queue/bulk"`, `value="agent-pass:voice-readability"`, "575 on drafts", "Apply all", ".item[open] .actions { position: fixed"} {
+	for _, want := range []string{`action="/queue/bulk"`, `value="agent-pass:voice-readability"`, "575 waiting", "Apply all", ".item[open] .actions { position: fixed"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("missing %q", want)
 		}
@@ -58,14 +63,18 @@ func TestQueueTemplateBulkAndPinnedActions(t *testing.T) {
 	}
 }
 
-// A draft replacement gets a tick box tied to the Apply selected form; an
-// item that cannot be applied in bulk gets none.
+// A replacement on a draft or live page gets a tick box tied to the Apply
+// selected form; a drift finding gets none.
 func TestQueueTemplatePickBoxes(t *testing.T) {
 	row := store.ProposalRow{Proposal: store.Proposal{ID: 41, Status: "pending", Reason: "agent-pass:voice-readability", Proposed: &store.ProposedStatement{BodyMD: "x"}}, TargetStatus: "draft", Position: 1}
 	live := row
 	live.ID, live.TargetStatus = 42, "published"
-	items := []queueItem{newQueueItem(row), newQueueItem(live)}
-	items[0].Pickable, items[1].Pickable = bulkApplicable(row), bulkApplicable(live)
+	drift := row
+	drift.ID, drift.Reason = 43, store.ReasonSourceDrift
+	items := []queueItem{newQueueItem(row), newQueueItem(live), newQueueItem(drift)}
+	for i := range items {
+		items[i].Pickable = bulkApplicable(items[i].ProposalRow)
+	}
 	var buf bytes.Buffer
 	err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
 		"Actor": "Nazanin", "Status": "pending", "Items": items, "Open": int64(41), "Sources": nil, "Count": 2, "Checking": false,
@@ -77,8 +86,11 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 	if !strings.Contains(html, `form="picked" name="id" value="41"`) {
 		t.Error("the draft item has no tick box")
 	}
-	if strings.Contains(html, `name="id" value="42"`) {
-		t.Error("the live-page item offers a tick box")
+	if !strings.Contains(html, `name="id" value="42"`) {
+		t.Error("the live-page item has no tick box")
+	}
+	if strings.Contains(html, `name="id" value="43"`) {
+		t.Error("the drift finding offers a tick box")
 	}
 	if !strings.Contains(html, `id="picked" method="post" action="/queue/bulk"`) {
 		t.Error("no Apply selected form")

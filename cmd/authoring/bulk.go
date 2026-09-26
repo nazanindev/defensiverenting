@@ -14,13 +14,15 @@ import (
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// Bulk apply: every pending replacement filed under one reason, applied
-// together on draft pages. Each one goes through the same applyApproval a
-// single Apply does — live quote checks, the publish gate, the reviewer's
-// name — so a bulk apply is many ordinary applies, not a shortcut past them.
-// Live pages are left out: a change there reaches renters at once, so it is
-// read one item at a time. Drift findings are left out too, because the
-// reviewer has to read what the source says now.
+// Bulk apply: every pending replacement filed under one reason, or the ones
+// ticked on the page, applied together. Each one goes through the same
+// applyApproval a single Apply does — live quote checks, the reviewer's name,
+// and on a live page the gate that refuses a save adding a problem — so a
+// bulk apply is many ordinary applies, not a shortcut past them. Live pages
+// are included by the reviewer's decision (2026-09-26): a voice pass there
+// is wording, and reading each one alone was the bottleneck. Drift findings
+// and notes are left out, because the reviewer has to read what the source
+// says now, or answer the question.
 
 // bulkRule is one line at the top of the queue.
 type bulkRule struct {
@@ -33,7 +35,7 @@ type bulkRule struct {
 // on its own.
 func bulkApplicable(row store.ProposalRow) bool {
 	return row.Status == "pending" && row.Proposed != nil && row.OnPage() &&
-		row.TargetStatus == "draft" && row.Reason != store.ReasonSourceDrift &&
+		(row.TargetStatus == "draft" || row.TargetStatus == "published") && row.Reason != store.ReasonSourceDrift &&
 		row.Reason != store.ReasonReviewerFlag
 }
 

@@ -123,8 +123,8 @@
   <div class="bulk"><p>Applying {{.Bulk.Reason}}: {{.Bulk.Done}} of {{.Bulk.Total}} done. Refresh to see more.</p></div>
   {{else if .Rules}}
   <ul class="bulk">
-    {{range .Rules}}<li><form method="post" action="/queue/bulk"><input type="hidden" name="reason" value="{{.Reason}}"><b>{{.Name}}</b> · {{.Count}} on drafts <button class="btn btn-apply">Apply all</button></form></li>{{end}}
-    <li class="hint">Drafts only. Each one gets the same checks as Apply; any that fail stay here with the reason.</li>
+    {{range .Rules}}<li><form method="post" action="/queue/bulk"><input type="hidden" name="reason" value="{{.Reason}}"><b>{{.Name}}</b> · {{.Count}} waiting <button class="btn btn-apply">Apply all</button></form></li>{{end}}
+    <li class="hint">Includes live pages. Each one gets the same checks as Apply; any that fail stay here with the reason.</li>
   </ul>
   {{end}}
 
@@ -239,7 +239,7 @@
 <form class="selbar" id="picked" method="post" action="/queue/bulk" hidden>
   <button class="btn btn-apply" type="submit">Apply <span id="pickn">0</span> selected</button>
   <button type="button" class="small" id="pickclear">clear</button>
-  <span class="small" style="text-decoration:none">Drafts only; each gets the same checks as Apply.</span>
+  <span class="small" style="text-decoration:none">Includes live pages; each gets the same checks as Apply.</span>
 </form>
 <script>
 // Ticking items swaps the open item's buttons for Apply selected.
