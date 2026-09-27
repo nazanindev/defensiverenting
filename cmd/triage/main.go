@@ -429,7 +429,18 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 				if out.Via != "" {
 					fmt.Printf("entry %d: citation %d read via %s; the quote will not count as confirmed\n", i+1, ci+1, out.Via)
 				}
-				text = out.Text
+				// A long source comes back in parts; read them all, or a quote past
+				// the first part (ORS chapter 90 runs to 500k characters) is
+				// reported as not verbatim.
+				var sb strings.Builder
+				sb.WriteString(out.Text)
+				for out.Truncated && out.NextOffset > out.Offset {
+					if out, err = tb.FetchSource(ctx, drafting.FetchSourceInput{URL: c.URL, Offset: out.NextOffset}); err != nil {
+						break
+					}
+					sb.WriteString(out.Text)
+				}
+				text = sb.String()
 				texts[c.URL] = text
 			}
 			if text != "" && !drafting.QuoteAppearsIn(text, c.Quote) {
