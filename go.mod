@@ -10,6 +10,7 @@ require (
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/yuin/goldmark v1.7.4
+	golang.org/x/text v0.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -43,5 +44,4 @@ require (
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 )

@@ -257,3 +257,14 @@ func TestFetchNoArchive_thinPageComesBackAsUnreadableReceipt(t *testing.T) {
 		t.Errorf("Describe() = %q, want it to say the page was thin", got.Describe())
 	}
 }
+
+func TestDecodeHTMLWindows1252(t *testing.T) {
+	// NRS 118A as leg.state.nv.us serves it: “ and ” as 0x93 and 0x94.
+	body := []byte("the landlord\x92s \x93security\x94 deposit")
+	if got, want := decodeHTML(body), "the landlord’s “security” deposit"; got != want {
+		t.Errorf("decodeHTML = %q, want %q", got, want)
+	}
+	if got := decodeHTML([]byte("already “utf-8”")); got != "already “utf-8”" {
+		t.Errorf("valid UTF-8 changed: %q", got)
+	}
+}

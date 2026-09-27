@@ -21,6 +21,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/charmap"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 	"github.com/nazanindev/defensiverenting/internal/voice"
@@ -192,7 +195,21 @@ func (tb *Toolbelt) fetchDirect(url, tier string) (Receipt, error) {
 		}
 		return newReceipt(url, text, tier, extractor), nil
 	}
-	return newReceipt(url, tb.extract.extract(string(body)), tier, ExtractorHTML), nil
+	return newReceipt(url, tb.extract.extract(decodeHTML(body)), tier, ExtractorHTML), nil
+}
+
+// decodeHTML returns an HTML body as UTF-8 text. A body that is not valid
+// UTF-8 is read as Windows-1252, the fallback browsers use: the Nevada
+// Legislature serves its NRS chapters that way, and reading those bytes as
+// UTF-8 turned every curly quote into U+FFFD, so quotes stopped matching.
+func decodeHTML(body []byte) string {
+	if utf8.Valid(body) {
+		return string(body)
+	}
+	if out, err := charmap.Windows1252.NewDecoder().Bytes(body); err == nil {
+		return string(out)
+	}
+	return string(body)
 }
 
 // get performs one GET and returns the status, content type and body. An
