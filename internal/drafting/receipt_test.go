@@ -17,6 +17,8 @@ func TestReceipt_readabilityByTier(t *testing.T) {
 		{"render full page", newReceipt("u", long, TierRender, ExtractorRender), true, true},
 		{"direct thin shell", newReceipt("u", "Checking your browser.", TierDirect, ExtractorHTML), true, false},
 		{"archive full page", newReceipt("u", long, TierArchive, ExtractorHTML), false, false},
+		{"direct short statute PDF", newReceipt("u", "383.500 The General Assembly hereby authorizes cities.", TierDirect, ExtractorPDFToText), true, true},
+		{"direct PDF with no text", newReceipt("u", "", TierDirect, ExtractorPDFGo), true, false},
 	}
 	for _, c := range cases {
 		if c.r.Live() != c.live || c.r.Readable() != c.readable {
@@ -71,8 +73,8 @@ func TestContext(t *testing.T) {
 }
 
 func TestDescribe(t *testing.T) {
-	r := newReceipt("u", "tiny", TierDirect, ExtractorPDFToText)
-	if got := r.Describe(); got != "direct fetch, pdftotext (thin: 4 chars)" {
+	r := newReceipt("u", "tiny", TierDirect, ExtractorHTML)
+	if got := r.Describe(); got != "direct fetch, html (thin: 4 chars)" {
 		t.Errorf("Describe() = %q", got)
 	}
 	if got := newReceipt("u", strings.Repeat("x ", 2000), TierRender, ExtractorRender).Describe(); got != "headless render" {

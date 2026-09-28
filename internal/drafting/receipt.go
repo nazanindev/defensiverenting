@@ -63,8 +63,21 @@ func newReceipt(url, text, tier, extractor string) Receipt {
 	sum := sha256.Sum256([]byte(norm))
 	return Receipt{
 		URL: url, Text: text, Tier: tier, Extractor: extractor,
-		Chars: len(norm), Hash: hex.EncodeToString(sum[:]), Thin: len(norm) < minUsableChars,
+		Chars: len(norm), Hash: hex.EncodeToString(sum[:]), Thin: thin(norm, extractor),
 	}
+}
+
+// thin says extracted text looks like a script shell or a bot check rather
+// than the document. A PDF has no shell: its text is the document, however
+// short. Kentucky serves each statute as its own PDF, and one-paragraph
+// sections like KRS 383.500 fell under the page threshold, so the fetch
+// moved on to a headless render that reads no PDF text and kept that empty
+// result. A PDF that yields no text at all (a scanned image) is still thin.
+func thin(norm, extractor string) bool {
+	if extractor == ExtractorPDFToText || extractor == ExtractorPDFGo {
+		return norm == ""
+	}
+	return len(norm) < minUsableChars
 }
 
 // Live reports whether the text is the current page rather than a snapshot.
