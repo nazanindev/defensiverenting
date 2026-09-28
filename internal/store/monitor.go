@@ -23,7 +23,7 @@ import (
 func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT s.id, s.url, s.publisher, c.quote, st.key::text, c.locator,
-		       c.checked_extractor, c.checked_hash, c.checked_context
+		       c.checked_extractor, c.checked_hash, c.checked_context, COALESCE(c.checked_by, '')
 		FROM citations c
 		JOIN sources s ON s.id = c.source_id
 		JOIN statements st ON st.id = c.statement_id
@@ -40,7 +40,7 @@ func (pg *PG) ListCitationsForCheck(ctx context.Context) ([]CitationCheckRow, er
 	for rows.Next() {
 		var r CitationCheckRow
 		if err := rows.Scan(&r.SourceID, &r.URL, &r.Publisher, &r.Quote, &r.StatementKey, &r.Locator,
-			&r.CheckedExtractor, &r.CheckedHash, &r.CheckedContext); err != nil {
+			&r.CheckedExtractor, &r.CheckedHash, &r.CheckedContext, &r.CheckedBy); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

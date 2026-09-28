@@ -535,7 +535,7 @@ func TestRun_NotesWhenTheLawAroundAQuoteMoves(t *testing.T) {
 	after := "(a) Before the change. " + quote + " within 30 days, except where subsection (c) applies to a tenancy ended for cause."
 	f := &fakeStore{rows: []store.CitationCheckRow{{
 		SourceID: 1, URL: "https://law.example.gov/s1", Quote: quote, StatementKey: "11111111-1111-1111-1111-111111111111",
-		CheckedExtractor: "html", CheckedHash: "oldhash", CheckedContext: before,
+		CheckedExtractor: "html", CheckedHash: "oldhash", CheckedContext: before, CheckedBy: store.ActorSourceCheck,
 	}}}
 	fetch := func(string) (drafting.Receipt, error) {
 		return drafting.Receipt{URL: "https://law.example.gov/s1", Text: after, Tier: "direct", Extractor: "html", Hash: "newhash", Chars: len(after)}, nil
@@ -565,6 +565,36 @@ func TestRun_NotesWhenTheLawAroundAQuoteMoves(t *testing.T) {
 	}
 }
 
+// A passage is compared only against one the checker read the same way. A
+// baseline from a drafting session, or from another extractor, differs in
+// page chrome alone, so it is replaced by this run's stamp without a note.
+func TestRun_MovedComparesLikeWithLike(t *testing.T) {
+	const quote = "the landlord shall return the deposit"
+	before := "Menu Home Search. " + quote + " within 30 days of the tenant vacating the premises."
+	after := "Skip to content. " + quote + " within 30 days of the tenant vacating the premises. Print this page."
+	fetch := func(string) (drafting.Receipt, error) {
+		return drafting.Receipt{URL: "https://law.example.gov/s1", Text: after, Tier: "direct", Extractor: "html", Hash: "newhash", Chars: len(after)}, nil
+	}
+	for name, row := range map[string]store.CitationCheckRow{
+		"drafting baseline": {CheckedExtractor: "html", CheckedBy: store.ActorDraftingAgent},
+		"render baseline":   {CheckedExtractor: "render", CheckedBy: store.ActorSourceCheck},
+	} {
+		row.SourceID, row.URL, row.Quote = 1, "https://law.example.gov/s1", quote
+		row.StatementKey, row.CheckedHash, row.CheckedContext = "11111111-1111-1111-1111-111111111111", "oldhash", before
+		f := &fakeStore{rows: []store.CitationCheckRow{row}}
+		res, err := Run(context.Background(), f, fetch, func(string, ...any) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Moved != 0 || len(f.notes) != 0 {
+			t.Errorf("%s: filed a note: %+v %v", name, res, f.notes)
+		}
+		if len(f.stamped[1]) != 1 {
+			t.Errorf("%s: stamped = %v, want the new baseline recorded", name, f.stamped)
+		}
+	}
+}
+
 // A claim with a date goes stale with nothing at the source changing, so the
 // run raises it ahead of the date (ADR-024 D3).
 func TestRun_NotesAClaimComingDue(t *testing.T) {
@@ -580,5 +610,26 @@ func TestRun_NotesAClaimComingDue(t *testing.T) {
 	}
 	if res.Stale != 1 || len(f.notes) != 1 || !strings.Contains(f.notes[0], "2030-01-01") {
 		t.Fatalf("stale = %d, notes = %v; want one note naming the date", res.Stale, f.notes)
+	}
+}
+
+// The two suggestions the 2026-09-28 run got wrong. A long quote whose words
+// all matched snapped forward past its first sentence and dropped it; a
+// Nevada quote reached back over the section heading.
+func TestNearest_keepsTheMatchedSentences(t *testing.T) {
+	first := "(c) A finding that the tenant unjustifiably withheld or failed to pay rent, deliberately or negligently caused significant damage to the leased premises, or caused significant adverse impact upon other tenants shall overcome the presumption of retaliation."
+	second := "Notwithstanding the forgoing, any lease violation which the landlord previously knew of and failed to enforce is not necessarily sufficient to Allegheny County Council Page 3 of 4 Printed on 4/23/2026 overcome the presumption of retaliation."
+	quote := strings.Replace(first+" "+second, "Page 3 of 4 Printed on 4/23/2026", "Printed on 4/23/2026 Page 3 of 4", 1)
+	pad := strings.Repeat("Zoning maps list parcels by ward. ", 12)
+	text := pad + first + " " + second + " " + pad
+	if got, _ := Nearest(text, quote); !strings.HasPrefix(got, "(c) A finding") || !strings.HasSuffix(got, "presumption of retaliation.") {
+		t.Errorf("Nearest dropped part of the match: %q", got)
+	}
+
+	body := "1. Except as otherwise provided in subsection 3, the landlord may not, in retaliation, terminate a tenancy if: (a) The tenant has complained in good faith; or (b) The tenant has organized or become a member of a tenant’s union. As used in this paragraph, “household member” has the meaning ascribed to it in NRS 40.0025."
+	text = pad + "The court may award damages. (Added to NRS by 1977, 1343) NRS 118A.510 Retaliatory conduct by landlord against tenant prohibited; remedies; exceptions. " + body + " 2. The tenant may recover damages. " + pad
+	quote = "1.  Except as otherwise provided in\nsubsection 3, the landlord may not, in retaliation, terminate a tenancy if:\n\n� (a) The tenant has complained in good faith; or\n\n� (b) The tenant has organized or become a member\nof a tenant�s union. As used in this paragraph,\n�household member� has the meaning ascribed to it in NRS 40.0025."
+	if got, _ := Nearest(text, quote); got != body {
+		t.Errorf("Nearest = %q\nwant       %q", got, body)
 	}
 }

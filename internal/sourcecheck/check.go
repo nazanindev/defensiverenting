@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -364,8 +365,15 @@ func moved(r store.CitationCheckRow, rc drafting.Receipt, now string) bool {
 	if r.CheckedHash == rc.Hash {
 		return false // the same page text
 	}
-	if !drafting.Comparable(r.CheckedExtractor, rc.Extractor) {
-		return false // a different extractor reads the same page differently
+	// Only two readings made the same way say the law moved. A baseline a
+	// drafting session or the form recorded came from another fetch (its
+	// own cache, a headless render, an older build of the extractor), and
+	// its passage differs from the checker's in page chrome alone: on
+	// 2026-09-28 that filed 208 notes on statutes drafted the day before.
+	// Such a baseline is replaced by this run's stamp, and the next run
+	// compares like with like.
+	if r.CheckedBy != store.ActorSourceCheck || r.CheckedExtractor != rc.Extractor {
+		return false
 	}
 	return foldPassage(r.CheckedContext) != foldPassage(now)
 }
@@ -482,7 +490,12 @@ func textChanged(baseline, now string) string {
 // nearest window of it is noise. Nearest returns nothing for it.
 func Nearest(text, quote string) (string, float64) {
 	words := strings.Fields(text)
-	qw := strings.Fields(normalize(quote))
+	// A token with no letter or digit in it (the U+FFFD a mis-decoded page
+	// leaves before each subsection, a lone §) is not a word to find, and
+	// counting it widens the window over the previous section's heading.
+	qw := slices.DeleteFunc(strings.Fields(normalize(quote)), func(w string) bool {
+		return !strings.ContainsFunc(w, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) })
+	})
 	if len(words) == 0 || len(qw) == 0 || fused(words) {
 		return "", 0
 	}
@@ -513,7 +526,10 @@ func Nearest(text, quote string) (string, float64) {
 		if i >= n-1 {
 			// Jaccard on multisets: |A∩B| / (|A|+|B|-|A∩B|).
 			score := float64(overlap) / float64(len(qw)+n-overlap)
-			if score > best {
+			// Common words make neighbouring windows tie; of those, the
+			// one that opens on the quote's first word is the quote.
+			opens := func(at int) bool { return fold(words[at]) == fold(qw[0]) }
+			if score > best || (score == best && opens(i-n+1) && !opens(bestAt)) {
 				best, bestAt = score, i-n+1
 			}
 		}
@@ -541,9 +557,15 @@ func fused(words []string) bool {
 // opens with the tail of the previous sentence sheds it. An edge with no
 // boundary within reach stays where the match put it. The window never
 // collapses: if snapping would empty it, the original is returned.
+//
+// Shedding is capped at a few words, much less than widening: the match
+// scored every word of the window, so a shed sentence is a matched sentence
+// the suggestion would silently drop. A long quote once snapped past its
+// whole first sentence to the next boundary, 45 words in.
 func snapToSentences(words []string, start, end int) (int, int) {
 	n := end - start
 	slack := 15 + n/2
+	shed := min(slack, 8)
 	ends := func(i int) bool { return i >= 0 && i < len(words) && sentenceEnd(words, i) }
 	if !anySentenceEnd(words) {
 		// Text with no sentences (a list, a fixture) has nothing to snap to.
@@ -562,7 +584,7 @@ func snapToSentences(words []string, start, end int) (int, int) {
 		if back < 0 && start <= slack {
 			back = 0 // the text opens within reach
 		}
-		for d := 1; d <= slack && start-1+d < end-1; d++ {
+		for d := 1; d <= shed && start-1+d < end-1; d++ {
 			if ends(start - 1 + d) {
 				fwd = start + d
 				break
@@ -587,7 +609,7 @@ func snapToSentences(words []string, start, end int) (int, int) {
 		if fwd < 0 && len(words)-end <= slack {
 			fwd = len(words) // the text closes within reach
 		}
-		for d := 1; d <= slack && end-1-d > newStart; d++ {
+		for d := 1; d <= shed && end-1-d > newStart; d++ {
 			if ends(end - 1 - d) {
 				back = end - d
 				break
@@ -618,8 +640,10 @@ func anySentenceEnd(words []string) bool {
 // sentenceEnd reports whether words[i] closes a sentence: it ends in a full
 // stop, question mark, or exclamation mark (closing quotes and brackets
 // allowed after), and the next word, if any, opens with a capital or a
-// bracket. Statutory text is thick with "Sec. 5", "P.L. 69" and "No. 20",
-// so a number after a stop does not split.
+// bracket, or is a subsection number ("2.", "3)"). Statutory text is thick
+// with "Sec. 5", "P.L. 69" and "No. 20", so a bare number after a stop does
+// not split; a numbered subsection opening does, or a suggestion reaches
+// back over the section heading to the previous section's last line.
 func sentenceEnd(words []string, i int) bool {
 	w := strings.TrimRight(words[i], "\"'”’)]")
 	if w == "" || !strings.ContainsRune(".!?", rune(w[len(w)-1])) {
@@ -628,13 +652,18 @@ func sentenceEnd(words []string, i int) bool {
 	if i+1 >= len(words) {
 		return true
 	}
-	next := strings.TrimLeft(words[i+1], "\"'“‘([")
+	if strings.HasPrefix(words[i+1], "(") || strings.HasPrefix(words[i+1], "[") {
+		return true // "(c) A finding", read before the bracket is trimmed below
+	}
+	next := strings.TrimLeft(words[i+1], "\"'“‘")
 	if next == "" {
 		return false
 	}
-	r := []rune(next)[0]
-	return unicode.IsUpper(r) || r == '(' || r == '['
+	return unicode.IsUpper([]rune(next)[0]) || subsectionNumber.MatchString(words[i+1])
 }
+
+// subsectionNumber is a numbered subsection's opening word: "2." or "3)".
+var subsectionNumber = regexp.MustCompile(`^[0-9]{1,3}[.)]$`)
 
 // fold makes the word comparison forgiving of case and trailing punctuation,
 // which a rewrite changes freely without changing the words.

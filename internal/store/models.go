@@ -97,6 +97,9 @@ type CitationCheckRow struct {
 	CheckedExtractor string
 	CheckedHash      string
 	CheckedContext   string
+	// CheckedBy is who recorded that baseline: the source check, or the
+	// save that first verified the quote (a drafting session, the form).
+	CheckedBy string
 }
 
 type Statement struct {
