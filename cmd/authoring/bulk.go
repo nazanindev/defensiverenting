@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
@@ -22,7 +24,9 @@ import (
 // are included by the reviewer's decision (2026-09-26): a voice pass there
 // is wording, and reading each one alone was the bottleneck. Drift findings
 // and notes are left out, because the reviewer has to read what the source
-// says now, or answer the question.
+// says now, or answer the question. The one drift finding that asks for no
+// reading is a quote whose new wording has the same words as the old
+// (drafting.SameWords): the page was read wrong before, not changed.
 
 // bulkRule is one line at the top of the queue.
 type bulkRule struct {
@@ -34,9 +38,26 @@ type bulkRule struct {
 // bulkApplicable reports whether an item may be applied without being read
 // on its own.
 func bulkApplicable(row store.ProposalRow) bool {
-	return row.Status == "pending" && row.Proposed != nil && row.OnPage() &&
-		(row.TargetStatus == "draft" || row.TargetStatus == "published") && row.Reason != store.ReasonSourceDrift &&
-		row.Reason != store.ReasonReviewerFlag
+	if row.Status != "pending" || row.Proposed == nil || !row.OnPage() ||
+		(row.TargetStatus != "draft" && row.TargetStatus != "published") || row.Reason == store.ReasonReviewerFlag {
+		return false
+	}
+	if row.Reason == store.ReasonSourceDrift {
+		var d driftEvidence
+		return json.Unmarshal(row.Evidence, &d) == nil && drafting.SameWords(d.OldQuote, d.NewQuote)
+	}
+	return true
+}
+
+// ruleName is how a reason reads on its Apply all line.
+func ruleName(reason string) string {
+	if reason == store.ReasonSourceDrift {
+		return "quote reread, same words"
+	}
+	if _, name, ok := strings.Cut(reason, ":"); ok {
+		return name
+	}
+	return reason
 }
 
 // bulkRules groups the applicable items by reason, largest first.
@@ -49,11 +70,7 @@ func bulkRules(items []queueItem) []bulkRule {
 	}
 	out := make([]bulkRule, 0, len(n))
 	for r, c := range n {
-		_, name, ok := strings.Cut(r, ":")
-		if !ok {
-			name = r
-		}
-		out = append(out, bulkRule{Reason: r, Name: name, Count: c})
+		out = append(out, bulkRule{Reason: r, Name: ruleName(r), Count: c})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Count != out[j].Count {

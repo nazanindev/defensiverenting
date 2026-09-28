@@ -72,6 +72,7 @@
   .pick { margin-right: 8px; width: 16px; height: 16px; vertical-align: -3px; cursor: pointer; accent-color: #38a169; }
   .selbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; display: flex; gap: 12px; align-items: center; background: #fff; border-top: 1px solid #e8dede; box-shadow: 0 -4px 12px rgba(74,18,35,.06); padding: 12px max(16px, calc((100vw - 860px) / 2 + 16px)) calc(12px + env(safe-area-inset-bottom, 0px)); font-size: .88rem; }
   body.picking .item[open] .actions { display: none; }
+  .tickall { display: block; font-size: .82rem; color: #7a5c5c; padding: 0 4px 8px; cursor: pointer; }
   .bulk { list-style: none; font-size: .88rem; margin: -8px 0 22px; }
   .bulk li, .bulk p { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 4px 0; }
   .bulk form { display: contents; }
@@ -129,6 +130,7 @@
   {{end}}
 
   {{if or .Items .Sources}}
+  {{if .Pickable}}<label class="tickall"><input type="checkbox" class="pick" id="pickall"> Tick all {{.Pickable}} that can go together</label>{{end}}
   <ol class="list">
     {{range .Items}}
     <li>
@@ -245,9 +247,11 @@
 // Ticking items swaps the open item's buttons for Apply selected.
 (function () {
   var bar = document.getElementById('picked'), n = document.getElementById('pickn');
-  var picks = document.querySelectorAll('input.pick');
+  var all = document.getElementById('pickall');
+  var picks = document.querySelectorAll('input.pick:not(#pickall)');
   function update() {
-    var c = document.querySelectorAll('input.pick:checked').length;
+    var c = document.querySelectorAll('input.pick:not(#pickall):checked').length;
+    if (all) all.checked = c === picks.length;
     n.textContent = c;
     bar.hidden = c === 0;
     document.body.classList.toggle('picking', c > 0);
@@ -256,6 +260,10 @@
     // A tick is not a click on the row: it must not open or close the item.
     p.addEventListener('click', function (e) { e.stopPropagation(); });
     p.addEventListener('change', update);
+  });
+  if (all) all.addEventListener('change', function () {
+    picks.forEach(function (p) { p.checked = all.checked; });
+    update();
   });
   document.getElementById('pickclear').addEventListener('click', function () {
     picks.forEach(function (p) { p.checked = false; });

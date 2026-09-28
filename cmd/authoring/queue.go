@@ -217,12 +217,19 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	if open == 0 && len(items) > 0 {
 		open = items[0].ID
 	}
+	pickable := 0
+	for _, it := range items {
+		if it.Pickable {
+			pickable++
+		}
+	}
 	var rules []bulkRule
 	if status == "pending" {
 		rules = bulkRules(items)
 	}
 	s.render(w, "queue.html", map[string]any{
 		"Rules":    rules,
+		"Pickable": pickable,
 		"Bulk":     s.bulk.status(),
 		"Actor":    actor(r),
 		"Status":   status,

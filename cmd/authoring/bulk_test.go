@@ -28,6 +28,22 @@ func TestBulkApplicable(t *testing.T) {
 			t.Errorf("%s: applicable in bulk", name)
 		}
 	}
+	// A drift finding whose new quote has the same words is a repaired
+	// reading, and may go in bulk; one whose words changed may not.
+	same := ok
+	same.Reason = store.ReasonSourceDrift
+	same.Evidence = []byte(`{"old_quote":"1.  the tenant\ufffds deposit","new_quote":"the tenant’s deposit"}`)
+	if !bulkApplicable(same) {
+		t.Error("a same-words drift finding is not applicable in bulk")
+	}
+	changed := same
+	changed.Evidence = []byte(`{"old_quote":"unfair, deceptive, or abusive","new_quote":"unfair or deceptive"}`)
+	if bulkApplicable(changed) {
+		t.Error("a drift finding whose words changed is applicable in bulk")
+	}
+	if r := bulkRules([]queueItem{{ProposalRow: same}}); len(r) != 1 || r[0].Name != "quote reread, same words" {
+		t.Errorf("drift rule = %+v", r)
+	}
 	rules := bulkRules([]queueItem{{ProposalRow: ok}, {ProposalRow: ok}})
 	live := ok
 	live.TargetStatus = "published"
@@ -77,7 +93,7 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
-		"Actor": "Nazanin", "Status": "pending", "Items": items, "Open": int64(41), "Sources": nil, "Count": 2, "Checking": false,
+		"Actor": "Nazanin", "Status": "pending", "Items": items, "Open": int64(41), "Sources": nil, "Count": 2, "Checking": false, "Pickable": 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -91,6 +107,9 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 	}
 	if strings.Contains(html, `name="id" value="43"`) {
 		t.Error("the drift finding offers a tick box")
+	}
+	if !strings.Contains(html, `id="pickall"`) || !strings.Contains(html, "Tick all 2") {
+		t.Error("no tick-all box")
 	}
 	if !strings.Contains(html, `id="picked" method="post" action="/queue/bulk"`) {
 		t.Error("no Apply selected form")
