@@ -74,6 +74,10 @@
       {{end}}
     </div>
     {{end}}
+
+    {{/* Below the list, so a filter that matches nothing leaves this line
+         right under "No location matches that." */}}
+    <p class="empty-state-hint">Do not see your place? We add new places one at a time. <a href="/contact">Ask us to cover your city or state.</a></p>
   </main>
 
   {{template "site-footer" .}}
