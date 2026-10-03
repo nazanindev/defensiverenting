@@ -23,14 +23,18 @@ Georgia and Mississippi: draft all 7 unless a topic turns out to have no governm
 **Georgia**
 - Dept. of Community Affairs, Georgia Landlord-Tenant Handbook, revised 8-29-24: https://dca.georgia.gov/document/manuals/georgia-landlord-tenant-handbook-english/download
 - Safe at Home Act (HB 404, 2024) as passed: https://gov.georgia.gov/document/2024-signed-legislation/hb-404/download (repairs and fit to live in 44-7-13, cooling as a utility 44-7-14.1, deposit cap 44-7-30.1, 3-business-day pay-or-leave notice 44-7-50; leases entered or renewed on or after 7-1-2024).
+- The HB 404 PDF prints a line number at the start of every line, and the numbers sit inside the text. A quote cannot run across a line break: quote the words of one line, or cite the same url twice with one piece each.
+- The handbook PDF is two columns; some passages interleave. Quote only passages that read cleanly as one run of text.
 - Newer law: a 2026 act changes 44-7-50 from 2027-01-01 (sealing of eviction records). Not in effect yet; do not write it as current law.
 
 **Mississippi**
 - Attorney General consumer guide, reprints Miss. Code 89-8 "As Amended through the 2018 Legislative Session": https://attorneygenerallynnfitch.com/wp-content/uploads/2021/07/Residential-Landlord-and-Tenant-Act.pdf (the AG office's own site).
-- Newer law (legislature bill pages; struck text is dropped by the fetcher):
-  - 2022 SB 2461, eviction removal and tenant property: https://billstatus.ls.state.ms.us/documents/2022/html/SB/2400-2499/SB2461SG.htm
-  - 2023 HB 65, domestic violence early lease end (89-8-13)
-  - 2025 SB 2328, 89-8-35 notice and 89-8-39 writ of removal: https://billstatus.ls.state.ms.us/documents/2025/html/SB/2300-2399/SB2328SG.htm
+- Newer law (legislature bill pages; struck text is dropped by the fetcher). The AG copy is OUT OF DATE for every section below: quote these sections from the bill, never from the AG copy.
+  - 2022 SB 2461 (as sent to governor): https://billstatus.ls.state.ms.us/documents/2022/html/SB/2400-2499/SB2461SG.htm . Amends 89-8-3, 89-8-7 (definitions), 89-8-9, 89-8-11, 89-8-13 (ending the tenancy, notices), 89-8-15 (repairs), 89-8-17, 89-8-19, and eviction sections 89-7-27 to 89-7-47. Creates the eviction process 89-8-31 to 89-8-45.
+  - 2025 SB 2328 (as sent to governor): https://billstatus.ls.state.ms.us/documents/2025/html/SB/2300-2399/SB2328SG.htm . Amends 89-8-3, 89-8-31, 89-8-35, 89-8-39 again: for these four, quote the 2025 bill.
+  - 2023 HB 65 (domestic violence lease exit) DIED. It is not law. Never cite it.
+  - The AG copy is still fine for sections no bill above touched, such as 89-8-5, 89-8-21 (deposits), 89-8-23, 89-8-25, 89-8-27.
+  - In the bill pages, "* * *" marks where struck words were removed. A quote may not span "* * *": quote the words on one side of it.
 
 **Tennessee** (URLTA, T.C.A. 66-28, applies only in 17 counties: Anderson, Blount, Bradley, Davidson, Hamilton, Knox, Madison, Maury, Montgomery, Rutherford, Sevier, Shelby, Sullivan, Sumner, Washington, Williamson, Wilson. Every statement says which counties it covers. The TN AG laws page lists 19 counties and is wrong: never cite it for coverage.)
 - Renter brochures hosted by the TN Dept. of Health (written by Legal Aid Society; plain language, no section numbers; two-column layout, keep quotes to one line):
