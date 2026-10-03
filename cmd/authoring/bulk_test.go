@@ -98,6 +98,9 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 	if strings.Contains(html, `name="id" value="44"`) {
 		t.Error("the note offers a tick box")
 	}
+	if !strings.Contains(html, "no replacement</span>") {
+		t.Error("the item with nothing to apply does not say why it has no tick")
+	}
 	if !strings.Contains(html, `data-own="approve41"`) {
 		t.Error("the open item's Apply cannot switch to the selection")
 	}
@@ -110,7 +113,8 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 }
 
 // Items sit under one heading per group, and each group's Apply all names
-// that group. A quote move whose words changed gets no Apply all.
+// that group, words-changed quote moves included; an item with no
+// replacement says so instead of a tick.
 func TestQueueGroups(t *testing.T) {
 	base := store.ProposalRow{Proposal: store.Proposal{Status: "pending", Proposed: &store.ProposedStatement{BodyMD: "x"}}, TargetStatus: "published", Position: 1}
 	mk := func(id int64, reason, evidence string) queueItem {
@@ -131,7 +135,7 @@ func TestQueueGroups(t *testing.T) {
 	if len(g) != 4 || g[0].Name != "voice-readability" || len(g[0].Items) != 2 || g[0].Pickable != 2 {
 		t.Fatalf("groups = %+v", g)
 	}
-	if g[2].Key != groupDriftSame || g[2].Pickable != 1 || g[3].Key != groupDriftChanged || g[3].Pickable != 0 {
+	if g[2].Key != groupDriftSame || g[2].Pickable != 1 || g[3].Key != groupDriftChanged || g[3].Pickable != 1 {
 		t.Errorf("drift groups = %+v / %+v", g[2], g[3])
 	}
 	var buf bytes.Buffer
@@ -146,7 +150,7 @@ func TestQueueGroups(t *testing.T) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if strings.Contains(html, `value="source-drift:changed"`) {
-		t.Error("words-changed quote moves offer Apply all")
+	if !strings.Contains(html, `value="source-drift:changed"`) {
+		t.Error("words-changed quote moves have no Apply all")
 	}
 }

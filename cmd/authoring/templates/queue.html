@@ -78,7 +78,7 @@
   .group { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 26px 0 8px; }
   .group h3 { font-family: 'Fraunces', serif; font-size: 1rem; font-weight: 700; }
   .group form { margin: 0; }
-  .group .hint { font-size: .78rem; color: #9a7878; }
+  .noapply { font-size: .68rem; color: #9a7878; border: 1px solid #e8dede; border-radius: 4px; padding: .05rem .35rem; margin-right: 8px; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   .actions form { display: flex; gap: 6px; align-items: center; margin: 0; }
   .actions input[type=text] { font-family: inherit; font-size: .82rem; padding: .38rem .6rem; border: 1px solid #e0c8c8; border-radius: 6px; width: 15rem; max-width: 100%; }
@@ -129,15 +129,14 @@
   {{range .Groups}}
   <div class="group">
     <h3>{{.Name}} · {{len .Items}}</h3>
-    {{if eq .Key "source-drift:changed"}}<span class="hint">Read each against the source, then tick or Apply.</span>
-    {{else if and (eq $st "pending") .Pickable (not $.Bulk)}}<form method="post" action="/queue/bulk"><input type="hidden" name="group" value="{{.Key}}"><button class="btn btn-apply">Apply all {{.Pickable}}</button></form>{{end}}
+    {{if and (eq $st "pending") .Pickable (not $.Bulk)}}<form method="post" action="/queue/bulk"><input type="hidden" name="group" value="{{.Key}}"><button class="btn btn-apply">Apply all {{.Pickable}}</button></form>{{end}}
   </div>
   <ol class="list">
     {{range .Items}}
     <li>
     <details class="item" id="p{{.ID}}" {{if eq .ID $.Open}}open{{end}}>
       <summary>
-        <span class="where">{{if .Pickable}}<input type="checkbox" class="pick" form="picked" name="id" value="{{.ID}}" aria-label="Select for Apply selected">{{end}}<b>{{.JurisdictionName}} · {{.TopicName}}</b>{{if .OnPage}} · statement {{.Position}}{{end}} · {{.TargetStatus}}</span>
+        <span class="where">{{if .Pickable}}<input type="checkbox" class="pick" form="picked" name="id" value="{{.ID}}" aria-label="Select for Apply selected">{{else if and (not .Proposed) (eq .Status "pending")}}<span class="noapply" title="Nothing to apply: fix it in the editor, or say Not this">no replacement</span>{{end}}<b>{{.JurisdictionName}} · {{.TopicName}}</b>{{if .OnPage}} · statement {{.Position}}{{end}} · {{.TargetStatus}}</span>
         <span class="kind {{if .Drift}}drift{{end}}">{{if eq .ReasonLabel "source-drift"}}quote moved{{else}}edit{{end}} · {{.ProposedBy}} · {{.Age}}</span>{{if .RankWhy}}<span class="rank{{if eq .Rank 1}} hot{{end}}">{{.RankWhy}}</span>{{end}}
         <span class="lead">{{if .Drift}}“{{.Drift.OldQuote}}”{{else if .Why}}{{.Why}}{{else if .Proposed}}{{.Proposed.BodyMD}}{{else}}{{.CurrentBody}}{{end}}</span>
       </summary>

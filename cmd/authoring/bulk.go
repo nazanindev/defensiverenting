@@ -24,11 +24,10 @@ import (
 //
 // The queue lists items under one heading per group, and a group's Apply
 // all sits on that heading (2026-10-03): before, the Apply all lines sat
-// above one mixed list and nothing showed which items they covered. A
-// quote move whose words changed has to be read against the source, so
-// its group has ticks but no Apply all; one whose new quote has the same
-// words as the old (drafting.SameWords) is a reading repaired, not a law
-// changed, and has both.
+// above one mixed list and nothing showed which items they covered. Quote
+// moves are split by whether the new quote has the same words as the old
+// (drafting.SameWords), so the reviewer can see which ones changed wording
+// before applying a group; both groups have Apply all (her call, 2026-10-03).
 
 const (
 	groupDriftSame    = "source-drift:same"
@@ -65,8 +64,7 @@ func groupName(key string) string {
 type queueGroup struct {
 	Key, Name string
 	Items     []queueItem
-	// Pickable counts the items Apply all would apply; 0 when the group
-	// has no Apply all.
+	// Pickable counts the items Apply all would apply.
 	Pickable int
 }
 
@@ -84,7 +82,7 @@ func groupItems(items []queueItem) []queueGroup {
 			out = append(out, queueGroup{Key: k, Name: groupName(k)})
 		}
 		out[i].Items = append(out[i].Items, it)
-		if it.Pickable && k != groupDriftChanged {
+		if it.Pickable {
 			out[i].Pickable++
 		}
 	}
@@ -150,7 +148,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		match := picked[row.ID]
 		if len(picked) == 0 {
-			match = group != "" && group != groupDriftChanged && groupKey(row) == group
+			match = group != "" && groupKey(row) == group
 		}
 		if match && bulkApplicable(row) {
 			ids = append(ids, row.ID)
