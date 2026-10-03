@@ -285,6 +285,10 @@ type htmlStripper struct{}
 
 var (
 	reScriptStyle = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
+	// Struck text is words a bill deletes from the law. Mississippi bill
+	// pages mark deletions with <s>; kept as plain text, a quote could carry
+	// words that are no longer law. Underlined additions stay.
+	reStruck = regexp.MustCompile(`(?is)<(s|strike|del)(\s[^>]*)?>.*?</(s|strike|del)\s*>`)
 	reBlockTag    = regexp.MustCompile(`(?i)</?(p|div|br|li|tr|h[1-6]|section|article|ul|ol|table|thead|tbody|blockquote|header|footer)[^>]*>`)
 	reAnyTag      = regexp.MustCompile(`<[^>]+>`)
 	reInlineWS    = regexp.MustCompile(`[ \t\f\v]+`)
@@ -293,6 +297,7 @@ var (
 
 func (htmlStripper) extract(body string) string {
 	s := reScriptStyle.ReplaceAllString(body, " ")
+	s = reStruck.ReplaceAllString(s, "")
 	s = reBlockTag.ReplaceAllString(s, "\n")
 	s = reAnyTag.ReplaceAllString(s, "")
 	s = html.UnescapeString(s)

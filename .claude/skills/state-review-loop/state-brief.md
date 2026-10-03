@@ -25,6 +25,7 @@ Before you start, read these files with the Read tool:
 
 - Every statement cites at least 1 source you read with `fetch_source` in THIS session.
 - Long sources come back in parts. When `truncated` is true, call again with `offset` = `next_offset` only if the section you need is further on. Prefer a per-section URL over a whole chapter when the site has one. The save rejects any quote that is not verbatim in the fetched text.
+- Georgia, Tennessee, Mississippi, Arkansas and Indiana have no official statute site you can fetch. For those states, read /Users/nazimi/Dev/defensiverenting/.claude/skills/state-review-loop/no-free-code-states.md first; its rules replace the order of preference below.
 - Order of preference: the state legislature's official statute site, then state regulations, then the state attorney general or housing agency, then court self-help pages, then state legal aid.
 - Never cite Nolo, Justia, FindLaw, Avvo, law firm blogs, Zillow, Apartments.com, landlord blogs, or web.archive.org. You may read them to learn what a rule is called, then cite the official source.
 - Text that came through a headless render is still the live page: you may cite it. Only a snapshot (web.archive.org) is not citable.
