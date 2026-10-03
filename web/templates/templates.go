@@ -147,25 +147,50 @@ func (g StateGroup) PathIn(lang string) string {
 	return store.LangPrefix(lang) + "/j/" + g.Slug
 }
 
+// notStates are places filed as kind "state" that are not states. Counted as
+// states they made the homepage say "51 states", so they are named instead:
+// "50 states, DC, and 12 cities".
+var notStates = map[string]string{
+	"washington-dc": "DC",
+	"puerto-rico":   "Puerto Rico",
+	"guam":          "Guam",
+}
+
 // PlaceCount says how many places we cover in words: "5 states and 12
-// cities", "1 state", "3 cities". Places are counted by kind because a
-// renter reads "12 places" as 12 cities and misses that their state is
-// covered too.
-func PlaceCount(states, cities int) string {
+// cities", "1 state", "3 cities", "50 states, DC, and 12 cities". Places are
+// counted by kind because a renter reads "12 places" as 12 cities and misses
+// that their state is covered too. stateSlugs are the state-kind places with
+// guides of their own.
+func PlaceCount(stateSlugs []string, cities int) string {
 	part := func(n int, one, many string) string {
 		if n == 1 {
 			return "1 " + one
 		}
 		return fmt.Sprintf("%d %s", n, many)
 	}
-	switch {
-	case states > 0 && cities > 0:
-		return part(states, "state", "states") + " and " + part(cities, "city", "cities")
-	case states > 0:
-		return part(states, "state", "states")
-	default:
-		return part(cities, "city", "cities")
+	var parts, others []string
+	states := 0
+	for _, s := range stateSlugs {
+		if name, ok := notStates[s]; ok {
+			others = append(others, name)
+		} else {
+			states++
+		}
 	}
+	if states > 0 {
+		parts = append(parts, part(states, "state", "states"))
+	}
+	parts = append(parts, others...)
+	if cities > 0 || len(parts) == 0 {
+		parts = append(parts, part(cities, "city", "cities"))
+	}
+	switch len(parts) {
+	case 1:
+		return parts[0]
+	case 2:
+		return parts[0] + " and " + parts[1]
+	}
+	return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
 }
 
 // GroupByState buckets cities under their parent state, preserving the order
@@ -218,7 +243,7 @@ func MarkStatewide(groups []StateGroup, states []store.Jurisdiction) []StateGrou
 type IndexPage struct {
 	LocationGroups []StateGroup
 	CityCount      int
-	StateCount     int           // states with statewide guides of their own
+	StateSlugs     []string      // states with statewide guides of their own
 	Topics         []store.Topic // topics with >=1 published playbook, shown as situations
 	// Terms is the homepage's reference section (ADR-012 D3): concepts the
 	// national pages define, so the list grows with editorial output.
@@ -309,7 +334,7 @@ type LocationsPage struct {
 	National   []store.Jurisdiction
 	Groups     []StateGroup
 	CityCount  int
-	StateCount int // states with statewide guides of their own
+	StateSlugs []string // states with statewide guides of their own
 }
 
 // TopicHubPage lists every place that has a published playbook for one topic.

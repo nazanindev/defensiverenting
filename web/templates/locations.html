@@ -35,7 +35,7 @@
     <section class="hero">
       <h1>All locations</h1>
       <p class="lede">
-        {{if or .CityCount .StateCount}}Guides for {{placeCount .StateCount .CityCount}}, grouped by state. Pick your city, or your whole state if we do not cover your city yet.{{else}}No guides are published yet.{{end}}
+        {{if or .CityCount .StateSlugs}}Guides for {{placeCount .StateSlugs .CityCount}}, grouped by state. Pick your city, or your whole state if we do not cover your city yet.{{else}}No guides are published yet.{{end}}
       </p>
     </section>
 

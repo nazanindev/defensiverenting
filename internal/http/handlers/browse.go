@@ -309,16 +309,16 @@ func index(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		} else {
 			logger.ErrorContext(r.Context(), "list state jurisdictions", slog.Any("err", serr))
 		}
-		stateCount := 0
+		var stateSlugs []string
 		for _, g := range groups {
 			if g.Selectable {
-				stateCount++
+				stateSlugs = append(stateSlugs, g.Slug)
 			}
 		}
 		render(w, r, http.StatusOK, tmpl.IndexPage{
 			LocationGroups: groups,
 			CityCount:      len(jurisdictions),
-			StateCount:     stateCount,
+			StateSlugs:     stateSlugs,
 			Topics:         topics,
 			Terms:          terms,
 			TermCount:      termCount,
@@ -476,9 +476,18 @@ func locations(db browseStore, logger *slog.Logger) http.HandlerFunc {
 			National:   national,
 			Groups:     tmpl.MarkStatewide(tmpl.GroupByState(cities), states),
 			CityCount:  len(cities),
-			StateCount: len(states),
+			StateSlugs: stateSlugs(states),
 		})
 	}
+}
+
+// stateSlugs lists the slugs of states, for counting them in words.
+func stateSlugs(states []store.Jurisdiction) []string {
+	out := make([]string, len(states))
+	for i, s := range states {
+		out[i] = s.Slug
+	}
+	return out
 }
 
 // coverage serves /api/coverage?j={slug}: the topics that resolve to a
