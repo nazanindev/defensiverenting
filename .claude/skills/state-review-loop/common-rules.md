@@ -1,0 +1,23 @@
+# Common rules (RenterLaw state wave 5 review loop)
+Read first: /Users/nazimi/Dev/defensiverenting/docs/topic-map.md and /Users/nazimi/Dev/defensiverenting/.claude/skills/editorial-voice/SKILL.md.
+
+A statement is BACKED only if EVERY sentence is said by a quote stored on THAT statement's own citations. Support elsewhere on the page does not count. A cross-reference ("subsection (a)", "MCL 600.5714") does not back the referenced content. The only other backing is site guidance cited {"editorial": true} (url /editorial, no quote): risk warnings, "One caution from legal aid: ..." (approved wording), the private-inspector statement, the condemnation caution, "You get this money only if you win your case and your landlord pays.", worked dollar examples of a quoted rule, general advice to write things down, keep records, read your lease, talk to your landlord. Site guidance never backs a legal claim.
+
+NOT backed when: a condition in the quote is dropped (who is covered, "material", "in good faith", "willfully", "unless otherwise agreed in writing", time limits, carve-outs); a fact is added (examples, "even if", "free"); a plain-words gloss adds meaning the quote does not carry; a rule is inferred from what a statute leaves out; the stored quote is not the text in force today.
+
+Also required: no em dash; sentences under 25 words; legal terms glossed in the same statement; a step to withhold or deduct rent, change locks, move out and stop paying, or end the lease carries a risk sentence; money a court awards carries the win-and-pays line; police only as the renter's choice next to another route; the statement stands alone (no "This", "These", "also" pointing elsewhere); the concept tag answers the statement's question; the claim belongs on this page per the topic map ("Not here" goes elsewhere). Length and word difficulty are enforced by the save lint: do not leave a statement for length alone.
+
+Directory (Local Help) entries: each fact (phone, hours, who is served, what help) must be in a quote from that organisation's own page or the government program page; a program's status must match its page today; an entry whose own page never says it helps renters with housing does not belong.
+
+Quotes must appear verbatim (whitespace aside) in the live source. For full text run `/Users/nazimi/Dev/defensiverenting/bin/dumpsrc <url> > <scratchpad>/src-<yourprefix>-<name>.txt` once per URL (the checker's own extractor) and compare or copy by python script. Never paste statute text into replies. Never cite web.archive.org, Nolo, Justia, FindLaw, public.law mirrors, law firm or landlord blogs.
+
+Do not touch the git repo or any database. Do not run triage, propose or bin/prod, except the read-only `bin/prod triage page <id>`. Use a unique file prefix for every file you write in the scratchpad.
+
+Lessons from earlier rounds: a doubled or tripled award must match exactly what the quote multiplies (the amount withheld/retained is not the whole deposit). The win-and-pays line and worked dollar examples need their own editorial citation on the statement. "Contact legal aid" is not approved advice wording.
+Directory entries: "free", "apply online", "find your local office in its directory" each need a quote that says it. Presumptions (retaliation) keep every condition the quote attaches (e.g. only if the complaint was not dismissed). Do not add a motive ("to make you leave") the quote does not require.
+"Wrongfully withheld/retained" is not "unfairly": say "kept without a legal right to it". "Retained" is "kept".
+Correction: the lint's own approved risk sentence for a step a court judges afterwards (ending the lease, withholding) is "If a court later disagrees, you can owe the rent and face eviction. Get legal help first." That exact wording, with an editorial citation, is approved. Generic "contact legal aid" advice elsewhere is still not.
+Clarification: a risk warning in any plain wording is site guidance when it carries an editorial citation; the lint's sentence is one approved form, not the only one.
+Draft pages are invisible to get_playbook and list_topics (they show published pages only). The statement text in your input file is the draft text. Do not spawn subagents or forks; do the work yourself. Write only your own output file and prefixed scratch files.
+Utah: only versioned le.utah.gov urls (C57-17-S3_YYYYMMDDYYYYMMDD.html) carry text; the brief lists them.
+Wyoming: title01.pdf quotes must not contain a page-footer line; split into two citations at the break.
