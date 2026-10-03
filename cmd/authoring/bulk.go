@@ -2,83 +2,32 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
-	"strings"
 	"sync"
 
-	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// Bulk apply: every pending replacement filed under one reason, or the ones
-// ticked on the page, applied together. Each one goes through the same
-// applyApproval a single Apply does — live quote checks, the reviewer's name,
-// and on a live page the gate that refuses a save adding a problem — so a
-// bulk apply is many ordinary applies, not a shortcut past them. Live pages
-// are included by the reviewer's decision (2026-09-26): a voice pass there
-// is wording, and reading each one alone was the bottleneck. Drift findings
-// and notes are left out, because the reviewer has to read what the source
-// says now, or answer the question. The one drift finding that asks for no
-// reading is a quote whose new wording has the same words as the old
-// (drafting.SameWords): the page was read wrong before, not changed.
+// Bulk apply: the items ticked on the queue page, applied together. Each one
+// goes through the same applyApproval a single Apply does (live quote
+// checks, the reviewer's name, and on a live page the gate that refuses a
+// save adding a problem), so a bulk apply is many ordinary applies, not a
+// shortcut past them. Live pages are included by the reviewer's decision
+// (2026-09-26). Ticks are the only bulk path (2026-10-03): the per-reason
+// "Apply all" lines were dropped because nothing showed which items they
+// covered, and a tick is on exactly the item it applies.
 
-// bulkRule is one line at the top of the queue.
-type bulkRule struct {
-	Reason string
-	Name   string // the reason without its "agent-pass:" family
-	Count  int
-}
-
-// bulkApplicable reports whether an item may be applied without being read
-// on its own.
+// bulkApplicable reports whether an item can be ticked: it has an Apply
+// button, that is a pending replacement for a statement still on a draft or
+// live page. A drift finding with a replacement quote is tickable like any
+// other; one with no replacement, and a reviewer note, have no Apply.
 func bulkApplicable(row store.ProposalRow) bool {
-	if row.Status != "pending" || row.Proposed == nil || !row.OnPage() ||
-		(row.TargetStatus != "draft" && row.TargetStatus != "published") || row.Reason == store.ReasonReviewerFlag {
-		return false
-	}
-	if row.Reason == store.ReasonSourceDrift {
-		var d driftEvidence
-		return json.Unmarshal(row.Evidence, &d) == nil && drafting.SameWords(d.OldQuote, d.NewQuote)
-	}
-	return true
-}
-
-// ruleName is how a reason reads on its Apply all line.
-func ruleName(reason string) string {
-	if reason == store.ReasonSourceDrift {
-		return "quote reread, same words"
-	}
-	if _, name, ok := strings.Cut(reason, ":"); ok {
-		return name
-	}
-	return reason
-}
-
-// bulkRules groups the applicable items by reason, largest first.
-func bulkRules(items []queueItem) []bulkRule {
-	n := map[string]int{}
-	for _, it := range items {
-		if bulkApplicable(it.ProposalRow) {
-			n[it.Reason]++
-		}
-	}
-	out := make([]bulkRule, 0, len(n))
-	for r, c := range n {
-		out = append(out, bulkRule{Reason: r, Name: ruleName(r), Count: c})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Count != out[j].Count {
-			return out[i].Count > out[j].Count
-		}
-		return out[i].Reason < out[j].Reason
-	})
-	return out
+	return row.Status == "pending" && row.Proposed != nil && row.OnPage() &&
+		(row.TargetStatus == "draft" || row.TargetStatus == "published") && row.Reason != store.ReasonReviewerFlag
 }
 
 // bulkRun is the one bulk apply in flight, if any, and the errors of the
@@ -87,14 +36,12 @@ func bulkRules(items []queueItem) []bulkRule {
 type bulkRun struct {
 	mu      sync.Mutex
 	running bool
-	reason  string
 	done    int
 	total   int
 	failed  map[int64]string
 }
 
 type bulkStatus struct {
-	Reason      string
 	Done, Total int
 }
 
@@ -104,7 +51,7 @@ func (b *bulkRun) status() *bulkStatus {
 	if !b.running {
 		return nil
 	}
-	return &bulkStatus{Reason: b.reason, Done: b.done, Total: b.total}
+	return &bulkStatus{Done: b.done, Total: b.total}
 }
 
 func (b *bulkRun) failure(id int64) string {
@@ -114,8 +61,6 @@ func (b *bulkRun) failure(id int64) string {
 }
 
 func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
-	// Either every item under one reason, or the items ticked on the page.
-	reason := r.FormValue("reason")
 	picked := map[int64]bool{}
 	if err := r.ParseForm(); err == nil {
 		for _, v := range r.Form["id"] {
@@ -124,10 +69,6 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	label := "under " + reason
-	if len(picked) > 0 {
-		reason, label = "selected", "selected"
-	}
 	rows, err := s.pg.ListProposalsByReason(r.Context(), "pending", "")
 	if err != nil {
 		s.serverError(w, err)
@@ -135,11 +76,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	var ids []int64
 	for _, row := range rows {
-		match := row.Reason == reason
-		if len(picked) > 0 {
-			match = picked[row.ID]
-		}
-		if match && bulkApplicable(row) {
+		if picked[row.ID] && bulkApplicable(row) {
 			ids = append(ids, row.ID)
 		}
 	}
@@ -154,7 +91,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/queue?"+q.Encode(), http.StatusSeeOther)
 	}
 	if len(ids) == 0 {
-		back("", "Nothing "+label+" can be applied in bulk.")
+		back("", "Nothing ticked can be applied.")
 		return
 	}
 	b := s.bulk
@@ -164,7 +101,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 		back("", "A bulk apply is already running.")
 		return
 	}
-	b.running, b.reason, b.done, b.total, b.failed = true, reason, 0, len(ids), map[int64]string{}
+	b.running, b.done, b.total, b.failed = true, 0, len(ids), map[int64]string{}
 	b.mu.Unlock()
 
 	by := actor(r)
@@ -177,7 +114,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 			// move the statement or leave it gone.
 			p, err := s.pg.GetProposal(ctx, id)
 			if err == nil && !bulkApplicable(p) {
-				err = fmt.Errorf("no longer applicable in bulk (page %s, statement on page: %v)", p.TargetStatus, p.OnPage())
+				err = fmt.Errorf("no longer applicable (page %s, statement on page: %v)", p.TargetStatus, p.OnPage())
 			}
 			if err == nil {
 				err = s.applyApproval(ctx, p, "", by)
@@ -193,7 +130,7 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 		b.mu.Lock()
 		b.running = false
 		b.mu.Unlock()
-		s.log.Info("bulk apply done", slog.String("reason", reason), slog.Int("total", len(ids)), slog.Int("failed", failed))
+		s.log.Info("bulk apply done", slog.Int("total", len(ids)), slog.Int("failed", failed))
 	}()
-	back(fmt.Sprintf("Applying %d %s. Refresh to see progress; any that fail stay in the list with the reason.", len(ids), label), "")
+	back(fmt.Sprintf("Applying %d selected. Refresh to see progress; any that fail stay in the list with the reason.", len(ids)), "")
 }

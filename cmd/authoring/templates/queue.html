@@ -73,10 +73,7 @@
   .selbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; display: flex; gap: 12px; align-items: center; background: #fff; border-top: 1px solid #e8dede; box-shadow: 0 -4px 12px rgba(74,18,35,.06); padding: 12px max(16px, calc((100vw - 860px) / 2 + 16px)) calc(12px + env(safe-area-inset-bottom, 0px)); font-size: .88rem; }
   body.picking .item[open] .actions { display: none; }
   .tickall { display: block; font-size: .82rem; color: #7a5c5c; padding: 0 4px 8px; cursor: pointer; }
-  .bulk { list-style: none; font-size: .88rem; margin: -8px 0 22px; }
-  .bulk li, .bulk p { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 4px 0; }
-  .bulk form { display: contents; }
-  .bulk .hint { font-size: .78rem; color: #9a7878; }
+  .bulk { font-size: .88rem; margin: -8px 0 22px; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   .actions form { display: flex; gap: 6px; align-items: center; margin: 0; }
   .actions input[type=text] { font-family: inherit; font-size: .82rem; padding: .38rem .6rem; border: 1px solid #e0c8c8; border-radius: 6px; width: 15rem; max-width: 100%; }
@@ -120,14 +117,7 @@
     <span>Re-fetches every cited source and files a finding here for each quote it no longer sees. No AI.</span>
   </div>
 
-  {{if .Bulk}}
-  <div class="bulk"><p>Applying {{.Bulk.Reason}}: {{.Bulk.Done}} of {{.Bulk.Total}} done. Refresh to see more.</p></div>
-  {{else if .Rules}}
-  <ul class="bulk">
-    {{range .Rules}}<li><form method="post" action="/queue/bulk"><input type="hidden" name="reason" value="{{.Reason}}"><b>{{.Name}}</b> · {{.Count}} waiting <button class="btn btn-apply">Apply all</button></form></li>{{end}}
-    <li class="hint">Includes live pages. Each one gets the same checks as Apply; any that fail stay here with the reason.</li>
-  </ul>
-  {{end}}
+  {{if .Bulk}}<div class="bulk"><p>Applying selected: {{.Bulk.Done}} of {{.Bulk.Total}} done. Refresh to see more.</p></div>{{end}}
 
   {{if or .Items .Sources}}
   {{if .Pickable}}<label class="tickall"><input type="checkbox" class="pick" id="pickall"> Tick all {{.Pickable}} that can go together</label>{{end}}
@@ -178,8 +168,8 @@
         {{if or (eq .Status "pending") (eq .Status "snoozed")}}
         <div class="actions">
           {{if .Proposed}}
-            {{if .OnPage}}<button class="btn btn-apply" type="submit" form="approve{{.ID}}">Apply</button>
-            <button type="button" class="small" onclick="document.getElementById('b{{.ID}}').classList.add('editing');this.remove()">edit first</button>{{end}}
+            {{if .OnPage}}<button class="btn btn-apply" type="submit" form="approve{{.ID}}" data-own="approve{{.ID}}">Apply</button>
+            <button type="button" class="small" onclick="document.getElementById('b{{.ID}}').classList.add('editing');this.remove();queueUpdate()">edit first</button>{{end}}
           {{else}}
             {{if .EditorHref}}<a class="btn btn-apply" href="{{.EditorHref}}">Fix in editor ↗</a>{{end}}
             <form method="post" action="/queue/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><input type="hidden" name="self" value="{{.ID}}"><input type="hidden" name="next" value="{{.Next}}"><button class="btn btn-no">Fixed</button></form>
@@ -241,43 +231,74 @@
 <form class="selbar" id="picked" method="post" action="/queue/bulk" hidden>
   <button class="btn btn-apply" type="submit">Apply <span id="pickn">0</span> selected</button>
   <button type="button" class="small" id="pickclear">clear</button>
-  <span class="small" style="text-decoration:none">Includes live pages; each gets the same checks as Apply.</span>
+  <span class="small" style="text-decoration:none">Each gets the same checks as Apply, live pages included.</span>
 </form>
 <script>
-// Ticking items swaps the open item's buttons for Apply selected.
+// One Apply at the bottom. The open item is ticked when it opens; tick more
+// and its Apply becomes "Apply N selected". With no item open (or an open
+// item that has no Apply), the selection gets its own bar.
 (function () {
   var bar = document.getElementById('picked'), n = document.getElementById('pickn');
   var all = document.getElementById('pickall');
   var picks = document.querySelectorAll('input.pick:not(#pickall)');
+  var auto = null; // the box ticked only because its item was opened
   function update() {
     var c = document.querySelectorAll('input.pick:not(#pickall):checked').length;
-    if (all) all.checked = c === picks.length;
+    if (all) all.checked = picks.length > 0 && c === picks.length;
+    var open = document.querySelector('details.item[open]');
+    var apply = open && open.querySelector('.btn-apply[data-own]');
+    var box = open && open.querySelector('input.pick');
+    var editing = open && open.querySelector('.body.editing');
+    if (apply) {
+      var others = c - (box && box.checked ? 1 : 0);
+      var many = others > 0 && !editing;
+      apply.textContent = many ? 'Apply ' + c + ' selected' : 'Apply';
+      apply.setAttribute('form', many ? 'picked' : apply.dataset.own);
+    }
     n.textContent = c;
-    bar.hidden = c === 0;
-    document.body.classList.toggle('picking', c > 0);
+    var own = c > 0 && !apply;
+    bar.hidden = !own;
+    document.body.classList.toggle('picking', own);
+  }
+  window.queueUpdate = update;
+  function opened(d) {
+    var box = d.querySelector('input.pick');
+    // Opening the same item twice (a toggle event on load) keeps it auto.
+    if (auto && auto !== box) { auto.checked = false; auto = null; }
+    if (box && !box.checked) { box.checked = true; auto = box; }
+    update();
   }
   picks.forEach(function (p) {
     // A tick is not a click on the row: it must not open or close the item.
     p.addEventListener('click', function (e) { e.stopPropagation(); });
-    p.addEventListener('change', update);
+    p.addEventListener('change', function () { if (p === auto) auto = null; update(); });
   });
   if (all) all.addEventListener('change', function () {
     picks.forEach(function (p) { p.checked = all.checked; });
+    auto = null;
     update();
   });
   document.getElementById('pickclear').addEventListener('click', function () {
     picks.forEach(function (p) { p.checked = false; });
+    auto = null;
     update();
   });
-  update();
-})();
-// One item open at a time, so the pinned buttons always belong to it.
-document.querySelectorAll('details.item').forEach(function (d) {
-  d.addEventListener('toggle', function () {
-    if (!d.open) return;
-    document.querySelectorAll('details.item[open]').forEach(function (o) { if (o !== d) o.open = false; });
+  // One item open at a time, so the pinned buttons always belong to it.
+  document.querySelectorAll('details.item').forEach(function (d) {
+    d.addEventListener('toggle', function () {
+      if (!d.open) {
+        var b = d.querySelector('input.pick');
+        if (b && b === auto) { b.checked = false; auto = null; }
+        update();
+        return;
+      }
+      document.querySelectorAll('details.item[open]').forEach(function (o) { if (o !== d) o.open = false; });
+      opened(d);
+    });
   });
-});
+  var first = document.querySelector('details.item[open]');
+  if (first) opened(first); else update();
+})();
 </script>
 </body>
 </html>
