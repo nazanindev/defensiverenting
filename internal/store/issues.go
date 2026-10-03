@@ -325,8 +325,10 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 	// they are read under their organisation heading either way, and a
 	// stamp on each costs nothing. One issue per page, listing the
 	// positions, so fourteen unread statements are one line, not fourteen.
+	// The positions follow "statement(s)" so addedIssues can weigh them: a
+	// save that stamps one of two unread statements is fewer, not new.
 	if err := scanIssueRows(ctx, q, `
-		SELECT pb.id, string_agg((ps.position + 1)::text, ', ' ORDER BY ps.position), count(*)::text
+		SELECT pb.id, string_agg((ps.position + 1)::text, ', ' ORDER BY ps.position)
 		FROM playbook_statements ps
 		JOIN playbooks pb ON pb.id = ps.playbook_id
 		JOIN statements s ON s.id = ps.statement_id
@@ -336,7 +338,7 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		GROUP BY pb.id`, args,
 		func(id int64, f []string) {
 			first := pos(strings.SplitN(f[0], ",", 2)[0])
-			add(id, first, "unreviewed-statement", fmt.Sprintf("%s statement(s) have not been reviewed (%s) — read each with its citations and mark it reviewed", f[1], f[0]))
+			add(id, first, "unreviewed-statement", fmt.Sprintf("statement(s) %s have not been reviewed — read each with its citations and mark it reviewed", f[0]))
 		},
 	); err != nil {
 		return nil, err
