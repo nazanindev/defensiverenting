@@ -77,6 +77,34 @@ func TestDashboardTemplateRenders(t *testing.T) {
 	}
 }
 
+// A draft gets Publish only when the gate has nothing against it; otherwise
+// a grey label carries the reasons, naming a page flag when there is one.
+func TestDashboardTemplate_publishOnlyWhenReady(t *testing.T) {
+	data := dashboardData("all", []store.AuthorPlaybookRow{
+		{ID: 1, Title: "Ready", JurisdictionName: "Ohio", Status: "draft", PageKind: "playbook"},
+		{ID: 2, Title: "Unread", JurisdictionName: "Ohio", Status: "draft", PageKind: "playbook"},
+		{ID: 3, Title: "Flagged", JurisdictionName: "Ohio", Status: "draft", PageKind: "playbook"},
+	})
+	data["Issues"] = map[int64]*issueBadge{
+		2: newIssueBadge([]store.PageIssue{{Code: "unreviewed-statement", Detail: "statement(s) 2 have not been reviewed"}}),
+		3: newIssueBadge([]store.PageIssue{{Code: "page-flag", Detail: "page flag (thin) from review agent: too short"}}),
+	}
+	var buf bytes.Buffer
+	if err := parseTemplates(t).ExecuteTemplate(&buf, "dashboard.html", data); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	if n := strings.Count(html, `action="/publish/`); n != 1 || !strings.Contains(html, `action="/publish/1"`) {
+		t.Errorf("Publish offered on %d rows; want only the ready one", n)
+	}
+	if !strings.Contains(html, `title="statement(s) 2 have not been reviewed">Blocked<`) {
+		t.Error("the unread page does not say Blocked with its reason")
+	}
+	if !strings.Contains(html, ">Page flag<") {
+		t.Error("the flagged page does not name its page flag")
+	}
+}
+
 // The sort headers are links built in Go and marked trusted, so a regression
 // there ships as a page full of dead links that still look right.
 func TestDashboardTemplate_sortHeadersAreUsableLinks(t *testing.T) {
@@ -555,7 +583,8 @@ func TestStatementTemplatesRender(t *testing.T) {
 	base := map[string]any{"Actor": "Nazanin", "Sources": []store.SourceReviewSummary{src}, "Concepts": []store.ConceptReviewSummary{{Slug: "c", Name: "C", Unreviewed: 1}}, "Msg": ""}
 	for name, extra := range map[string]map[string]any{
 		"empty":   {"F": filter{}, "Cards": nil, "Todo": 0},
-		"page":    {"F": filter{Page: 3}, "Page": pw, "Issues": []string{}, "Cards": cards, "Todo": 2},
+		"page":    {"F": filter{Page: 3}, "Page": pw, "Issues": []string{"statement(s) 1 have not been reviewed"}, "IssuesTip": "statement(s) 1 have not been reviewed", "Cards": cards, "Todo": 2},
+		"ready":   {"F": filter{Page: 3}, "Page": pw, "Issues": []string{}, "Cards": cards, "Todo": 0},
 		"source":  {"F": filter{Source: 7}, "Source": &src, "Cards": cards, "Todo": 1},
 		"concept": {"F": filter{Concept: "c"}, "Cards": cards, "Todo": 1},
 		"notes":   {"F": filter{Notes: true}, "Cards": cards, "Todo": 1},
@@ -580,6 +609,12 @@ func TestStatementTemplatesRender(t *testing.T) {
 			if strings.Contains(buf.String(), `class="btn btn-publish"`) {
 				t.Error("publish offered with work left")
 			}
+			if !strings.Contains(buf.String(), `title="statement(s) 1 have not been reviewed">Blocked<`) {
+				t.Error("a blocked page does not say Blocked with the reasons")
+			}
+		}
+		if name == "ready" && !strings.Contains(buf.String(), `class="btn btn-publish"`) {
+			t.Error("a page with no issues offers no Publish")
 		}
 	}
 }

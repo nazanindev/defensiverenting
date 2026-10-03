@@ -48,6 +48,7 @@
   .head .acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   .btn { display: inline-block; padding: .4rem .9rem; border-radius: 6px; font-size: .84rem; font-family: inherit; cursor: pointer; border: 1px solid #e0c8c8; background: #fff; color: #9b2335; text-decoration: none; font-weight: 600; }
   .btn-publish { background: #065f46; color: #fff; border-color: #065f46; }
+  .btn-blocked { background: #ece4e4; color: #7a5c5c; border-color: #ece4e4; cursor: help; }
   .btn-done { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
   .count { font-size: .85rem; color: #5c3a3a; margin-bottom: 14px; }
   .stmt { padding: 16px 0; border-top: 1px solid #ece0e0; display: grid; grid-template-columns: 2.2rem 1fr; gap: 10px; scroll-margin-top: 16px; }
@@ -204,9 +205,13 @@
     <h1>{{.Playbook.Title}}</h1>
     <div class="meta">{{.Jurisdiction.Name}} · {{.Topic.Slug}} · {{.Playbook.Status}}{{if .Playbook.UpdatedBy}} · last edited by {{.Playbook.UpdatedBy}} {{datetime .Playbook.UpdatedAt}}{{end}}</div>
     <div class="acts">
-      {{if and (eq .Playbook.Status "draft") (eq $.Todo 0) $.Cards (not $.PageFlags)}}
+      {{/* Publish shows only when the page would pass the publish gate;
+           otherwise the gate's reasons sit behind a grey label. */}}
+      {{if eq .Playbook.Status "draft"}}{{if $.Issues}}
+      <span class="btn btn-blocked" title="{{$.IssuesTip}}">{{if $.PageFlags}}Page flag{{else}}Blocked{{end}}</span>
+      {{else}}
       <form method="post" action="/publish/{{.Playbook.ID}}" style="margin:0" onsubmit="return confirm('Publish this page to the live site?')"><button class="btn btn-publish">Publish</button></form>
-      {{end}}
+      {{end}}{{end}}
       <a class="btn" href="/edit/{{.Playbook.ID}}">Edit</a>
       <a class="btn" href="/preview/{{.Playbook.ID}}" target="_blank" rel="noopener">Preview ↗</a>
       {{if eq .Playbook.Status "published"}}<form method="post" action="/unpublish/{{.Playbook.ID}}" style="margin:0" onsubmit="return confirm('Take this page off the live site? It becomes a draft again. Nothing is deleted.')"><button class="btn">Take down</button></form>{{end}}

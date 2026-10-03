@@ -167,6 +167,7 @@ func (s *srv) statements(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["Page"], data["Issues"], data["PageFlags"] = pw, issueDetails(issues), flags
+		data["IssuesTip"] = strings.Join(issueDetails(issues), "\n")
 		for i, st := range pw.Statements {
 			rows = append(rows, store.ReviewRow{
 				PlaybookID: pw.Playbook.ID, PageTitle: pw.Playbook.Title, PageStatus: pw.Playbook.Status, PageKind: pw.Playbook.PageKind,

@@ -25,6 +25,7 @@
   .btn-view:hover { background: #fae0e4; }
   .btn-success { background: #38a169; color: #fff; }
   .btn-success:hover { background: #2f855a; }
+  .btn-blocked { background: #ece4e4; color: #7a5c5c; cursor: help; }
   .btn-danger { background: transparent; color: #c53030; border: 1px solid #fed7d7; }
   .btn-danger:hover { background: #fff5f5; }
   .card { background: #fff; border-radius: 10px; border: 1px solid #e8dede; overflow-x: auto; }
@@ -184,7 +185,12 @@
           <td>
             <div class="actions">
               <a href="/statements?page={{.ID}}" class="btn btn-view btn-xs">Open</a>
+              {{/* Publish shows only when the page would pass the publish
+                   gate; otherwise the same reasons sit behind a grey label. */}}
               {{if eq .Status "draft"}}
+              {{with index $.Issues .ID}}
+              <span class="btn btn-xs btn-blocked" title="{{.Tooltip}}">{{if .PageFlag}}Page flag{{else}}Blocked{{end}}</span>
+              {{else}}
               <form method="post" action="/publish/{{.ID}}">
                 {{if .RevisesPublished}}
                 <button class="btn btn-success btn-xs" onclick="return confirm('Publish this revision? It REPLACES the page currently live at this URL. The old version is retired, not deleted.')">Publish rev</button>
@@ -192,6 +198,7 @@
                 <button class="btn btn-success btn-xs" onclick="return confirm('Publish this playbook to the live site?')">Publish</button>
                 {{end}}
               </form>
+              {{end}}
               {{end}}
               {{/* Only a live page can be taken down. Superseded rows are
                    already off the site, and offering the action there would

@@ -300,6 +300,20 @@ func (s *srv) guidelines(w http.ResponseWriter, r *http.Request) {
 type issueBadge struct {
 	N       int
 	Tooltip string
+	// PageFlag says an open page flag is among the issues, so the row's
+	// blocked label can name it without a hover.
+	PageFlag bool
+}
+
+// newIssueBadge rolls one page's gate issues into its badge.
+func newIssueBadge(issues []store.PageIssue) *issueBadge {
+	b := &issueBadge{N: len(issues), Tooltip: strings.Join(issueDetails(issues), "\n")}
+	for _, is := range issues {
+		if is.Code == "page-flag" {
+			b.PageFlag = true
+		}
+	}
+	return b
 }
 
 // dashboardView is the sort and filter state of the page list.
@@ -509,7 +523,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	// struct would count as truthy and badge every draft.
 	issueBadges := make(map[int64]*issueBadge, len(draftIssues))
 	for pid, issues := range draftIssues {
-		issueBadges[pid] = &issueBadge{N: len(issues), Tooltip: strings.Join(issueDetails(issues), "\n")}
+		issueBadges[pid] = newIssueBadge(issues)
 	}
 	// Standing per draft (ADR-019): every draft statement folded through the
 	// one rule the cards use, so the worklist row and the cards agree.
