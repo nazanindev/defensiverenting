@@ -7,7 +7,7 @@ import "testing"
 // binary -> pdftotext itself rejects the invalid PDF. Either way it must
 // never panic, since pdfExtract relies on that error to fall through.
 func TestPdftotextExtract_InvalidBytesErrors(t *testing.T) {
-	if _, err := pdftotextExtract([]byte("not a pdf")); err == nil {
+	if _, err := pdftotextExtract([]byte("not a pdf"), true); err == nil {
 		t.Error("pdftotextExtract(garbage) = nil error, want an error")
 	}
 }

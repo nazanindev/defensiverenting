@@ -49,7 +49,12 @@ const (
 	ExtractorHTML      = "html"
 	ExtractorRender    = "render"
 	ExtractorPDFToText = "pdftotext"
-	ExtractorPDFGo     = "pdfgo"
+	// ExtractorPDFToTextBoth is pdftotext's layout reading followed by its
+	// column-by-column reading, for PDFs where the two differ. Its own name
+	// keeps the checker from comparing its passages with a layout-only
+	// baseline (see moved in sourcecheck): the first run re-baselines.
+	ExtractorPDFToTextBoth = "pdftotext+order"
+	ExtractorPDFGo         = "pdfgo"
 )
 
 // newReceipt fills in the derived fields for text obtained a given way.
@@ -74,7 +79,7 @@ func newReceipt(url, text, tier, extractor string) Receipt {
 // moved on to a headless render that reads no PDF text and kept that empty
 // result. A PDF that yields no text at all (a scanned image) is still thin.
 func thin(norm, extractor string) bool {
-	if extractor == ExtractorPDFToText || extractor == ExtractorPDFGo {
+	if extractor == ExtractorPDFToText || extractor == ExtractorPDFToTextBoth || extractor == ExtractorPDFGo {
 		return norm == ""
 	}
 	return len(norm) < minUsableChars
@@ -133,7 +138,8 @@ func (r Receipt) Describe() string {
 // recorded, or attested by hand) is comparable with anything: there is no
 // better evidence to defer to.
 func Comparable(baselineExtractor, currentExtractor string) bool {
-	return baselineExtractor != ExtractorPDFToText || currentExtractor != ExtractorPDFGo
+	poppler := baselineExtractor == ExtractorPDFToText || baselineExtractor == ExtractorPDFToTextBoth
+	return !poppler || currentExtractor != ExtractorPDFGo
 }
 
 // contextRadius is how much text Context keeps on each side of a quote.

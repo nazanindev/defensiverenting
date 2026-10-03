@@ -14,6 +14,10 @@ import (
 
 const pdftotextTimeout = 20 * time.Second
 
+// readingOrderMark separates the layout reading of a PDF from its
+// reading-order reading when both are kept (see pdfExtract).
+const readingOrderMark = "=== The same document, read column by column ==="
+
 // isPDF detects a PDF response by Content-Type or by the file's magic bytes
 // (some .gov servers mislabel PDFs as text/html or octet-stream).
 func isPDF(contentType string, body []byte) bool {
@@ -35,7 +39,17 @@ func isPDF(contentType string, body []byte) bool {
 // different text from the same file, and a quote confirmed under one cannot
 // be declared missing under the other (see Comparable).
 func pdfExtract(body []byte) (string, string, error) {
-	if text, err := pdftotextExtract(body); err == nil && text != "" {
+	if text, err := pdftotextExtract(body, true); err == nil && text != "" {
+		// A two-column page in layout mode interleaves its columns line
+		// by line, and a sidebar box lands inside the paragraph next to
+		// it (the Georgia landlord-tenant handbook, the Tennessee renter
+		// booklets). Plain mode reads each column through in order. When
+		// the two readings differ, both are kept, so a quote from either
+		// matches and every quote confirmed in layout text still does.
+		if plain, err := pdftotextExtract(body, false); err == nil && plain != "" &&
+			normalizeForMatch(plain) != normalizeForMatch(text) {
+			return text + "\n\n" + readingOrderMark + "\n\n" + plain, ExtractorPDFToTextBoth, nil
+		}
 		return text, ExtractorPDFToText, nil
 	}
 	text, err := pdfExtractGo(body)
@@ -46,17 +60,21 @@ func pdfExtract(body []byte) (string, string, error) {
 // poppler package). Any failure — the binary isn't installed, or it errors
 // on this particular file — is returned as an error for pdfExtract to treat
 // as "fall through", not surfaced to the caller directly.
-func pdftotextExtract(body []byte) (string, error) {
+func pdftotextExtract(body []byte, layout bool) (string, error) {
 	path, err := exec.LookPath("pdftotext")
 	if err != nil {
 		return "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), pdftotextTimeout)
 	defer cancel()
-	// "-layout" preserves the source's line/column layout rather than
-	// reflowing it; QuoteAppearsIn already normalizes whitespace, so this
-	// only helps multi-column statute text extract in reading order.
-	cmd := exec.CommandContext(ctx, path, "-layout", "-", "-")
+	// "-layout" keeps the page's line and column positions, which suits
+	// statute PDFs with line numbers and indented subsections. Without it,
+	// pdftotext reads each column through before the next.
+	args := []string{"-", "-"}
+	if layout {
+		args = append([]string{"-layout"}, args...)
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Stdin = bytes.NewReader(body)
 	var out bytes.Buffer
 	cmd.Stdout = &out
