@@ -89,3 +89,14 @@ Nazanin, after the first run: "I actually think the page agent should be able to
 - Drafts only. `ApproveProposal` refuses a page-level change on a published page unless a person approves it. No queue screen for page-level proposals is built yet; until it is, none are filed on published pages.
 - Invariants in the store: a page keeps at least one statement; a merge keeps every citation of both statements and the first statement's key; a reorder keeps the same set of statements. Open items on a statement that leaves the page close with it, pointing at the proposal.
 - Overturns stay the measure: a person who flags a page-level change undoes it by hand and the flag records it.
+
+## Amendment: page flags (2026-10-03)
+
+Nazanin: agents should add page-level flags that block publish instead of attaching them to the first statement. A page finding filed as a note on its first key read as a problem with statement 1, and could only be cleared with a no-change proposal on that key.
+
+- A page flag is its own row (`page_flags`, migration 000045): page, kind, note, the keys it is about (optional for gap, intro and thin), who filed it, and who closed it and why.
+- An open page flag is a publish blocker, code `page-flag`, page-level (Stmt 0). It reads through the same `collectIssues` as every other check, so the dashboard, the page screen and the gate agree.
+- `triage decide page <findings.json> -apply` files flags under the review agent. `decide page flags` lists open ones; `decide page close` closes agent-filed ones with a note. The store refuses an agent closing a flag a person filed.
+- The drafting agent's doubt about the whole page goes in `save_draft_playbook`'s `page_note`, filed as a `drafter` flag in the save's transaction. `reviewer_note` stays for one statement.
+- The page screen shows open flags under the heading, each with one Done button. Publish is not offered while one is open.
+- The migration moved every pending or snoozed "Page review (...)" note to a page flag and marked the note superseded.

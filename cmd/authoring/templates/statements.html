@@ -60,6 +60,7 @@
   .q i { color: #3d2b2b; }
   .q a { color: #9b2335; text-decoration: none; }
   .q .w { color: #b7791f; font-weight: 600; }
+  .pflag { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid #c4b5fd; background: #faf5ff; }
   .note { margin-top: 8px; font-size: .84rem; line-height: 1.5; color: #4c1d95; }
   .fix { margin-top: 8px; font-size: .84rem; color: #9b2335; }
   .chg { margin-top: 10px; border: 1px solid #f3e2b3; background: #fffbeb; border-radius: 8px; padding: 10px 12px; font-size: .84rem; }
@@ -203,7 +204,7 @@
     <h1>{{.Playbook.Title}}</h1>
     <div class="meta">{{.Jurisdiction.Name}} · {{.Topic.Slug}} · {{.Playbook.Status}}{{if .Playbook.UpdatedBy}} · last edited by {{.Playbook.UpdatedBy}} {{datetime .Playbook.UpdatedAt}}{{end}}</div>
     <div class="acts">
-      {{if and (eq .Playbook.Status "draft") (eq $.Todo 0) $.Cards}}
+      {{if and (eq .Playbook.Status "draft") (eq $.Todo 0) $.Cards (not $.PageFlags)}}
       <form method="post" action="/publish/{{.Playbook.ID}}" style="margin:0" onsubmit="return confirm('Publish this page to the live site?')"><button class="btn btn-publish">Publish</button></form>
       {{end}}
       <a class="btn" href="/edit/{{.Playbook.ID}}">Edit</a>
@@ -211,6 +212,12 @@
       {{if eq .Playbook.Status "published"}}<form method="post" action="/unpublish/{{.Playbook.ID}}" style="margin:0" onsubmit="return confirm('Take this page off the live site? It becomes a draft again. Nothing is deleted.')"><button class="btn">Take down</button></form>{{end}}
     </div>
   </div>
+  {{range $.PageFlags}}
+  <div class="pflag">
+    <div class="note">Page note ({{.Kind}}) · {{.FiledBy}}: {{.Note}}</div>
+    <form method="post" action="/page/flag/done" class="row"><input type="hidden" name="flag" value="{{.ID}}">{{template "filterfields" $.F}}<input type="text" name="note" placeholder="what you did (optional)" style="font-family:inherit;font-size:.8rem;padding:.3rem .5rem;border:1px solid #e0c8c8;border-radius:6px;width:16rem"><button class="btn btn-done" title="I read this note about the page and dealt with it">Done</button></form>
+  </div>
+  {{end}}
   {{if and $.Issues (eq .Playbook.Status "published")}}<div class="issues">This live page has issues its next save must fix:<ul>{{range $.Issues}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
   {{end}}
   {{with .Source}}

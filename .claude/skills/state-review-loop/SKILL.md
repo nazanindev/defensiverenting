@@ -40,7 +40,8 @@ Build once per session: `go build -o bin/lintprops ./cmd/lintprops && go build -
 - Re-read the page (`bin/prod triage page <id>`) before adding followers: agents add statements the page already has.
 - Never anchor a proposal on a statement with an open note: a new proposal on the same key can supersede it.
 - Withdrawing a held proposal also closes its leave note.
-- A review-agent note (page hold, refused pass) cannot be closed by `decide flag` or `withdraw`: clear it with a no-change proposal whose `evidence.resolves` lists the note id, then apply.
+- A review-agent note on a statement (refused pass) cannot be closed by `decide flag` or `withdraw`: clear it with a no-change proposal whose `evidence.resolves` lists the note id, then apply.
+- Page holds are page flags, never notes on the first statement. `bin/prod triage decide page flags` lists them; `bin/prod triage decide page close closes.json -apply` closes agent-filed ones with `[{id, note}]` saying what was done. A flag a person filed waits for a person.
 - Two strikes, then cut the statement. Lawyer-only doubts go to the editor as notes, not chat.
-- A thin page is held with `bin/prod triage decide page`; publish-all skips any page with an open note.
+- A thin page is held with `bin/prod triage decide page` (kind `thin`, keys optional); publish-all skips any page with an open note or page flag.
 - Live pages stay human: agents work drafts only.

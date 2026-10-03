@@ -80,7 +80,7 @@ The editorial-voice skill has the full rules. The ones that trip drafters most:
 
 ## Reviewer notes
 
-Use `reviewer_note` on a statement only for a real doubt about that claim: a reading inferred from silence, a simplified legal test, a figure that will go stale, a source you could not open. Never in the body.
+Use `reviewer_note` on a statement only for a real doubt about that claim: a reading inferred from silence, a simplified legal test, a figure that will go stale, a source you could not open. Never in the body. A doubt about the whole page (a part of the topic you could not source, two statements that may overlap) goes in the save's `page_note`, never on the first statement.
 
 ## Save
 

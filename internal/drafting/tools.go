@@ -132,7 +132,7 @@ type StatementInput struct {
 	// ReviewerNote carries the agent's doubt about this claim into the
 	// review queue as a work item on the statement's key (ADR-018 D1),
 	// where the human reviewer decides it before the page can publish.
-	ReviewerNote string `json:"reviewer_note,omitempty" jsonschema:"one or two sentences for the human reviewer on anything about THIS statement you are not sure of: a reading inferred from a statute's silence or structure, a simplification of the legal test, a claim supported by agency guidance but no statute, a figure or date that will go stale and when, a source you could not open. Omit when you have no doubt. Never use it for page-level remarks."`
+	ReviewerNote string `json:"reviewer_note,omitempty" jsonschema:"one or two sentences for the human reviewer on anything about THIS statement you are not sure of: a reading inferred from a statute's silence or structure, a simplification of the legal test, a claim supported by agency guidance but no statute, a figure or date that will go stale and when, a source you could not open. Omit when you have no doubt. Never use it for page-level remarks: those go in page_note."`
 }
 
 type SaveDraftInput struct {
@@ -160,6 +160,10 @@ type SaveDraftInput struct {
 	// body_md only. See the citation-research skill and the drafting system
 	// prompt for how a translation should be produced.
 	Language string `json:"language,omitempty" jsonschema:"language code for this draft's renter-facing text: \"en\" (default) or \"es\". Use \"es\" only to translate an existing English playbook (fetch it with get_playbook first and reuse its exact citations) or to draft resource-directory content aimed at Spanish speakers — never invent Spanish legal claims independently of the English research."`
+	// PageNote carries a doubt about the page as a whole into the review:
+	// it is filed as a page flag that holds the page from publishing until
+	// a person closes it (ADR-025, amended 2026-10-03).
+	PageNote string `json:"page_note,omitempty" jsonschema:"one or two sentences for the human reviewer on anything about the WHOLE PAGE you are not sure of: a part of the topic you could not source, two statements that may overlap, an intro you are unsure frames the topic right. It holds the page from publishing until a person closes it. Omit when you have no doubt. Never use it for a doubt about one statement: that is the statement's reviewer_note."`
 }
 
 type SaveDraftOutput struct {
@@ -375,6 +379,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		Status:         "draft",
 		Statements:     stmts,
 		UpdatedBy:      store.ActorDraftingAgent,
+		PageNote:       strings.TrimSpace(in.PageNote),
 	}); err != nil {
 		return SaveDraftOutput{}, err
 	}

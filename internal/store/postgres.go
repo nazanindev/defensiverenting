@@ -1098,6 +1098,11 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 				return err
 			}
 		}
+		// The drafting agent's doubt about the page as a whole lands with
+		// the page, as a page flag that holds it from publishing.
+		if _, _, err := insertPageFlag(ctx, tx, playbookID, PageFlagDrafter, params.PageNote, nil, params.UpdatedBy); err != nil {
+			return err
+		}
 		// Ingesting straight to published is publishing: the person running
 		// the tool reviewed the page as a page (ADR-018 D3).
 		if status == "published" {

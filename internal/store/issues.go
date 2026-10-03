@@ -29,7 +29,7 @@ type PageIssue struct {
 	// no-title, no-statements, empty-statement, uncited-statement,
 	// missing-quote, unverified-quote, source-unreachable, statute-locator,
 	// source-no-publisher, language-deferred, unreviewed-statement,
-	// undecided-item.
+	// undecided-item, page-flag.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -356,6 +356,22 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		func(id int64, f []string) {
 			first := pos(strings.SplitN(f[0], ",", 2)[0])
 			add(id, first, "undecided-item", fmt.Sprintf("statement(s) %s have an undecided item in the queue — decide it there first", f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// An open page flag is a doubt about the page as a whole (ADR-025,
+	// amended 2026-10-03): it holds the page the way an open note holds a
+	// statement. One issue per flag, so each reads in its own words.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, f.kind, f.note, f.filed_by
+		FROM page_flags f
+		JOIN playbooks pb ON pb.id = f.playbook_id
+		WHERE `+cond+` AND f.status = 'open'
+		ORDER BY pb.id, f.created_at, f.id`, args,
+		func(id int64, f []string) {
+			add(id, 0, "page-flag", fmt.Sprintf("page flag (%s) from %s: %s", f[0], f[2], f[1]))
 		},
 	); err != nil {
 		return nil, err

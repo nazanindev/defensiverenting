@@ -209,6 +209,9 @@ type IngestPlaybookParams struct {
 	// save. Only valid with Status "draft". The drafting agent and the seeding
 	// tools leave it false — their output has no excuse to be incomplete.
 	AllowIncomplete bool
+	// PageNote is the saver's doubt about the page as a whole, filed as a
+	// page flag (ADR-025, amended 2026-10-03). Empty files nothing.
+	PageNote string
 }
 
 type IngestStatementParams struct {

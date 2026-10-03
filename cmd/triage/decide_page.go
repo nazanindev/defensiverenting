@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -22,14 +23,24 @@ import (
 //
 //	triage decide page                       ready draft pages, as skeletons
 //	triage decide page <findings.json> [-apply]
-//	                                         file each finding as a page note
+//	                                         file each finding as a page flag
+//	triage decide page flags                 open page flags, every page
+//	triage decide page close <closes.json> [-apply]
+//	                                         close agent-filed flags, saying why
 //
-// A finding is {playbook_id, kind, keys, note}. It is filed as a reviewer
-// note on the first key it names, under the review agent, so it shows on
-// that statement's card and holds the page from publishing until a person
-// decides it. The agent never edits the page from here.
+// A finding is {playbook_id, kind, keys, note}. It is filed as a page flag
+// under the review agent: it shows at the top of the page's screen and holds
+// the page from publishing until it is closed. keys name the statements the
+// finding is about and are optional for gap, intro and thin. The agent
+// never edits the page from here.
+//
+// A close is {id, note}: the flag and what was done about it. The review
+// agent closes only flags an agent filed; a person's flag waits for a person.
 
-var pageKinds = []string{"duplicate", "off-topic", "order", "contradiction", "gap", "intro"}
+var pageKinds = []string{"duplicate", "off-topic", "order", "contradiction", "gap", "intro", "thin"}
+
+// keylessKinds may name no statement: what is wrong is what the page lacks.
+var keylessKinds = []string{"gap", "intro", "thin"}
 
 type pageStatement struct {
 	Position int    `json:"position"`
@@ -55,6 +66,17 @@ type pageFinding struct {
 }
 
 func decidePage(ctx context.Context, pg *store.PG, args []string) {
+	if len(args) > 0 && args[0] == "flags" {
+		listPageFlags(ctx, pg)
+		return
+	}
+	if len(args) > 0 && args[0] == "close" {
+		if len(args) < 2 {
+			usage()
+		}
+		closePageFlags(ctx, pg, args[1], args[2:])
+		return
+	}
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		decidePageFile(ctx, pg, args[0], args[1:])
 		return
@@ -132,12 +154,15 @@ func decidePageFile(ctx context.Context, pg *store.PG, path string, args []strin
 			refused++
 			continue
 		}
-		note := fmt.Sprintf("Page review (%s): %s Statements: %s.", f.Kind, strings.TrimSpace(f.Note), positionsOf(pw, f.Keys))
-		fmt.Printf("#%d %s · %s\n    %s\n", pw.ID, pw.Jurisdiction.Name, pw.Topic.Name, note)
+		note := strings.TrimSpace(f.Note)
+		if len(f.Keys) > 0 {
+			note += " Statements: " + positionsOf(pw, f.Keys) + "."
+		}
+		fmt.Printf("#%d %s · %s (%s)\n    %s\n", pw.ID, pw.Jurisdiction.Name, pw.Topic.Name, f.Kind, note)
 		if !*apply {
 			continue
 		}
-		ok, err := pg.FileReviewerNote(ctx, pw.ID, f.Keys[0], note, store.ActorReviewAgent)
+		_, ok, err := pg.FilePageFlag(ctx, pw.ID, f.Kind, note, f.Keys, store.ActorReviewAgent)
 		if err != nil {
 			fatal(err)
 		}
@@ -146,7 +171,7 @@ func decidePageFile(ctx context.Context, pg *store.PG, path string, args []strin
 		}
 	}
 	if *apply {
-		fmt.Printf("%d findings; %d page notes filed by %s; %d refused\n", len(findings), filed, store.ActorReviewAgent, refused)
+		fmt.Printf("%d findings; %d page flags filed by %s; %d refused\n", len(findings), filed, store.ActorReviewAgent, refused)
 	} else {
 		fmt.Printf("%d findings; %d would be filed; %d refused; nothing written (add -apply)\n", len(findings), len(findings)-refused, refused)
 	}
@@ -156,7 +181,7 @@ func decidePageFile(ctx context.Context, pg *store.PG, path string, args []strin
 // statement not on this draft page, or gives no reason.
 func checkFinding(pw store.PlaybookWithStatements, f pageFinding) string {
 	if pw.Status != "draft" {
-		return "page review files notes on draft pages only (ADR-025 D5)"
+		return "page review files flags on draft pages only (ADR-025 D5)"
 	}
 	if !slices.Contains(pageKinds, f.Kind) {
 		return fmt.Sprintf("kind %q is not one of %s", f.Kind, strings.Join(pageKinds, ", "))
@@ -164,8 +189,8 @@ func checkFinding(pw store.PlaybookWithStatements, f pageFinding) string {
 	if strings.TrimSpace(f.Note) == "" {
 		return "a finding needs a note saying what is wrong"
 	}
-	if len(f.Keys) == 0 {
-		return "a finding names at least one statement key"
+	if len(f.Keys) == 0 && !slices.Contains(keylessKinds, f.Kind) {
+		return fmt.Sprintf("a %s finding names the statement keys it is about", f.Kind)
 	}
 	for _, k := range f.Keys {
 		if !slices.ContainsFunc(pw.Statements, func(st store.CitedStatement) bool { return st.Key == k }) {
@@ -185,4 +210,96 @@ func positionsOf(pw store.PlaybookWithStatements, keys []string) string {
 		}
 	}
 	return strings.Join(ps, ", ")
+}
+
+type pageFlagOut struct {
+	ID         int64    `json:"id"`
+	PlaybookID int64    `json:"playbook_id"`
+	Page       string   `json:"page,omitempty"`
+	Kind       string   `json:"kind"`
+	Note       string   `json:"note"`
+	Keys       []string `json:"keys,omitempty"`
+	FiledBy    string   `json:"filed_by"`
+}
+
+func listPageFlags(ctx context.Context, pg *store.PG) {
+	flags, err := pg.AllOpenPageFlags(ctx)
+	if err != nil {
+		fatal(err)
+	}
+	names := map[int64]string{}
+	out := make([]pageFlagOut, 0, len(flags))
+	for _, f := range flags {
+		if _, ok := names[f.PlaybookID]; !ok {
+			pw, err := pg.AuthorGetPlaybook(ctx, f.PlaybookID)
+			if err != nil {
+				fatal(err)
+			}
+			names[f.PlaybookID] = pw.Jurisdiction.Name + " · " + pw.Topic.Name
+		}
+		out = append(out, pageFlagOut{ID: f.ID, PlaybookID: f.PlaybookID, Page: names[f.PlaybookID], Kind: f.Kind, Note: f.Note, Keys: f.Keys, FiledBy: f.FiledBy})
+	}
+	emit(out)
+	fmt.Fprintf(os.Stderr, "%d open page flags. To close agent-filed ones: write [{id, note}] saying what was done, then triage decide page close <file> [-apply].\n", len(out))
+}
+
+type pageClose struct {
+	ID   int64  `json:"id"`
+	Note string `json:"note"`
+}
+
+func closePageFlags(ctx context.Context, pg *store.PG, path string, args []string) {
+	fs := flag.NewFlagSet("decide page close", flag.ExitOnError)
+	apply := fs.Bool("apply", false, "close the flags; default prints them")
+	if err := fs.Parse(args); err != nil {
+		fatal(err)
+	}
+	raw, err := os.ReadFile(path) // #nosec G703 -- the file named on the command line is the job
+	if err != nil {
+		fatal(err)
+	}
+	var closes []pageClose
+	if err := json.Unmarshal(raw, &closes); err != nil {
+		fatal(fmt.Errorf("decode %s: %w", path, err))
+	}
+	closed, refused := 0, 0
+	for _, c := range closes {
+		f, err := pg.PageFlagByID(ctx, c.ID)
+		why := ""
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			why = "no such flag"
+		case err != nil:
+			fatal(err)
+		case f.Status != "open":
+			why = "already closed"
+		case f.FiledByPerson():
+			why = "filed by " + f.FiledBy + "; a person's flag is closed by a person"
+		case strings.TrimSpace(c.Note) == "":
+			why = "a close says what was done about the flag"
+		}
+		if why != "" {
+			fmt.Printf("flag %d refused: %s\n", c.ID, why)
+			refused++
+			continue
+		}
+		fmt.Printf("flag %d (%s, page %d): %s\n    closed: %s\n", f.ID, f.Kind, f.PlaybookID, f.Note, c.Note)
+		if !*apply {
+			continue
+		}
+		switch err := pg.ClosePageFlag(ctx, c.ID, store.ActorReviewAgent, c.Note); {
+		case errors.Is(err, store.ErrPageFlagPersons):
+			fmt.Printf("flag %d refused: %v\n", c.ID, err)
+			refused++
+		case err != nil:
+			fatal(err)
+		default:
+			closed++
+		}
+	}
+	if *apply {
+		fmt.Printf("%d closes; %d closed by %s; %d refused\n", len(closes), closed, store.ActorReviewAgent, refused)
+	} else {
+		fmt.Printf("%d closes; %d refused; nothing written (add -apply)\n", len(closes), refused)
+	}
 }

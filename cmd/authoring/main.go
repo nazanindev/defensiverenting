@@ -235,6 +235,7 @@ func main() {
 	mux.HandleFunc("POST /statement/done", s.statementDone)
 	mux.HandleFunc("POST /statement/save", s.statementSave)
 	mux.HandleFunc("POST /statement/flag", s.statementFlag)
+	mux.HandleFunc("POST /page/flag/done", s.pageFlagDone)
 	mux.HandleFunc("POST /statement/change", s.statementChange)
 	mux.HandleFunc("POST /statements/source/{id}/recheck", s.sourceRecheck)
 	mux.HandleFunc("POST /publish-ready", s.publishReady)

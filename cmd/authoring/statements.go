@@ -161,7 +161,12 @@ func (s *srv) statements(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, err)
 			return
 		}
-		data["Page"], data["Issues"] = pw, issueDetails(issues)
+		flags, err := s.pg.OpenPageFlags(ctx, f.Page)
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		data["Page"], data["Issues"], data["PageFlags"] = pw, issueDetails(issues), flags
 		for i, st := range pw.Statements {
 			rows = append(rows, store.ReviewRow{
 				PlaybookID: pw.Playbook.ID, PageTitle: pw.Playbook.Title, PageStatus: pw.Playbook.Status, PageKind: pw.Playbook.PageKind,
@@ -239,6 +244,25 @@ func (s *srv) statementDone(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 	default:
 		http.Redirect(w, r, f.path(""), http.StatusSeeOther) //nolint:gosec // see filter.path: typed fields, never a client path
+	}
+}
+
+// pageFlagDone closes a page flag: the reviewer read the doubt about the
+// page and dealt with it, or decided it stands as written.
+func (s *srv) pageFlagDone(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.FormValue("flag"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid flag", http.StatusBadRequest)
+		return
+	}
+	f := readFilter(r.Form)
+	switch err := s.pg.ClosePageFlag(r.Context(), id, actor(r), r.FormValue("note")); {
+	case errors.Is(err, store.ErrPageFlagNotOpen):
+		http.Redirect(w, r, f.path("That page flag is already closed."), http.StatusSeeOther) //nolint:gosec // see filter.path
+	case err != nil:
+		s.serverError(w, err)
+	default:
+		http.Redirect(w, r, f.path(""), http.StatusSeeOther) //nolint:gosec // see filter.path
 	}
 }
 

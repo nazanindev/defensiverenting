@@ -129,7 +129,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide audit")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit")
 	os.Exit(2)
 }
 
@@ -240,6 +240,7 @@ type pageOut struct {
 	Jurisdiction string         `json:"jurisdiction_slug"`
 	Topic        string         `json:"topic_slug"`
 	Language     string         `json:"language"`
+	PageFlags    []pageFlagOut  `json:"page_flags,omitempty"`
 	Statements   []statementOut `json:"statements"`
 }
 
@@ -265,6 +266,13 @@ func page(ctx context.Context, pg *store.PG, id int64) {
 	}
 	out := pageOut{PlaybookID: pw.ID, Title: pw.Title, Status: pw.Status, Jurisdiction: pw.Jurisdiction.Slug,
 		Topic: pw.Topic.Slug, Language: pw.Language}
+	flags, err := pg.OpenPageFlags(ctx, id)
+	if err != nil {
+		fatal(err)
+	}
+	for _, f := range flags {
+		out.PageFlags = append(out.PageFlags, pageFlagOut{ID: f.ID, PlaybookID: f.PlaybookID, Kind: f.Kind, Note: f.Note, Keys: f.Keys, FiledBy: f.FiledBy})
+	}
 	for i, st := range pw.Statements {
 		so := statementOut{Position: i + 1, Key: st.Key, BodyMD: st.BodyMD, Concept: st.ConceptSlug, TopicRef: st.TopicRefSlug, Notes: notes[st.Key]}
 		for _, c := range st.Citations {
