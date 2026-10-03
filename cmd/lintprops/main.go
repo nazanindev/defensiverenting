@@ -96,9 +96,14 @@ func main() {
 func readJSON(path string, v any) {
 	raw, err := os.ReadFile(path) // #nosec G703 -- the file named on the command line is the job
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 	if err := json.Unmarshal(raw, v); err != nil {
-		log.Fatalf("decode %s: %v", path, err)
+		fatal(fmt.Errorf("decode %s: %w", path, err))
 	}
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "lintprops:", err)
+	os.Exit(1)
 }
