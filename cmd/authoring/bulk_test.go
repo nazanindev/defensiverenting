@@ -80,7 +80,7 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
-		"Actor": "Nazanin", "Status": "pending", "Items": items, "Open": int64(41), "Sources": nil, "Count": 4, "Checking": false, "Pickable": 3,
+		"Actor": "Nazanin", "Status": "pending", "Items": items, "Groups": groupItems(items), "Open": int64(41), "Sources": nil, "Count": 4, "Checking": false, "Pickable": 3,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -106,5 +106,47 @@ func TestQueueTemplatePickBoxes(t *testing.T) {
 	}
 	if !strings.Contains(html, `id="picked" method="post" action="/queue/bulk"`) {
 		t.Error("no Apply selected form")
+	}
+}
+
+// Items sit under one heading per group, and each group's Apply all names
+// that group. A quote move whose words changed gets no Apply all.
+func TestQueueGroups(t *testing.T) {
+	base := store.ProposalRow{Proposal: store.Proposal{Status: "pending", Proposed: &store.ProposedStatement{BodyMD: "x"}}, TargetStatus: "published", Position: 1}
+	mk := func(id int64, reason, evidence string) queueItem {
+		r := base
+		r.ID, r.Reason, r.Evidence = id, reason, []byte(evidence)
+		it := newQueueItem(r)
+		it.Pickable = bulkApplicable(r)
+		return it
+	}
+	items := []queueItem{
+		mk(1, "agent-pass:voice-readability", `{}`),
+		mk(2, "agent-pass:triage", `{}`),
+		mk(3, "agent-pass:voice-readability", `{}`),
+		mk(4, store.ReasonSourceDrift, `{"old_quote":"the tenant\ufffds deposit","new_quote":"the tenant’s deposit"}`),
+		mk(5, store.ReasonSourceDrift, `{"old_quote":"unfair, deceptive, or abusive","new_quote":"unfair or deceptive"}`),
+	}
+	g := groupItems(items)
+	if len(g) != 4 || g[0].Name != "voice-readability" || len(g[0].Items) != 2 || g[0].Pickable != 2 {
+		t.Fatalf("groups = %+v", g)
+	}
+	if g[2].Key != groupDriftSame || g[2].Pickable != 1 || g[3].Key != groupDriftChanged || g[3].Pickable != 0 {
+		t.Errorf("drift groups = %+v / %+v", g[2], g[3])
+	}
+	var buf bytes.Buffer
+	if err := parseTemplates(t).ExecuteTemplate(&buf, "queue.html", map[string]any{
+		"Actor": "Nazanin", "Status": "pending", "Items": items, "Groups": g, "Open": int64(1), "Count": 5, "Pickable": 5,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	for _, want := range []string{`name="group" value="agent-pass:voice-readability"`, "Apply all 2", `value="source-drift:same"`, "quote moved, words changed · 1"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if strings.Contains(html, `value="source-drift:changed"`) {
+		t.Error("words-changed quote moves offer Apply all")
 	}
 }

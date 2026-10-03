@@ -205,9 +205,16 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 	sort.SliceStable(items, func(i, j int) bool {
 		return (items[i].ReasonLabel == "source-drift") != (items[j].ReasonLabel == "source-drift") && items[j].ReasonLabel == "source-drift"
 	})
+	// The page reads group by group, so Next follows that order.
+	groups := groupItems(items)
+	items = items[:0]
+	for _, g := range groups {
+		items = append(items, g.Items...)
+	}
 	for i := range items[:max(len(items)-1, 0)] {
 		items[i].Next = items[i+1].ID
 	}
+	groups = groupItems(items)
 	sourceItems := make([]sourceItem, 0, len(sources))
 	for _, sp := range sources {
 		sourceItems = append(sourceItems, sourceItem{SourceProposal: sp, Age: ago(sp.CreatedAt)})
@@ -229,6 +236,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		"Actor":    actor(r),
 		"Status":   status,
 		"Items":    items,
+		"Groups":   groups,
 		"Open":     open,
 		"Sources":  sourceItems,
 		"Count":    len(items) + len(sourceItems),

@@ -2,24 +2,94 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 
+	"github.com/nazanindev/defensiverenting/internal/drafting"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
-// Bulk apply: the items ticked on the queue page, applied together. Each one
-// goes through the same applyApproval a single Apply does (live quote
-// checks, the reviewer's name, and on a live page the gate that refuses a
-// save adding a problem), so a bulk apply is many ordinary applies, not a
-// shortcut past them. Live pages are included by the reviewer's decision
-// (2026-09-26). Ticks are the only bulk path (2026-10-03): the per-reason
-// "Apply all" lines were dropped because nothing showed which items they
-// covered, and a tick is on exactly the item it applies.
+// Bulk apply: the items ticked on the queue page, or every item in one
+// group, applied together. Each one goes through the same applyApproval a
+// single Apply does (live quote checks, the reviewer's name, and on a live
+// page the gate that refuses a save adding a problem), so a bulk apply is
+// many ordinary applies, not a shortcut past them. Live pages are included
+// by the reviewer's decision (2026-09-26).
+//
+// The queue lists items under one heading per group, and a group's Apply
+// all sits on that heading (2026-10-03): before, the Apply all lines sat
+// above one mixed list and nothing showed which items they covered. A
+// quote move whose words changed has to be read against the source, so
+// its group has ticks but no Apply all; one whose new quote has the same
+// words as the old (drafting.SameWords) is a reading repaired, not a law
+// changed, and has both.
+
+const (
+	groupDriftSame    = "source-drift:same"
+	groupDriftChanged = "source-drift:changed"
+)
+
+// groupKey is the queue group an item is listed under.
+func groupKey(row store.ProposalRow) string {
+	if row.Reason != store.ReasonSourceDrift {
+		return row.Reason
+	}
+	var d driftEvidence
+	if row.Proposed != nil && json.Unmarshal(row.Evidence, &d) == nil && drafting.SameWords(d.OldQuote, d.NewQuote) {
+		return groupDriftSame
+	}
+	return groupDriftChanged
+}
+
+// groupName is how a group reads on its heading.
+func groupName(key string) string {
+	switch key {
+	case groupDriftSame:
+		return "quote moved, same words"
+	case groupDriftChanged:
+		return "quote moved, words changed"
+	}
+	if _, name, ok := strings.Cut(key, ":"); ok {
+		return name
+	}
+	return key
+}
+
+// queueGroup is one heading on the queue page and the items under it.
+type queueGroup struct {
+	Key, Name string
+	Items     []queueItem
+	// Pickable counts the items Apply all would apply; 0 when the group
+	// has no Apply all.
+	Pickable int
+}
+
+// groupItems splits the queue into its groups, in the order each group
+// first appears, keeping the items' order inside each.
+func groupItems(items []queueItem) []queueGroup {
+	var out []queueGroup
+	at := map[string]int{}
+	for _, it := range items {
+		k := groupKey(it.ProposalRow)
+		i, ok := at[k]
+		if !ok {
+			i = len(out)
+			at[k] = i
+			out = append(out, queueGroup{Key: k, Name: groupName(k)})
+		}
+		out[i].Items = append(out[i].Items, it)
+		if it.Pickable && k != groupDriftChanged {
+			out[i].Pickable++
+		}
+	}
+	return out
+}
 
 // bulkApplicable reports whether an item can be ticked: it has an Apply
 // button, that is a pending replacement for a statement still on a draft or
@@ -61,6 +131,8 @@ func (b *bulkRun) failure(id int64) string {
 }
 
 func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
+	// Either every item in one group, or the items ticked on the page.
+	group := r.FormValue("group")
 	picked := map[int64]bool{}
 	if err := r.ParseForm(); err == nil {
 		for _, v := range r.Form["id"] {
@@ -76,7 +148,11 @@ func (s *srv) bulkApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	var ids []int64
 	for _, row := range rows {
-		if picked[row.ID] && bulkApplicable(row) {
+		match := picked[row.ID]
+		if len(picked) == 0 {
+			match = group != "" && group != groupDriftChanged && groupKey(row) == group
+		}
+		if match && bulkApplicable(row) {
 			ids = append(ids, row.ID)
 		}
 	}

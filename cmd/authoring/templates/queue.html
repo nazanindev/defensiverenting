@@ -71,9 +71,14 @@
   .item[open] .actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; margin: 0; background: #fff; border-top: 1px solid #e8dede; box-shadow: 0 -4px 12px rgba(74,18,35,.06); padding: 12px max(16px, calc((100vw - 860px) / 2 + 16px)) calc(12px + env(safe-area-inset-bottom, 0px)); }
   .pick { margin-right: 8px; width: 16px; height: 16px; vertical-align: -3px; cursor: pointer; accent-color: #38a169; }
   .selbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; display: flex; gap: 12px; align-items: center; background: #fff; border-top: 1px solid #e8dede; box-shadow: 0 -4px 12px rgba(74,18,35,.06); padding: 12px max(16px, calc((100vw - 860px) / 2 + 16px)) calc(12px + env(safe-area-inset-bottom, 0px)); font-size: .88rem; }
+  .selbar[hidden] { display: none; }
   body.picking .item[open] .actions { display: none; }
   .tickall { display: block; font-size: .82rem; color: #7a5c5c; padding: 0 4px 8px; cursor: pointer; }
   .bulk { font-size: .88rem; margin: -8px 0 22px; }
+  .group { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 26px 0 8px; }
+  .group h3 { font-family: 'Fraunces', serif; font-size: 1rem; font-weight: 700; }
+  .group form { margin: 0; }
+  .group .hint { font-size: .78rem; color: #9a7878; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
   .actions form { display: flex; gap: 6px; align-items: center; margin: 0; }
   .actions input[type=text] { font-family: inherit; font-size: .82rem; padding: .38rem .6rem; border: 1px solid #e0c8c8; border-radius: 6px; width: 15rem; max-width: 100%; }
@@ -117,10 +122,16 @@
     <span>Re-fetches every cited source and files a finding here for each quote it no longer sees. No AI.</span>
   </div>
 
-  {{if .Bulk}}<div class="bulk"><p>Applying selected: {{.Bulk.Done}} of {{.Bulk.Total}} done. Refresh to see more.</p></div>{{end}}
+  {{if .Bulk}}<div class="bulk"><p>Applying: {{.Bulk.Done}} of {{.Bulk.Total}} done. Refresh to see more.</p></div>{{end}}
 
   {{if or .Items .Sources}}
   {{if .Pickable}}<label class="tickall"><input type="checkbox" class="pick" id="pickall"> Tick all {{.Pickable}} that can go together</label>{{end}}
+  {{range .Groups}}
+  <div class="group">
+    <h3>{{.Name}} · {{len .Items}}</h3>
+    {{if eq .Key "source-drift:changed"}}<span class="hint">Read each against the source, then tick or Apply.</span>
+    {{else if and (eq $st "pending") .Pickable (not $.Bulk)}}<form method="post" action="/queue/bulk"><input type="hidden" name="group" value="{{.Key}}"><button class="btn btn-apply">Apply all {{.Pickable}}</button></form>{{end}}
+  </div>
   <ol class="list">
     {{range .Items}}
     <li>
@@ -186,6 +197,7 @@
     </li>
     {{end}}
   </ol>
+  {{end}}
 
   {{if .Sources}}
   <h2>Sources no page cites</h2>
