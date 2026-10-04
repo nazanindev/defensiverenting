@@ -231,6 +231,7 @@ func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
 		           JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		           WHERE s.concept_id = co.id AND pb.status = 'published'
 		             AND pb.language = $1 AND j.kind = 'country'
+		             AND NOT statement_hidden(s.id)
 		           LIMIT 1), ''),
 		       (SELECT count(DISTINCT pb.jurisdiction_id)
 		           FROM statements s
@@ -238,7 +239,8 @@ func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
 		           JOIN playbooks pb ON pb.id = ps.playbook_id
 		           JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		           WHERE s.concept_id = co.id AND pb.status = 'published'
-		             AND pb.language = $1 AND j.kind <> 'country')
+		             AND pb.language = $1 AND j.kind <> 'country'
+		             AND NOT statement_hidden(s.id))
 		FROM concepts co
 		JOIN topics t ON t.id = co.topic_id
 		ORDER BY co.name`, language)
@@ -298,6 +300,8 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 		JOIN citations c ON c.statement_id = s.id
 		JOIN sources src ON src.id = c.source_id
 		WHERE s.concept_id = $1 AND pb.status = 'published' AND pb.language = $2
+		  -- ADR-029 D3: held back until the org it cites says yes.
+		  AND NOT statement_hidden(s.id)
 		ORDER BY (j.kind <> 'country'), j.name, s.id, c.source_id, c.id`,
 		d.Concept.ID, language)
 	if err != nil {

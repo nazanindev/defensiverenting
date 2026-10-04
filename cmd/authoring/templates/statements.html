@@ -135,6 +135,7 @@
     {{range .Stmt.Citations}}{{if ne .SourceKind "editorial"}}
     <div class="q">{{if .Quote}}<i>“{{.Quote}}”</i>{{else}}<span class="w">No quote recorded.</span>{{end}} — <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}{{if .Locator}}, {{.Locator}}{{end}} ↗</a>{{if and .Quote (not .CheckedAt)}} <span class="w">not confirmed at the source</span>{{end}}<button type="button" class="src-btn" data-url="{{.SourceURL}}" data-pub="{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}" data-src="{{.SourceID}}" data-quote="{{.Quote}}" onclick="openPanel(this)">read source</button></div>
     {{end}}{{end}}
+    {{with .HeldBy}}<div class="note">{{if $c.Hiding}}Readers do not see this.{{else}}Readers will not see this once hiding turns on.{{end}} It cites <a href="/orgs#{{.}}">{{.}}</a>, which has not said yes to being listed (ADR-029).</div>{{end}}
     {{range .Stmt.Notes}}<div class="note">Note: {{.Note}}</div>{{end}}
     {{if .Broken}}<div class="fix">Needs an edit before it can be done: {{range .Standing.Reasons}}{{if eq . "empty"}}no text. {{else if eq . "uncited"}}no citation. {{else if eq . "quote-missing"}}a citation has no quote. {{else if eq . "statute-locator"}}the statute needs its section. {{end}}{{end}}<a href="/edit/{{.PlaybookID}}#card_{{.CardIndex}}">Edit ↗</a></div>
     {{else}}{{range .Changes}}

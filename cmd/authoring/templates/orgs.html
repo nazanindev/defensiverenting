@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orgs — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
+  .crumb a { color: #9b2335; text-decoration: none; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+  .lede { color: #7a5c5c; font-size: .88rem; margin-bottom: 18px; max-width: 75ch; line-height: 1.5; }
+  .flash { padding: .6rem .9rem; border-radius: 8px; margin-bottom: 14px; font-size: .88rem; }
+  .flash-ok { background: #ecfdf5; color: #065f46; }
+  .flash-err { background: #fef2f2; color: #991b1b; }
+  .org-list { list-style: none; border-top: 1px solid #e8dede; }
+  .org { padding: 14px 4px; border-bottom: 1px solid #e8dede; scroll-margin-top: 16px; }
+  .org:target { background: #fff7e6; }
+  .org-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+  .org-name { font-weight: 600; }
+  .org-host { font-size: .8rem; color: #9b2335; }
+  .org-meta { font-size: .8rem; color: #7a5c5c; margin-top: 4px; line-height: 1.5; }
+  .badge { font-size: .72rem; font-weight: 600; padding: .1rem .5rem; border-radius: 999px; }
+  .b-hidden { background: #fef2f2; color: #991b1b; }
+  .b-maybe { background: #fffbeb; color: #92400e; }
+  .b-ok { background: #ecfdf5; color: #065f46; }
+  .b-public { background: #eef2ff; color: #3730a3; }
+  .b-due { background: #92400e; color: #fff; }
+  details { margin-top: 8px; font-size: .84rem; }
+  summary { cursor: pointer; color: #9b2335; }
+  .log { list-style: none; margin: 6px 0 0 0; font-size: .8rem; color: #4a3535; }
+  .log li { padding: 3px 0; }
+  form.contact { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 8px; max-width: 820px; }
+  form.contact label { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; color: #7a5c5c; }
+  form.contact .wide { grid-column: 1 / -1; }
+  input, select, textarea { font: inherit; font-size: .85rem; padding: .35rem .5rem; border: 1px solid #e0c8c8; border-radius: 6px; background: #fff; color: inherit; }
+  textarea { min-height: 3.5rem; }
+  .btn { font: inherit; font-size: .8rem; padding: .35rem .8rem; border-radius: 6px; border: 1px solid #e0c8c8; background: #fff; color: #4a1223; cursor: pointer; }
+  .btn-primary { background: #9b2335; border-color: #9b2335; color: #fff; }
+  form.type { display: inline; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      {{if .Actor}}<span style="color:rgba(255,255,255,.85);font-size:.8rem">Signed in as {{.Actor}}</span>{{end}}
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
+<div class="page">
+  <div class="crumb"><a href="/">← Dashboard</a></div>
+  <h1>Orgs</h1>
+  <p class="lede">Small local orgs are contacted before we send them renters (ADR-029). A contact-first org shows on the live site only after it says yes. {{.Waiting}} waiting, {{.Listed}} said yes. {{if .Hiding}}Hiding is on: readers do not see orgs that have not said yes.{{else}}Hiding is not on yet, so readers still see every org.{{end}}</p>
+
+  {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+  {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
+
+  {{$now := .Now}}{{$today := .Today}}
+  <ul class="org-list">
+    {{range .Orgs}}
+    <li class="org" id="{{.Host}}">
+      <div class="org-head">
+        <span class="org-name">{{.Name}}</span>
+        <a class="org-host" href="https://{{.Host}}" target="_blank" rel="noopener">{{.Host}} ↗</a>
+        {{if eq .Type "public"}}<span class="badge b-public">Public</span>
+        {{else if eq .Status "ok"}}<span class="badge b-ok">Said yes</span>
+        {{else if eq .Status "maybe"}}<span class="badge b-maybe">Maybe</span>
+        {{else if eq .Status "leave_off"}}<span class="badge b-hidden">Said no</span>
+        {{else if eq .Status "contacted"}}<span class="badge b-hidden">Contacted, no answer yet</span>
+        {{else}}<span class="badge b-hidden">Not contacted</span>{{end}}
+        {{if and (ne .Type "public") (.Due $now)}}<span class="badge b-due">Follow up today</span>{{else if and (ne .Type "public") .FollowUp}}<span class="org-meta">Follow up {{date .FollowUp}}</span>{{end}}
+      </div>
+      <div class="org-meta">
+        {{.LivePages}} live {{if eq .LivePages 1}}page{{else}}pages{{end}}{{if .Places}} · {{range $i, $p := .Places}}{{if lt $i 8}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}{{if gt (len .Places) 8}} and {{len .Places}} places in all{{end}}{{end}}
+      </div>
+
+      <details>
+        <summary>{{if .Contacts}}{{len .Contacts}} {{if eq (len .Contacts) 1}}attempt{{else}}attempts{{end}} · {{end}}Log an email or call{{if ne .Type "public"}}{{end}}</summary>
+        {{if .Contacts}}
+        <ul class="log">
+          {{range .Contacts}}
+          <li>{{date .CreatedAt}} · {{if eq .Method "call"}}Call{{else}}Email{{end}}{{if .Reached}} · reached {{.Reached}}{{end}} · <b>{{if eq .Outcome "no_answer"}}No answer{{else if eq .Outcome "left_message"}}Left message{{else if eq .Outcome "maybe"}}Maybe{{else if eq .Outcome "yes"}}Yes{{else}}No{{end}}</b>{{if .FollowUp}} · follow up {{date .FollowUp}}{{end}} · {{.LoggedBy}}{{if .Note}}<br>{{.Note}}{{end}}</li>
+          {{end}}
+        </ul>
+        {{end}}
+        <form class="contact" method="post" action="/orgs/contact">
+          <input type="hidden" name="host" value="{{.Host}}">
+          <label>How
+            <select name="method" required><option value="call">Call</option><option value="email">Email</option></select>
+          </label>
+          <label>Outcome
+            <select name="outcome" required>
+              <option value="no_answer">No answer</option>
+              <option value="left_message">Left message</option>
+              <option value="maybe">Maybe</option>
+              <option value="yes">Yes, list us</option>
+              <option value="no">No, leave us off</option>
+            </select>
+          </label>
+          <label>Who you reached
+            <input type="text" name="reached" placeholder="Name and role">
+          </label>
+          <label>Follow up on
+            <input type="date" name="follow_up" min="{{$today}}">
+          </label>
+          <label class="wide">Note
+            <textarea name="note" placeholder="What they said"></textarea>
+          </label>
+          <div class="wide"><button class="btn btn-primary">Log it</button></div>
+        </form>
+        <form class="type" method="post" action="/orgs/type" style="margin-top:10px;display:block">
+          <input type="hidden" name="host" value="{{.Host}}">
+          {{if eq .Type "public"}}
+          <input type="hidden" name="type" value="contact_first">
+          <button class="btn" title="For an org that answers renters one by one">This is a small local org: contact first</button>
+          {{else}}
+          <input type="hidden" name="type" value="public">
+          <button class="btn" title="For a government office, 211, or a self-help website built for public traffic">This org is built for public traffic</button>
+          {{end}}
+        </form>
+      </details>
+    </li>
+    {{end}}
+  </ul>
+</div>
+</body>
+</html>

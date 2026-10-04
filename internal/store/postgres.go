@@ -490,6 +490,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			  -- Only statements on a published page are public. Without this,
 			  -- search leaks the text of drafts no human has reviewed yet.
 			  AND pb.status = 'published'
+			  AND NOT statement_hidden(s.id)
 			ORDER BY rank DESC LIMIT 20`,
 			*jurisdictionID, query, language)
 	} else {
@@ -513,6 +514,7 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
 			WHERE s.body_tsv @@ q.tsq AND s.language = $2
 			  AND pb.status = 'published'
+			  AND NOT statement_hidden(s.id)
 			ORDER BY rank DESC LIMIT 20`,
 			query, language)
 	}
@@ -535,7 +537,8 @@ func (pg *PG) Search(ctx context.Context, query string, jurisdictionID *int64, l
 			SELECT 1 FROM statements s
 			JOIN playbook_statements ps ON ps.statement_id = s.id
 			JOIN playbooks pb ON pb.id = ps.playbook_id
-			WHERE s.concept_id = co.id AND pb.status = 'published' AND pb.language = $2)
+			WHERE s.concept_id = co.id AND pb.status = 'published' AND pb.language = $2
+			  AND NOT statement_hidden(s.id))
 		ORDER BY co.name LIMIT 3`, strings.TrimSpace(query), language)
 	if terr != nil {
 		return nil, terr

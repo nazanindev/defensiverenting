@@ -29,7 +29,7 @@ type PageIssue struct {
 	// no-title, no-statements, empty-statement, uncited-statement,
 	// missing-quote, unverified-quote, source-unreachable, statute-locator,
 	// source-no-publisher, language-deferred, unreviewed-statement,
-	// undecided-item, page-flag.
+	// undecided-item, page-flag, local-help-public.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -374,6 +374,35 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		ORDER BY pb.id, f.created_at, f.id`, args,
 		func(id int64, f []string) {
 			add(id, 0, "page-flag", fmt.Sprintf("page flag (%s) from %s: %s", f[0], f[2], f[1]))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// ADR-029 D8: a Local Help page must leave a renter somewhere public to
+	// turn, even while every small local org on it is hidden. A statement
+	// counts when every source it cites is public: not a `nonprofit`, or a
+	// nonprofit whose org is typed public.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, (SELECT count(*) FROM playbook_statements ps
+		               WHERE ps.playbook_id = pb.id
+		                 AND EXISTS (SELECT 1 FROM citations c WHERE c.statement_id = ps.statement_id)
+		                 AND NOT EXISTS (
+		                     SELECT 1 FROM citations c
+		                     JOIN sources src ON src.id = c.source_id
+		                     LEFT JOIN help_orgs o ON o.host = source_host(src.url)
+		                     WHERE c.statement_id = ps.statement_id
+		                       AND src.kind = 'nonprofit'
+		                       AND coalesce(o.type, 'contact_first') <> 'public'))::text
+		FROM playbooks pb
+		JOIN topics t ON t.id = pb.topic_id
+		WHERE `+cond+` AND t.slug = '`+LocalHelpTopic+`'`, args,
+		func(id int64, f []string) {
+			if n := pos(f[0]); n < LocalHelpPublicMin {
+				add(id, 0, "local-help-public", fmt.Sprintf(
+					"the page has %d statement(s) of public help and needs %d: add 211, the court self-help center, a housing office, or the state's LawHelp site (ADR-029 D8)",
+					n, LocalHelpPublicMin))
+			}
 		},
 	); err != nil {
 		return nil, err

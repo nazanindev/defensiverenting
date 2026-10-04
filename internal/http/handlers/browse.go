@@ -37,6 +37,7 @@ type browseStore interface {
 	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
 	ListTerms(ctx context.Context, language string) ([]store.Term, error)
 	GetConceptPage(ctx context.Context, slug, language string) (store.ConceptPageData, error)
+	HiddenStatements(ctx context.Context, ids []int64) (map[int64]string, error)
 }
 
 // The authoring team, surfaced in the byline and as editor in JSON-LD.
@@ -616,6 +617,33 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		logger.ErrorContext(r.Context(), "get playbook", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+
+	// ADR-029 D3: a statement citing a small local org that has not said yes
+	// to its listing stays off the live site. Fails closed: if we cannot tell
+	// which statements to hide, the page is not served.
+	ids := make([]int64, len(pb.Statements))
+	for i, s := range pb.Statements {
+		ids[i] = s.ID
+	}
+	hidden, err := db.HiddenStatements(r.Context(), ids)
+	if err != nil {
+		logger.ErrorContext(r.Context(), "hidden statements", slog.Any("err", err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if len(hidden) > 0 {
+		kept := pb.Statements[:0:0]
+		for _, s := range pb.Statements {
+			if _, held := hidden[s.ID]; !held {
+				kept = append(kept, s)
+			}
+		}
+		if len(kept) == 0 {
+			render(w, r, http.StatusNotFound, tmpl.NotFoundPage{Language: lang})
+			return
+		}
+		pb.Statements = kept
 	}
 
 	// A national page links each tagged statement to a topic hub, where every

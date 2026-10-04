@@ -258,6 +258,9 @@ func main() {
 	mux.HandleFunc("POST /queue/sources/{id}/reject", s.rejectSourceProposal)
 	mux.HandleFunc("POST /queue/sources/{id}/snooze", s.snoozeSourceProposal)
 	mux.HandleFunc("GET /coverage", s.coverage)
+	mux.HandleFunc("GET /orgs", s.orgs)
+	mux.HandleFunc("POST /orgs/contact", s.orgContact)
+	mux.HandleFunc("POST /orgs/type", s.orgType)
 
 	// /healthz is outside the auth wrapper so Fly's health check can reach it.
 	outer := http.NewServeMux()

@@ -45,6 +45,11 @@ type stmtCard struct {
 	// Changes are the pending replacements and drift findings on this
 	// statement, decided here rather than on the queue page.
 	Changes []queueItem
+	// HeldBy is the host of a contact-first org this statement cites that has
+	// not said yes (ADR-029 D3). Hiding says whether the live site leaves the
+	// statement out now or will once hiding turns on.
+	HeldBy string
+	Hiding bool
 }
 
 func (c stmtCard) CardIndex() int { return c.Position - 1 }
@@ -210,10 +215,25 @@ func (s *srv) statements(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	ids := make([]int64, len(rows))
+	for i, row := range rows {
+		ids[i] = row.Stmt.ID
+	}
+	heldBy, err := s.pg.StatementsHeldBy(ctx, ids)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	hiding, err := s.pg.HelpHiding(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
 	cards := make([]stmtCard, 0, len(rows))
 	todo := 0
 	for _, row := range rows {
 		c := cardFromRow(row, f)
+		c.HeldBy, c.Hiding = heldBy[row.Stmt.ID], hiding
 		for _, pr := range changes[row.Stmt.Key] {
 			c.Changes = append(c.Changes, newQueueItem(pr))
 		}

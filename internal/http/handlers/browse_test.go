@@ -50,6 +50,20 @@ type stubStore struct {
 	// the ?j= redirect resolving to the selected city itself, the behavior
 	// every pre-existing test relies on.
 	topicCoverage map[int64]bool
+
+	// hidden is what HiddenStatements reports: statement id -> the org host
+	// that holds it off the live site (ADR-029). Nil hides nothing.
+	hidden map[int64]string
+}
+
+func (s *stubStore) HiddenStatements(_ context.Context, ids []int64) (map[int64]string, error) {
+	out := map[int64]string{}
+	for _, id := range ids {
+		if h, ok := s.hidden[id]; ok {
+			out[id] = h
+		}
+	}
+	return out, nil
 }
 
 func (s *stubStore) ResolveJurisdictionAlias(_ context.Context, alias string) (store.Jurisdiction, error) {
