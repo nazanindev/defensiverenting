@@ -1,11 +1,13 @@
 ---
 name: editorial-voice
-description: Writing style for all renter-facing content. Use when writing or editing playbook statements, intros, titles, site copy, or drafting-agent prompts. Triggers - write, draft, edit, reword, or review any text a renter will read.
+description: Writing style for all renter-facing content. Use when writing or editing playbook statements, intros, titles, headings, concept questions, site copy (templates, buttons, forms, errors, emails, meta descriptions), or drafting-agent prompts. Triggers - write, draft, edit, reword, or review any text a renter will read.
 ---
 
 # Editorial voice
 
 Everything renters read on this site follows these rules. They also apply to prompts that tell an AI agent how to write content.
+
+For site copy (titles, headings, buttons, forms, errors, emails, meta descriptions), also read [site-copy.md](site-copy.md).
 
 ## Who we write for
 
@@ -22,7 +24,7 @@ Write so this reader gets the point on the first read. If a word would send anyo
 5. **Active voice. Talk to the reader as "you".** Name the actor: your landlord, the court, the city. Not "it is required that".
 6. **Concrete and factual.** State what the law says, who must do what, and by when. No filler, no reassurance padding, no fear language, no exclamation marks.
 7. **Honest about variation.** If a rule differs by state or city, say so plainly: "in most states", "New York law requires". Never overclaim.
-8. **Legal terms: explain once, then use the plain term.** Example: "a notice to quit (a letter saying you must move out)". After that, "the notice". Official terms a renter will meet on court papers, program applications, or a lease (a judgment, mediation, rental assistance, normal wear and tear, harassment, a grace period) must carry their plain-words explanation in the same statement, right after the term, because statements also appear alone on concept pages. Gloss common program words the first time a statement uses them: "utilities (water, electric, gas)".
+8. **Legal terms: explain once, then use the plain term.** Example: "a notice to quit (a letter saying you must move out)". After that, "the notice". Official terms a renter will meet on court papers, program applications, or a lease (a judgment, mediation, rental assistance, normal wear and tear, harassment, a grace period) must carry their plain-words explanation in the same statement, right after the term, because statements also appear alone on concept pages. Gloss common program words the first time a statement uses them: "utilities (water, electric, gas)". A gloss uses only everyday words. It never explains one legal idea with another: "appeal (ask a different court to look at your case again)", not "appeal (ask a higher court to review the judgment)".
 9. **Numbers as digits.** "14 days", not "fourteen days".
 10. **Do the reader's math.** Any percentage or multiplied money amount carries a worked dollar example: "5% of $1,000 rent is $50"; "3 times a $1,500 deposit is $4,500". Never leave arithmetic to someone reading at 2am.
 11. **One deadline per statement, in order.** Say what starts each clock ("counted from the day you hand the keys back"). When steps happen in sequence, write the order out: first, then, after that. Never pile three day-counts into one paragraph; if the periods are separate cases rather than a sequence, split them into separate statements.
