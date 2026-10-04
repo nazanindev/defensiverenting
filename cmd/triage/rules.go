@@ -175,7 +175,7 @@ func retag(ctx context.Context, pg *store.PG, path string) {
 		st.Concept = e.Concept
 		out = append(out, proposal{
 			StatementKey: e.Key,
-			Reason:       "agent-pass:retag",
+			Reason:       "agent-pass:tag-change",
 			Proposed:     &st,
 			Evidence:     map[string]string{"note": "Tag change only (ADR-028 D9): " + tagLabel(from) + " to " + tagLabel(e.Concept) + ". " + e.Why},
 		})
