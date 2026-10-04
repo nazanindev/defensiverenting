@@ -18,6 +18,14 @@ import (
 // three questions a rules page needs: which concepts it answers, where each
 // answer already lives, and which the law was searched for and not found.
 
+// lawBackedSQL keeps a statement s only when it cites at least one source
+// that is not the site's own editorial guidance. A concept answers with law
+// only (ADR-028 D1): a checklist item tagged so it can link to the rule in
+// every place is advice, never the answer to the concept's question, so it
+// shows on no concept page and answers no rules-page question.
+const lawBackedSQL = `EXISTS (SELECT 1 FROM citations lc JOIN sources ls ON ls.id = lc.source_id
+	WHERE lc.statement_id = s.id AND ls.kind <> 'editorial')`
+
 // CoverageRecord is "we searched and found no law" for one place and concept
 // (D5). It is a site fact about our search, never a legal claim.
 type CoverageRecord struct {
@@ -86,7 +94,8 @@ func (pg *PG) FileCoverageRecord(ctx context.Context, p FileCoverageParams) erro
 				JOIN playbook_statements ps ON ps.statement_id = s.id
 				JOIN playbooks pb ON pb.id = ps.playbook_id
 				WHERE pb.jurisdiction_id = $1 AND s.concept_id = $2
-				  AND pb.status IN ('published', 'draft') AND pb.language = 'en')`, jID, cID).Scan(&answered); err != nil {
+				  AND pb.status IN ('published', 'draft') AND pb.language = 'en'
+				  AND `+lawBackedSQL+`)`, jID, cID).Scan(&answered); err != nil {
 			return err
 		}
 		if answered {
@@ -213,6 +222,7 @@ func (pg *PG) RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopic
 		  -- org not yet OK to list. Working out gaps still counts it, so the
 		  -- fact is not drafted twice.
 		  AND ($5 OR NOT statement_hidden(s.id))
+		  AND `+lawBackedSQL+`
 		ORDER BY s.concept_id, (pb.page_kind = 'rules'), (pb.topic_id <> $4),
 		         (pb.status = 'published') DESC, ps.position`,
 		jurisdictionID, language, statuses, homeID, drafts)
@@ -341,6 +351,7 @@ func (pg *PG) ConceptAnsweredElsewhere(ctx context.Context, jurisdictionID, rule
 		JOIN playbooks pb ON pb.id = ps.playbook_id
 		WHERE pb.jurisdiction_id = $1 AND pb.topic_id <> $2 AND c.slug = $3
 		  AND pb.language = $4 AND pb.status IN ('published', 'draft')
+		  AND `+lawBackedSQL+`
 		ORDER BY (pb.status = 'published') DESC
 		LIMIT 1`, jurisdictionID, rulesTopicID, conceptSlug, language).Scan(&title)
 	if errors.Is(err, pgx.ErrNoRows) {

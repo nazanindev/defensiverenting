@@ -302,6 +302,7 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 		WHERE s.concept_id = $1 AND pb.status = 'published' AND pb.language = $2
 		  -- ADR-029 D3: held back until the org it cites says yes.
 		  AND NOT statement_hidden(s.id)
+		  AND `+lawBackedSQL+`
 		ORDER BY (j.kind <> 'country'), j.name, s.id, c.source_id, c.id`,
 		d.Concept.ID, language)
 	if err != nil {

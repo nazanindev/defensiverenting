@@ -241,3 +241,39 @@ func TestRulesLayout_followsTheTopic(t *testing.T) {
 		t.Fatal("a situation topic saved with the rules layout")
 	}
 }
+
+// Advice tagged so a checklist links to the rule everywhere is not the
+// rule: a statement citing only editorial guidance answers no concept
+// question (ADR-028 D1).
+func TestEditorialOnly_answersNoConcept(t *testing.T) {
+	pg, j := rulesFixture(t)
+	ctx := context.Background()
+	ed, err := pg.GetEditorialSource(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
+		JurisdictionID: j.ID, TopicID: topicID(t, pg, "security-deposits"), Language: "en", Slug: "security-deposits",
+		Title: "Deposits in Rulesland", IntroMD: "intro", Status: "published", UpdatedBy: "test",
+		Statements: []store.IngestStatementParams{{
+			BodyMD: "In Rulesland, ask for a receipt when you pay a deposit.", Language: "en", ConceptSlug: "deposit-receipt",
+			Sources: []store.IngestCitationParams{{SourceID: ed.ID}},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	answers, err := pg.RulesAnswers(ctx, j.ID, "security-deposit-rules", "en", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range answers {
+		if a.Concept.Slug == "deposit-receipt" && !a.Gap() {
+			t.Fatal("editorial advice answered the deposit-receipt question")
+		}
+	}
+	if err := pg.FileCoverageRecord(ctx, store.FileCoverageParams{
+		JurisdictionSlug: j.Slug, ConceptSlug: "deposit-receipt", SourcesChecked: []string{"https://example.gov"}, By: "test",
+	}); err != nil {
+		t.Fatalf("editorial advice blocked a no-law record: %v", err)
+	}
+}
