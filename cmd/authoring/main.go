@@ -345,6 +345,7 @@ const viewCookie = "authoring_view"
 var sortableColumns = map[string]bool{
 	"city": true, "title": true, "topic": true, "kind": true,
 	"status": true, "updated": true, "created": true, "size": true,
+	"helpful": true,
 }
 
 func (v dashboardView) normalize() dashboardView {
@@ -480,6 +481,8 @@ func sortPlaybooks(rows []store.AuthorPlaybookRow, key, dir string) {
 			return a.CreatedAt.Before(b.CreatedAt)
 		case "size":
 			return a.StatementCount < b.StatementCount
+		case "helpful":
+			return helpfulShare(a) < helpfulShare(b)
 		default:
 			return a.UpdatedAt.Before(b.UpdatedAt)
 		}
@@ -490,6 +493,17 @@ func sortPlaybooks(rows []store.AuthorPlaybookRow, key, dir string) {
 		}
 		return less(rows[i], rows[j])
 	})
+}
+
+// helpfulShare is the part of a page's answers that said yes. Sorted
+// ascending, the pages readers found least helpful come first, and pages
+// nobody has answered for go last rather than reading as 0% helpful.
+func helpfulShare(r store.AuthorPlaybookRow) float64 {
+	n := r.HelpfulYes + r.HelpfulNo
+	if n == 0 {
+		return 2
+	}
+	return float64(r.HelpfulYes) / float64(n)
 }
 
 func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {

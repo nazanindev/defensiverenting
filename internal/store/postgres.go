@@ -1434,10 +1434,17 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 		                WHERE live.jurisdiction_id = pb.jurisdiction_id
 		                  AND live.topic_id = pb.topic_id
 		                  AND live.language = pb.language
-		                  AND live.status = 'published' AND live.id <> pb.id)
+		                  AND live.status = 'published' AND live.id <> pb.id),
+		       -- "Did this page help?" totals, on the live page only: a draft
+		       -- or a replaced version has had no readers of its own.
+		       CASE WHEN pb.status = 'published' THEN coalesce(h.yes, 0) ELSE 0 END,
+		       CASE WHEN pb.status = 'published' THEN coalesce(h.no, 0) ELSE 0 END
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		JOIN topics        t ON t.id  = pb.topic_id
+		LEFT JOIN (SELECT jurisdiction_id, topic_id, language, sum(yes) AS yes, sum(no) AS no
+		             FROM page_helpful GROUP BY 1, 2, 3) h
+		       ON h.jurisdiction_id = pb.jurisdiction_id AND h.topic_id = pb.topic_id AND h.language = pb.language
 		ORDER BY pb.status DESC, j.name, t.slug`)
 	if err != nil {
 		return nil, err
@@ -1448,7 +1455,8 @@ func (pg *PG) AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, err
 		var r AuthorPlaybookRow
 		if err := rows.Scan(&r.ID, &r.Title, &r.JurisdictionName, &r.JurisdictionSlug,
 			&r.TopicSlug, &r.Language, &r.Status, &r.PageKind, &r.CreatedAt, &r.UpdatedAt,
-			&r.PublishedAt, &r.UpdatedBy, &r.StatementCount, &r.SourceCount, &r.RevisesPublished); err != nil {
+			&r.PublishedAt, &r.UpdatedBy, &r.StatementCount, &r.SourceCount, &r.RevisesPublished,
+			&r.HelpfulYes, &r.HelpfulNo); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

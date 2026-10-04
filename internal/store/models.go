@@ -421,4 +421,8 @@ type AuthorPlaybookRow struct {
 	// Publishing it replaces that page and retires the old version, which is a
 	// different act from publishing a new one.
 	RevisesPublished bool
+	// HelpfulYes and HelpfulNo total the "Did this page help?" answers for a
+	// live page. Zero on drafts and replaced versions.
+	HelpfulYes int
+	HelpfulNo  int
 }

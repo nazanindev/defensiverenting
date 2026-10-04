@@ -64,6 +64,24 @@ func TestHelpful_oncePerReaderPerPageAndOnlyLivePages(t *testing.T) {
 	if yes-yes0 != 1 || no-no0 != 1 {
 		t.Fatalf("added %d yes, %d no; want 1 yes, 1 no", yes-yes0, no-no0)
 	}
+
+	// The dashboard shows the same totals on the live page and none on the draft.
+	rows, err := pg.AuthorListPlaybooks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		switch r.ID {
+		case live:
+			if r.HelpfulYes != yes || r.HelpfulNo != no {
+				t.Errorf("dashboard live row = %d yes, %d no; want %d, %d", r.HelpfulYes, r.HelpfulNo, yes, no)
+			}
+		case draft:
+			if r.HelpfulYes != 0 || r.HelpfulNo != 0 {
+				t.Errorf("dashboard draft row carries answers: %d yes, %d no", r.HelpfulYes, r.HelpfulNo)
+			}
+		}
+	}
 }
 
 func TestHelpful_dailyCapPerReader(t *testing.T) {
