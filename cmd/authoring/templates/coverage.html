@@ -60,19 +60,19 @@
   <p class="note">Who is missing what. One glyph per place and subject; the second table goes a level deeper, to the individual claims (ADR-011).</p>
 
   <div class="metrics">
-    <span class="metric"><b>{{len .Coverage}}</b> cities</span>
+    <span class="metric"><b>{{len .Coverage}}</b> places</span>
     <a class="metric {{if .DraftCount}}metric-warn{{end}}" href="/?status=draft"><b>{{.DraftCount}}</b> drafts to review</a>
     <span class="metric {{if .IssueCount}}metric-bad{{end}}" title="Drafts carrying an issue the publish gate refuses — marked ⚠ on the dashboard"><b>{{.IssueCount}}</b> drafts not yet publishable</span>
     <a class="metric {{if .Proposals}}metric-warn{{end}}" href="/queue" title="Statement and source changes waiting for a decision"><b>{{.Proposals}}</b> proposals waiting</a>
   </div>
 
   <div class="panel">
-    <h2>Core topic coverage by city</h2>
+    <h2>Standard topic coverage by state</h2>
     <div class="scroll">
     <table class="cov">
       <thead>
         <tr>
-          <th class="city-col">City</th>
+          <th class="city-col">State</th>
           {{range .CoreTopics}}<th title="topic: {{.Slug}}">{{.Name}}</th>{{end}}
         </tr>
       </thead>
@@ -95,7 +95,7 @@
     </div>
     <p class="cov-legend">
       <span class="dot-published">●</span> published · <span class="dot-draft">◐</span> draft · <span class="dot-missing">·</span> nothing yet.
-      Columns are <strong>topics</strong>, the subjects every city is expected to cover. "Local Help" is the
+      Columns are <strong>topics</strong>, the subjects every state is expected to cover. "Local Help" is the
       <code>resource-directory</code> topic, which is a different thing from the <code>directory</code> page
       layout: a Local Help page is normally laid out as a directory, but any topic can use that layout and
       this chart does not track it.

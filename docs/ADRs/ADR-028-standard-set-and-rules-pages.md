@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted 2026-10-04 (Nazanin). Nothing built yet. |
+| Status | Accepted 2026-10-04 (Nazanin). Phase 1 built 2026-10-04 on branch worktree-adr028-voice (migration 000048); see Build notes. |
 | Date | 2026-10-03, settled 2026-10-04 |
 | Amends | ADR-020 (lifts the deferral; adds rules pages), ADR-026 (D4 parked statements get a home; topic map rewritten), ADR-012 (projection rule kept, one new page kind) |
 
@@ -227,6 +227,32 @@ Up to 407 new situation pages and 51 rules pages per area before thin skips. Tha
 
 ## Before the build
 
-1. Stage lists for the 15 playbook topics (D10): drafted by Claude, read by Nazanin.
-2. Final wording of the 46 new concept questions, read by Nazanin before the migration.
+1. Stage lists for the 15 playbook topics (D10): drafted by Claude, read by Nazanin. Done 2026-10-04, `docs/ADR-028-stages-and-questions.md`.
+2. Final wording of the 46 new concept questions, read by Nazanin before the migration. Done 2026-10-04, same file; headings follow `site-copy.md` rules 10 and 11 (official terms keep their name with an everyday-words gloss).
 3. Right before phase 5: confirm heat and AC law in New York, Pennsylvania and Tennessee, and the Houston and Austin AC ordinances.
+
+## Build notes (2026-10-04)
+
+**A rules page is its own topic (Nazanin, 2026-10-04).** D4 said "new page_kind value rules, one page per place and home topic". A slot holds one page per place, topic and language, and every save, publish, revision and URL path finds a page by that slot, so a rules page on the same topic as its situation page would need all of them changed and could overwrite the live guide. Instead each situation topic that is home to concepts gets a rules topic: `security-deposit-rules` beside `security-deposits`, linked by `topics.rules_for`. Page kind `rules` stays as the layout, and the store keeps the two together on every save. URLs: `/j/ohio/security-deposit-rules`. Nazanin: "rules pages are equivalent to a playbook in code."
+
+Rules topics: rent-payment-rules, eviction-rules, security-deposit-rules, repair-rules, heat-and-ac-rules, landlord-entry-rules, rent-increase-rules, lease-breaking-rules, lease-renewal-rules, lockout-rules, utility-shutoff-rules, building-sale-rules, discrimination-rules, rental-application-rules. move-out-bill homes no concept, so it has none.
+
+**Concept homes for the 46** (D3 grouped them by area; the home is the topic whose rules page asks the question): duty-to-mitigate and early-termination-rights on breaking-lease; end-of-tenancy-notice and just-cause-eviction on lease-renewal; foreclosure-tenant-protection on building-sold; landlord-unpaid-utilities and energy-assistance on utility-shutoff; heat, AC and cooling-device on heat-not-working; added-fees, utility-billing, price gouging on rent-increase; application-fees, tenant-screening, criminal-history-screening on rental-application (state rules on rental-application-rules pages); every other new concept on the topic its area names. Tagging stays open: any concept may be tagged on any page (since 2026-08-22).
+
+**Storage.**
+- `concepts.question` and `concepts.position` (rules-page order); `concepts.national_only` keeps subsidized-rent-change off state gap lists.
+- `topics.stages`, `topics.rules_for`, `topics.national_only`.
+- A statement's stage lives on `playbook_statements.stage`, outside the review hash: moving a step under another heading does not change the claim or reset its stamp. A save that passes no stage keeps the stage the statement's key already had, so approvals, the authoring form and re-drafts never wipe stages.
+- `coverage_records` (D5): place, concept, sources searched, who, when. Refused for a place that already has a statement with the concept.
+
+**Gaps (D9 step 2).** `RulesAnswers` works out a rules page by tag lookup: for each concept homed in the situation topic, the place's statement (a situation page before the rules page, the home topic before others, published before draft), else its coverage record. `triage gaps <place>` lists it with drafts counted; the public page counts published only and leaves gaps off.
+
+**Place named (D11).** SaveDraft lints new statements (no key) on playbook and rules pages; kept statements, directories and the nationwide page are exempt. City pages may name the city or its state.
+
+**Not built yet.**
+- D9 step 3, the tag audit of published statements, and filing coverage records: both need prod reads and agent reading.
+- Stages on existing drafts (review agent) and live pages (queue).
+- The weekly check listing coverage records by date (D5): `ListCoverageRecords` exists; not wired into the check run.
+- The constructive-eviction redirect: a step after breaking-lease publishes in the US and PA.
+- `ConceptCoverage` on the dashboard still counts "covered by the national page" for states; the rules-page gap list does not.
+

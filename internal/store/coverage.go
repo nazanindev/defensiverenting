@@ -2,7 +2,7 @@ package store
 
 import "context"
 
-// CoverageRow is one city's standing against every core topic.
+// CoverageRow is one place's standing against every core topic.
 //
 // Status maps a topic slug to "published", "draft", or "" when the city has
 // neither. The template reads it by slug so the column order is set once, by
@@ -13,10 +13,12 @@ type CoverageRow struct {
 	Status           map[string]string
 }
 
-// AuthorCoverage reports which core topics each city has and does not have.
+// AuthorCoverage reports which core topics each state has and does not have.
 //
-// Core topics are the set every city is expected to carry (ADR-005 D5), so a
-// missing one is a gap rather than a choice.
+// Core topics are the standard set every state is expected to carry (ADR-028
+// D2), so a missing one is a gap rather than a choice, or a thin-page skip.
+// Cities are not in the matrix: a city gets a topic only where city law adds
+// to its state's, so a city without one is not missing anything.
 //
 // This reports topics, not layouts. resource-directory is a topic — the subject
 // "where to get help", shown as "Local Help" — and is not the same thing as the
@@ -29,13 +31,12 @@ type CoverageRow struct {
 // directory sitting in review is not missing one, and counting it as missing
 // would send an author to redraft a page that is already waiting for them.
 //
-// Every city is included, including those with no pages at all. Those rows look
-// like noise but are the opposite: a city seeded with no content is exactly the
-// one nothing else on this dashboard would surface.
+// Every state is included, including those with no pages at all: a state with
+// no content is exactly the one nothing else on this dashboard would surface.
 //
-// The country row (United States, first) is in the matrix for the same reason
-// the cities are: national guides are the fallback every uncovered location
-// resolves to (ADR-009), so a hole in the national row is a hole for everyone.
+// The country row (United States, first) is in the matrix because national
+// guides are the fallback every uncovered location resolves to (ADR-009), so a
+// hole in the national row is a hole for everyone.
 func (pg *PG) AuthorCoverage(ctx context.Context) ([]CoverageRow, error) {
 	rows, err := pg.pool.Query(ctx, `
 		SELECT j.name, j.slug, t.slug,
@@ -46,7 +47,7 @@ func (pg *PG) AuthorCoverage(ctx context.Context) ([]CoverageRow, error) {
 		       ON p.jurisdiction_id = j.id
 		      AND p.topic_id = t.id
 		      AND p.status IN ('published', 'draft')
-		WHERE j.kind IN ('city', 'country') AND t.is_core
+		WHERE j.kind IN ('state', 'country') AND t.is_core
 		GROUP BY j.kind, j.name, j.slug, t.slug
 		ORDER BY (j.kind <> 'country'), j.name, t.slug`)
 	if err != nil {

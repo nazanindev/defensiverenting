@@ -1,4 +1,4 @@
-# State page drafting brief (wave 5, 2026-10-02)
+# State page drafting brief (wave 5, 2026-10-02; ADR-028 additions 2026-10-04)
 
 You draft ONE statewide renter guide page and save it as a DRAFT in the RenterLaw database with the `mcp__defensiverenting__*` tools. A person publishes it later. You never publish.
 
@@ -19,6 +19,8 @@ Before you start, read these files with the Read tool:
 - Order the statements the way the renter acts: what the law says, what to do first, then next, what happens if the landlord ignores it, what happens in court.
 - Only what fits this page's situation (see the topic map "Covers" and "Not here" columns). If a true fact belongs on another page, leave it out.
 - Tag each statement with the concept slug from the topic map whose question it answers (field `concept`). Leave step-by-step procedure untagged when no concept fits. Never invent a slug.
+- Give each statement a stage (field `stage`), copied exactly from the topic's stage list in the topic map or `list_topics`. The stages follow the statement order above. Never write a new heading (ADR-028 D10).
+- Every statement names the state ("Ohio law says...", "In Ohio, ..."). A statement can be shown alone in a search result, so it must say where it applies. The save rejects a new statement that does not (ADR-028 D11).
 - No "where to get help" list on a playbook. Local help is its own page (resource-directory).
 
 ## Sources
@@ -69,6 +71,15 @@ The editorial-voice skill has the full rules. The ones that trip drafters most:
   - repairs-and-habitability: "Landlord Won't Make Repairs in {State}: What Can I Do?"
   - resource-directory: "Where Can I Get Rent Assistance or Eviction Help in {State}?"
   - security-deposits: "Security Deposit Not Returned in {State}: What Can I Do?"
+  - breaking-lease: "Breaking a Lease Early in {State}: What Are My Options?"
+  - lease-renewal: "Landlord Won't Renew My Lease in {State}: What Can I Do?"
+  - locked-out: "Landlord Locked Me Out in {State}: What Can I Do?"
+  - utility-shutoff: "Utilities Shut Off in {State}: What Can I Do?"
+  - building-sold: "Building Sold or Foreclosed in {State}: What Happens to My Lease?"
+  - move-out-bill: "Landlord Billed Me After I Moved Out in {State}: Do I Have to Pay?"
+  - discrimination: "Housing Discrimination in {State}: What Can I Do?"
+  - heat-not-working: "Heat or AC Not Working in {State}: What Can I Do?"
+  - any rules topic: "{Topic name} in {State}: What Does the Law Say?", for example "Security Deposit Rules in Ohio: What Does the Law Say?". Rules pages follow rules-brief.md.
 - Intro: 2 or 3 short sentences saying what the page covers. Same voice rules. The intro makes NO legal claim (no "Montana has no rule on X", no numbers, no deadlines): it only names the topics the page covers.
 
 ## resource-directory only

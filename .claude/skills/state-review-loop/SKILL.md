@@ -22,6 +22,14 @@ Build once per session: `go build -o bin/lintprops ./cmd/lintprops && go build -
 - `common-rules.md`: what every statement must meet. Every agent reads it.
 - `reader-rules.md`, `fixer-rules.md`, `judge-rules.md`: one role each.
 - `thin-brief.md`: second pass on short pages: fill only real gaps, never pad.
+- `rules-brief.md`: the drafter brief for a rules page (ADR-028): draft only what `triage gaps` lists as a gap, one statement per concept.
+
+## Rules pages and gaps (ADR-028)
+
+- `bin/prod triage gaps <state> [<rules-topic>]`: each concept of each rules topic in the state, `answered`, `no-law` or `gap`. Drafts count as answers, so nothing is drafted twice.
+- A rules-page drafter gets `rules-brief.md` and the gap list for one page. It reports "No law found" concepts with the URLs searched.
+- File those as coverage records: `[{place, concept, sources_checked: [urls], note}]` then `bin/prod triage nolaw records.json -apply`. It refuses a place that already has a statement with the concept.
+- Stages: a reader checks each statement's stage against the topic's list and the statement order; a stage that comes back after another is an `order` page finding.
 
 ## The loop
 
