@@ -47,6 +47,7 @@ type pageStatement struct {
 	Key      string `json:"key"`
 	BodyMD   string `json:"body_md"`
 	Concept  string `json:"concept,omitempty"`
+	Stage    string `json:"stage,omitempty"`
 }
 
 type pageSkeleton struct {
@@ -99,7 +100,7 @@ func decidePage(ctx context.Context, pg *store.PG, args []string) {
 		}
 		sk := pageSkeleton{PlaybookID: pw.ID, Page: pw.Jurisdiction.Name + " · " + pw.Topic.Name, Title: pw.Title, IntroMD: pw.IntroMD}
 		for i, st := range pw.Statements {
-			sk.Statements = append(sk.Statements, pageStatement{Position: i + 1, Key: st.Key, BodyMD: st.BodyMD, Concept: st.ConceptSlug})
+			sk.Statements = append(sk.Statements, pageStatement{Position: i + 1, Key: st.Key, BodyMD: st.BodyMD, Concept: st.ConceptSlug, Stage: st.Stage})
 		}
 		if sk.Gaps, err = pg.ConceptGaps(ctx, pw.ID); err != nil {
 			fatal(err)

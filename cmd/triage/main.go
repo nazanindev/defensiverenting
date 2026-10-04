@@ -239,6 +239,7 @@ type statementOut struct {
 	Key       string        `json:"key"`
 	BodyMD    string        `json:"body_md"`
 	Concept   string        `json:"concept,omitempty"`
+	Stage     string        `json:"stage,omitempty"`
 	TopicRef  string        `json:"topic_ref,omitempty"`
 	Citations []citationOut `json:"citations"`
 	Notes     []noteOut     `json:"notes,omitempty"`
@@ -285,7 +286,7 @@ func page(ctx context.Context, pg *store.PG, id int64) {
 		out.PageFlags = append(out.PageFlags, pageFlagOut{ID: f.ID, PlaybookID: f.PlaybookID, Kind: f.Kind, Note: f.Note, Keys: f.Keys, FiledBy: f.FiledBy})
 	}
 	for i, st := range pw.Statements {
-		so := statementOut{Position: i + 1, Key: st.Key, BodyMD: st.BodyMD, Concept: st.ConceptSlug, TopicRef: st.TopicRefSlug, Notes: notes[st.Key]}
+		so := statementOut{Position: i + 1, Key: st.Key, BodyMD: st.BodyMD, Concept: st.ConceptSlug, Stage: st.Stage, TopicRef: st.TopicRefSlug, Notes: notes[st.Key]}
 		for _, c := range st.Citations {
 			so.Citations = append(so.Citations, citationOut{URL: c.SourceURL, Publisher: c.Publisher, Kind: c.SourceKind, Locator: c.Locator, Quote: c.Quote})
 		}

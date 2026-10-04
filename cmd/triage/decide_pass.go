@@ -31,6 +31,7 @@ type passItem struct {
 	Position   int           `json:"position"`
 	BodyMD     string        `json:"body_md"`
 	Concept    string        `json:"concept,omitempty"`
+	Stage      string        `json:"stage,omitempty"`
 	Citations  []citationOut `json:"citations"`
 }
 
@@ -73,7 +74,7 @@ func unstamped(ctx context.Context, pg *store.PG) []passItem {
 			if st.ReviewedAt != nil || st.Undecided {
 				continue
 			}
-			it := passItem{PlaybookID: pw.ID, Key: st.Key, Page: pw.Jurisdiction.Name + " · " + pw.Topic.Name, Position: i + 1, BodyMD: st.BodyMD, Concept: st.ConceptSlug}
+			it := passItem{PlaybookID: pw.ID, Key: st.Key, Page: pw.Jurisdiction.Name + " · " + pw.Topic.Name, Position: i + 1, BodyMD: st.BodyMD, Concept: st.ConceptSlug, Stage: st.Stage}
 			for _, c := range st.Citations {
 				// Site guidance is listed too (url /editorial, no quote): a
 				// reader who cannot see it leaves every risk warning as
