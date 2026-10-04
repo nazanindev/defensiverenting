@@ -85,7 +85,7 @@ func nolaw(ctx context.Context, pg *store.PG, args []string) {
 	if err := fs.Parse(args[1:]); err != nil {
 		fatal(err)
 	}
-	raw, err := os.ReadFile(args[0]) // #nosec G304 -- the operator names the file
+	raw, err := os.ReadFile(args[0]) // #nosec G703 G304 -- the operator names the file, like psql -f
 	if err != nil {
 		fatal(err)
 	}
