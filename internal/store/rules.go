@@ -209,9 +209,13 @@ func (pg *PG) RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopic
 		JOIN topics t ON t.id = pb.topic_id
 		WHERE pb.jurisdiction_id = $1 AND pb.language = $2 AND pb.status = ANY($3)
 		  AND s.concept_id IN (SELECT id FROM concepts WHERE topic_id = $4)
+		  -- ADR-029 D3: the public page never shows a statement citing an
+		  -- org not yet OK to list. Working out gaps still counts it, so the
+		  -- fact is not drafted twice.
+		  AND ($5 OR NOT statement_hidden(s.id))
 		ORDER BY s.concept_id, (pb.page_kind = 'rules'), (pb.topic_id <> $4),
 		         (pb.status = 'published') DESC, ps.position`,
-		jurisdictionID, language, statuses, homeID)
+		jurisdictionID, language, statuses, homeID, drafts)
 	if err != nil {
 		return nil, err
 	}
