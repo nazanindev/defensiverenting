@@ -85,6 +85,12 @@ type Store interface {
 	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
 	ListTerms(ctx context.Context, language string) ([]Term, error)
 	GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error)
+	// Rules pages, coverage records and gaps (ADR-028 D4, D5, D9).
+	RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopicSlug, language string, drafts bool) ([]RulesAnswer, error)
+	RulesGaps(ctx context.Context, jurisdictionSlug string) ([]PlaceGaps, error)
+	ConceptAnsweredElsewhere(ctx context.Context, jurisdictionID, rulesTopicID int64, conceptSlug, language string) (string, error)
+	FileCoverageRecord(ctx context.Context, p FileCoverageParams) error
+	ListCoverageRecords(ctx context.Context) ([]CoverageRecord, error)
 	ListSourceUsage(ctx context.Context) ([]SourceUsage, error)
 
 	// Authoring
@@ -235,6 +241,11 @@ type IngestStatementParams struct {
 	// pointing at a registry topic. Mutually exclusive with ConceptSlug; the
 	// save fails when both are set rather than picking one silently.
 	TopicRefSlug string
+	// Stage is the statement's stage heading on the page (ADR-028 D10). ""
+	// keeps the stage the statement with this key already has in the slot,
+	// so saves that never heard of stages do not wipe them. A stage that is
+	// not one of the topic's fails the save.
+	Stage string
 	// ReviewerNote is what the drafting agent was unsure of about this claim
 	// (ADR-018 D1): an inferred reading, a simplification, guidance-only
 	// support, a figure that will go stale. The save files it as a work-item

@@ -161,6 +161,12 @@ type Concept struct {
 	// — the law stays in statements. Populated by the reference-layer
 	// queries; may be empty elsewhere.
 	Definition string
+	// Question is the renter's question the concept answers (ADR-028 D3),
+	// written to take " in {Place}" at the end. A rules page shows it as the
+	// heading over each answer.
+	Question string
+	// Position orders concepts on their home topic's rules page.
+	Position int
 }
 
 // ConceptCoverageRow is one concept's standing per place (ADR-011 D3),
@@ -213,6 +219,9 @@ type ConceptPageData struct {
 	Concept  Concept
 	National []ConceptInstance
 	Local    []ConceptInstance
+	// NoLaw lists places where the law was searched and none found
+	// (ADR-028 D5), each without a published statement of its own.
+	NoLaw []CoverageRecord
 }
 
 // SourceUsage is one source's citation structure across the whole site
@@ -241,6 +250,15 @@ type Topic struct {
 	// added to a city only where its law justifies one. Populated by the
 	// registry queries; zero elsewhere.
 	IsCore bool
+	// NationalOnly marks a topic with one page, on united-states (ADR-028
+	// D6). Populated by the registry queries.
+	NationalOnly bool
+	// RulesFor is the situation topic a rules topic answers the concepts of
+	// (ADR-028 D4); 0 for every situation topic.
+	RulesFor int64
+	// Stages are the fixed stage headings for a playbook on this topic, in
+	// order (ADR-028 D10). Empty for rules topics and checklists.
+	Stages []string
 }
 
 type Playbook struct {
@@ -298,6 +316,9 @@ type CitedStatement struct {
 	Key         string
 	BodyMD      string
 	ConceptSlug string // "" when untagged; doubles as the public anchor (ADR-011 D4)
+	// Stage is the statement's stage heading on this page (ADR-028 D10), one
+	// of its topic's stages, or "" when none is set.
+	Stage string
 	// TopicRefSlug/Name mark a statement that summarizes a whole topic rather
 	// than making one claim (ADR-011 D7). Mutually exclusive with ConceptSlug,
 	// enforced by the statements_one_tag_check constraint.

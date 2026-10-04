@@ -15,7 +15,7 @@ import (
 
 func (pg *PG) ListConcepts(ctx context.Context) ([]Concept, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT c.id, c.slug, c.name, c.topic_id, t.slug
+		SELECT c.id, c.slug, c.name, c.topic_id, t.slug, c.question, c.position
 		FROM concepts c
 		JOIN topics t ON t.id = c.topic_id
 		ORDER BY t.slug, c.name`)
@@ -26,7 +26,7 @@ func (pg *PG) ListConcepts(ctx context.Context) ([]Concept, error) {
 	var out []Concept
 	for rows.Next() {
 		var c Concept
-		if err := rows.Scan(&c.ID, &c.Slug, &c.Name, &c.TopicID, &c.TopicSlug); err != nil {
+		if err := rows.Scan(&c.ID, &c.Slug, &c.Name, &c.TopicID, &c.TopicSlug, &c.Question, &c.Position); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -275,10 +275,10 @@ func (pg *PG) ListTerms(ctx context.Context, language string) ([]Term, error) {
 func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error) {
 	var d ConceptPageData
 	err := pg.pool.QueryRow(ctx, `
-		SELECT co.id, co.slug, co.name, co.definition, co.topic_id, t.slug
+		SELECT co.id, co.slug, co.name, co.definition, co.topic_id, t.slug, co.question
 		FROM concepts co JOIN topics t ON t.id = co.topic_id
 		WHERE co.slug = $1`, slug,
-	).Scan(&d.Concept.ID, &d.Concept.Slug, &d.Concept.Name, &d.Concept.Definition, &d.Concept.TopicID, &d.Concept.TopicSlug)
+	).Scan(&d.Concept.ID, &d.Concept.Slug, &d.Concept.Name, &d.Concept.Definition, &d.Concept.TopicID, &d.Concept.TopicSlug, &d.Concept.Question)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -340,11 +340,24 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 	if len(instances) == 0 {
 		return d, ErrNotFound
 	}
+	answered := map[int64]bool{}
 	for i := range instances {
 		if instances[i].Jurisdiction.Kind == "country" {
 			d.National = append(d.National, instances[i])
 		} else {
 			d.Local = append(d.Local, instances[i])
+			answered[instances[i].Jurisdiction.ID] = true
+		}
+	}
+	// Places searched with no law found (ADR-028 D5). A published
+	// statement always wins over a record.
+	records, err := pg.coverageRecords(ctx, 0, d.Concept.ID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range records {
+		if !answered[r.JurisdictionID] {
+			d.NoLaw = append(d.NoLaw, r)
 		}
 	}
 	return d, nil

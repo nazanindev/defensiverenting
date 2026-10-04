@@ -282,35 +282,33 @@ func scanTopics(rows pgx.Rows) ([]Topic, error) {
 // list_topics both read it, so there is one vocabulary rather than a hardcoded
 // list per caller. See docs/ADRs/ADR-005 D5.
 func (pg *PG) ListTopicRegistry(ctx context.Context) ([]Topic, error) {
-	rows, err := pg.pool.Query(ctx, `
-		SELECT id, slug, name, is_core FROM topics ORDER BY is_core DESC, name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Topic
-	for rows.Next() {
-		var t Topic
-		if err := rows.Scan(&t.ID, &t.Slug, &t.Name, &t.IsCore); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, rows.Err()
+	return pg.queryTopics(ctx, `SELECT `+topicCols+` FROM topics ORDER BY is_core DESC, name`)
 }
 
-// ListCoreTopics returns the topics every new city is seeded with.
+// ListCoreTopics returns the standard topics every state gets (ADR-028 D2).
 func (pg *PG) ListCoreTopics(ctx context.Context) ([]Topic, error) {
-	rows, err := pg.pool.Query(ctx, `
-		SELECT id, slug, name, is_core FROM topics WHERE is_core ORDER BY name`)
+	return pg.queryTopics(ctx, `SELECT `+topicCols+` FROM topics WHERE is_core ORDER BY name`)
+}
+
+// topicCols are the registry columns scanTopic reads, in its order.
+const topicCols = `id, slug, name, is_core, national_only, COALESCE(rules_for, 0), stages`
+
+func scanTopic(row pgx.Row) (Topic, error) {
+	var t Topic
+	err := row.Scan(&t.ID, &t.Slug, &t.Name, &t.IsCore, &t.NationalOnly, &t.RulesFor, &t.Stages)
+	return t, err
+}
+
+func (pg *PG) queryTopics(ctx context.Context, sql string, args ...any) ([]Topic, error) {
+	rows, err := pg.pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []Topic
 	for rows.Next() {
-		var t Topic
-		if err := rows.Scan(&t.ID, &t.Slug, &t.Name, &t.IsCore); err != nil {
+		t, err := scanTopic(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -337,10 +335,7 @@ func (pg *PG) GetJurisdictionByID(ctx context.Context, id int64) (Jurisdiction, 
 
 // GetTopicBySlug looks up one topic by its URL slug.
 func (pg *PG) GetTopicBySlug(ctx context.Context, slug string) (Topic, error) {
-	var t Topic
-	err := pg.pool.QueryRow(ctx, `
-		SELECT id, slug, name FROM topics WHERE slug = $1`, slug).
-		Scan(&t.ID, &t.Slug, &t.Name)
+	t, err := scanTopic(pg.pool.QueryRow(ctx, `SELECT `+topicCols+` FROM topics WHERE slug = $1`, slug))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return t, ErrNotFound
@@ -401,7 +396,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 			pb.slug, pb.title, pb.intro_md, pb.page_kind, pb.last_reviewed_at, pb.updated_by,
 			pb.published_at, pb.updated_at,
 			j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''),
-			t.id, t.slug, t.name
+			t.id, t.slug, t.name, t.national_only, COALESCE(t.rules_for, 0), t.stages
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
@@ -415,7 +410,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 		&p.Playbook.PublishedAt, &p.Playbook.UpdatedAt,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug, &p.Jurisdiction.ParentSlug,
-		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
+		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name, &p.Topic.NationalOnly, &p.Topic.RulesFor, &p.Topic.Stages,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -427,7 +422,7 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	// Fetch statement rows; each row is one citation, so multiple rows per statement
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
+			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position, ps.stage,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind,
 			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`, `+proposalPendingSQL+`,
@@ -998,6 +993,12 @@ func slotKeys(ctx context.Context, tx pgx.Tx, playbookID int64) (map[string]stri
 type keyChooser struct {
 	byBody map[string]string
 	used   map[string]bool
+	// stageOf is the stage each key already has in this slot, and stages
+	// the topic's stage list (ADR-028 D10). A save that passes no stage
+	// keeps the one the key has, so the many save paths that never set a
+	// stage (approvals, the authoring form, re-drafts) do not wipe them.
+	stageOf map[string]string
+	stages  map[string]bool
 }
 
 func newKeyChooser(ctx context.Context, tx pgx.Tx, playbookID int64) (*keyChooser, error) {
@@ -1005,7 +1006,57 @@ func newKeyChooser(ctx context.Context, tx pgx.Tx, playbookID int64) (*keyChoose
 	if err != nil {
 		return nil, fmt.Errorf("read statement keys: %w", err)
 	}
-	return &keyChooser{byBody: byBody, used: map[string]bool{}}, nil
+	kc := &keyChooser{byBody: byBody, used: map[string]bool{}, stageOf: map[string]string{}, stages: map[string]bool{}}
+	var stages []string
+	if err := tx.QueryRow(ctx, `
+		SELECT t.stages FROM playbooks pb JOIN topics t ON t.id = pb.topic_id WHERE pb.id = $1`,
+		playbookID).Scan(&stages); err != nil {
+		return nil, fmt.Errorf("read topic stages: %w", err)
+	}
+	for _, st := range stages {
+		kc.stages[st] = true
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT s.key::text, ps.stage
+		FROM playbook_statements ps
+		JOIN statements s ON s.id = ps.statement_id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN playbooks me ON me.id = $1
+		WHERE pb.jurisdiction_id = me.jurisdiction_id
+		  AND pb.topic_id = me.topic_id
+		  AND pb.language = me.language
+		  AND ps.stage <> ''
+		ORDER BY (pb.id = $1) DESC, (pb.status = 'published') DESC`, playbookID)
+	if err != nil {
+		return nil, fmt.Errorf("read statement stages: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key, stage string
+		if err := rows.Scan(&key, &stage); err != nil {
+			return nil, err
+		}
+		if _, seen := kc.stageOf[key]; !seen {
+			kc.stageOf[key] = stage
+		}
+	}
+	return kc, rows.Err()
+}
+
+// stage returns the stage statement i lands under: the one the save passed,
+// which must be one of the topic's, or else the one its key already had,
+// dropped quietly when the topic's list no longer has it.
+func (kc *keyChooser) stage(i int, sp IngestStatementParams, key string) (string, error) {
+	if st := strings.TrimSpace(sp.Stage); st != "" {
+		if !kc.stages[st] {
+			return "", fmt.Errorf("statement %d: stage %q is not one of this topic's stages", i, st)
+		}
+		return st, nil
+	}
+	if st := kc.stageOf[key]; kc.stages[st] {
+		return st, nil
+	}
+	return "", nil
 }
 
 func (kc *keyChooser) choose(i int, sp IngestStatementParams) (string, error) {
@@ -1126,6 +1177,10 @@ func writeStatement(ctx context.Context, tx pgx.Tx, keys *keyChooser, jurisdicti
 	if err != nil {
 		return err
 	}
+	stage, err := keys.stage(i, sp, key)
+	if err != nil {
+		return err
+	}
 	stmtID, key, err := insertStatement(ctx, tx, jurisdictionID, sp, key)
 	if err != nil {
 		return fmt.Errorf("insert statement %d: %w", i, err)
@@ -1136,8 +1191,8 @@ func writeStatement(ctx context.Context, tx pgx.Tx, keys *keyChooser, jurisdicti
 		}
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO playbook_statements (playbook_id, statement_id, position)
-		VALUES ($1, $2, $3)`, playbookID, stmtID, i,
+		INSERT INTO playbook_statements (playbook_id, statement_id, position, stage)
+		VALUES ($1, $2, $3, $4)`, playbookID, stmtID, i, stage,
 	); err != nil {
 		return fmt.Errorf("link statement %d to playbook: %w", i, err)
 	}
@@ -1195,6 +1250,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			topicRefSlug string
 			topicRefName string
 			position     int
+			stage        string
 			c            CitationWithSource
 			// The citation columns are nullable: the authoring query LEFT
 			// JOINs citations so a draft's uncited statement (legal since
@@ -1213,7 +1269,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 			srcUnreadable   bool
 		)
 		if err := rows.Scan(
-			&stmtID, &stmtKey, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position,
+			&stmtID, &stmtKey, &bodyMD, &conceptSlug, &topicRefSlug, &topicRefName, &position, &stage,
 			&sourceID, &locator, &quote, &manuallyVerified, &c.CheckedAt, &checkedBy,
 			&url, &pub, &kind,
 			&reviewedAt, &reviewedBy, &undecided, &proposalPending, &srcUnreadable,
@@ -1225,7 +1281,7 @@ func assembleStatements(rows pgx.Rows) []CitedStatement {
 		if !ok {
 			i = len(out)
 			out = append(out, CitedStatement{
-				ID: stmtID, Key: stmtKey, BodyMD: bodyMD, ConceptSlug: conceptSlug,
+				ID: stmtID, Key: stmtKey, BodyMD: bodyMD, ConceptSlug: conceptSlug, Stage: stage,
 				TopicRefSlug: topicRefSlug, TopicRefName: topicRefName,
 				ReviewedAt: reviewedAt, ReviewedBy: reviewedBy, Undecided: undecided, ProposalPending: proposalPending,
 			})
@@ -1265,7 +1321,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 			pb.slug, pb.title, pb.intro_md, pb.status, pb.page_kind, pb.author_notes, pb.last_reviewed_at,
 			pb.created_at, pb.updated_at, pb.published_at, pb.updated_by,
 			j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''),
-			t.id, t.slug, t.name
+			t.id, t.slug, t.name, t.national_only, COALESCE(t.rules_for, 0), t.stages
 		FROM playbooks pb
 		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
 		LEFT JOIN jurisdictions pj ON pj.id = j.parent_id
@@ -1278,7 +1334,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		&p.Playbook.CreatedAt, &p.Playbook.UpdatedAt, &p.Playbook.PublishedAt, &p.Playbook.UpdatedBy,
 		&p.Jurisdiction.ID, &p.Jurisdiction.ParentID, &p.Jurisdiction.Kind,
 		&p.Jurisdiction.Name, &p.Jurisdiction.Slug, &p.Jurisdiction.ParentSlug,
-		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name,
+		&p.Topic.ID, &p.Topic.Slug, &p.Topic.Name, &p.Topic.NationalOnly, &p.Topic.RulesFor, &p.Topic.Stages,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1288,7 +1344,7 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 	}
 	statementRows, err := pg.pool.Query(ctx, `
 		SELECT
-			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position,
+			s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''), COALESCE(tr.name, ''), ps.position, ps.stage,
 			c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
 			src.url, src.publisher, src.kind,
 			`+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`, `+proposalPendingSQL+`,

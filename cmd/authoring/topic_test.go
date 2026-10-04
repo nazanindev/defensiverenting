@@ -116,9 +116,12 @@ func TestTopicRegistry_seededWithCanonicalSet(t *testing.T) {
 	for _, tp := range topics {
 		byslug[tp.Slug] = tp
 	}
+	// The standard set every state gets (ADR-028 D2): 15 topics.
 	core := []string{
 		"cant-pay-rent", "eviction-defense", "repairs-and-habitability",
 		"security-deposits", "landlord-entry", "rent-increase", "resource-directory",
+		"breaking-lease", "lease-renewal", "locked-out", "utility-shutoff",
+		"building-sold", "move-out-bill", "discrimination", "heat-not-working",
 	}
 	for _, slug := range core {
 		tp, ok := byslug[slug]
@@ -129,12 +132,23 @@ func TestTopicRegistry_seededWithCanonicalSet(t *testing.T) {
 		if !tp.IsCore {
 			t.Errorf("topic %q should be flagged is_core", slug)
 		}
+		if tp.RulesFor != 0 || tp.NationalOnly {
+			t.Errorf("standard topic %q is flagged rules or national-only", slug)
+		}
 	}
-	// heat-not-working is deliberately kept out of the core set: it stays as a
-	// non-core topic so cold-weather cities keep the page and its URL.
-	if tp, ok := byslug["heat-not-working"]; !ok {
-		t.Error("heat-not-working missing from the registry")
-	} else if tp.IsCore {
-		t.Error("heat-not-working should be non-core")
+	// National-only topics have one page, on united-states (D6).
+	for _, slug := range []string{"move-in-checklist", "move-out-checklist", "rental-application", "assistance-animal", "renting-fundamentals"} {
+		if tp := byslug[slug]; !tp.NationalOnly || tp.IsCore {
+			t.Errorf("%q should be national-only and not core", slug)
+		}
+	}
+	// Every rules topic points at a situation topic (D4).
+	if tp := byslug["security-deposit-rules"]; tp.RulesFor != byslug["security-deposits"].ID {
+		t.Error("security-deposit-rules does not point at security-deposits")
+	}
+	for _, slug := range []string{"noise-complaints", "rent-stabilization"} {
+		if _, ok := byslug[slug]; ok {
+			t.Errorf("deleted topic %q is still in the registry", slug)
+		}
 	}
 }
