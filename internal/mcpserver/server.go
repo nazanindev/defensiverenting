@@ -56,6 +56,12 @@ func New(db store.Store) *mcp.Server {
 			"law, so the playbook layout would render them as legal steps. The reverse is allowed — " +
 			"any topic may use the directory layout when the honest answer to it is a list of places " +
 			"to go.\n\n" +
+			"A rules topic (list_topics shows rules_for) must use page_kind=\"rules\": one statement per " +
+			"concept of its situation topic, only the concepts `triage gaps` lists as gaps, each tagged " +
+			"with that concept. Concepts another page in the place already answers are refused.\n\n" +
+			"Give each playbook statement a stage copied exactly from the topic's stages in list_topics. " +
+			"Every new statement names its place (\"Ohio law says...\"), because a statement can be shown " +
+			"alone in a search result.\n\n" +
 			"Drafting Local Help: one organisation per statement, each citing that organisation's " +
 			"own page (kind \"nonprofit\") or its government program page (kind \"gov_guidance\"). " +
 			"Never cite an aggregator that is summarising other organisations; find the org's own " +

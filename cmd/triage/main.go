@@ -26,8 +26,12 @@
 //	triage reject <id>... -by <name> -note <why> [-apply]
 //	                             reject the listed drift findings with one note
 //	triage merge [-apply]        re-file triage edits a widening superseded, quote carried
+//	triage gaps <place> [<rules-topic>]
+//	                             a place's rules-page gaps: each concept answered, no law found, or a gap (ADR-028)
+//	triage nolaw <records.json> [-by <name>] [-apply]
+//	                             file "searched, no law found" coverage records (ADR-028 D5)
 //
-// stands, reject, and decide are the subcommands that write. stands and
+// stands, reject, decide and nolaw are the subcommands that write. stands and
 // reject each record a person's decision over many items in one run
 // instead of one click per item: stands closes the notes a triage pass
 // judged fine; reject closes drift findings the checker should not have
@@ -116,6 +120,10 @@ func main() {
 		merge(ctx, pg, os.Args[2:])
 	case "decide":
 		decide(ctx, pg, os.Args[2:])
+	case "gaps":
+		gaps(ctx, pg, os.Args[2:])
+	case "nolaw":
+		nolaw(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
@@ -129,7 +137,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-apply]")
 	os.Exit(2)
 }
 

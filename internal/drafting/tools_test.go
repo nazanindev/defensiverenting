@@ -116,9 +116,11 @@ func isRejection(err error) bool {
 
 const depositURL = "https://malegislature.gov/Laws/GeneralLaws/PartII/TitleI/Chapter186/Section15B"
 
+// stmt names Boston in every body: new statements must name their place
+// (ADR-028 D11), and these tests are about other guardrails.
 func stmt(body, url, quote string) StatementInput {
 	return StatementInput{
-		BodyMD:    body,
+		BodyMD:    "In Boston, " + body,
 		Citations: []CitationInput{{URL: url, Publisher: "MA Legislature", Kind: "statute", Locator: "§ 15B", Quote: quote}},
 	}
 }
@@ -553,7 +555,7 @@ func TestSaveDraft_DefaultsToPlaybookWhenPageKindOmitted(t *testing.T) {
 		Title:            "Boston Security Deposits",
 		IntroMD:          "What Boston renters should know.",
 		Statements: []StatementInput{
-			orgStmt("Example Legal Aid gives free legal help to renters.",
+			orgStmt("In Boston, Example Legal Aid gives free legal help to renters.",
 				"We provide free legal help to tenants in Allegheny County"),
 		},
 	})

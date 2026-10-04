@@ -394,7 +394,7 @@ func defaultKind(k string) string {
 
 // validPageKinds mirrors the CHECK constraint on playbooks.page_kind.
 var validPageKinds = map[string]bool{
-	"playbook": true, "directory": true, "faq": true, "checklist": true,
+	"playbook": true, "directory": true, "faq": true, "checklist": true, "rules": true,
 }
 
 // localHelpTopic is the topic whose subject is "where to get help": a list of
@@ -438,9 +438,61 @@ func resolvePageKind(k string) (string, error) {
 		return "playbook", nil
 	}
 	if !validPageKinds[k] {
-		return "", reject("page_kind %q is not valid. Use \"playbook\" (or omit it), \"directory\" for a list of local organisations and services, \"faq\", or \"checklist\".", k)
+		return "", reject("page_kind %q is not valid. Use \"playbook\" (or omit it), \"directory\" for a list of local organisations and services, \"faq\", \"checklist\", or \"rules\" for a rules topic (ADR-028).", k)
 	}
 	return k, nil
+}
+
+// checkRulesPage enforces what a rules page is (ADR-028 D4): a page on a
+// rules topic, laid out as rules, holding one answer per concept homed in
+// its situation topic, and only the answers no other page in the place
+// already gives. A rules page is a playbook in every other way: the same
+// save, loop, stamps and publish gate.
+func (tb *Toolbelt) checkRulesPage(ctx context.Context, jur store.Jurisdiction, topic store.Topic, pageKind, lang string, stmts []StatementInput) error {
+	isRules := topic.RulesFor != 0
+	if isRules != (pageKind == "rules") {
+		if isRules {
+			return reject("topic %q is a rules topic, so the page must be saved with page_kind=\"rules\"", topic.Slug)
+		}
+		return reject("page_kind=\"rules\" is only for a rules topic (one ending in -rules). Topic %q is a situation topic", topic.Slug)
+	}
+	if topic.NationalOnly && jur.Kind != "country" {
+		return reject("topic %q is national only: it has one page, on united-states. A state's own rules for it go on a rules page", topic.Slug)
+	}
+	if !isRules {
+		return nil
+	}
+	concepts, err := tb.db.ListConcepts(ctx)
+	if err != nil {
+		return err
+	}
+	home := map[string]bool{}
+	var choices []string
+	for _, c := range concepts {
+		if c.TopicID == topic.RulesFor {
+			home[c.Slug] = true
+			choices = append(choices, c.Slug)
+		}
+	}
+	seen := map[string]bool{}
+	for si, st := range stmts {
+		c := strings.TrimSpace(st.Concept)
+		if !home[c] {
+			return reject("statement %d: every statement on a rules page answers one concept of this topic. Tag it with one of: %s", si+1, strings.Join(choices, ", "))
+		}
+		if seen[c] {
+			return reject("statement %d: concept %q is already answered on this page. A rules page gives one answer per concept; put the rest of the rule in that statement or drop it", si+1, c)
+		}
+		seen[c] = true
+		where, err := tb.db.ConceptAnsweredElsewhere(ctx, jur.ID, topic.ID, c, lang)
+		if err != nil {
+			return err
+		}
+		if where != "" {
+			return reject("statement %d: concept %q is already answered on %q in this place. The rules page shows that statement from there; do not write a second one", si+1, c, where)
+		}
+	}
+	return nil
 }
 
 // ResolveLanguage defaults to English and rejects any code voice has no
@@ -465,4 +517,46 @@ func ResolveLanguage(lang string) (string, error) {
 		}
 	}
 	return "", reject("language %q is not supported. Use one of: %s.", lang, strings.Join(voice.Supported(), ", "))
+}
+
+// placeNames are the names a statement on this place's page may use to name
+// its place (ADR-028 D11): the place, and for a city its state, since city
+// pages state state law ("Pennsylvania law..."). Nil for the nationwide
+// page, whose statements name federal law or say how states differ.
+func placeNames(j store.Jurisdiction) []string {
+	if j.Kind == "country" {
+		return nil
+	}
+	names := []string{j.Name}
+	if j.Kind == "city" && j.ParentName != "" {
+		names = append(names, j.ParentName)
+	}
+	for _, n := range names {
+		if strings.Contains(n, "District of Columbia") || strings.Contains(n, "DC") {
+			names = append(names, "District of Columbia", "D.C.", "DC", "Washington")
+			break
+		}
+	}
+	return names
+}
+
+// checkStages refuses a stage the topic does not list (ADR-028 D10): the
+// store refuses it too, but here the rejection names the choices.
+func checkStages(topic store.Topic, stmts []StatementInput) error {
+	ok := map[string]bool{}
+	for _, st := range topic.Stages {
+		ok[st] = true
+	}
+	for si, st := range stmts {
+		stage := strings.TrimSpace(st.Stage)
+		if stage == "" || ok[stage] {
+			continue
+		}
+		if len(topic.Stages) == 0 {
+			return reject("statement %d has stage %q, but topic %q has no stage headings. Omit stage", si+1, stage, topic.Slug)
+		}
+		return reject("statement %d has stage %q, which is not one of topic %q's stages. Copy one exactly: %s",
+			si+1, stage, topic.Slug, strings.Join(topic.Stages, " | "))
+	}
+	return nil
 }

@@ -270,7 +270,7 @@ type Playbook struct {
 	Title          string
 	IntroMD        string
 	Status         string
-	PageKind       string // playbook|directory|faq|checklist
+	PageKind       string // playbook|directory|faq|checklist|rules
 	// AuthorNotes is authoring-portal working text. Only the authoring queries
 	// populate it; the public render path never reads it.
 	AuthorNotes    string

@@ -127,6 +127,8 @@ type StatementInput struct {
 	Concept string `json:"concept,omitempty" jsonschema:"optional concept slug from the closed registry, tagging a claim that recurs across jurisdictions (e.g. retaliation-protection, deposit-return-deadline). Any registry slug is accepted on any page — tag the statement making the claim wherever it lives. Leave page-specific procedure untagged. Never invent slugs."`
 	// TopicRef marks a statement that summarizes a whole subject the site
 	// covers as its own pages, rather than making one claim.
+	// Stage is the statement's stage heading (ADR-028 D10).
+	Stage     string          `json:"stage,omitempty" jsonschema:"the stage heading this statement sits under, copied exactly from the topic's stages in list_topics (e.g. \"What the law says\"). Pick from the list; never write a new heading. Omit on rules pages, which use question headings, and on topics with no stages. When revising, omit to keep the stage the statement already has."`
 	TopicRef  string          `json:"topic_ref,omitempty" jsonschema:"optional topic slug from list_topics, for a statement that is a one-paragraph summary of an entire subject (e.g. a fundamentals statement about safe housing points at repairs-and-habitability). Mutually exclusive with concept. Never set it to this page's own topic."`
 	Citations []CitationInput `json:"citations" jsonschema:"at least one citation quoting a fetched source"`
 	// ReviewerNote carries the agent's doubt about this claim into the
@@ -150,7 +152,7 @@ type SaveDraftInput struct {
 	// "where to get help" belongs on its own directory page under the
 	// resource-directory topic instead of repeated at the foot of every
 	// playbook.
-	PageKind   string           `json:"page_kind,omitempty" jsonschema:"playbook|directory|faq|checklist. Omit for playbook. Use \"directory\" for a page listing local organisations and services, where each statement is one organisation and its citation is that organisation's own page."`
+	PageKind   string           `json:"page_kind,omitempty" jsonschema:"playbook|directory|faq|checklist|rules. Omit for playbook. Use \"directory\" for a page listing local organisations and services, where each statement is one organisation and its citation is that organisation's own page. Use \"rules\" for a page on a rules topic (list_topics shows rules_for)."`
 	Statements []StatementInput `json:"statements"`
 	// Language keys this playbook against jurisdiction+topic+language, so a
 	// translation is a separate row beside the English one rather than a
@@ -238,7 +240,21 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	for si, st := range in.Statements {
 		texts[fmt.Sprintf("statement %d body_md", si+1)] = st.BodyMD
 	}
-	if violations := voice.LintAll(lang, texts); len(violations) > 0 {
+	violations := voice.LintAll(lang, texts)
+	// Every new statement names its place (ADR-028 D11): a passage shown
+	// alone in a search result loses the page title. Statements already on
+	// the page (they carry a key) are not retrofitted, and a directory's
+	// entries are organisations, not claims about the law.
+	if names := placeNames(jur); len(names) > 0 && (pageKind == "playbook" || pageKind == "rules") {
+		for si, st := range in.Statements {
+			if strings.TrimSpace(st.Key) == "" {
+				if v := voice.PlaceViolation(st.BodyMD, names); v != "" {
+					violations = append(violations, fmt.Sprintf("statement %d body_md: %s", si+1, v))
+				}
+			}
+		}
+	}
+	if len(violations) > 0 {
 		return SaveDraftOutput{}, reject("draft rejected by the editorial-voice lint. Rewrite the flagged text in plain language and save again (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 	}
 
@@ -333,6 +349,12 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	if err := tb.validateConcepts(ctx, in.TopicSlug, in.Statements); err != nil {
 		return SaveDraftOutput{}, err
 	}
+	if err := tb.checkRulesPage(ctx, jur, topic, pageKind, lang, in.Statements); err != nil {
+		return SaveDraftOutput{}, err
+	}
+	if err := checkStages(topic, in.Statements); err != nil {
+		return SaveDraftOutput{}, err
+	}
 
 	stmts := make([]store.IngestStatementParams, 0, len(in.Statements))
 	for _, st := range in.Statements {
@@ -363,6 +385,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 			Language:     lang,
 			ConceptSlug:  strings.TrimSpace(st.Concept),
 			TopicRefSlug: strings.TrimSpace(st.TopicRef),
+			Stage:        strings.TrimSpace(st.Stage),
 			ReviewerNote: withNarrowQuoteNotes(strings.TrimSpace(st.ReviewerNote), st.Citations),
 			Sources:      cites,
 		})
@@ -447,8 +470,12 @@ type ListTopicsOutput struct {
 type TopicOut struct {
 	Slug    string `json:"slug"`
 	Name    string `json:"name"`
-	IsCore  bool   `json:"is_core" jsonschema:"true for the topics every city should cover"`
+	IsCore  bool   `json:"is_core" jsonschema:"true for the standard topics every state should cover"`
 	HasPage bool   `json:"has_page" jsonschema:"true when this city already has a published playbook for the topic in the requested language"`
+	// ADR-028: national-only topics, rules topics, and stage headings.
+	NationalOnly bool     `json:"national_only,omitempty" jsonschema:"true when the topic has one page, on united-states, and never a state or city page"`
+	RulesFor     string   `json:"rules_for,omitempty" jsonschema:"set on a rules topic: the situation topic whose concepts its rules page answers. Save its page with page_kind=\"rules\", one statement per concept, only for concepts triage gaps lists as gaps"`
+	Stages       []string `json:"stages,omitempty" jsonschema:"the fixed stage headings for a playbook on this topic, in order. Give each statement one of these, copied exactly"`
 }
 
 // ListTopics returns the whole topic registry, marking which ones this city
@@ -482,10 +509,15 @@ func (tb *Toolbelt) ListTopics(ctx context.Context, in ListTopicsInput) (ListTop
 	for _, t := range covered {
 		hasPage[t.ID] = true
 	}
+	slugOf := make(map[int64]string, len(registry))
+	for _, t := range registry {
+		slugOf[t.ID] = t.Slug
+	}
 	out := ListTopicsOutput{Topics: make([]TopicOut, 0, len(registry))}
 	for _, t := range registry {
 		out.Topics = append(out.Topics, TopicOut{
 			Slug: t.Slug, Name: t.Name, IsCore: t.IsCore, HasPage: hasPage[t.ID],
+			NationalOnly: t.NationalOnly, RulesFor: slugOf[t.RulesFor], Stages: t.Stages,
 		})
 	}
 	return out, nil

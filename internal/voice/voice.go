@@ -565,3 +565,22 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// PlaceViolation reports a statement that never names its place (ADR-028
+// D11). Search engines and AI answers show one passage without its page, so
+// "Your landlord must return your deposit within 30 days" read alone is
+// wrong for every reader not in that state. Any one of names, as a whole
+// word or phrase, satisfies it.
+func PlaceViolation(text string, names []string) string {
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		re := regexp.MustCompile(`(?i)(^|[^\pL])` + regexp.QuoteMeta(n) + `($|[^\pL])`)
+		if re.MatchString(text) {
+			return ""
+		}
+	}
+	return fmt.Sprintf("name the place in the statement (for example %q): a statement can be shown alone in a search result, without the page title", names[0]+" law says...")
+}
