@@ -48,15 +48,16 @@ func TestHelpOrgs_answersAndContacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var o *store.HelpOrg
+	found := -1
 	for i := range orgs {
 		if orgs[i].Host == host {
-			o = &orgs[i]
+			found = i
 		}
 	}
-	if o == nil {
+	if found < 0 {
 		t.Fatal("org missing")
 	}
+	o := orgs[found]
 	if o.Status != store.OrgOK || o.InfoCorrect != store.InfoNeedsChanges || o.InfoChanges != "New intake number." {
 		t.Fatalf("answers = %s / %s / %q", o.Status, o.InfoCorrect, o.InfoChanges)
 	}

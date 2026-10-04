@@ -30,6 +30,7 @@ var orgScriptMD []byte
 var orgScriptHTML = func() template.HTML {
 	var buf bytes.Buffer
 	if err := goldmark.New(goldmark.WithExtensions(extension.GFM)).Convert(orgScriptMD, &buf); err != nil {
+		//nolint:gosec // The text is escaped right here before it is marked safe.
 		return template.HTML("<pre>" + template.HTMLEscapeString(string(orgScriptMD)) + "</pre>")
 	}
 	//nolint:gosec // The script is a file in this repo, not user input.
@@ -90,12 +91,14 @@ func sortOrgs(orgs []store.HelpOrg, key, dir string) {
 // orgsView is the Orgs page's sort state, for the column links.
 type orgsView struct{ Sort, Dir string }
 
-func (v orgsView) SortLink(col string) template.URL {
+// SortLink is a plain string: html/template escapes it in the href, and the
+// column names come from orgSortable, never from the request.
+func (v orgsView) SortLink(col string) string {
 	dir := "asc"
 	if v.Sort == col && v.Dir == "asc" {
 		dir = "desc"
 	}
-	return template.URL("/orgs?sort=" + col + "&dir=" + dir)
+	return "/orgs?sort=" + col + "&dir=" + dir
 }
 
 func (v orgsView) Arrow(col string) string {
