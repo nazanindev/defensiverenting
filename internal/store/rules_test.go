@@ -277,3 +277,38 @@ func TestEditorialOnly_answersNoConcept(t *testing.T) {
 		t.Fatalf("editorial advice blocked a no-law record: %v", err)
 	}
 }
+
+func TestStage_splitFollowersKeepTheLeadsStage(t *testing.T) {
+	pg, j := rulesFixture(t)
+	ctx := context.Background()
+	if err := ingestTagged(t, pg, j.ID, "security-deposits", "draft", "",
+		[2]string{"", "What the law says"},
+		[2]string{"", "Ask for your deposit back"}); err != nil {
+		t.Fatal(err)
+	}
+	id := pageID(t, pg, j.ID, "security-deposits", "draft")
+	pw, err := pg.AuthorGetPlaybook(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := pw.Statements[0].Citations[0].SourceID
+	pid, err := pg.FileProposal(ctx, store.FileProposalParams{StatementKey: pw.Statements[0].Key, PlaybookID: id, Reason: "agent-pass:triage", ProposedBy: "triage agent",
+		Proposed: &store.ProposedStatement{BodyMD: "Rulesland law says the first half.", Citations: []store.ProposedCitation{{URL: "https://example.gov/rules-" + t.Name(), Quote: "verbatim"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cite := []store.IngestCitationParams{{SourceID: src, Locator: "§ 1", Quote: "verbatim"}}
+	if err := pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: pid, By: store.ActorReviewAgent,
+		Statement: store.IngestStatementParams{BodyMD: "Rulesland law says the first half.", Sources: cite},
+		Followers: []store.IngestStatementParams{{BodyMD: "Rulesland law says the second half.", Sources: cite}}}); err != nil {
+		t.Fatal(err)
+	}
+	pw, _ = pg.AuthorGetPlaybook(ctx, id)
+	var got []string
+	for _, s := range pw.Statements {
+		got = append(got, s.Stage)
+	}
+	if strings.Join(got, "|") != "What the law says|What the law says|Ask for your deposit back" {
+		t.Fatalf("stages after split = %q", got)
+	}
+}

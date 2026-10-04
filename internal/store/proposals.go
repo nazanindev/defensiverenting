@@ -771,8 +771,15 @@ func pageActionTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string, 
 		st := p.Statement
 		st.Key, st.Language = key, params.Language
 		merged := []IngestStatementParams{st}
+		stage, err := stageOfKeyTx(ctx, tx, playbookID, key)
+		if err != nil {
+			return err
+		}
 		for _, f := range p.Followers {
 			f.Key, f.Language = "", params.Language
+			if f.Stage == "" {
+				f.Stage = stage
+			}
 			merged = append(merged, f)
 		}
 		next := make([]IngestStatementParams, 0, len(current)+len(p.Followers))
@@ -831,10 +838,17 @@ func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key st
 			st.Language = params.Language
 			current[i] = st
 			if len(followers) > 0 {
+				stage, err := stageOfKeyTx(ctx, tx, playbookID, key)
+				if err != nil {
+					return err
+				}
 				tail := append([]IngestStatementParams{}, current[i+1:]...)
 				current = current[:i+1]
 				for _, f := range followers {
 					f.Key, f.Language = "", params.Language
+					if f.Stage == "" {
+						f.Stage = stage
+					}
 					current = append(current, f)
 				}
 				current = append(current, tail...)
@@ -848,6 +862,25 @@ func replaceStatementTx(ctx context.Context, tx pgx.Tx, playbookID int64, key st
 	}
 	params.Statements = current
 	return authorUpdatePlaybookTx(ctx, tx, params)
+}
+
+// stageOfKeyTx is the stage the statement with this key sits under on the
+// page. A split's followers land under the same heading as the statement
+// they were split from (ADR-028 D10), since they carry new keys and the
+// save's carry-by-key cannot place them.
+func stageOfKeyTx(ctx context.Context, tx pgx.Tx, playbookID int64, key string) (string, error) {
+	var stage string
+	err := tx.QueryRow(ctx, `
+		SELECT ps.stage FROM playbook_statements ps
+		JOIN statements s ON s.id = ps.statement_id
+		WHERE ps.playbook_id = $1 AND s.key = $2::uuid`, playbookID, key).Scan(&stage)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read stage of %s: %w", key, err)
+	}
+	return stage, nil
 }
 
 // statementParams reads a page's statements back in the shape the save
