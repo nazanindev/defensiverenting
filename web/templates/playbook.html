@@ -224,8 +224,8 @@
             <a href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">{{ui $l "report-tell-us"}}</a>.
           </p>
 
-          {{/* "Did this page help?" Counts only: nothing about the reader is
-               kept. Hidden until the script runs, so a reader without JS never
+          {{/* "Did this page help?" Counts only, one per reader per page per
+               day (store.RecordHelpful). Hidden until the script runs, so a reader without JS never
                sees buttons that do nothing; the browser remembers an answer so
                the same reader is not asked twice. Never on a draft preview. */}}
           {{if not .Preview}}
