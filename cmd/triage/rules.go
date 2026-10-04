@@ -117,3 +117,76 @@ func nolaw(ctx context.Context, pg *store.PG, args []string) {
 		fmt.Printf("%d of %d filed\n", filed, len(entries))
 	}
 }
+
+// retagEntry is one tag decision: the statement, the concept it should carry
+// ("" to take a wrong tag off), and why.
+type retagEntry struct {
+	Key     string `json:"key"`
+	Concept string `json:"concept"`
+	Why     string `json:"why"`
+}
+
+// retag turns tag decisions into a propose file (ADR-028 D9 step 3): each
+// statement as it stands, with only its concept changed. Body and citations
+// are copied unchanged, so a person approving it changes the tag and nothing
+// else. Reads only; cmd/propose files the output.
+func retag(ctx context.Context, pg *store.PG, path string) {
+	raw, err := os.ReadFile(path) // #nosec G703 G304 -- the operator names the file
+	if err != nil {
+		fatal(err)
+	}
+	var entries []retagEntry
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		fatal(fmt.Errorf("decode %s: %w", path, err))
+	}
+	concepts, err := pg.ListConcepts(ctx)
+	if err != nil {
+		fatal(err)
+	}
+	known := map[string]bool{}
+	for _, c := range concepts {
+		known[c.Slug] = true
+	}
+	type proposal struct {
+		StatementKey string                   `json:"statement_key"`
+		Reason       string                   `json:"reason"`
+		Proposed     *store.ProposedStatement `json:"proposed"`
+		Evidence     map[string]string        `json:"evidence"`
+	}
+	var out []proposal
+	for i, e := range entries {
+		if e.Concept != "" && !known[e.Concept] {
+			fmt.Fprintf(os.Stderr, "entry %d: %q is not a registry concept\n", i+1, e.Concept)
+			continue
+		}
+		st, err := pg.StatementByKey(ctx, e.Key)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "entry %d: %s: %v\n", i+1, e.Key, err)
+			continue
+		}
+		if st.Concept == e.Concept {
+			continue
+		}
+		if st.TopicRef != "" && e.Concept != "" {
+			fmt.Fprintf(os.Stderr, "entry %d: %s is a whole-topic summary; it carries no concept\n", i+1, e.Key)
+			continue
+		}
+		from := st.Concept
+		st.Concept = e.Concept
+		out = append(out, proposal{
+			StatementKey: e.Key,
+			Reason:       "agent-pass:retag",
+			Proposed:     &st,
+			Evidence:     map[string]string{"note": "Tag change only (ADR-028 D9): " + tagLabel(from) + " to " + tagLabel(e.Concept) + ". " + e.Why},
+		})
+	}
+	fmt.Fprintf(os.Stderr, "%d of %d entries change a tag\n", len(out), len(entries))
+	emit(out)
+}
+
+func tagLabel(slug string) string {
+	if slug == "" {
+		return "no tag"
+	}
+	return slug
+}

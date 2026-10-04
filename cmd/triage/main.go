@@ -30,6 +30,7 @@
 //	                             a place's rules-page gaps: each concept answered, no law found, or a gap (ADR-028)
 //	triage nolaw <records.json> [-by <name>] [-apply]
 //	                             file "searched, no law found" coverage records (ADR-028 D5)
+//	triage retag <tags.json>     tag decisions [{key, concept, why}] as a propose file, tag change only (ADR-028 D9)
 //
 // stands, reject, decide and nolaw are the subcommands that write. stands and
 // reject each record a person's decision over many items in one run
@@ -124,6 +125,8 @@ func main() {
 		gaps(ctx, pg, os.Args[2:])
 	case "nolaw":
 		nolaw(ctx, pg, os.Args[2:])
+	case "retag":
+		retag(ctx, pg, arg(2))
 	default:
 		usage()
 	}
@@ -137,7 +140,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-apply] | retag <tags.json>")
 	os.Exit(2)
 }
 
