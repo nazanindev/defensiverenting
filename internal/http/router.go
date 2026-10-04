@@ -66,6 +66,10 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 		r.Get("/sitemap.xml", handlers.Sitemap(db, cfg.SiteURL))
 	})
 
+	// "Did this page help?" answers. A POST that changes a count, so it sits
+	// outside the cached browse group.
+	r.Post(handlers.HelpfulPath, handlers.Helpful(db, logger))
+
 	// Reader accounts (ADR-017) — personal, never cached. Mounted outside the
 	// browse group so nothing here inherits the public cache header.
 	handlers.Account(r, db, logger, handlers.AccountConfig{

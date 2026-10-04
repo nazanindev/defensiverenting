@@ -1410,6 +1410,16 @@ input:focus-visible,
 
 .report-link a { color: var(--accent); }
 
+/* "Did this page help?" sits under the report line, as quiet as it. */
+.helpful p { margin: .75rem 0 0; font-size: .92rem; color: var(--ink-soft); }
+.helpful-ask:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.helpful-ask span { margin-right: 4px; }
+.helpful-ask button {
+  font: inherit; color: var(--accent); background: none; cursor: pointer;
+  border: 1px solid currentColor; border-radius: 8px; padding: 4px 14px;
+}
+.helpful-ask button:hover { background: var(--accent); color: white; }
+
 
 /* Concept-page place filter (progressive enhancement; hidden until JS runs) */
 /* ADR-020 D3: the state picker and the fold behind the reader's answer. The

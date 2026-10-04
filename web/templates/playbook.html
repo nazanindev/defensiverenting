@@ -223,6 +223,42 @@
             {{ui $l "report-question"}}
             <a href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">{{ui $l "report-tell-us"}}</a>.
           </p>
+
+          {{/* "Did this page help?" Counts only: nothing about the reader is
+               kept. Hidden until the script runs, so a reader without JS never
+               sees buttons that do nothing; the browser remembers an answer so
+               the same reader is not asked twice. Never on a draft preview. */}}
+          {{if not .Preview}}
+          <div class="helpful" data-helpful="{{.Playbook.ID}}" hidden>
+            <p class="helpful-ask">
+              <span>{{ui $l "helpful-question"}}</span>
+              <button type="button" value="yes">{{ui $l "helpful-yes"}}</button>
+              <button type="button" value="no">{{ui $l "helpful-no"}}</button>
+            </p>
+            <p class="helpful-thanks" hidden>{{ui $l "helpful-thanks"}}</p>
+          </div>
+          <script>
+          (function () {
+            var box = document.querySelector('[data-helpful]');
+            if (!box) return;
+            var id = box.getAttribute('data-helpful');
+            var KEY = 'renterlaw.helpful.' + id;
+            var ask = box.querySelector('.helpful-ask');
+            var thanks = box.querySelector('.helpful-thanks');
+            function done() { ask.hidden = true; thanks.hidden = false; }
+            try { if (localStorage.getItem(KEY)) done(); } catch (e) {}
+            box.hidden = false;
+            ask.addEventListener('click', function (ev) {
+              var b = ev.target.closest('button');
+              if (!b) return;
+              done();
+              try { localStorage.setItem(KEY, b.value); } catch (e) {}
+              var body = new URLSearchParams({ p: id, a: b.value });
+              fetch('/helpful', { method: 'POST', body: body, keepalive: true }).catch(function () {});
+            });
+          })();
+          </script>
+          {{end}}
         </main>
 
         {{if .SiblingTopics}}
