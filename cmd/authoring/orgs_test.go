@@ -33,7 +33,7 @@ func TestOrgsTemplate_rendersEachKindOfOrg(t *testing.T) {
 	for _, want := range []string{
 		"Follow up today", "Asking the board.", "Ana, director", "Not contacted", "Said yes", "Public",
 		"Hiding is not on yet", `id="smalltenants.example"`, "This org is built for public traffic",
-		"This is a small local org: contact first",
+		"This is a small local org: contact first", "Turn hiding on",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("orgs page lacks %q", want)

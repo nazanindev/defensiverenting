@@ -65,6 +65,11 @@
   <h1>Orgs</h1>
   <p class="lede">Small local orgs are contacted before we send them renters (ADR-029). A contact-first org shows on the live site only after it says yes. {{.Waiting}} waiting, {{.Listed}} said yes. {{if .Hiding}}Hiding is on: readers do not see orgs that have not said yes.{{else}}Hiding is not on yet, so readers still see every org.{{end}}</p>
 
+  <form method="post" action="/orgs/hiding" style="margin-bottom:18px" onsubmit="return confirm('{{if .Hiding}}Turn hiding off? Readers will see every org again, including ones that said no.{{else}}Turn hiding on? Readers will stop seeing every org that has not said yes.{{end}}')">
+    <input type="hidden" name="hiding" value="{{if .Hiding}}off{{else}}on{{end}}">
+    <button class="btn{{if not .Hiding}} btn-primary{{end}}">{{if .Hiding}}Turn hiding off{{else}}Turn hiding on{{end}}</button>
+  </form>
+
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
 

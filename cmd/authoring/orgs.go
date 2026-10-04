@@ -93,6 +93,26 @@ func (s *srv) orgContact(w http.ResponseWriter, r *http.Request) {
 	orgsBack(w, r, host, "msg", "Logged.")
 }
 
+// orgHiding turns hiding on or off (ADR-029 D5). Turning it on is refused
+// while any live Local Help page lacks public help; the refusal names them.
+func (s *srv) orgHiding(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	on := r.PostForm.Get("hiding") == "on"
+	if err := s.pg.SetHelpHiding(r.Context(), on); err != nil {
+		http.Redirect(w, r, "/orgs?err="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	s.log.Info("help hiding changed", "on", on, "by", actor(r))
+	msg := "Hiding is on. Readers no longer see orgs that have not said yes."
+	if !on {
+		msg = "Hiding is off. Readers see every org again."
+	}
+	http.Redirect(w, r, "/orgs?msg="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
 func (s *srv) orgType(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
