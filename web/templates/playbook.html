@@ -93,9 +93,46 @@
             <strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}
           </div>
 
-          {{if .Statements}}
+          {{if or .Statements .Rules}}
 
-          {{if eq .Playbook.PageKind "directory"}}
+          {{if eq .Playbook.PageKind "rules"}}
+          {{/* ADR-028 D4, D10: a rules page asks each question with the
+               place in it, and answers it with one statement, shown from
+               the situation guide that carries it when one does, or with a
+               dated line saying we looked and found no law. */}}
+          <div class="rules-list">
+            {{range .Rules}}
+            <section class="rules-entry" id="{{.Anchor}}">
+              <h2 class="rules-question">{{.Heading}}</h2>
+              {{with .Statement}}
+              <div class="statement-item" id="s-{{.Key}}">
+                <div class="statement-body">{{.BodyHTML}}</div>
+                <div class="citation-chips" aria-label="{{ui $l "sources"}}">
+                  {{range .Citations}}
+                  <a class="{{chipClass .SourceKind}}"
+                     href="{{.URL}}"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
+                    {{chipLabel .Label .Locator}}
+                  </a>
+                  {{end}}
+                </div>
+                {{if .CheckedOn}}
+                <p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.CheckedOn}}</p>
+                {{end}}
+              </div>
+              {{end}}
+              {{if .FromPath}}
+              <p class="statement-specifics">What to do about it: <a href="{{.FromPath}}">{{.FromTitle}}</a></p>
+              {{end}}
+              {{with .NoLaw}}<p class="rules-nolaw">{{.}}</p>{{end}}
+              <p class="statement-specifics"><a href="{{.ConceptPath}}">{{ui $l "rule-everywhere"}}</a></p>
+            </section>
+            {{end}}
+          </div>
+
+          {{else if eq .Playbook.PageKind "directory"}}
           {{/* One card per organisation, not per statement: an organisation
                needs several statements (number, hours, who qualifies, what it
                will not do) and splitting them left a reader guessing which
@@ -175,9 +212,17 @@
           </ul>
 
           {{else}}
-          <ol class="statement-list">
+          {{/* ADR-028 D10: stage headings say where the renter is in the
+               process. The numbering runs on across headings. */}}
+          {{range .StageGroups}}
+          {{if .Heading}}<h2 class="stage-heading">{{.Heading}}</h2>{{end}}
+          <ol class="statement-list"{{if gt .Start 1}} start="{{.Start}}"{{end}}>
             {{range .Statements}}
-            <li class="statement-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
+            {{/* id is the statement's durable key (ADR-028 D11), so a link
+                 to one claim survives edits. The concept anchor stays for
+                 the deep links concept pages already make. */}}
+            <li class="statement-item"{{if .Key}} id="s-{{.Key}}"{{end}}>
+              {{if .Anchor}}<span class="anchor" id="{{.Anchor}}"></span>{{end}}
               <div class="statement-body">{{.BodyHTML}}</div>
               <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                 {{range .Citations}}
@@ -213,6 +258,7 @@
             </li>
             {{end}}
           </ol>
+          {{end}}
           {{end}}
 
           {{else}}

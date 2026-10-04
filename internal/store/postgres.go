@@ -1094,6 +1094,10 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		pageKind = "playbook"
 	}
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		pageKind, err := kindForTopic(ctx, tx, params.TopicID, pageKind)
+		if err != nil {
+			return err
+		}
 		if !params.AllowIncomplete {
 			if err := validateStatuteLocators(ctx, tx, params.Statements); err != nil {
 				return err
@@ -1105,7 +1109,7 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		// (ON CONFLICT cannot express this: the uniqueness is enforced by two
 		// partial indexes, and the applicable one depends on status.)
 		var playbookID int64
-		err := tx.QueryRow(ctx, `
+		err = tx.QueryRow(ctx, `
 			SELECT id FROM playbooks
 			 WHERE jurisdiction_id = $1 AND topic_id = $2 AND language = $3 AND status = $4`,
 			params.JurisdictionID, params.TopicID, params.Language, status,
@@ -1166,6 +1170,24 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 		}
 		return nil
 	})
+}
+
+// kindForTopic keeps the rules layout and rules topics together (ADR-028
+// D4): a page on a rules topic is always laid out as rules, whatever the
+// caller sent, and no other topic may use that layout. Every save path goes
+// through it, so the authoring form cannot turn a rules page into a playbook.
+func kindForTopic(ctx context.Context, tx pgx.Tx, topicID int64, pageKind string) (string, error) {
+	var isRules bool
+	if err := tx.QueryRow(ctx, `SELECT rules_for IS NOT NULL FROM topics WHERE id = $1`, topicID).Scan(&isRules); err != nil {
+		return "", fmt.Errorf("read topic: %w", err)
+	}
+	if isRules {
+		return "rules", nil
+	}
+	if pageKind == "rules" {
+		return "", errors.New("the rules layout is only for a rules topic")
+	}
+	return pageKind, nil
 }
 
 // writeStatement is the one place a statement lands on a page: the row, its
@@ -1426,6 +1448,10 @@ func authorUpdatePlaybookTx(ctx context.Context, tx pgx.Tx, params AuthorUpdateP
 		pageKind := params.PageKind
 		if pageKind == "" {
 			pageKind = "playbook"
+		}
+		pageKind, err = kindForTopic(ctx, tx, params.TopicID, pageKind)
+		if err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE playbooks

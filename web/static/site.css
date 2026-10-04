@@ -431,6 +431,24 @@ h1 {
 
 .statement-body p { margin: 0; }
 
+/* ADR-028 D10: a stage heading says where the renter is in the process. It
+   sits between runs of statement cards, quieter than the page title. */
+.stage-heading {
+  font-size: 1.35rem;
+  margin: 36px 0 14px;
+}
+.stage-heading:first-child { margin-top: 0; }
+.statement-list + .stage-heading { margin-top: 40px; }
+
+/* A rules page: one question heading per concept, each over its answer. */
+.rules-entry { margin-bottom: 40px; }
+.rules-question { font-size: 1.35rem; margin: 0 0 14px; }
+.rules-nolaw {
+  font-size: 1.05rem;
+  color: var(--ink-soft, #6b5555);
+  max-width: 70ch;
+}
+
 /* ── Reference layer (ADR-012): term lists and concept pages ───── */
 
 /* Reference pages breathe on their own. main.wrap carries no vertical
@@ -487,7 +505,8 @@ h1 {
 
 /* A reader arriving through a concept anchor needs to see which statement
    they were sent to; :target does that without any script. */
-.statement-item:target, .directory-entry:target, .faq-item:target, .checklist-item:target {
+.statement-item:target, .directory-entry:target, .faq-item:target, .checklist-item:target,
+.statement-item:has(> .anchor:target), .rules-entry:target .statement-item {
   outline: 2px solid var(--brand, #9b2335);
   outline-offset: 2px;
 }

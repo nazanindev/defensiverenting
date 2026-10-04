@@ -222,3 +222,22 @@ func TestCoverageRecord_invariants(t *testing.T) {
 		t.Fatalf("deposit-receipt answered on %q", title)
 	}
 }
+
+// A rules topic is always laid out as rules, and no other topic may use the
+// layout (ADR-028 D4), on every save path.
+func TestRulesLayout_followsTheTopic(t *testing.T) {
+	pg, j := rulesFixture(t)
+	if err := ingestTagged(t, pg, j.ID, "security-deposit-rules", "draft", "playbook", [2]string{"deposit-cap", ""}); err != nil {
+		t.Fatal(err)
+	}
+	pw, err := pg.AuthorGetPlaybook(context.Background(), pageID(t, pg, j.ID, "security-deposit-rules", "draft"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pw.Playbook.PageKind != "rules" {
+		t.Fatalf("a rules topic saved as %q", pw.Playbook.PageKind)
+	}
+	if err := ingestTagged(t, pg, j.ID, "security-deposits", "draft", "rules", [2]string{"deposit-cap", ""}); err == nil {
+		t.Fatal("a situation topic saved with the rules layout")
+	}
+}

@@ -327,6 +327,8 @@
         <select name="page_kind" id="page-kind-sel" onchange="onPageKindChange(this.value)">
           <option value="playbook"{{if or (eq $.SelectedPageKind "playbook") (eq $.SelectedPageKind "")}} selected{{end}}>Playbook — step-by-step legal rights guide</option>
           <option value="directory"{{if eq $.SelectedPageKind "directory"}} selected{{end}}>Directory — list of orgs or services</option>
+          <option value="checklist"{{if eq $.SelectedPageKind "checklist"}} selected{{end}}>Checklist — national list of things to check</option>
+          <option value="rules"{{if eq $.SelectedPageKind "rules"}} selected{{end}}>Rules — one answer per question, for a rules topic</option>
         </select>
         <p class="hint" id="page-kind-hint">Numbered statements backed by statute or regulation citations.</p>
       </div>

@@ -1143,6 +1143,15 @@ func (s *srv) previewPlaybook(w http.ResponseWriter, r *http.Request) {
 	}
 	page := sitehandlers.BuildPlaybookPage(r.Context(), pw, hubByConcept, publishedTopics, s.log)
 	page.Preview = true
+	// A rules page previews with drafts counted, so the editor sees what
+	// it will show once the pages it borrows from publish.
+	if pw.Playbook.PageKind == "rules" {
+		answers, err := s.pg.RulesAnswers(r.Context(), pw.Jurisdiction.ID, pw.Topic.Slug, pw.Playbook.Language, true)
+		if err != nil {
+			s.log.Error("rules answers", slog.Any("err", err))
+		}
+		page.Rules = sitehandlers.BuildRulesEntries(pw.Playbook.Language, pw.Jurisdiction, answers)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := sitetmpl.Render(w, page); err != nil {
 		s.log.Error("render preview", slog.Any("err", err))

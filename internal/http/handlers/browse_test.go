@@ -24,6 +24,8 @@ type stubStore struct {
 	topics      []store.Topic
 	playbook    store.PlaybookWithStatements
 	playbookErr error
+	// rulesAnswers is what RulesAnswers reports for a rules page.
+	rulesAnswers []store.RulesAnswer
 	// retired slug -> live slug, for the alias-driven 301s
 	jurisdictionAliases map[string]string
 	topicAliases        map[string]string
@@ -105,6 +107,10 @@ func (s *stubStore) GetConceptPage(_ context.Context, slug, _ string) (store.Con
 		return store.ConceptPageData{}, store.ErrNotFound
 	}
 	return s.conceptPage, nil
+}
+
+func (s *stubStore) RulesAnswers(context.Context, int64, string, string, bool) ([]store.RulesAnswer, error) {
+	return s.rulesAnswers, nil
 }
 
 func (s *stubStore) ListPublishedCityJurisdictions(_ context.Context) ([]store.Jurisdiction, error) {

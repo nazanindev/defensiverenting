@@ -298,6 +298,9 @@ type ConceptEntry struct {
 	BodyHTML  template.HTML
 	Citations []CitationChip
 	CheckedOn string
+	// NoLaw is the dated "we did not find a law" line (ADR-028 D5), set
+	// instead of a statement when the law was searched and not found.
+	NoLaw string
 }
 
 // ScopeSearch is the model for the shared search-with-location control.
@@ -425,6 +428,13 @@ type PlaybookPage struct {
 	Description    string               // meta description, derived from the intro when present
 	Canonical      string               // absolute canonical URL
 	StructuredData template.JS          // JSON-LD Article + BreadcrumbList schema, pre-marshaled
+	// StageGroups are the playbook's statements under their stage headings
+	// (ADR-028 D10), in order. One group with no heading when the page has
+	// no stages.
+	StageGroups []StageGroup
+	// Rules is a rules page's body (ADR-028 D4): one question per concept,
+	// each answered by a statement or by a dated "we did not find a law".
+	Rules []RulesEntry
 	Preview        bool                 // authoring-tool draft preview: shows a banner, never set on the live site
 	ReviewedOn     string               // human-readable publish date for the byline; empty hides the date
 	ReviewedByName string               // byline name of who last saved or published the page; falls back to the historical reviewer
@@ -459,6 +469,12 @@ const LocalHelpTopic = "resource-directory"
 // Citations is always non-empty; the handler guarantees this before constructing the value.
 type RenderedStatement struct {
 	BodyHTML template.HTML
+	// Key is the statement's durable key (ADR-014 D1), rendered as the
+	// element id "s-{key}": a stable link a search result or an AI answer
+	// can cite, which survives edits (ADR-028 D11).
+	Key string
+	// Stage is the statement's stage heading (ADR-028 D10), "" when none.
+	Stage string
 	// Anchor is the statement's concept slug (ADR-011), rendered as the
 	// element id so other pages can deep-link to this exact claim. "" for
 	// untagged statements: no id, no links.
@@ -484,6 +500,32 @@ type RenderedStatement struct {
 	CheckedOn string
 	CheckedAt *time.Time
 	Citations []CitationChip
+}
+
+// StageGroup is a run of statements under one stage heading. Start is the
+// number of its first statement, so the numbering runs on across headings.
+type StageGroup struct {
+	Heading    string
+	Start      int
+	Statements []RenderedStatement
+}
+
+// RulesEntry is one question on a rules page (ADR-028 D4, D10).
+type RulesEntry struct {
+	// Heading is the concept's question with the place added ("How much can
+	// my landlord charge for a deposit in Ohio?").
+	Heading string
+	// Anchor is the concept slug, so /c/ pages and other guides deep-link.
+	Anchor      string
+	ConceptPath string
+	// Statement is the answer, nil when the law was searched and not found.
+	Statement *RenderedStatement
+	// FromTitle/FromPath name the guide the answer is shown from, when it
+	// lives on a situation page rather than on this page.
+	FromTitle string
+	FromPath  string
+	// NoLaw is the dated "we did not find a law" line (ADR-028 D5).
+	NoLaw string
 }
 
 // CitationChip is a rendered citation link shown inline after each statement.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -38,6 +39,7 @@ type browseStore interface {
 	ListTerms(ctx context.Context, language string) ([]store.Term, error)
 	GetConceptPage(ctx context.Context, slug, language string) (store.ConceptPageData, error)
 	HiddenStatements(ctx context.Context, ids []int64) (map[int64]string, error)
+	RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopicSlug, language string, drafts bool) ([]store.RulesAnswer, error)
 }
 
 // The authoring team, surfaced in the byline and as editor in JSON-LD.
@@ -379,6 +381,17 @@ func conceptPage(db browseStore, logger *slog.Logger) http.HandlerFunc {
 		for _, inst := range data.Local {
 			page.Local = append(page.Local, *buildConceptEntry(inst))
 		}
+		// Places searched with no law found answer too (ADR-028 D5): the
+		// page keeps its promise of an answer for every place it lists.
+		for _, rec := range data.NoLaw {
+			page.Local = append(page.Local, tmpl.ConceptEntry{
+				PlaceName: rec.JurisdictionName,
+				PlaceSlug: rec.JurisdictionSlug,
+				PlaceKind: "state",
+				NoLaw:     noLawLine("en", rec.JurisdictionName, rec.CheckedAt),
+			})
+		}
+		sort.SliceStable(page.Local, func(i, k int) bool { return page.Local[i].PlaceName < page.Local[k].PlaceName })
 		resolveConceptPlace(r, db, &page)
 		render(w, r, http.StatusOK, page)
 	}
@@ -676,6 +689,13 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 	}
 
 	page := BuildPlaybookPage(r.Context(), pb, hubByConcept, publishedTopics, logger)
+	if pb.Playbook.PageKind == "rules" {
+		answers, err := db.RulesAnswers(r.Context(), pb.Jurisdiction.ID, pb.Topic.Slug, pb.Playbook.Language, false)
+		if err != nil {
+			logger.ErrorContext(r.Context(), "rules answers", slog.Any("err", err))
+		}
+		page.Rules = BuildRulesEntries(pb.Playbook.Language, pb.Jurisdiction, answers)
+	}
 
 	// Cross-links: other topics in this jurisdiction, and this topic elsewhere
 	// — both scoped to this playbook's own language (ADR-007 D5), so every
@@ -951,6 +971,8 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 		checkedAt, checkedOn := statementCheckedAt(pb.Playbook.Language, s.Citations)
 		statements = append(statements, tmpl.RenderedStatement{
 			BodyHTML:      content.RenderMarkdown(s.BodyMD),
+			Key:           s.Key,
+			Stage:         s.Stage,
 			Anchor:        anchor,
 			SpecificsPath: stmtSpecifics,
 			TopicRefPath:  topicRefPath,
@@ -977,12 +999,86 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 		Topic:          pb.Topic,
 		IntroHTML:      introHTML,
 		Statements:     statements,
+		StageGroups:    stageGroups(statements),
 		Description:    playbookDescription(pb.IntroMD, pb.Playbook.Title, pb.Playbook.Language, pb.Jurisdiction),
 		Canonical:      canonical,
 		StructuredData: playbookSchema(pb, canonical, sourceURLs),
 		ReviewedOn:     reviewedOn,
 		ReviewedByName: reviewerDisplay(pb.Playbook.UpdatedBy),
 	}
+}
+
+// stageGroups splits a playbook's statements under their stage headings
+// (ADR-028 D10): a heading renders where the stage changes. A stage that
+// comes back after another is shown again where it comes back; page review
+// flags that as an order finding rather than the renderer hiding it.
+func stageGroups(stmts []tmpl.RenderedStatement) []tmpl.StageGroup {
+	var out []tmpl.StageGroup
+	for i, s := range stmts {
+		if len(out) == 0 || out[len(out)-1].Heading != s.Stage {
+			out = append(out, tmpl.StageGroup{Heading: s.Stage, Start: i + 1})
+		}
+		out[len(out)-1].Statements = append(out[len(out)-1].Statements, s)
+	}
+	return out
+}
+
+// BuildRulesEntries turns a rules page's answers into its body (ADR-028 D4):
+// each concept's question with the place added, over the statement that
+// answers it, or over the dated no-law line. A question with neither is left
+// off: a heading over nothing looks forgotten.
+func BuildRulesEntries(lang string, j store.Jurisdiction, answers []store.RulesAnswer) []tmpl.RulesEntry {
+	var out []tmpl.RulesEntry
+	for _, a := range answers {
+		if a.Gap() {
+			continue
+		}
+		e := tmpl.RulesEntry{
+			Heading:     QuestionIn(a.Concept.Question, a.Concept.Name, j.Name),
+			Anchor:      a.Concept.Slug,
+			ConceptPath: "/c/" + a.Concept.Slug,
+		}
+		if a.Statement != nil {
+			checkedAt, checkedOn := statementCheckedAt(lang, a.Statement.Citations)
+			e.Statement = &tmpl.RenderedStatement{
+				BodyHTML:  content.RenderMarkdown(a.Statement.BodyMD),
+				Key:       a.Statement.Key,
+				CheckedAt: checkedAt,
+				CheckedOn: checkedOn,
+				Citations: citationChips(a.Statement.Citations),
+			}
+			if a.PageKind != "rules" {
+				e.FromTitle = a.PageTitle
+				e.FromPath = j.TopicPathIn(lang, a.TopicSlug) + "#s-" + a.Statement.Key
+			}
+		} else {
+			e.NoLaw = noLawLine(lang, j.Name, a.NoLaw.CheckedAt)
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// noLawLine is the dated line a coverage record renders (ADR-028 D5). It is
+// about our search, never a legal claim: never "{State} has no rule".
+func noLawLine(lang, place string, checked time.Time) string {
+	article := "a"
+	if place != "" && strings.ContainsRune("AEIOU", rune(place[0])) {
+		article = "an"
+	}
+	return fmt.Sprintf("We did not find %s %s law on this. Last checked %s.", article, place, tmpl.UIDate(lang, checked))
+}
+
+// QuestionIn adds the place to a concept's question: "How much can my
+// landlord charge for a deposit?" becomes "... for a deposit in Ohio?". The
+// questions are written to take the place at the end (ADR-028 D3). A concept
+// with no question falls back to its name.
+func QuestionIn(question, name, place string) string {
+	q := strings.TrimSpace(question)
+	if q == "" {
+		return name
+	}
+	return strings.TrimSuffix(q, "?") + " in " + place + "?"
 }
 
 // anchorFragment returns a URL fragment for a locator if non-empty.
