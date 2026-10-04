@@ -55,7 +55,7 @@ func TestOrgsTemplate_rendersTheTableAndScript(t *testing.T) {
 		"2. Is the information correct?", "3. Their contacts", "Walk-in", "Asking the board.",
 		"New intake number.", "This org is built for public traffic", "Turn hiding on",
 		// the pinned script
-		"Open in new tab", "Contacting an org before we list it", "[paste the statements, exactly as they appear]",
+		"Open in new tab", "Show script", `class="page script-closed"`, "Contacting an org before we list it", "[paste the statements, exactly as they appear]",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("orgs page lacks %q", want)

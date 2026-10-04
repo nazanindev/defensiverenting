@@ -73,6 +73,12 @@
   .script { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 14px 16px; font-size: .84rem; line-height: 1.5; }
   .script-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; position: sticky; top: -14px; background: #fff; padding: 6px 0; }
   .script-bar b { font-family: 'Fraunces', serif; }
+  /* Collapsed (the default): the table takes the width and the script is a
+     button at its side. Each row already shows what we would say. */
+  .page.script-closed { grid-template-columns: minmax(0, 1fr) auto; }
+  .script-closed .script { padding: 8px; }
+  .script-closed .script-bar { margin: 0; position: static; padding: 0; }
+  .script-closed #script-content, .script-closed .script-open { display: none; }
   .script-for { font-size: .74rem; color: #92400e; }
   .script h1 { font-size: 1.05rem; margin: 4px 0 8px; }
   .script h2 { font-family: 'Fraunces', serif; font-size: .95rem; margin: 16px 0 6px; }
@@ -94,7 +100,7 @@
     </div>
   </div>
 </header>
-<div class="page">
+<div class="page script-closed" id="page">
 <main>
   <div class="crumb"><a href="/">← Dashboard</a></div>
   <h1>Orgs</h1>
@@ -257,16 +263,27 @@
 
 <aside class="script" id="script">
   <div class="script-bar">
-    <b>Script</b>
-    <a class="btn btn-xs" href="/orgs/script" target="_blank" rel="noopener">Open in new tab ↗</a>
+    <button type="button" class="btn btn-xs" id="script-toggle" aria-expanded="false" aria-controls="script-content">Show script ‹</button>
+    <a class="btn btn-xs script-open" href="/orgs/script" target="_blank" rel="noopener">Open in new tab ↗</a>
   </div>
-  <div class="script-for" id="script-for"></div>
-  <div id="script-body">{{.Script}}</div>
+  <div id="script-content">
+    <div class="script-for" id="script-for"></div>
+    <div id="script-body">{{.Script}}</div>
+  </div>
 </aside>
 </div>
 
 <script>
 (function () {
+  // The script starts collapsed on every visit; the button opens and closes it.
+  var page = document.getElementById('page');
+  var toggleBtn = document.getElementById('script-toggle');
+  toggleBtn.addEventListener('click', function () {
+    var closed = page.classList.toggle('script-closed');
+    toggleBtn.textContent = closed ? 'Show script ‹' : 'Hide script ›';
+    toggleBtn.setAttribute('aria-expanded', closed ? 'false' : 'true');
+  });
+
   var body = document.getElementById('script-body');
   var forLine = document.getElementById('script-for');
   var original = body.innerHTML;
