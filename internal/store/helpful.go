@@ -39,33 +39,16 @@ func (pg *PG) RecordHelpful(ctx context.Context, playbookID int64, helpful bool,
 	if helpful {
 		yes, no = 1, 0
 	}
-	newSalt := make([]byte, 32)
-	if _, err := rand.Read(newSalt); err != nil {
-		return false, err
-	}
-
 	counted := false
 	err := pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		// Forget yesterday before anything else, so no old hash survives a day.
-		if _, err := tx.Exec(ctx, `DELETE FROM helpful_seen WHERE day < CURRENT_DATE`); err != nil {
+		reader, err := todaysReader(ctx, tx, client)
+		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM helpful_salt WHERE day < CURRENT_DATE`); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO helpful_salt (day, salt) VALUES (CURRENT_DATE, $1) ON CONFLICT (day) DO NOTHING`, newSalt); err != nil {
-			return err
-		}
-		var salt []byte
-		if err := tx.QueryRow(ctx, `SELECT salt FROM helpful_salt WHERE day = CURRENT_DATE`).Scan(&salt); err != nil {
-			return err
-		}
-		sum := sha256.Sum256(append(salt, client...))
-		reader := sum[:]
 
 		var jID, tID int64
 		var lang string
-		err := tx.QueryRow(ctx, `SELECT jurisdiction_id, topic_id, language FROM playbooks WHERE id = $1 AND status = 'published'`,
+		err = tx.QueryRow(ctx, `SELECT jurisdiction_id, topic_id, language FROM playbooks WHERE id = $1 AND status = 'published'`,
 			playbookID).Scan(&jID, &tID, &lang)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -96,6 +79,89 @@ func (pg *PG) RecordHelpful(ctx context.Context, playbookID int64, helpful bool,
 			ON CONFLICT (jurisdiction_id, topic_id, language, day)
 			DO UPDATE SET yes = page_helpful.yes + EXCLUDED.yes, no = page_helpful.no + EXCLUDED.no`,
 			jID, tID, lang, yes, no); err != nil {
+			return err
+		}
+		counted = true
+		return nil
+	})
+	return counted, err
+}
+
+// todaysReader returns the reader's hash for today: their address with
+// today's salt. It first deletes every earlier day's salt and hashes, for
+// both the helpful answers and the click counts, so no hash outlives its day.
+func todaysReader(ctx context.Context, tx pgx.Tx, client string) ([]byte, error) {
+	for _, purge := range []string{
+		`DELETE FROM helpful_seen WHERE day < CURRENT_DATE`,
+		`DELETE FROM click_seen WHERE day < CURRENT_DATE`,
+		`DELETE FROM helpful_salt WHERE day < CURRENT_DATE`,
+	} {
+		if _, err := tx.Exec(ctx, purge); err != nil {
+			return nil, err
+		}
+	}
+	newSalt := make([]byte, 32)
+	if _, err := rand.Read(newSalt); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO helpful_salt (day, salt) VALUES (CURRENT_DATE, $1) ON CONFLICT (day) DO NOTHING`, newSalt); err != nil {
+		return nil, err
+	}
+	var salt []byte
+	if err := tx.QueryRow(ctx, `SELECT salt FROM helpful_salt WHERE day = CURRENT_DATE`).Scan(&salt); err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(append(salt, client...))
+	return sum[:], nil
+}
+
+// ClickDailyCap is how many sources one reader's clicks count for in a day.
+const ClickDailyCap = 50
+
+// RecordClick counts one click or phone tap on a source cited by a published
+// page (ADR-029 D6). Like RecordHelpful it reports false, and counts nothing,
+// for an unknown source, a repeat from the same reader today, a reader over
+// the daily cap, or no client.
+func (pg *PG) RecordClick(ctx context.Context, sourceID int64, client string) (bool, error) {
+	if client == "" {
+		return false, nil
+	}
+	counted := false
+	err := pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		reader, err := todaysReader(ctx, tx, client)
+		if err != nil {
+			return err
+		}
+		var live bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (SELECT 1 FROM citations c
+			               JOIN playbook_statements ps ON ps.statement_id = c.statement_id
+			               JOIN playbooks pb ON pb.id = ps.playbook_id
+			               WHERE c.source_id = $1 AND pb.status = 'published')`, sourceID).Scan(&live); err != nil {
+			return err
+		}
+		if !live {
+			return nil
+		}
+		var today int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM click_seen WHERE day = CURRENT_DATE AND reader = $1`, reader).Scan(&today); err != nil {
+			return err
+		}
+		if today >= ClickDailyCap {
+			return nil
+		}
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO click_seen (day, reader, source_id) VALUES (CURRENT_DATE, $1, $2)
+			ON CONFLICT DO NOTHING`, reader, sourceID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO source_clicks (source_id, clicks) VALUES ($1, 1)
+			ON CONFLICT (source_id, day) DO UPDATE SET clicks = source_clicks.clicks + 1`, sourceID); err != nil {
 			return err
 		}
 		counted = true

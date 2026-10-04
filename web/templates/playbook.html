@@ -109,7 +109,7 @@
                 <div class="statement-body">{{.BodyHTML}}</div>
                 <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                   {{range .Citations}}
-                  <a class="{{chipClass .SourceKind}}"
+                  <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
                      href="{{.URL}}"
                      target="_blank"
                      rel="noopener noreferrer"
@@ -141,7 +141,7 @@
             {{range groupByOrg .Statements}}
             <li class="directory-entry"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="citation-chips" aria-label="Source">
-                <a class="{{chipClass .Chip.SourceKind}}"
+                <a class="{{chipClass .Chip.SourceKind}}" data-out="{{.Chip.SourceID}}"
                    href="{{.Chip.URL}}"
                    target="_blank"
                    rel="noopener noreferrer"
@@ -171,7 +171,7 @@
               <div class="faq-body">{{.BodyHTML}}</div>
               <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                 {{range .Citations}}
-                <a class="{{chipClass .SourceKind}}"
+                <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
                    href="{{.URL}}"
                    target="_blank"
                    rel="noopener noreferrer"
@@ -195,7 +195,7 @@
                   <div class="statement-body">{{.BodyHTML}}</div>
                   <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                     {{range .Citations}}
-                    <a class="{{chipClass .SourceKind}}"
+                    <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
                        href="{{.URL}}"
                        target="_blank"
                        rel="noopener noreferrer"
@@ -226,7 +226,7 @@
               <div class="statement-body">{{.BodyHTML}}</div>
               <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                 {{range .Citations}}
-                <a class="{{chipClass .SourceKind}}"
+                <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
                    href="{{.URL}}"
                    target="_blank"
                    rel="noopener noreferrer"
@@ -303,6 +303,13 @@
               fetch('/helpful', { method: 'POST', body: body, keepalive: true }).catch(function () {});
             });
           })();
+          // ADR-029 D6: a click on a source or a tap on a phone number is
+          // reported beside the link, which still goes straight to the source.
+          document.addEventListener('click', function (ev) {
+            var a = ev.target.closest && ev.target.closest('a[data-out]');
+            if (!a || !navigator.sendBeacon) return;
+            navigator.sendBeacon('/out', new URLSearchParams({ s: a.getAttribute('data-out') }));
+          });
           </script>
           {{end}}
         </main>

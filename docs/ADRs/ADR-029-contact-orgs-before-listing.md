@@ -87,7 +87,9 @@ The rule holds for every Local Help page from now on, not only the ones this ADR
 
 ### D6. We count clicks to orgs
 
-A link to an org's website goes through `/out/{source id}`, which adds one to a daily count for that source and redirects. A phone number in a statement becomes a tap-to-call link that goes the same way. A tap is counted, not a call; nothing can count calls.
+A link to a source still goes straight to the source, so a reader always sees where it leads. When it is clicked, the page script reports the click to `/out` beside it, and that adds one to the source's count for the day. A phone number in a statement becomes a tap-to-call link and is reported the same way, against the statement's first source. A tap is counted, not a call; nothing can count calls. A reader without scripts is not counted.
+
+(Amended at build, 2026-10-04: first written as a redirect through `/out/{source id}`. A citation chip that shows our address instead of the statute's would undercut the chip's point.)
 
 The count follows the rule "Did this page help?" already uses (d3aed53): one click per reader per org per day, a daily cap per reader, and a reader known only by a hash of their address with that day's salt, deleted when the day ends. One person clicking a link over and over moves the count by one.
 

@@ -84,7 +84,7 @@
         {{if and (ne .Type "public") (.Due $now)}}<span class="badge b-due">Follow up today</span>{{else if and (ne .Type "public") .FollowUp}}<span class="org-meta">Follow up {{date .FollowUp}}</span>{{end}}
       </div>
       <div class="org-meta">
-        {{.LivePages}} live {{if eq .LivePages 1}}page{{else}}pages{{end}}{{if .Places}} · {{range $i, $p := .Places}}{{if lt $i 8}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}{{if gt (len .Places) 8}} and {{len .Places}} places in all{{end}}{{end}}
+        {{.LivePages}} live {{if eq .LivePages 1}}page{{else}}pages{{end}} · {{.Clicks30}} {{if eq .Clicks30 1}}click{{else}}clicks{{end}} in 30 days{{if .Places}} · {{range $i, $p := .Places}}{{if lt $i 8}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}{{if gt (len .Places) 8}} and {{len .Places}} places in all{{end}}{{end}}
       </div>
 
       <details>

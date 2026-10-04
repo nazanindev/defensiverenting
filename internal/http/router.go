@@ -69,6 +69,7 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 	// "Did this page help?" answers. A POST that changes a count, so it sits
 	// outside the cached browse group.
 	r.Post(handlers.HelpfulPath, handlers.Helpful(db, logger))
+	r.Post(handlers.OutPath, handlers.Out(db, logger))
 
 	// Reader accounts (ADR-017) — personal, never cached. Mounted outside the
 	// browse group so nothing here inherits the public cache header.

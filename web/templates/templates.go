@@ -530,6 +530,8 @@ type RulesEntry struct {
 
 // CitationChip is a rendered citation link shown inline after each statement.
 type CitationChip struct {
+	// SourceID lets the page script report a click on the chip (ADR-029 D6).
+	SourceID   int64
 	URL        string
 	Label      string
 	Locator    string

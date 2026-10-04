@@ -969,8 +969,17 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 			anchor = s.ConceptSlug
 		}
 		checkedAt, checkedOn := statementCheckedAt(pb.Playbook.Language, s.Citations)
+		// A phone tap is counted against the statement's first real source,
+		// which on a Local Help page is the org whose number it is.
+		var tapSource int64
+		for _, c := range chips {
+			if c.SourceKind != "editorial" {
+				tapSource = c.SourceID
+				break
+			}
+		}
 		statements = append(statements, tmpl.RenderedStatement{
-			BodyHTML:      content.RenderMarkdown(s.BodyMD),
+			BodyHTML:      content.LinkPhones(content.RenderMarkdown(s.BodyMD), tapSource),
 			Key:           s.Key,
 			Stage:         s.Stage,
 			Anchor:        anchor,
@@ -1098,6 +1107,7 @@ func citationChips(citations []store.CitationWithSource) []tmpl.CitationChip {
 		}
 		seen[c.SourceURL] = true
 		chips = append(chips, tmpl.CitationChip{
+			SourceID:   c.SourceID,
 			URL:        c.SourceURL + anchorFragment(c.Locator),
 			Label:      c.Publisher,
 			Locator:    c.Locator,

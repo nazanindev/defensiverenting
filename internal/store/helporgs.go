@@ -55,7 +55,10 @@ type HelpOrg struct {
 	Places []string
 	// LivePages counts published pages that cite the org.
 	LivePages int
-	Contacts  []HelpOrgContact
+	// Clicks30 counts clicks and phone taps on the org's links over the last
+	// 30 days (D6).
+	Clicks30 int
+	Contacts []HelpOrgContact
 }
 
 // Shown reports whether the org's statements show on the live site.
@@ -183,7 +186,10 @@ func (pg *PG) ListHelpOrgs(ctx context.Context) ([]HelpOrg, error) {
 		          JOIN playbook_statements ps ON ps.statement_id = c.statement_id
 		          JOIN playbooks pb ON pb.id = ps.playbook_id
 		         WHERE source_host(src.url) = o.host AND src.kind = 'nonprofit'
-		           AND pb.status = 'published')
+		           AND pb.status = 'published'),
+		       (SELECT coalesce(sum(sc.clicks), 0) FROM source_clicks sc
+		          JOIN sources src ON src.id = sc.source_id
+		         WHERE source_host(src.url) = o.host AND sc.day > CURRENT_DATE - 30)
 		FROM help_orgs o`)
 	if err != nil {
 		return nil, err
@@ -193,7 +199,7 @@ func (pg *PG) ListHelpOrgs(ctx context.Context) ([]HelpOrg, error) {
 	for rows.Next() {
 		var o HelpOrg
 		if err := rows.Scan(&o.Host, &o.Name, &o.Type, &o.Status, &o.FollowUp, &o.UpdatedBy, &o.UpdatedAt,
-			&o.Places, &o.LivePages); err != nil {
+			&o.Places, &o.LivePages, &o.Clicks30); err != nil {
 			rows.Close()
 			return nil, err
 		}

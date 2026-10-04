@@ -33,6 +33,30 @@ func TestPlaybookHandler_leavesOutHiddenStatements(t *testing.T) {
 	}
 }
 
+// ADR-029 D6: chips and phone numbers carry the source id the page script
+// reports a click against; the chip still links straight to the source.
+func TestPlaybookHandler_clickableSourcesCarryTheirID(t *testing.T) {
+	stub := localHelpStub([]store.Topic{localHelpTopic}, localHelpTopic)
+	stub.playbook.Statements = append(stub.playbook.Statements, store.CitedStatement{
+		ID: 2, BodyMD: "Call the hotline at 412-555-0134.",
+		Citations: []store.CitationWithSource{{
+			SourceID: 42, SourceURL: "https://hotline.example/",
+			Publisher: "Hotline", SourceKind: "gov_guidance",
+		}},
+	})
+	body := getPlaybookBody(t, stub, "/j/massachusetts/boston/resource-directory")
+	for _, want := range []string{
+		`href="tel:+14125550134" data-out="42"`,
+		`data-out="42"`,
+		`href="https://hotline.example/"`,
+		"navigator.sendBeacon('/out'",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %s", want)
+		}
+	}
+}
+
 // A page whose every statement is hidden is not served at all.
 func TestPlaybookHandler_allHiddenIsNotFound(t *testing.T) {
 	stub := localHelpStub([]store.Topic{localHelpTopic}, localHelpTopic)
