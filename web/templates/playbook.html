@@ -205,6 +205,11 @@
                     {{end}}
                   </div>
                   {{with .CheckedOn}}<p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.}}</p>{{end}}
+                  {{/* ADR-028 D1: a national checklist sends the reader to
+                       the concept page for the number where they live. */}}
+                  {{if .SpecificsPath}}
+                  <p class="statement-specifics">{{ui $l "rule-depends"}} <a href="{{.SpecificsPath}}">{{ui $l "rule-everywhere"}}</a></p>
+                  {{end}}
                 </div>
               </label>
             </li>
