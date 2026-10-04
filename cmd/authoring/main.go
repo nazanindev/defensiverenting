@@ -262,6 +262,9 @@ func main() {
 	mux.HandleFunc("POST /orgs/contact", s.orgContact)
 	mux.HandleFunc("POST /orgs/type", s.orgType)
 	mux.HandleFunc("POST /orgs/hiding", s.orgHiding)
+	mux.HandleFunc("GET /orgs/script", s.orgScript)
+	mux.HandleFunc("POST /orgs/channel", s.orgChannel)
+	mux.HandleFunc("POST /orgs/channel/remove", s.orgChannelRemove)
 
 	// /healthz is outside the auth wrapper so Fly's health check can reach it.
 	outer := http.NewServeMux()

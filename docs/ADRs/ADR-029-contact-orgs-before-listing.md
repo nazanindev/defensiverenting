@@ -65,7 +65,7 @@ The authoring portal gets one Orgs page with one row per org: name, website, pla
 - One form logs an attempt: email or call, who was reached, outcome, note. The org's status follows from it.
 - The org's past attempts show under it.
 
-Nazanin's editor contacts orgs outside the site, by email or phone, using a fixed script and email template kept with this ADR. Each says what the site is, how we describe the org, about how many renters we send from their area, and how to ask us to change or remove the listing.
+Nazanin's editor contacts orgs outside the site, by email or phone, using a fixed script and email template (`cmd/authoring/script/org-contact-script.md`, pinned beside the Orgs list and fillable per org). Each says what the site is, how we describe the org, about how many renters we send from their area, and how to ask us to change or remove the listing.
 
 ### D5. What changes on the live site, and in what order
 

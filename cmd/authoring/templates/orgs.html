@@ -11,43 +11,77 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
   .site-header { background: #4a1223; padding: 0 24px; }
-  .site-header .wrap { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-header .wrap { max-width: 1600px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
   .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
   .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
   .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
-  .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  .page { max-width: 1600px; margin: 0 auto; padding: 20px 24px 40px; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+  @media (max-width: 1100px) { .page { grid-template-columns: 1fr; } .script { position: static; max-height: none; } }
   .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
   .crumb a { color: #9b2335; text-decoration: none; }
   h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
-  .lede { color: #7a5c5c; font-size: .88rem; margin-bottom: 18px; max-width: 75ch; line-height: 1.5; }
-  .flash { padding: .6rem .9rem; border-radius: 8px; margin-bottom: 14px; font-size: .88rem; }
+  .lede { color: #7a5c5c; font-size: .85rem; margin-bottom: 12px; max-width: 80ch; line-height: 1.5; }
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .flash { padding: .55rem .9rem; border-radius: 8px; margin-bottom: 12px; font-size: .85rem; }
   .flash-ok { background: #ecfdf5; color: #065f46; }
   .flash-err { background: #fef2f2; color: #991b1b; }
-  .org-list { list-style: none; border-top: 1px solid #e8dede; }
-  .org { padding: 14px 4px; border-bottom: 1px solid #e8dede; scroll-margin-top: 16px; }
-  .org:target { background: #fff7e6; }
-  .org-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+  .btn { font: inherit; font-size: .78rem; padding: .3rem .75rem; border-radius: 6px; border: 1px solid #e0c8c8; background: #fff; color: #4a1223; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn-primary { background: #9b2335; border-color: #9b2335; color: #fff; }
+  .btn-xs { font-size: .72rem; padding: .15rem .5rem; }
+  .card { background: #fff; border-radius: 10px; border: 1px solid #e8dede; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 7px 10px; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #9a7878; border-bottom: 1px solid #e8dede; background: #fdf8f8; position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+  th a { color: inherit; text-decoration: none; }
+  th a:hover, th.is-sorted a { color: #4a1223; }
+  th .arrow { font-size: .6rem; margin-left: 2px; }
+  td { padding: 6px 10px; border-bottom: 1px solid #f5eded; font-size: .82rem; vertical-align: top; line-height: 1.35; }
+  td.nowrap { white-space: nowrap; }
+  tr.org-row { cursor: pointer; }
+  tr.org-row:hover { background: #fffafa; }
+  tr.org-row.open { background: #fff7e6; }
   .org-name { font-weight: 600; }
-  .org-host { font-size: .8rem; color: #9b2335; }
-  .org-meta { font-size: .8rem; color: #7a5c5c; margin-top: 4px; line-height: 1.5; }
-  .badge { font-size: .72rem; font-weight: 600; padding: .1rem .5rem; border-radius: 999px; }
-  .b-hidden { background: #fef2f2; color: #991b1b; }
+  .org-host { font-size: .74rem; color: #9b2335; display: block; }
+  .chev { color: #b0a0a0; display: inline-block; width: 1em; transition: transform .15s; }
+  tr.open .chev { transform: rotate(90deg); }
+  .muted { color: #9a7878; }
+  .badge { display: inline-block; padding: .05rem .45rem; border-radius: 8px; font-size: .68rem; font-weight: 600; white-space: nowrap; }
+  .b-no { background: #fef2f2; color: #991b1b; }
+  .b-wait { background: #f5eded; color: #7a5c5c; }
   .b-maybe { background: #fffbeb; color: #92400e; }
-  .b-ok { background: #ecfdf5; color: #065f46; }
+  .b-yes { background: #d1fae5; color: #065f46; }
   .b-public { background: #eef2ff; color: #3730a3; }
   .b-due { background: #92400e; color: #fff; }
-  details { margin-top: 8px; font-size: .84rem; }
-  summary { cursor: pointer; color: #9b2335; }
-  .log { list-style: none; margin: 6px 0 0 0; font-size: .8rem; color: #4a3535; }
-  .log li { padding: 3px 0; }
-  form.contact { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 8px; max-width: 820px; }
-  form.contact label { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; color: #7a5c5c; }
-  form.contact .wide { grid-column: 1 / -1; }
-  input, select, textarea { font: inherit; font-size: .85rem; padding: .35rem .5rem; border: 1px solid #e0c8c8; border-radius: 6px; background: #fff; color: inherit; }
-  textarea { min-height: 3.5rem; }
-  .btn { font: inherit; font-size: .8rem; padding: .35rem .8rem; border-radius: 6px; border: 1px solid #e0c8c8; background: #fff; color: #4a1223; cursor: pointer; }
-  .btn-primary { background: #9b2335; border-color: #9b2335; color: #fff; }
-  form.type { display: inline; }
+  tr.org-detail > td { background: #fffdf8; padding: 14px 16px 18px 34px; border-bottom: 2px solid #e8dede; }
+  .detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 28px; }
+  .detail h3 { font-family: 'Fraunces', serif; font-size: .92rem; margin-bottom: 6px; }
+  .say { list-style: none; font-size: .82rem; line-height: 1.45; }
+  .say li { padding: 6px 10px; background: #fff; border-left: 3px solid #e0c8c8; margin-bottom: 6px; }
+  .say .where { font-size: .7rem; color: #9a7878; display: block; margin-bottom: 2px; }
+  .log { list-style: none; font-size: .8rem; color: #4a3535; }
+  .log li { padding: 4px 0; border-bottom: 1px dashed #f0e2e2; }
+  .chan { list-style: none; font-size: .82rem; margin-bottom: 8px; }
+  .chan li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+  .chan .kind { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: #9a7878; min-width: 6.5em; }
+  form.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  form.grid .wide { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; gap: 3px; font-size: .74rem; color: #7a5c5c; }
+  label.check { flex-direction: row; align-items: center; gap: 6px; }
+  input, select, textarea { font: inherit; font-size: .82rem; padding: .3rem .5rem; border: 1px solid #e0c8c8; border-radius: 6px; background: #fff; color: inherit; }
+  textarea { min-height: 3.2rem; }
+  fieldset { border: 1px solid #f0e2e2; border-radius: 8px; padding: 8px 10px; }
+  legend { font-size: .76rem; font-weight: 600; color: #4a1223; padding: 0 4px; }
+  .script { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; background: #fff; border: 1px solid #e8dede; border-radius: 10px; padding: 14px 16px; font-size: .84rem; line-height: 1.5; }
+  .script-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; position: sticky; top: -14px; background: #fff; padding: 6px 0; }
+  .script-bar b { font-family: 'Fraunces', serif; }
+  .script-for { font-size: .74rem; color: #92400e; }
+  .script h1 { font-size: 1.05rem; margin: 4px 0 8px; }
+  .script h2 { font-family: 'Fraunces', serif; font-size: .95rem; margin: 16px 0 6px; }
+  .script p, .script ul, .script ol, .script table { margin: 0 0 8px; }
+  .script ul, .script ol { padding-left: 1.2rem; }
+  .script table { border-collapse: collapse; font-size: .78rem; }
+  .script th, .script td { border: 1px solid #f0e2e2; padding: 3px 6px; position: static; background: none; text-transform: none; letter-spacing: 0; font-size: .78rem; color: inherit; white-space: normal; }
+  .script blockquote { border-left: 3px solid #e0c8c8; padding: 4px 8px; margin: 0 0 6px; background: #fffdf8; }
+  .script mark { background: #fff3c4; }
 </style>
 </head>
 <body>
@@ -61,85 +95,226 @@
   </div>
 </header>
 <div class="page">
+<main>
   <div class="crumb"><a href="/">← Dashboard</a></div>
   <h1>Orgs</h1>
-  <p class="lede">Small local orgs are contacted before we send them renters (ADR-029). A contact-first org shows on the live site only after it says yes. {{.Waiting}} waiting, {{.Listed}} said yes. {{if .Hiding}}Hiding is on: readers do not see orgs that have not said yes.{{else}}Hiding is not on yet, so readers still see every org.{{end}}</p>
+  <p class="lede">Small local orgs are contacted before we send them renters (ADR-029). A contact-first org shows on the live site only after it says yes. {{.Waiting}} waiting, {{.Listed}} said yes. {{if .Hiding}}Hiding is on: readers do not see orgs that have not said yes.{{else}}Hiding is not on yet, so readers still see every org.{{end}} Click a row to open it.</p>
 
-  <form method="post" action="/orgs/hiding" style="margin-bottom:18px" onsubmit="return confirm('{{if .Hiding}}Turn hiding off? Readers will see every org again, including ones that said no.{{else}}Turn hiding on? Readers will stop seeing every org that has not said yes.{{end}}')">
-    <input type="hidden" name="hiding" value="{{if .Hiding}}off{{else}}on{{end}}">
-    <button class="btn{{if not .Hiding}} btn-primary{{end}}">{{if .Hiding}}Turn hiding off{{else}}Turn hiding on{{end}}</button>
-  </form>
+  <div class="toolbar">
+    <form method="post" action="/orgs/hiding" onsubmit="return confirm('{{if .Hiding}}Turn hiding off? Readers will see every org again, including ones that said no.{{else}}Turn hiding on? Readers will stop seeing every org that has not said yes.{{end}}')">
+      <input type="hidden" name="hiding" value="{{if .Hiding}}off{{else}}on{{end}}">
+      <button class="btn{{if not .Hiding}} btn-primary{{end}}">{{if .Hiding}}Turn hiding off{{else}}Turn hiding on{{end}}</button>
+    </form>
+    {{if .View.Sort}}<a class="btn" href="/orgs">Back to work order</a>{{end}}
+  </div>
 
   {{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
   {{if .Err}}<div class="flash flash-err">{{.Err}}</div>{{end}}
 
-  {{$now := .Now}}{{$today := .Today}}
-  <ul class="org-list">
+  {{$v := .View}}{{$now := .Now}}{{$today := .Today}}{{$fills := .Fills}}{{$kinds := .Kinds}}
+  <div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th class="{{if eq $v.Sort "org"}}is-sorted{{end}}"><a href="{{$v.SortLink "org"}}">Org<span class="arrow">{{$v.Arrow "org"}}</span></a></th>
+        <th class="{{if eq $v.Sort "places"}}is-sorted{{end}}"><a href="{{$v.SortLink "places"}}">Places<span class="arrow">{{$v.Arrow "places"}}</span></a></th>
+        <th class="{{if eq $v.Sort "live"}}is-sorted{{end}}"><a href="{{$v.SortLink "live"}}" title="Published pages that cite the org">Live pages<span class="arrow">{{$v.Arrow "live"}}</span></a></th>
+        <th class="{{if eq $v.Sort "clicks"}}is-sorted{{end}}"><a href="{{$v.SortLink "clicks"}}" title="Clicks and phone taps on the org's links, last 30 days">Clicks 30d<span class="arrow">{{$v.Arrow "clicks"}}</span></a></th>
+        <th class="{{if eq $v.Sort "type"}}is-sorted{{end}}"><a href="{{$v.SortLink "type"}}">Type<span class="arrow">{{$v.Arrow "type"}}</span></a></th>
+        <th class="{{if eq $v.Sort "list"}}is-sorted{{end}}"><a href="{{$v.SortLink "list"}}">May we list you?<span class="arrow">{{$v.Arrow "list"}}</span></a></th>
+        <th class="{{if eq $v.Sort "info"}}is-sorted{{end}}"><a href="{{$v.SortLink "info"}}">Info correct?<span class="arrow">{{$v.Arrow "info"}}</span></a></th>
+        <th>Their contacts</th>
+        <th class="{{if eq $v.Sort "followup"}}is-sorted{{end}}"><a href="{{$v.SortLink "followup"}}">Follow up<span class="arrow">{{$v.Arrow "followup"}}</span></a></th>
+        <th class="{{if eq $v.Sort "last"}}is-sorted{{end}}"><a href="{{$v.SortLink "last"}}">Last contact<span class="arrow">{{$v.Arrow "last"}}</span></a></th>
+      </tr>
+    </thead>
+    <tbody>
     {{range .Orgs}}
-    <li class="org" id="{{.Host}}">
-      <div class="org-head">
-        <span class="org-name">{{.Name}}</span>
-        <a class="org-host" href="https://{{.Host}}" target="_blank" rel="noopener">{{.Host}} ↗</a>
-        {{if eq .Type "public"}}<span class="badge b-public">Public</span>
-        {{else if eq .Status "ok"}}<span class="badge b-ok">Said yes</span>
-        {{else if eq .Status "maybe"}}<span class="badge b-maybe">Maybe</span>
-        {{else if eq .Status "leave_off"}}<span class="badge b-hidden">Said no</span>
-        {{else if eq .Status "contacted"}}<span class="badge b-hidden">Contacted, no answer yet</span>
-        {{else}}<span class="badge b-hidden">Not contacted</span>{{end}}
-        {{if and (ne .Type "public") (.Due $now)}}<span class="badge b-due">Follow up today</span>{{else if and (ne .Type "public") .FollowUp}}<span class="org-meta">Follow up {{date .FollowUp}}</span>{{end}}
-      </div>
-      <div class="org-meta">
-        {{.LivePages}} live {{if eq .LivePages 1}}page{{else}}pages{{end}} · {{.Clicks30}} {{if eq .Clicks30 1}}click{{else}}clicks{{end}} in 30 days{{if .Places}} · {{range $i, $p := .Places}}{{if lt $i 8}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}{{if gt (len .Places) 8}} and {{len .Places}} places in all{{end}}{{end}}
-      </div>
+      <tr class="org-row" id="{{.Host}}" data-host="{{.Host}}" data-fill="{{index $fills .Host}}">
+        <td><span class="chev">›</span> <span class="org-name">{{.Name}}</span><span class="org-host">{{.Host}}</span></td>
+        <td>{{range $i, $p := .Places}}{{if lt $i 3}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}{{if gt (len .Places) 3}} <span class="muted">+{{len .Places}} in all</span>{{end}}{{if not .Places}}<span class="muted">none</span>{{end}}</td>
+        <td class="nowrap">{{.LivePages}}</td>
+        <td class="nowrap">{{.Clicks30}}</td>
+        <td class="nowrap">{{if eq .Type "public"}}<span class="badge b-public">Public</span>{{else}}Contact first{{end}}</td>
+        <td class="nowrap">{{if eq .Type "public"}}<span class="muted">not needed</span>
+          {{else if eq .Status "ok"}}<span class="badge b-yes">Yes</span>
+          {{else if eq .Status "maybe"}}<span class="badge b-maybe">Maybe</span>
+          {{else if eq .Status "leave_off"}}<span class="badge b-no">No</span>
+          {{else if eq .Status "contacted"}}<span class="badge b-wait">No answer yet</span>
+          {{else}}<span class="badge b-wait">Not asked</span>{{end}}</td>
+        <td class="nowrap">{{if eq .InfoCorrect "yes"}}<span class="badge b-yes">Yes</span>{{else if eq .InfoCorrect "needs_changes"}}<span class="badge b-maybe" title="{{.InfoChanges}}">Needs changes</span>{{else}}<span class="muted">Not asked</span>{{end}}</td>
+        <td>{{with .Preferred}}{{range $i, $c := .}}{{if lt $i 2}}<div>{{template "kind" $c.Kind}}: {{$c.Value}}</div>{{end}}{{end}}{{if gt (len .) 2}}<span class="muted">+{{len .}} in all</span>{{end}}{{else}}<span class="muted">none yet</span>{{end}}</td>
+        <td class="nowrap">{{if and (ne .Type "public") (.Due $now)}}<span class="badge b-due">Today</span>{{else if .FollowUp}}{{date .FollowUp}}{{else}}<span class="muted">—</span>{{end}}</td>
+        <td class="nowrap">{{with .LastContact}}{{date .}}{{else}}<span class="muted">never</span>{{end}}</td>
+      </tr>
+      <tr class="org-detail" data-for="{{.Host}}" hidden>
+        <td colspan="10">
+          <div class="detail">
+            <section>
+              <h3>What we would say</h3>
+              {{if .Statements}}
+              <ul class="say">{{range .Statements}}<li><span class="where">{{.Place}} · {{.Topic}}</span>{{.Body}}</li>{{end}}</ul>
+              {{else}}<p class="muted">No live page cites this org.</p>{{end}}
+              <p style="margin-top:8px"><a class="org-host" href="https://{{.Host}}" target="_blank" rel="noopener">Open {{.Host}} ↗</a></p>
+            </section>
 
-      <details>
-        <summary>{{if .Contacts}}{{len .Contacts}} {{if eq (len .Contacts) 1}}attempt{{else}}attempts{{end}} · {{end}}Log an email or call{{if ne .Type "public"}}{{end}}</summary>
-        {{if .Contacts}}
-        <ul class="log">
-          {{range .Contacts}}
-          <li>{{date .CreatedAt}} · {{if eq .Method "call"}}Call{{else}}Email{{end}}{{if .Reached}} · reached {{.Reached}}{{end}} · <b>{{if eq .Outcome "no_answer"}}No answer{{else if eq .Outcome "left_message"}}Left message{{else if eq .Outcome "maybe"}}Maybe{{else if eq .Outcome "yes"}}Yes{{else}}No{{end}}</b>{{if .FollowUp}} · follow up {{date .FollowUp}}{{end}} · {{.LoggedBy}}{{if .Note}}<br>{{.Note}}{{end}}</li>
-          {{end}}
-        </ul>
-        {{end}}
-        <form class="contact" method="post" action="/orgs/contact">
-          <input type="hidden" name="host" value="{{.Host}}">
-          <label>How
-            <select name="method" required><option value="call">Call</option><option value="email">Email</option></select>
-          </label>
-          <label>Outcome
-            <select name="outcome" required>
-              <option value="no_answer">No answer</option>
-              <option value="left_message">Left message</option>
-              <option value="maybe">Maybe</option>
-              <option value="yes">Yes, list us</option>
-              <option value="no">No, leave us off</option>
-            </select>
-          </label>
-          <label>Who you reached
-            <input type="text" name="reached" placeholder="Name and role">
-          </label>
-          <label>Follow up on
-            <input type="date" name="follow_up" min="{{$today}}">
-          </label>
-          <label class="wide">Note
-            <textarea name="note" placeholder="What they said"></textarea>
-          </label>
-          <div class="wide"><button class="btn btn-primary">Log it</button></div>
-        </form>
-        <form class="type" method="post" action="/orgs/type" style="margin-top:10px;display:block">
-          <input type="hidden" name="host" value="{{.Host}}">
-          {{if eq .Type "public"}}
-          <input type="hidden" name="type" value="contact_first">
-          <button class="btn" title="For an org that answers renters one by one">This is a small local org: contact first</button>
-          {{else}}
-          <input type="hidden" name="type" value="public">
-          <button class="btn" title="For a government office, 211, or a self-help website built for public traffic">This org is built for public traffic</button>
-          {{end}}
-        </form>
-      </details>
-    </li>
+            <section>
+              <h3>Log an email or call</h3>
+              <form class="grid" method="post" action="/orgs/contact">
+                <input type="hidden" name="host" value="{{.Host}}">
+                <label>How
+                  <select name="method" required><option value="call">Call</option><option value="email">Email</option></select>
+                </label>
+                <label>Who you reached
+                  <input type="text" name="reached" placeholder="Name and role">
+                </label>
+                <fieldset class="wide">
+                  <legend>1. May we list you?</legend>
+                  <select name="outcome" required>
+                    <option value="no_answer">No answer</option>
+                    <option value="left_message">Left message</option>
+                    <option value="maybe">Maybe</option>
+                    <option value="yes">Yes, list us</option>
+                    <option value="no">No, leave us off</option>
+                  </select>
+                </fieldset>
+                <fieldset class="wide">
+                  <legend>2. Is the information correct?</legend>
+                  <select name="info_correct">
+                    <option value="unchanged">{{if eq .InfoCorrect "yes"}}Keep: Yes{{else if eq .InfoCorrect "needs_changes"}}Keep: Needs changes{{else}}Not asked{{end}}</option>
+                    <option value="yes">Yes</option>
+                    <option value="needs_changes">Needs changes</option>
+                  </select>
+                  <textarea name="info_changes" placeholder="What to change, exactly" style="margin-top:6px;width:100%">{{.InfoChanges}}</textarea>
+                </fieldset>
+                <label>Follow up on
+                  <input type="date" name="follow_up" min="{{$today}}">
+                </label>
+                <label class="wide">Note
+                  <textarea name="note" placeholder="What they said"></textarea>
+                </label>
+                <div class="wide"><button class="btn btn-primary">Log it</button></div>
+              </form>
+            </section>
+
+            <section>
+              <h3>3. Their contacts</h3>
+              {{$host := .Host}}
+              {{if .Channels}}
+              <ul class="chan">
+                {{range .Channels}}
+                <li>
+                  <span class="kind">{{template "kind" .Kind}}</span>
+                  <span>{{.Value}}{{if .Label}} <span class="muted">· {{.Label}}</span>{{end}}{{if .Preferred}} <span class="badge b-yes">preferred</span>{{end}}</span>
+                  <form method="post" action="/orgs/channel/remove" style="margin-left:auto"><input type="hidden" name="host" value="{{$host}}"><input type="hidden" name="id" value="{{.ID}}"><button class="btn btn-xs" title="Remove this contact">Remove</button></form>
+                </li>
+                {{end}}
+              </ul>
+              {{else}}<p class="muted" style="margin-bottom:8px">None yet. Add each way they want renters to reach them.</p>{{end}}
+              <form class="grid" method="post" action="/orgs/channel">
+                <input type="hidden" name="host" value="{{.Host}}">
+                <label>Type
+                  <select name="kind">{{range $kinds}}<option value="{{.}}">{{template "kind" .}}</option>{{end}}</select>
+                </label>
+                <label>Contact
+                  <input type="text" name="value" required placeholder="Number, address, link…">
+                </label>
+                <label class="wide">Label (optional)
+                  <input type="text" name="label" placeholder="For example: Intake line, Mon to Fri 9 to 5">
+                </label>
+                <label class="check"><input type="checkbox" name="preferred"> Preferred</label>
+                <div><button class="btn">Add contact</button></div>
+              </form>
+
+              <h3 style="margin-top:16px">Contact log</h3>
+              {{if .Contacts}}
+              <ul class="log">
+                {{range .Contacts}}
+                <li>{{date .CreatedAt}} · {{if eq .Method "call"}}Call{{else}}Email{{end}}{{if .Reached}} · {{.Reached}}{{end}} · <b>{{if eq .Outcome "no_answer"}}No answer{{else if eq .Outcome "left_message"}}Left message{{else if eq .Outcome "maybe"}}Maybe{{else if eq .Outcome "yes"}}Yes{{else}}No{{end}}</b>{{if .FollowUp}} · follow up {{date .FollowUp}}{{end}} · {{.LoggedBy}}{{if .Note}}<br>{{.Note}}{{end}}</li>
+                {{end}}
+              </ul>
+              {{else}}<p class="muted">No attempts yet.</p>{{end}}
+
+              <form method="post" action="/orgs/type" style="margin-top:14px">
+                <input type="hidden" name="host" value="{{.Host}}">
+                {{if eq .Type "public"}}
+                <input type="hidden" name="type" value="contact_first">
+                <button class="btn btn-xs" title="For an org that answers renters one by one">This is a small local org: contact first</button>
+                {{else}}
+                <input type="hidden" name="type" value="public">
+                <button class="btn btn-xs" title="For a government office, 211, or a self-help website built for public traffic">This org is built for public traffic</button>
+                {{end}}
+              </form>
+            </section>
+          </div>
+        </td>
+      </tr>
     {{end}}
-  </ul>
+    </tbody>
+  </table>
+  </div>
+</main>
+
+<aside class="script" id="script">
+  <div class="script-bar">
+    <b>Script</b>
+    <a class="btn btn-xs" href="/orgs/script" target="_blank" rel="noopener">Open in new tab ↗</a>
+  </div>
+  <div class="script-for" id="script-for"></div>
+  <div id="script-body">{{.Script}}</div>
+</aside>
 </div>
+
+<script>
+(function () {
+  var body = document.getElementById('script-body');
+  var forLine = document.getElementById('script-for');
+  var original = body.innerHTML;
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // Put the open org's details where the script has brackets.
+  function fill(f) {
+    if (!f) { body.innerHTML = original; forLine.textContent = ''; return; }
+    var said = f.statements && f.statements.length
+      ? f.statements.map(function (s) { return '<blockquote>' + esc(s) + '</blockquote>'; }).join('')
+      : '<mark>No live page cites this org yet.</mark>';
+    var html = original
+      .split('[Org name]').join('<mark>' + esc(f.name) + '</mark>')
+      .split('[place]').join('<mark>' + esc(f.places || 'its place') + '</mark>')
+      .replace(/<p>\s*\[paste the statements, exactly as they appear\]\s*<\/p>/, said);
+    body.innerHTML = html;
+    forLine.textContent = 'Filled in for ' + f.name + '. [number] is yours to fill.';
+  }
+
+  function toggle(row, open) {
+    var detail = row.nextElementSibling;
+    if (open === undefined) open = detail.hidden;
+    document.querySelectorAll('tr.org-row.open').forEach(function (r) {
+      if (r !== row) { r.classList.remove('open'); r.nextElementSibling.hidden = true; }
+    });
+    detail.hidden = !open;
+    row.classList.toggle('open', open);
+    var f = null;
+    try { f = open ? JSON.parse(row.getAttribute('data-fill')) : null; } catch (e) {}
+    fill(f);
+    if (open) history.replaceState(null, '', location.pathname + location.search + '#' + row.id);
+  }
+
+  document.querySelectorAll('tr.org-row').forEach(function (row) {
+    row.addEventListener('click', function (ev) {
+      if (ev.target.closest('a, button, input, select, textarea, form')) return;
+      toggle(row);
+    });
+  });
+
+  // Coming back from a save, reopen the org it was about.
+  if (location.hash) {
+    var row = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (row && row.classList.contains('org-row')) { toggle(row, true); row.scrollIntoView({ block: 'center' }); }
+  }
+})();
+</script>
 </body>
 </html>
+
+{{define "kind"}}{{if eq . "phone"}}Phone{{else if eq . "email"}}Email{{else if eq . "website"}}Website{{else if eq . "intake_form"}}Intake form{{else if eq . "text"}}Text{{else if eq . "address"}}Address{{else if eq . "walk_in"}}Walk-in{{else}}Other{{end}}{{end}}

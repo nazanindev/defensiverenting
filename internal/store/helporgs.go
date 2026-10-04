@@ -59,7 +59,66 @@ type HelpOrg struct {
 	// 30 days (D6).
 	Clicks30 int
 	Contacts []HelpOrgContact
+	// InfoCorrect answers "Is the information correct?": not_asked, yes or
+	// needs_changes, with InfoChanges saying what to change.
+	InfoCorrect string
+	InfoChanges string
+	// Channels answer "How would you like renters to reach you?".
+	Channels []HelpOrgChannel
+	// Statements are what live pages say about the org, for the editor to
+	// read out or paste into the email.
+	Statements []HelpOrgStatement
 }
+
+// LastContact is when the latest attempt was logged, or nil.
+func (o HelpOrg) LastContact() *time.Time {
+	if len(o.Contacts) == 0 {
+		return nil
+	}
+	return &o.Contacts[0].CreatedAt
+}
+
+// Preferred is the channels the org asked renters to use, or every channel
+// when none is marked preferred.
+func (o HelpOrg) Preferred() []HelpOrgChannel {
+	var out []HelpOrgChannel
+	for _, c := range o.Channels {
+		if c.Preferred {
+			out = append(out, c)
+		}
+	}
+	if len(out) == 0 {
+		return o.Channels
+	}
+	return out
+}
+
+// HelpOrgChannel is one way renters can reach an org.
+type HelpOrgChannel struct {
+	ID        int64
+	Kind      string
+	Value     string
+	Label     string
+	Preferred bool
+	AddedBy   string
+}
+
+// HelpOrgChannelKinds are the contact types, in the order the form offers them.
+var HelpOrgChannelKinds = []string{"phone", "email", "website", "intake_form", "text", "address", "walk_in", "other"}
+
+// HelpOrgStatement is one live statement that cites the org.
+type HelpOrgStatement struct {
+	Place string
+	Topic string
+	Body  string
+}
+
+// InfoCorrect answers.
+const (
+	InfoNotAsked     = "not_asked"
+	InfoYes          = "yes"
+	InfoNeedsChanges = "needs_changes"
+)
 
 // Shown reports whether the org's statements show on the live site.
 func (o HelpOrg) Shown() bool { return o.Type == OrgPublic || o.Status == OrgOK }
@@ -79,6 +138,10 @@ type HelpOrgContact struct {
 	FollowUp  *time.Time
 	LoggedBy  string
 	CreatedAt time.Time
+	// InfoCorrect and InfoChanges, when InfoCorrect is set, record the answer
+	// to "Is the information correct?" on the org as part of this attempt.
+	InfoCorrect string
+	InfoChanges string
 }
 
 // HelpHiding reports whether the live site hides held statements now (D5).
@@ -171,7 +234,7 @@ func (pg *PG) ListHelpOrgs(ctx context.Context) ([]HelpOrg, error) {
 		return nil, err
 	}
 	rows, err := pg.pool.Query(ctx, `
-		SELECT o.host, o.name, o.type, o.status, o.follow_up, o.updated_by, o.updated_at,
+		SELECT o.host, o.name, o.type, o.status, o.follow_up, o.updated_by, o.updated_at, o.info_correct, o.info_changes,
 		       coalesce((SELECT array_agg(DISTINCT j.name ORDER BY j.name)
 		                   FROM sources src
 		                   JOIN citations c ON c.source_id = src.id
@@ -198,7 +261,7 @@ func (pg *PG) ListHelpOrgs(ctx context.Context) ([]HelpOrg, error) {
 	idx := map[string]int{}
 	for rows.Next() {
 		var o HelpOrg
-		if err := rows.Scan(&o.Host, &o.Name, &o.Type, &o.Status, &o.FollowUp, &o.UpdatedBy, &o.UpdatedAt,
+		if err := rows.Scan(&o.Host, &o.Name, &o.Type, &o.Status, &o.FollowUp, &o.UpdatedBy, &o.UpdatedAt, &o.InfoCorrect, &o.InfoChanges,
 			&o.Places, &o.LivePages, &o.Clicks30); err != nil {
 			rows.Close()
 			return nil, err
@@ -229,6 +292,9 @@ func (pg *PG) ListHelpOrgs(ctx context.Context) ([]HelpOrg, error) {
 		}
 	}
 	if err := crows.Err(); err != nil {
+		return nil, err
+	}
+	if err := pg.attachOrgDetails(ctx, out, idx); err != nil {
 		return nil, err
 	}
 	SortHelpOrgs(out, time.Now())
@@ -294,6 +360,12 @@ func (pg *PG) LogHelpOrgContact(ctx context.Context, host string, c HelpOrgConta
 	if !ok {
 		return fmt.Errorf("unknown outcome %q", c.Outcome)
 	}
+	if c.InfoCorrect != "" && c.InfoCorrect != InfoNotAsked && c.InfoCorrect != InfoYes && c.InfoCorrect != InfoNeedsChanges {
+		return fmt.Errorf("unknown answer %q", c.InfoCorrect)
+	}
+	if c.InfoCorrect == InfoNeedsChanges && strings.TrimSpace(c.InfoChanges) == "" {
+		return errors.New("say what needs to change")
+	}
 	if c.Method != "email" && c.Method != "call" {
 		return fmt.Errorf("unknown method %q", c.Method)
 	}
@@ -310,12 +382,105 @@ func (pg *PG) LogHelpOrgContact(ctx context.Context, host string, c HelpOrgConta
 		if tag.RowsAffected() == 0 {
 			return ErrNoHelpOrg
 		}
+		if c.InfoCorrect != "" {
+			if _, err := tx.Exec(ctx, `UPDATE help_orgs SET info_correct = $2, info_changes = $3 WHERE host = $1`,
+				host, c.InfoCorrect, strings.TrimSpace(c.InfoChanges)); err != nil {
+				return err
+			}
+		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO help_org_contacts (host, method, reached, outcome, note, follow_up, logged_by)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 			host, c.Method, strings.TrimSpace(c.Reached), c.Outcome, strings.TrimSpace(c.Note), c.FollowUp, c.LoggedBy)
 		return err
 	})
+}
+
+// attachOrgDetails loads every org's contact channels and the live
+// statements that cite it, in two queries for the whole list.
+func (pg *PG) attachOrgDetails(ctx context.Context, out []HelpOrg, idx map[string]int) error {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT host, id, kind, value, label, preferred, added_by
+		FROM help_org_channels ORDER BY preferred DESC, id`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var host string
+		var c HelpOrgChannel
+		if err := rows.Scan(&host, &c.ID, &c.Kind, &c.Value, &c.Label, &c.Preferred, &c.AddedBy); err != nil {
+			rows.Close()
+			return err
+		}
+		if i, ok := idx[host]; ok {
+			out[i].Channels = append(out[i].Channels, c)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	srows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT ON (source_host(src.url), s.id) source_host(src.url), j.name, t.name, s.body_md
+		FROM sources src
+		JOIN citations c ON c.source_id = src.id
+		JOIN statements s ON s.id = c.statement_id
+		JOIN playbook_statements ps ON ps.statement_id = s.id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		JOIN topics t ON t.id = pb.topic_id
+		WHERE src.kind = 'nonprofit' AND pb.status = 'published'
+		ORDER BY source_host(src.url), s.id, j.name`)
+	if err != nil {
+		return err
+	}
+	defer srows.Close()
+	for srows.Next() {
+		var host string
+		var st HelpOrgStatement
+		if err := srows.Scan(&host, &st.Place, &st.Topic, &st.Body); err != nil {
+			return err
+		}
+		if i, ok := idx[host]; ok {
+			out[i].Statements = append(out[i].Statements, st)
+		}
+	}
+	return srows.Err()
+}
+
+// AddHelpOrgChannel records one way renters can reach an org.
+func (pg *PG) AddHelpOrgChannel(ctx context.Context, host string, c HelpOrgChannel) error {
+	known := false
+	for _, k := range HelpOrgChannelKinds {
+		known = known || k == c.Kind
+	}
+	if !known {
+		return fmt.Errorf("unknown contact type %q", c.Kind)
+	}
+	if strings.TrimSpace(c.Value) == "" {
+		return errors.New("the contact needs a value")
+	}
+	if strings.TrimSpace(c.AddedBy) == "" {
+		return errors.New("who added the contact is required")
+	}
+	tag, err := pg.pool.Exec(ctx, `
+		INSERT INTO help_org_channels (host, kind, value, label, preferred, added_by)
+		SELECT host, $2, $3, $4, $5, $6 FROM help_orgs WHERE host = $1`,
+		host, c.Kind, strings.TrimSpace(c.Value), strings.TrimSpace(c.Label), c.Preferred, c.AddedBy)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNoHelpOrg
+	}
+	return nil
+}
+
+// RemoveHelpOrgChannel deletes one contact from an org.
+func (pg *PG) RemoveHelpOrgChannel(ctx context.Context, host string, id int64) error {
+	_, err := pg.pool.Exec(ctx, `DELETE FROM help_org_channels WHERE host = $1 AND id = $2`, host, id)
+	return err
 }
 
 // LocalHelpTopic is the topic of Local Help pages, the one D8 applies to.
