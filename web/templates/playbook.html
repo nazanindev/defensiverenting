@@ -50,10 +50,10 @@
           {{if eq .Jurisdiction.Kind "country"}}<span class="city-badge">{{ui $l "nationwide"}}</span>{{end}}
           <h1>{{.Playbook.Title}}</h1>
           {{if ne .Jurisdiction.Kind "country"}}
-          <div class="place-line">
+          <div class="top-rows">
             {{if .OtherCities}}
-            <details class="place-switch">
-              <summary><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span> <span class="place-change">{{ui $l "change-place"}}</span></summary>
+            <details class="top-row place-switch">
+              <summary><span><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span> <span class="place-change">{{ui $l "change-place"}}</span></span></summary>
               <ul class="city-list city-list--wide">
                 {{$t := .Topic}}
                 {{range .OtherCities}}
@@ -63,23 +63,26 @@
               <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
             </details>
             {{else}}
-            <p class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</p>
+            <p class="top-row"><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span></p>
             {{end}}
-            <p class="place-suggest" hidden
+            <a class="top-row place-suggest" href="#" hidden
                data-topic="{{.Topic.Slug}}"
                data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
                data-ask="{{ui $l "do-you-rent-in"}}"
-               data-see="{{ui $l "see-guide-for"}}"><span></span> <a href="#"></a></p>
-            {{if .OtherLangPath}}<p class="place-lang"><a href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a></p>{{end}}
+               data-see="{{ui $l "see-guide-for"}}"><span><strong class="suggest-ask"></strong> <span class="suggest-see"></span></span> <span aria-hidden="true">→</span></a>
+            {{if .OtherLangPath}}<a class="top-row" href="{{.OtherLangPath}}"><span>{{.OtherLangLabel}}</span> <span aria-hidden="true">→</span></a>{{end}}
+            <p class="top-row page-disclaimer" role="note"><span><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}</span></p>
+          </div>
+          {{else}}
+          <div class="top-rows">
+            <p class="top-row page-disclaimer" role="note"><span><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}</span></p>
           </div>
           {{end}}
-          <div class="fine-print">
-            <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}{{with .SourcesCheckedOn}} · {{ui $l "sources-checked-lower"}} {{.}}{{end}}</p>
-            <p class="page-disclaimer" role="note"><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}</p>
-          </div>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
           {{if .LocalHelpPath}}
-          <a class="help-line" href="{{.LocalHelpPath}}"><span><strong>{{ui $l "need-help-now"}}</strong> {{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}}</span> <span aria-hidden="true">→</span></a>
+          <div class="top-rows">
+            <a class="top-row help-line" href="{{.LocalHelpPath}}"><span><strong>{{ui $l "need-help-now"}}</strong> {{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}}</span> <span aria-hidden="true">→</span></a>
+          </div>
           {{end}}
         </header>
         {{if ne .Jurisdiction.Kind "country"}}
@@ -103,11 +106,10 @@
                 if (!d || !d.guides) return;
                 var g = d.guides.filter(function (x) { return x.topic === topic; })[0];
                 if (!g || g.path === location.pathname) return;
-                box.querySelector('span').textContent = box.getAttribute('data-ask').replace('%s', d.name);
-                var a = box.querySelector('a');
-                a.textContent = box.getAttribute('data-see').replace('%s', d.name);
-                a.setAttribute('href', g.path);
-                a.setAttribute('data-set-location', d.j);
+                box.querySelector('.suggest-ask').textContent = box.getAttribute('data-ask').replace('%s', d.name);
+                box.querySelector('.suggest-see').textContent = box.getAttribute('data-see').replace('%s', d.name);
+                box.setAttribute('href', g.path);
+                box.setAttribute('data-set-location', d.j);
                 box.hidden = false;
               })
               .catch(function () {});
@@ -312,6 +314,10 @@
           {{else}}
           <p class="empty-state">{{ui $l "no-statements"}}</p>
           {{end}}
+
+          {{/* Who published it and when sources were checked: fine print,
+               after the guide (ADR-031 D3). */}}
+          <p class="byline byline--foot">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}{{with .SourcesCheckedOn}} · {{ui $l "sources-checked-lower"}} {{.}}{{end}}</p>
 
           <p class="report-link">
             {{ui $l "report-question"}}

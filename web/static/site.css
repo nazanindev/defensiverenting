@@ -283,52 +283,54 @@ h1 {
   max-width: 820px;
 }
 
-/* Whose rules these are, and one way to switch place (ADR-031 D1, D2). */
-.place-line { margin: 0 0 18px; }
-.place-line p { margin: 0; }
-.place-for { font-weight: 600; color: var(--ink); }
-.place-switch summary {
-  list-style: none;
-  cursor: pointer;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.place-switch summary::-webkit-details-marker { display: none; }
-.place-change { color: var(--accent); font-weight: 600; text-decoration: underline; }
-.place-switch[open] .city-list { margin: 6px 0 10px; }
-.place-suggest {
-  margin-top: 6px !important;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--mint);
-}
-.place-suggest a,
-.place-lang a { color: var(--accent); font-weight: 600; }
-
-/* Byline and disclaimer read as one block of fine print (ADR-031 D3). */
-.fine-print { margin: 0 0 22px; font-size: .92rem; color: var(--ink-soft); line-height: 1.5; }
-.fine-print p { margin: 0; }
-.fine-print .byline { margin: 0; }
-.page-disclaimer strong { color: var(--ink); }
-
-/* Local help, one row under the intro (ADR-031 D4). */
-.help-line {
+/* The top of a guide is a short stack of rows divided by thin lines
+   (ADR-031): whose rules these are, the reader's own place when we know it,
+   the disclaimer, and later local help. One look for all of them. */
+.top-rows { margin: 0 0 22px; border-top: 1px solid rgba(0,0,0,.1); }
+.top-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-top: 18px;
+  margin: 0;
   padding: 12px 0;
   min-height: 44px;
-  border-top: 1px solid var(--line, rgba(0,0,0,.1));
-  border-bottom: 1px solid var(--line, rgba(0,0,0,.1));
-  color: var(--accent);
+  border-bottom: 1px solid rgba(0,0,0,.1);
+  color: var(--ink);
   text-decoration: none;
+  line-height: 1.45;
 }
-.help-line:hover span:first-child { text-decoration: underline; }
+a.top-row { color: var(--accent); }
+a.top-row:hover span:first-child { text-decoration: underline; }
+.top-row[hidden] { display: none; }
+.lede + .top-rows { margin-top: 20px; }
+
+.place-for { font-weight: 600; color: var(--ink); }
+.place-change { color: var(--accent); font-weight: 600; text-decoration: underline; margin-left: 6px; }
+.place-switch { display: block; }
+.place-switch summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+.place-switch summary::-webkit-details-marker { display: none; }
+.place-switch[open] .city-list { margin: 12px 0 8px; }
+
+/* Not legal advice stands out from the other rows (ADR-031 D3). */
+.page-disclaimer {
+  border-left: 4px solid #c8102e;
+  padding-left: 12px;
+  font-size: 1rem;
+}
+.page-disclaimer strong { color: #c8102e; }
+
+.help-line strong { color: var(--accent); }
+
+/* Who published the guide and when sources were checked: fine print at the
+   foot of the guide (ADR-031 D3). */
+.byline.byline--foot { margin: 28px 0 8px; font-size: .88rem; }
 
 /* ── Disclaimer box ─────────────────────────────────────── */
 

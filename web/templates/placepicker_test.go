@@ -44,7 +44,7 @@ func TestNationwidePageAsksWhereYouRent(t *testing.T) {
 	if !strings.Contains(body, `href="/j/massachusetts/boston/heat-not-working"`) {
 		t.Fatalf("picker should link each place's own page for this topic")
 	}
-	if strings.Contains(body, `class="place-switch"`) || strings.Contains(body, `class="place-suggest"`) {
+	if strings.Contains(body, "place-switch") || strings.Contains(body, "place-suggest") {
 		t.Fatalf("a nationwide page routes with its picker, not the place line")
 	}
 }
@@ -73,7 +73,7 @@ func TestCityPageHasPlaceLineAtTheTop(t *testing.T) {
 	if !strings.Contains(body, "For Boston, Massachusetts.") {
 		t.Fatalf("the place line should name the city and its state")
 	}
-	sw := strings.Index(body, `class="place-switch"`)
+	sw := strings.Index(body, `class="top-row place-switch"`)
 	main := strings.Index(body, `aria-label="Guide content"`)
 	if sw < 0 || main < 0 || sw > main {
 		t.Fatalf("expected the place switch before the statements; switch=%d main=%d", sw, main)
