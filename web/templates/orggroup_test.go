@@ -93,6 +93,33 @@ func TestGroupByOrg_ignoresTheLocatorAnchorOnTheChipURL(t *testing.T) {
 	}
 }
 
+func TestGroupByOrg_namesTheOrgNotTheEditorialCaution(t *testing.T) {
+	// The DC inspection entry carries an editorial citation for the
+	// condemnation warning ahead of the agency's own page. The entry must be
+	// headed and linked by the agency, and group with the agency's other
+	// statements.
+	caution := RenderedStatement{Citations: []CitationChip{
+		{URL: "/editorial", Label: "RenterLaw editorial", SourceKind: "editorial"},
+		{URL: "https://dob.dc.gov/inspections#x", Label: "DC Department of Buildings", Locator: "x", SourceKind: "gov_guidance"},
+	}}
+	plain := RenderedStatement{Citations: []CitationChip{
+		{URL: "https://dob.dc.gov/inspections", Label: "DC Department of Buildings", SourceKind: "gov_guidance"},
+	}}
+	got := groupByOrg([]RenderedStatement{caution, plain})
+	if len(got) != 1 {
+		t.Fatalf("want 1 entry for the agency, got %d", len(got))
+	}
+	if got[0].Chip.Label != "DC Department of Buildings" || got[0].Chip.URL != "https://dob.dc.gov/inspections" {
+		t.Fatalf("entry headed %q linking %q, want the agency and its page", got[0].Chip.Label, got[0].Chip.URL)
+	}
+
+	// A statement citing only site guidance still forms an entry.
+	only := groupByOrg([]RenderedStatement{{Citations: []CitationChip{{URL: "/editorial", Label: "RenterLaw editorial", SourceKind: "editorial"}}}})
+	if len(only) != 1 {
+		t.Fatalf("editorial-only statement dropped")
+	}
+}
+
 func TestGroupByOrg_handlesNoStatements(t *testing.T) {
 	if got := groupByOrg(nil); len(got) != 0 {
 		t.Errorf("want no groups, got %d", len(got))

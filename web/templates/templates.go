@@ -678,18 +678,33 @@ func groupByOrg(stmts []RenderedStatement) []OrgGroup {
 		if len(s.Citations) == 0 {
 			continue
 		}
-		key := sourceKey(s.Citations[0].URL)
+		org := orgChip(s.Citations)
+		key := sourceKey(org.URL)
 		if n := len(groups); n > 0 && key == lastKey {
 			groups[n-1].Statements = append(groups[n-1].Statements, s)
 			continue
 		}
 		lastKey = key
-		chip := s.Citations[0]
+		chip := org
 		chip.Locator = ""
 		chip.URL = key // the group links to the source, not to one statement's anchor
 		groups = append(groups, OrgGroup{Chip: chip, Statements: []RenderedStatement{s}})
 	}
 	return groups
+}
+
+// orgChip is the citation that names the organisation a directory statement
+// is about: the first one that is not the site's own editorial guidance. A
+// statement may carry an editorial citation for a warning (an inspector can
+// condemn the home), and when that came first the entry was headed
+// "RenterLaw editorial" and its website button linked to /editorial.
+func orgChip(cits []CitationChip) CitationChip {
+	for _, c := range cits {
+		if c.SourceKind != "editorial" {
+			return c
+		}
+	}
+	return cits[0]
 }
 
 // sourceKey strips the "#locator" anchor a chip URL carries so two citations of
