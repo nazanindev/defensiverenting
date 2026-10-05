@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy · RenterLaw</title>
+  <meta name="description" content="What RenterLaw stores about you, and what it does not. You can read every guide without an account." />
+  <link rel="canonical" href="{{absURL "/privacy"}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:title" content="Privacy · RenterLaw" />
+  <meta property="og:description" content="What RenterLaw stores about you, and what it does not. You can read every guide without an account." />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="Privacy · RenterLaw" />
+  <meta name="twitter:description" content="What RenterLaw stores about you, and what it does not. You can read every guide without an account." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  {{template "site-header" .}}
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span> Privacy
+    </nav>
+
+    <article class="prose">
+      <h1>Privacy</h1>
+      <p>You can read every guide without an account. We do not show ads. We do not sell or share anything you give us.</p>
+
+      <h2>If you make an account</h2>
+      <p>We store your email address and the place you chose, and nothing else. We use your email to send you a sign-in link. A company called Resend sends those emails for us.</p>
+      <p>Signing in puts a cookie on your device. It keeps you signed in. We do not use it to follow you.</p>
+
+      <h2>If you send us a form</h2>
+      <p>The report form and the contact form send us what you type. If you give us your email, we use it only to reply. We do not store your IP address (the number that identifies your internet connection).</p>
+      <p>Cloudflare checks that a person, not a program, is sending the form.</p>
+
+      <h2>What we count</h2>
+      <p>We count page views with Cloudflare Web Analytics. It does not use cookies. It does not follow you to other sites.</p>
+      <p>When you answer "Did this page help?" or open a source, we add 1 to a count. To count each person once a day, we keep a coded copy of your IP address for that day only. We delete it the next day. We cannot tie an answer to you after that.</p>
+
+      <h2>On your device</h2>
+      <p>When you pick a place, your browser remembers it, so you do not have to pick it again. If you are signed in, we also save it to your account.</p>
+
+      <h2>Delete your information</h2>
+      <p>Write to <a href="mailto:contact@renterlaw.org">contact@renterlaw.org</a> from the email on your account. We will delete your account and anything you sent us.</p>
+    </article>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

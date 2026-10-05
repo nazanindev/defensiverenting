@@ -13,3 +13,7 @@ func About(w http.ResponseWriter, r *http.Request) {
 func Support(w http.ResponseWriter, r *http.Request) {
 	render(w, r, http.StatusOK, tmpl.SupportPage{})
 }
+
+func Privacy(w http.ResponseWriter, r *http.Request) {
+	render(w, r, http.StatusOK, tmpl.PrivacyPage{})
+}

@@ -63,6 +63,7 @@ func funcMap() template.FuncMap {
 			return baseURL + path
 		},
 		"analyticsToken": func() string { return analyticsToken },
+		"year":           func() int { return time.Now().Year() },
 		"groupByOrg":     groupByOrg,
 		"langPrefix":     store.LangPrefix,
 		"ui":             UIString,
@@ -737,6 +738,9 @@ type AboutPage struct{}
 // SupportPage is the /support page.
 type SupportPage struct{}
 
+// PrivacyPage is the /privacy page.
+type PrivacyPage struct{}
+
 // ReportPage is the /report form, where a reader tells us something on the
 // site is wrong or an organisation has closed.
 //
@@ -839,6 +843,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "about.html", p)
 	case SupportPage:
 		return tmpl.ExecuteTemplate(w, "support.html", p)
+	case PrivacyPage:
+		return tmpl.ExecuteTemplate(w, "privacy.html", p)
 	case ReportPage:
 		return tmpl.ExecuteTemplate(w, "report.html", p)
 	case ContactPage:

@@ -59,6 +59,7 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 		r.Get("/editorial", handlers.Editorial)
 		r.Get("/about", handlers.About)
 		r.Get("/support", handlers.Support)
+		r.Get("/privacy", handlers.Privacy)
 		r.Get("/report", handlers.Report(cfg.FormsURL, cfg.TurnstileSiteKey))
 		r.Get("/contact", handlers.Contact(cfg.FormsURL, cfg.TurnstileSiteKey))
 		r.Get("/thanks", handlers.Thanks)

@@ -37,6 +37,8 @@ var uiStrings = map[string]map[string]string{
 	"footer-editorial": {"en": "Editorial standards", "es": "Normas editoriales"},
 	"footer-report":    {"en": "Report a problem", "es": "Reporte un problema"},
 	"footer-contact":   {"en": "Contact us", "es": "Contacto"},
+	"footer-privacy":   {"en": "Privacy", "es": "Privacidad"},
+	"footer-owner":     {"en": "Made by 2 people, not a company.", "es": "Hecho por 2 personas, no por una empresa."},
 	"home":             {"en": "Home", "es": "Inicio"},
 
 	// Playbook page
