@@ -20,7 +20,6 @@ var uiStrings = map[string]map[string]string{
 	// Shared header and footer
 	"search-placeholder": {"en": "Search by situation…", "es": "Busque su situación…"},
 	"search":             {"en": "Search", "es": "Buscar"},
-	"tagline":            {"en": "Tenant law in plain language", "es": "La ley para inquilinos, en palabras simples"},
 	"choose-location":    {"en": "Choose your location", "es": "Elija su lugar"},
 	"your-location":      {"en": "Your location", "es": "Su lugar"},
 	"header-terms":       {"en": "Legal terms", "es": "Términos legales"},
@@ -41,12 +40,10 @@ var uiStrings = map[string]map[string]string{
 	"home":             {"en": "Home", "es": "Inicio"},
 
 	// Playbook page
-	"all-topics":    {"en": "← All topics", "es": "← Todos los temas"},
 	"nationwide":    {"en": "Nationwide", "es": "Todo el país"},
 	"reviewed-by":   {"en": "Published by", "es": "Publicado por"},
 	"need-help-now": {"en": "Need help now?", "es": "¿Necesita ayuda ahora?"},
 	"in":            {"en": "in", "es": "en"},
-	"help-bar-tail": {"en": "legal aid, rent assistance, and who to call", "es": "ayuda legal, ayuda con la renta y a quién llamar"},
 	"page-disclaimer": {
 		"en": "Each answer below links to where it comes from. Read it before you act.",
 		"es": "Cada afirmación de abajo enlaza a la ley de donde viene. Lea la fuente antes de actuar.",
@@ -76,8 +73,12 @@ var uiStrings = map[string]map[string]string{
 		"en": "Most tenant law is set by your state and city. Pick your place for the exact rules and deadlines. The guide below covers what applies everywhere.",
 		"es": "La mayoría de las leyes de inquilinos las fija su estado y su ciudad. Elija su lugar para ver las reglas y los plazos exactos. La guía de abajo cubre lo que aplica en todo el país.",
 	},
-	"topic-elsewhere":  {"en": "%s in other cities", "es": "%s en otras ciudades"},
-	"all-cities-topic": {"en": "All cities for this topic →", "es": "Todas las ciudades para este tema →"},
+	"all-cities-topic":      {"en": "All cities for this topic →", "es": "Todas las ciudades para este tema →"},
+	"guide-for":             {"en": "For %s.", "es": "Para %s."},
+	"rent-elsewhere":        {"en": "Rent somewhere else?", "es": "¿Renta en otro lugar?"},
+	"do-you-rent-in":        {"en": "Do you rent in %s?", "es": "¿Renta en %s?"},
+	"see-guide-for":         {"en": "See this guide for %s", "es": "Vea esta guía para %s"},
+	"sources-checked-lower": {"en": "sources checked", "es": "fuentes verificadas el"},
 
 	// Jurisdiction hub
 	"whats-your-situation": {"en": "What’s your situation?", "es": "¿Cuál es su situación?"},
@@ -177,13 +178,8 @@ func UIDate(lang string, t time.Time) string {
 // nothing but their language; see headerFor.
 type Header struct {
 	Lang string
-	// Scope is the jurisdiction slug the header search is scoped to, so a
-	// search from a Boston page searches Boston. Empty searches everywhere.
-	Scope string
-	// NoSearch drops the header search on a page that is itself a search.
-	NoSearch bool
 	// SignedIn is known server-side only on the uncached account page. On
-	// every other page the header script flips "Sign in" from the cookie.
+	// every other page the footer script flips "Sign in" from the cookie.
 	SignedIn bool
 }
 
@@ -192,14 +188,7 @@ type Header struct {
 // header's markup.
 func headerFor(v any) Header {
 	h := Header{Lang: pageLang(v)}
-	switch p := v.(type) {
-	case PlaybookPage:
-		h.Scope = p.Jurisdiction.Slug
-	case JurisdictionPage:
-		h.Scope = p.Jurisdiction.Slug
-	case SearchPage:
-		h.NoSearch = true
-	case AccountPage:
+	if p, ok := v.(AccountPage); ok {
 		h.SignedIn = p.SignedIn
 	}
 	return h

@@ -70,6 +70,9 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 	// outside the cached browse group.
 	r.Post(handlers.HelpfulPath, handlers.Helpful(db, logger))
 	r.Post(handlers.OutPath, handlers.Out(db, logger))
+	// A guess at the reader's state (ADR-031 D2). About one reader, so it
+	// sits outside the cached browse group.
+	r.Get(handlers.WherePath, handlers.Where)
 
 	// Reader accounts (ADR-017) — personal, never cached. Mounted outside the
 	// browse group so nothing here inherits the public cache header.

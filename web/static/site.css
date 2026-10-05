@@ -120,60 +120,6 @@ body {
   flex-shrink: 0;
 }
 
-.header-search {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  gap: 8px;
-  max-width: 520px;
-  margin-left: auto;
-}
-
-.header-search input[type="search"] {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 14px;
-  border: 1.5px solid rgba(255,255,255,0.25);
-  border-radius: 999px;
-  font-size: .95rem;
-  font-family: inherit;
-  outline: none;
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-}
-
-.header-search input[type="search"]::placeholder { color: rgba(255,255,255,0.55); }
-
-.header-search input[type="search"]:focus {
-  border-color: rgba(255,255,255,0.6);
-  background: rgba(255,255,255,0.18);
-}
-
-.header-search button {
-  padding: 8px 18px;
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 999px;
-  font-size: .95rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.header-search button:hover { background: #7a1a28; }
-
-/* The tagline sits beside the logo as its second line of brand. It is the
-   first thing to go when the header runs out of room. */
-.site-tagline {
-  color: rgba(255,255,255,0.78);
-  font-size: .92rem;
-  white-space: nowrap;
-  padding-left: 16px;
-  margin-left: -6px;
-  border-left: 1px solid rgba(255,255,255,0.22);
-}
-
 .header-nav {
   display: flex;
   align-items: center;
@@ -181,12 +127,9 @@ body {
   margin-left: auto;
 }
 
-/* Place, Legal terms, and Sign in / Account. All static text in the cached
-   HTML; the header script fills in the reader's place and flips "Sign in"
-   to "Account" when the rl_in cookie says the reader is signed in. */
-.header-place,
-.header-link,
-.header-account {
+/* The reader's place (ADR-031 D5). Static text in the cached HTML; the
+   header script fills in the reader's place. */
+.header-place {
   color: #fff;
   font-weight: 500;
   text-decoration: none;
@@ -194,9 +137,7 @@ body {
   opacity: .9;
   padding: 8px 0;
 }
-.header-place:hover,
-.header-link:hover,
-.header-account:hover { opacity: 1; text-decoration: underline; }
+.header-place:hover { opacity: 1; text-decoration: underline; }
 
 .header-place {
   display: inline-flex;
@@ -210,15 +151,6 @@ body {
 .header-place:hover { border-color: rgba(255,255,255,0.6); text-decoration: none; }
 .header-place span { overflow: hidden; text-overflow: ellipsis; }
 .header-place-pin { flex-shrink: 0; }
-
-/* The tagline gives way first: to the header search on pages that carry
-   one, then to the place and account links on narrow screens. */
-@media (max-width: 1400px) {
-  body:not(.has-hero-search) .site-tagline { display: none; }
-}
-@media (max-width: 1080px) {
-  .site-tagline { display: none; }
-}
 
 /* ── Hero ───────────────────────────────────────────────── */
 
@@ -266,8 +198,6 @@ body {
 }
 
 .hero-search button:hover { background: var(--accent-dark); }
-
-.has-hero-search .header-search { display: none; }
 
 h1 {
   font-family: "Fraunces", serif;
@@ -346,47 +276,33 @@ h1 {
   margin-bottom: 28px;
 }
 
-.sidebar-card {
-  background: white;
-  border-radius: var(--radius);
-  padding: 20px;
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 80px;
+/* One column for a guide (ADR-031): the sidebar is gone, and a line of
+   reading text stays a comfortable length on a wide screen. */
+.layout--single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 820px;
 }
 
-.sidebar-label {
-  display: block;
-  font-size: .9rem;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-bottom: 10px;
-}
-
-.sidebar-back {
-  display: block;
+/* Whose rules these are, and one way to switch place (ADR-031 D1, D2). */
+.place-line { margin: 4px 0 14px; }
+.place-line p { margin: 0 0 6px; }
+.place-for { font-weight: 600; color: var(--ink); }
+.place-suggest a,
+.place-switch summary,
+.place-lang a {
   color: var(--accent);
-  text-decoration: none;
   font-weight: 600;
-  font-size: .95rem;
-  margin-top: 6px;
+  text-decoration: underline;
+  cursor: pointer;
 }
+.place-switch summary { display: inline-block; min-height: 44px; line-height: 44px; }
+.place-switch[open] summary { margin-bottom: 8px; }
+.place-switch .city-list { margin: 0 0 10px; }
 
-.sidebar-back:hover { text-decoration: underline; }
-
-/* Language-toggle link (ADR-007 D6): only rendered when a translation of the
-   current page actually exists, so it deliberately reads as secondary to
-   "All topics" rather than a peer nav item. */
-.sidebar-lang {
-  display: block;
-  color: var(--ink-soft);
-  text-decoration: none;
-  font-size: .85rem;
-  margin-top: 10px;
-}
-
-.sidebar-lang:hover { text-decoration: underline; color: var(--accent); }
+/* Local help, one line under the intro (ADR-031 D4). */
+.help-line { margin: 16px 0 0; }
+.help-line a { color: var(--accent); text-decoration: underline; }
+.help-line strong { color: var(--accent); }
 
 /* ── Disclaimer box ─────────────────────────────────────── */
 
@@ -516,35 +432,6 @@ h1 {
   flex-wrap: wrap;
   gap: 8px;
 }
-
-/* ── Local help bar ─────────────────────────────────────── */
-
-/* Sits above the guide, not below it. A reader who needs a phone number needs
-   it before the law, not after 14 statements. It replaces the disclaimer's
-   "contact your local legal aid organization", which named no one and linked
-   nowhere. Rendered only when that city has a published Local Help page, so it
-   can never point at a 404. */
-.help-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  min-height: 44px;
-  border: 1px solid #f0c0c8;
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
-  background: #fdf0f2;
-  text-decoration: none;
-  color: var(--ink);
-}
-
-.help-bar:hover { background: #fae0e4; }
-.help-bar:hover .help-bar-text { text-decoration: underline; }
-
-.help-bar-lead { font-weight: 700; color: var(--accent); }
-.help-bar-text { text-decoration: underline; }
 
 /* ── Citation chips ─────────────────────────────────────── */
 
@@ -1204,17 +1091,12 @@ input:focus-visible,
   .layout {
     grid-template-columns: 1fr;
   }
-  .sidebar-card {
-    position: static;
-  }
   .halo, .pulse { display: none; }
 }
 
 @media (max-width: 600px) {
   .wrap, .layout-wrap { padding-left: 16px; padding-right: 16px; }
   h1 { font-size: 2rem; }
-  .header-search { display: none; }
-  .header-link { display: none; }
   .header-nav { gap: 14px; }
   .header-place { max-width: 8rem; padding: 6px 10px; }
   .site-header .wrap { gap: 12px; }

@@ -3,9 +3,12 @@
 {{/*
   site-header — one header for every public page.
 
+  The logo and the reader's place, nothing else (ADR-031 D5). Search waits
+  for vector search; Legal terms and Sign in live in the footer.
+
   The HTML is shared-cache, so it never knows who is reading it. It always
-  renders "Choose your location" and "Sign in"; the script below swaps in the
-  reader's remembered place and "Account" after load. Where the place comes
+  renders "Choose your location"; the script below swaps in the reader's
+  remembered place after load. Where the place comes
   from: this device's saved choice, and for a signed-in reader their account
   (ADR-017), which wins. A reader picks a place with the homepage select, or by
   clicking a place in a list that asks where they rent (data-set-location).
@@ -16,21 +19,11 @@
 <header class="site-header">
   <div class="wrap">
     <a class="site-logo" href="/"><img src="/static/favicon.png" alt="" class="site-logo-img" /><span>RenterLaw</span></a>
-    <span class="site-tagline">{{ui $l "tagline"}}</span>
-    {{if not $h.NoSearch}}
-    <form class="header-search" action="/search" method="get" role="search">
-      <input type="search" name="q" placeholder="{{ui $l "search-placeholder"}}" aria-label="{{ui $l "search"}}" />
-      {{with $h.Scope}}<input type="hidden" name="j" value="{{.}}" />{{end}}
-      <button type="submit">{{ui $l "search"}}</button>
-    </form>
-    {{end}}
     <nav class="header-nav" aria-label="Site">
       <a class="header-place" href="/locations" data-place-link data-label="{{ui $l "your-location"}}">
         <svg class="header-place-pin" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
         <span data-place-name>{{ui $l "choose-location"}}</span>
       </a>
-      <a class="header-link" href="/terms">{{ui $l "header-terms"}}</a>
-      <a class="header-account" href="/account" data-account-link>{{if $h.SignedIn}}Account{{else}}Sign in{{end}}</a>
     </nav>
   </div>
 </header>
@@ -38,10 +31,6 @@
 (function () {
   var KEY = 'renterlaw.location';
   var signedIn = /(^|; )rl_in=1(;|$)/.test(document.cookie);
-  if (signedIn) {
-    var acct = document.querySelector('[data-account-link]');
-    if (acct) acct.textContent = 'Account';
-  }
   var link = document.querySelector('[data-place-link]');
   if (!link || !window.fetch) return;
   var nameEl = link.querySelector('[data-place-name]');
@@ -343,6 +332,7 @@
         <ul class="footer-list">
           <li><a href="/locations">{{ui $l "footer-locations"}}</a></li>
           <li><a href="/terms">{{ui $l "header-terms"}}</a></li>
+          <li><a href="/account" data-account-link>{{if (headerFor .).SignedIn}}Account{{else}}Sign in{{end}}</a></li>
         </ul>
       </div>
       <div>
@@ -359,6 +349,13 @@
     <p class="disclaimer"><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "footer-disclaimer"}}</p>
   </div>
 </footer>
+<script>
+(function () {
+  if (!/(^|; )rl_in=1(;|$)/.test(document.cookie)) return;
+  var acct = document.querySelector('[data-account-link]');
+  if (acct) acct.textContent = 'Account';
+})();
+</script>
 {{/*
   Cloudflare Web Analytics. Cookieless: page views and referrers only, so
   the site learns what readers do after the click without following anyone.

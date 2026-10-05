@@ -409,8 +409,8 @@ func TestPlaybookHandler_linksToLocalHelpWhenTheCityHasOne(t *testing.T) {
 	if !strings.Contains(body, `href="/j/massachusetts/boston/resource-directory"`) {
 		t.Error("no link to the city's Local Help page")
 	}
-	if !strings.Contains(body, "help-bar") {
-		t.Error("the Local Help link should render as the help bar above the guide")
+	if !strings.Contains(body, "help-line") {
+		t.Error("the Local Help link should render as the help line above the guide")
 	}
 	// The generic dead-end sentence is replaced by the real link, not doubled up.
 	if strings.Contains(body, "contact a legal aid office near you") {
@@ -425,7 +425,7 @@ func TestPlaybookHandler_noLocalHelpLinkWhenTheCityHasNone(t *testing.T) {
 		localHelpStub([]store.Topic{evictionTopic}, evictionTopic),
 		"/j/massachusetts/boston/eviction-defense")
 
-	if strings.Contains(body, "help-bar") {
+	if strings.Contains(body, "help-line") {
 		t.Error("a city with no Local Help page must not get a help bar")
 	}
 	if !strings.Contains(body, "contact a legal aid office near you") {
@@ -438,7 +438,7 @@ func TestPlaybookHandler_localHelpPageDoesNotLinkToItself(t *testing.T) {
 		localHelpStub([]store.Topic{evictionTopic, localHelpTopic}, localHelpTopic),
 		"/j/massachusetts/boston/resource-directory")
 
-	if strings.Contains(body, "help-bar") {
+	if strings.Contains(body, "help-line") {
 		t.Error("the Local Help page must not link to itself")
 	}
 }
@@ -548,12 +548,22 @@ func TestPlaybookHandler_statementTrustLine(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
+	// ADR-031 D3: one date for the page, in the byline, and only when every
+	// statement has earned it. One unconfirmed quote means no date at all.
 	body := rec.Body.String()
-	if !strings.Contains(body, "Sources checked August 1, 2026") {
-		t.Error("fully confirmed statement must show the trust line dated by its stalest confirmation")
+	if strings.Contains(strings.ToLower(body), "sources checked") {
+		t.Error("a page with an unconfirmed quote must show no sources-checked date")
 	}
-	if got := strings.Count(body, "Sources checked"); got != 1 {
-		t.Errorf("trust line rendered %d times, want exactly 1 — a statement with an unconfirmed quote must show nothing", got)
+
+	stub.playbook.Statements = stub.playbook.Statements[:1]
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/security-deposits", nil))
+	body = rec.Body.String()
+	if !strings.Contains(body, "sources checked August 1, 2026") {
+		t.Error("a fully confirmed page must show one date, its stalest confirmation")
+	}
+	if got := strings.Count(strings.ToLower(body), "sources checked"); got != 1 {
+		t.Errorf("sources-checked date rendered %d times, want exactly 1, in the byline", got)
 	}
 }
 

@@ -69,6 +69,7 @@ func funcMap() template.FuncMap {
 		"pageLang":       pageLang,
 		"headerFor":      headerFor,
 		"placeCount":     PlaceCount,
+		"placeName":      PlaceName,
 	}
 }
 
@@ -425,16 +426,16 @@ type PlaybookPage struct {
 	Topic          store.Topic
 	IntroHTML      template.HTML
 	Statements     []RenderedStatement
-	Description    string               // meta description, derived from the intro when present
-	Canonical      string               // absolute canonical URL
-	StructuredData template.JS          // JSON-LD Article + BreadcrumbList schema, pre-marshaled
+	Description    string      // meta description, derived from the intro when present
+	Canonical      string      // absolute canonical URL
+	StructuredData template.JS // JSON-LD Article + BreadcrumbList schema, pre-marshaled
 	// StageGroups are the playbook's statements under their stage headings
 	// (ADR-028 D10), in order. One group with no heading when the page has
 	// no stages.
 	StageGroups []StageGroup
 	// Rules is a rules page's body (ADR-028 D4): one question per concept,
 	// each answered by a statement or by a dated "we did not find a law".
-	Rules []RulesEntry
+	Rules          []RulesEntry
 	Preview        bool                 // authoring-tool draft preview: shows a banner, never set on the live site
 	ReviewedOn     string               // human-readable publish date for the byline; empty hides the date
 	ReviewedByName string               // byline name of who last saved or published the page; falls back to the historical reviewer
@@ -457,6 +458,36 @@ type PlaybookPage struct {
 	// XDefaultPath is the absolute URL for hreflang="x-default": the English
 	// version when one exists, this page's own Canonical otherwise. Always set.
 	XDefaultPath string
+}
+
+// PlaceName is how the top of a guide names whose rules it gives: a city with
+// its state ("Boston, Massachusetts"), anything else by its own name.
+func PlaceName(j store.Jurisdiction) string {
+	if j.Kind == "city" && j.ParentName != "" {
+		return j.Name + ", " + j.ParentName
+	}
+	return j.Name
+}
+
+// SourcesCheckedOn is the page's one "sources checked" date (ADR-031 D3): the
+// oldest source confirmation across its statements, and only when every
+// statement has one. The same fully-earned-or-absent rule the per-statement
+// line kept, said once instead of under every statement. Rules pages keep
+// their per-answer line, since their answers are shown from other guides.
+func (p PlaybookPage) SourcesCheckedOn() string {
+	if p.Playbook.PageKind == "rules" || len(p.Statements) == 0 {
+		return ""
+	}
+	var oldest *time.Time
+	for _, s := range p.Statements {
+		if s.CheckedAt == nil {
+			return ""
+		}
+		if oldest == nil || s.CheckedAt.Before(*oldest) {
+			oldest = s.CheckedAt
+		}
+	}
+	return UIDate(p.Playbook.Language, *oldest)
 }
 
 // LocalHelpTopic is the slug of the topic whose pages list local organisations

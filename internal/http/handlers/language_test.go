@@ -151,17 +151,16 @@ func TestSpanishPlaybook_chromeSpeaksSpanish(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"Esto no es asesoría legal.",
-		"Fuentes verificadas el 30 de agosto de 2026",
+		"fuentes verificadas el 30 de agosto de 2026",
 		"Publicado por",
 		"Avísenos",
-		"Busque su situación…",
 		"Todos los lugares", // footer follows the page language too
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Spanish page missing %q", want)
 		}
 	}
-	for _, banned := range []string{"Sources checked", "Not legal advice.", "Tell us"} {
+	for _, banned := range []string{"Sources checked", "sources checked", "Not legal advice.", "Tell us"} {
 		if strings.Contains(body, banned) {
 			t.Errorf("Spanish page still renders English chrome %q", banned)
 		}

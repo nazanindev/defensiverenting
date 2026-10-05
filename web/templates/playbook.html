@@ -40,28 +40,87 @@
     <div class="halo" aria-hidden="true"></div>
     <div class="pulse" aria-hidden="true"></div>
 
-    <div class="layout">
-      <aside class="sidebar" aria-label="Site navigation">
-        <nav class="sidebar-card">
-          <span class="sidebar-label">{{.Jurisdiction.Name}} · {{.Topic.Name}}</span>
-          <a class="sidebar-back" href="{{.Jurisdiction.PathIn .Playbook.Language}}">{{ui $l "all-topics"}}</a>
-          {{if .OtherLangPath}}<a class="sidebar-lang" href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a>{{end}}
-        </nav>
-      </aside>
-
+    <div class="layout layout--single">
       <div class="page-content">
-        <nav class="breadcrumb" aria-label="breadcrumb">
-          <a href="/">{{ui $l "home"}}</a> <span aria-hidden="true">›</span>
-          <a href="{{.Jurisdiction.PathIn .Playbook.Language}}">{{.Jurisdiction.Name}}</a> <span aria-hidden="true">›</span>
-          <span aria-current="page">{{.Topic.Name}}</span>
-        </nav>
-
+        {{/* ADR-031: most readers arrive from a search, often on a page for a
+             place that is not theirs. The top of a guide says whose rules
+             these are and offers one way to switch, keeping the topic. The
+             breadcrumb trail stays in the JSON-LD, not on the screen. */}}
         <header class="playbook-header">
-          <span class="city-badge">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide"}}{{else}}{{.Jurisdiction.Name}}{{end}}</span>
+          {{if eq .Jurisdiction.Kind "country"}}<span class="city-badge">{{ui $l "nationwide"}}</span>{{end}}
           <h1>{{.Playbook.Title}}</h1>
-          <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}</p>
+          {{if ne .Jurisdiction.Kind "country"}}
+          <div class="place-line">
+            <p class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</p>
+            <p class="place-suggest" hidden
+               data-topic="{{.Topic.Slug}}"
+               data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
+               data-ask="{{ui $l "do-you-rent-in"}}"
+               data-see="{{ui $l "see-guide-for"}}"><span></span> <a href="#"></a></p>
+            {{if .OtherCities}}
+            <details class="place-switch">
+              <summary>{{ui $l "rent-elsewhere"}}</summary>
+              <ul class="city-list city-list--wide">
+                {{$t := .Topic}}
+                {{range .OtherCities}}
+                <li><a href="{{.TopicPathIn $.Playbook.Language $t.Slug}}" data-set-location="{{.Slug}}">{{.Name}}</a></li>
+                {{end}}
+              </ul>
+              <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
+            </details>
+            {{end}}
+            {{if .OtherLangPath}}<p class="place-lang"><a href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a></p>{{end}}
+          </div>
+          {{end}}
+          <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}{{with .SourcesCheckedOn}} · {{ui $l "sources-checked-lower"}} {{.}}{{end}}</p>
+          <div class="disclaimer-box" role="note">
+            <strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}
+          </div>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
+          {{if .LocalHelpPath}}
+          <p class="help-line"><a href="{{.LocalHelpPath}}"><strong>{{ui $l "need-help-now"}}</strong> {{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}} →</a></p>
+          {{end}}
         </header>
+        {{if ne .Jurisdiction.Kind "country"}}
+        {{/* ADR-031 D2: when the reader's place is known (saved on this
+             device or in their account) or can be guessed from their
+             connection, offer this same topic there. Client-side because the
+             page is shared-cached. A guess is never stored: tapping the link
+             saves it like any other place pick (data-set-location). A guess
+             of this page's own state is not offered, since the reader may
+             well be in this city. */}}
+        <script>
+        (function () {
+          var box = document.querySelector('.place-suggest');
+          if (!box || !window.fetch || document.documentElement.lang !== 'en') return;
+          var topic = box.getAttribute('data-topic');
+          var state = box.getAttribute('data-state');
+          function offer(slug) {
+            fetch('/api/coverage?j=' + encodeURIComponent(slug))
+              .then(function (r) { return r.ok ? r.json() : null; })
+              .then(function (d) {
+                if (!d || !d.guides) return;
+                var g = d.guides.filter(function (x) { return x.topic === topic; })[0];
+                if (!g || g.path === location.pathname) return;
+                box.querySelector('span').textContent = box.getAttribute('data-ask').replace('%s', d.name);
+                var a = box.querySelector('a');
+                a.textContent = box.getAttribute('data-see').replace('%s', d.name);
+                a.setAttribute('href', g.path);
+                a.setAttribute('data-set-location', d.j);
+                box.hidden = false;
+              })
+              .catch(function () {});
+          }
+          var saved = '';
+          try { saved = localStorage.getItem('renterlaw.location') || ''; } catch (e) {}
+          if (saved) { offer(saved); return; }
+          fetch('/api/where')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (w) { if (w && w.j && w.j !== state) offer(w.j); })
+            .catch(function () {});
+        })();
+        </script>
+        {{end}}
 
         {{if and (eq .Jurisdiction.Kind "country") .OtherCities}}
         {{/* The searcher who lands here typed a problem, not a place, and
@@ -82,17 +141,6 @@
         {{end}}
 
         <main aria-label="Guide content">
-          {{if .LocalHelpPath}}
-          <a class="help-bar" href="{{.LocalHelpPath}}">
-            <span class="help-bar-lead">{{ui $l "need-help-now"}}</span>
-            <span class="help-bar-text">{{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}}: {{ui $l "help-bar-tail"}}</span>
-          </a>
-          {{end}}
-
-          <div class="disclaimer-box" role="note">
-            <strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}
-          </div>
-
           {{if or .Statements .Rules}}
 
           {{if eq .Playbook.PageKind "rules"}}
@@ -180,7 +228,6 @@
                 </a>
                 {{end}}
               </div>
-              {{with .CheckedOn}}<p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.}}</p>{{end}}
             </div>
             {{end}}
           </dl>
@@ -204,7 +251,6 @@
                     </a>
                     {{end}}
                   </div>
-                  {{with .CheckedOn}}<p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.}}</p>{{end}}
                   {{/* ADR-028 D1: a national checklist sends the reader to
                        the concept page for the number where they live. */}}
                   {{if .SpecificsPath}}
@@ -240,13 +286,9 @@
                 </a>
                 {{end}}
               </div>
-              {{/* The trust line: when every quoted source backing this
-                   statement was last confirmed live. Absent unless fully
-                   earned — a statement with any unconfirmed quote shows
-                   nothing rather than a half-attestation. */}}
-              {{if .CheckedOn}}
-              <p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.CheckedOn}}</p>
-              {{end}}
+              {{/* No per-statement date (ADR-031 D3): the byline carries one
+                   "sources checked" date for the page, shown only when every
+                   statement has earned it. */}}
               {{/* ADR-011 D4 (amended): a national statement that can only
                    outline the rule sends the reader to the topic hub, where
                    every covered state and city is listed. One link that
@@ -336,18 +378,6 @@
         </section>
         {{end}}
 
-        {{if and .OtherCities (ne .Jurisdiction.Kind "country")}}
-        <section class="related-section" aria-labelledby="related-topic-heading">
-          <h2 id="related-topic-heading" class="section-title">{{uif $l "topic-elsewhere" .Topic.Name}}</h2>
-          <ul class="city-list city-list--wide">
-            {{$t := .Topic}}
-            {{range .OtherCities}}
-            <li><a href="{{.TopicPathIn $.Playbook.Language $t.Slug}}">{{.Name}}</a></li>
-            {{end}}
-          </ul>
-          <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
-        </section>
-        {{end}}
       </div>
     </div>
   </div>
