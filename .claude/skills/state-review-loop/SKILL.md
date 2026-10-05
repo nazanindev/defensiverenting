@@ -23,6 +23,7 @@ Build once per session: `go build -o bin/lintprops ./cmd/lintprops && go build -
 - `reader-rules.md`, `fixer-rules.md`, `judge-rules.md`: one role each.
 - `thin-brief.md`: second pass on short pages: fill only real gaps, never pad.
 - `rules-brief.md`: the drafter brief for a rules page (ADR-028): draft only what `triage gaps` lists as a gap, one statement per concept.
+- `citation-leads.md`: statute sections our guides do not cite yet, found by comparing citations (local files in `notes/citation-leads/`). Discovery only. Read it before a pass that should also close coverage gaps, law-change leads first.
 
 ## Rules pages and gaps (ADR-028)
 
