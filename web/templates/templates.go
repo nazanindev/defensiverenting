@@ -605,41 +605,17 @@ func (g OrgGroup) Anchor() string {
 	return ""
 }
 
-// A directory entry shows the organization as a heading with its actions as
-// buttons (ADR-031 D6). These read what is already there: the name is the
-// source's publisher, the call button is the first phone link LinkPhones made
-// in the entry's own text, and the repeated "Name, phone." lead the drafting
-// rules put at the start of an entry is hidden when it matches the heading.
+// A directory entry shows the organization as a heading (ADR-031 D6). Its
+// phone numbers stay in the text as tap-to-call links, where the sentence says
+// what each line is for (D6 amended 2026-10-05: call buttons showed only the
+// number, so an entry with two lines had two buttons nobody could tell apart).
+// The repeated "Name, phone." lead the drafting rules put at the start of an
+// entry is hidden when it matches the heading, keeping its numbers.
 var (
-	telLinkRE = regexp.MustCompile(`<a href="(tel:\+?[0-9]+)"[^>]*>([^<]+)</a>`)
+	telLinkRE = regexp.MustCompile(`<a href="tel:\+?[0-9]+"[^>]*>[^<]+</a>`)
 	entryLead = regexp.MustCompile(`^(\s*<p>)\s*<strong>(.*?)</strong>\s*`)
 	tagRE     = regexp.MustCompile(`<[^>]+>`)
-	// bareCallRE is a whole sentence that only says to call a number.
-	bareCallRE = regexp.MustCompile(`\s*\b(?:Call|Llame al?)\s+<a href="(tel:\+?[0-9]+)"[^>]*>[^<]+</a>\s*\.`)
 )
-
-// OrgCall is a directory entry's call button.
-type OrgCall struct {
-	Href  template.URL // tel: and digits only, so safe to mark as a URL
-	Label string       // the number as the entry writes it
-}
-
-// Calls are the entry's call buttons: one per distinct phone number in its
-// text, in the order the text gives them.
-func (g OrgGroup) Calls() []OrgCall {
-	var out []OrgCall
-	seen := map[string]bool{}
-	for _, s := range g.Statements {
-		for _, m := range telLinkRE.FindAllStringSubmatch(string(s.BodyHTML), -1) {
-			if seen[m[1]] {
-				continue
-			}
-			seen[m[1]] = true
-			out = append(out, OrgCall{Href: template.URL(m[1]), Label: m[2]}) // #nosec G203 -- matched tel:+digits only
-		}
-	}
-	return out
-}
 
 // KindLabel says what kind of group this is, in plain words, from the
 // source's kind. Empty for kinds a directory does not list.
@@ -654,34 +630,27 @@ func (g OrgGroup) KindLabel(lang string) string {
 }
 
 // Bodies are the entry's statements with the leading bold "Name, contact."
-// removed when it starts with the heading's name. The text is unchanged
-// otherwise; the number and the website it named are the buttons below.
-func (g OrgGroup) Bodies() []template.HTML {
+// removed when it starts with the heading's name: the name is the heading and
+// the website is the button below. Any phone number in that lead is kept, as
+// "Call <number>." in the page's language, so no number is lost with it.
+func (g OrgGroup) Bodies(lang string) []template.HTML {
 	name := strings.ToLower(strings.TrimSpace(g.Chip.Label))
-	buttons := map[string]bool{}
-	for _, c := range g.Calls() {
-		buttons[string(c.Href)] = true
-	}
 	out := make([]template.HTML, 0, len(g.Statements))
 	for _, s := range g.Statements {
 		body := string(s.BodyHTML)
 		if m := entryLead.FindStringSubmatchIndex(body); m != nil && name != "" {
-			lead := strings.ToLower(strings.TrimSpace(tagRE.ReplaceAllString(body[m[4]:m[5]], "")))
+			leadHTML := body[m[4]:m[5]]
+			lead := strings.ToLower(strings.TrimSpace(tagRE.ReplaceAllString(leadHTML, "")))
 			if strings.HasPrefix(lead, name) {
-				body = body[m[2]:m[3]] + body[m[1]:]
+				keep := ""
+				if phones := telLinkRE.FindAllString(leadHTML, -1); len(phones) > 0 {
+					keep = strings.Replace(UIString(lang, "call-number"), "%s", strings.Join(phones, " "+UIString(lang, "or")+" "), 1) + ". "
+				}
+				body = body[m[2]:m[3]] + keep + body[m[1]:]
 			}
 		}
-		// A sentence that is only "Call <number>." repeats a call button word
-		// for word, so it goes when a button dials that same number. A
-		// sentence that says more ("Its hotline is ...") stays.
-		body = bareCallRE.ReplaceAllStringFunc(body, func(m string) string {
-			if sub := bareCallRE.FindStringSubmatch(m); sub != nil && buttons[sub[1]] {
-				return ""
-			}
-			return m
-		})
 		if strings.TrimSpace(tagRE.ReplaceAllString(body, "")) == "" {
-			continue // nothing was left but the number the button shows
+			continue
 		}
 		out = append(out, template.HTML(body)) // #nosec G203 -- already-rendered statement HTML, only trimmed
 	}

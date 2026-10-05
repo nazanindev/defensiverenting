@@ -655,6 +655,17 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .directory-body p:last-child { margin: 0; }
 .directory-body strong { color: var(--ink); }
 .directory-body a { color: var(--accent); }
+/* A phone number is the action on a Local Help entry (ADR-031 D6, amended):
+   bold and underlined so it reads as something to tap, where the sentence
+   says what the line is for. */
+.directory-body a[href^="tel:"],
+.statement-body a[href^="tel:"] {
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
 
 .directory-actions {
   display: flex;
@@ -675,8 +686,6 @@ a.top-row:hover span:first-child { text-decoration: underline; }
   text-decoration: none;
 }
 .directory-btn:hover { background: var(--mint); }
-.directory-btn--call { background: var(--accent); color: #fff; }
-.directory-btn--call:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 
 /* ── FAQ ────────────────────────────────────────────────── */
 

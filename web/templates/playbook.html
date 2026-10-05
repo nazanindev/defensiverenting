@@ -184,20 +184,20 @@
                cards belonged together. See groupByOrg. */}}
           <ul class="directory-list">
             {{range groupByOrg .Statements}}
-            {{/* ADR-031 D6: the organization's name is the heading, what
-                 kind of group it is sits under it, and calling or visiting
-                 are buttons. The website button is the entry's source, so
-                 every entry still links to where its facts come from. The
-                 page's one checked date is in the fine print at the foot. */}}
-            {{$g := .}}
+            {{/* ADR-031 D6 (amended 2026-10-05): the organization's name is
+                 the heading and what kind of group it is sits under it.
+                 Phone numbers stay in the text as tap-to-call links, where
+                 the sentence says what each line is for. The one button is
+                 Visit website, the entry's source, so every entry still
+                 links to where its facts come from. The page's one checked
+                 date is in the fine print at the foot. */}}
             <li class="directory-entry"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <h2 class="directory-name">{{.Chip.Label}}</h2>
               {{with .KindLabel $l}}<p class="directory-kind">{{.}}</p>{{end}}
-              {{range .Bodies}}
+              {{range .Bodies $l}}
               <div class="directory-body">{{.}}</div>
               {{end}}
               <p class="directory-actions">
-                {{range .Calls}}<a class="directory-btn directory-btn--call" href="{{.Href}}" data-out="{{$g.Chip.SourceID}}">{{uif $l "call-number" .Label}}</a>{{end}}
                 <a class="directory-btn" href="{{.Chip.URL}}" target="_blank" rel="noopener noreferrer" data-out="{{.Chip.SourceID}}">{{ui $l "visit-website"}} <span aria-hidden="true">↗</span></a>
               </p>
               {{/* No per-entry report link. Repeated under every organisation it

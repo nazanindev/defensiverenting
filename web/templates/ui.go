@@ -56,6 +56,7 @@ var uiStrings = map[string]map[string]string{
 	"org-kind-gov":       {"en": "Government office", "es": "Oficina del gobierno"},
 	"org-kind-nonprofit": {"en": "Nonprofit group", "es": "Organización sin fines de lucro"},
 	"call-number":        {"en": "Call %s", "es": "Llame al %s"},
+	"or":                 {"en": "or", "es": "o"},
 	"visit-website":      {"en": "Visit website", "es": "Visite el sitio web"},
 	"see-instead":        {"en": "See %s instead", "es": "Vea %s"},
 	"sources":            {"en": "Sources", "es": "Fuentes"},

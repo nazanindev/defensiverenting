@@ -9,9 +9,10 @@ import (
 	tmpl "github.com/nazanindev/defensiverenting/web/templates"
 )
 
-// ADR-031 D6: a directory entry leads with the organization's name, offers
-// the number in its own text as a call button and its source as the website
-// button, and hides the repeated "Name, phone." lead under the heading.
+// ADR-031 D6 (amended 2026-10-05): a directory entry leads with the
+// organization's name, keeps its number in the text as a tap-to-call link,
+// offers its source as the website button, and hides the repeated
+// "Name, phone." lead under the heading while keeping the lead's number.
 func TestDirectoryEntryHierarchy(t *testing.T) {
 	chip := []tmpl.CitationChip{{SourceID: 7, Label: "City of Chicago Department of Housing", URL: "https://chicago.gov/housing", SourceKind: "gov_guidance"}}
 	page := tmpl.PlaybookPage{
@@ -31,9 +32,8 @@ func TestDirectoryEntryHierarchy(t *testing.T) {
 	for _, want := range []string{
 		`<h2 class="directory-name">City of Chicago Department of Housing</h2>`,
 		`<p class="directory-kind">Government office</p>`,
-		`href="tel:&#43;13127443653" data-out="7">Call 312-744-3653</a>`,
+		`<p>Call <a href="tel:+13127443653" data-out="7">312-744-3653</a>. The city office works to protect the right to quality homes.</p>`,
 		`href="https://chicago.gov/housing" target="_blank"`,
-		`<p>The city office works to protect the right to quality homes.</p>`,
 		"Some of the groups below can help.",
 		"For Chicago, Illinois.",
 	} {
@@ -43,6 +43,9 @@ func TestDirectoryEntryHierarchy(t *testing.T) {
 	}
 	if strings.Contains(body, "<strong>City of Chicago Department of Housing,") {
 		t.Error("the repeated name lead should be hidden under the heading")
+	}
+	if strings.Contains(body, "directory-btn--call") {
+		t.Error("numbers are links in the text, not call buttons")
 	}
 	if strings.Contains(body, "Details checked") {
 		t.Error("no per-entry checked line; the page date is in the fine print")

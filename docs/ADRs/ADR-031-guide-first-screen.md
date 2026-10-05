@@ -67,6 +67,8 @@ Added 2026-10-04 after Nazanin flagged the Local Help pages as a mess: each entr
 - The description follows. The bold "Name, phone." lead the drafting rules put first is hidden when it starts with the heading's name. The stored text does not change.
 - Then the actions as buttons: "Call 312-744-3653", taken from the first phone number in the entry's own text (no phone, no button), and "Visit website", which is the entry's source. Both report the tap like a source click (ADR-029 D6).
 - No per-entry checked line. The page's one date is in the fine print at the foot (D3).
+
+Amended 2026-10-05: no call buttons. A button could show only the number, so an entry with two lines (a rent line and 211, a hotline and an office) had two buttons a reader could not tell apart without reading the text, and the same number showed twice, once linked in the text and once on the button. Phone numbers stay in the text as tap-to-call links, bold and underlined, where the sentence says what each line is for, and taps are still counted (ADR-029 D6). When the hidden "Name, phone." lead carries a number, the number stays as "Call <number>." Visit website stays as the entry's one button.
 - On a Local Help page the legal note ends "Some of the groups below can help." instead of pointing elsewhere.
 
 ## Consequences
