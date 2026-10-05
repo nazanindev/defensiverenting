@@ -1429,24 +1429,29 @@ input:focus-visible,
 .places-page .lede { margin-bottom: 24px; }
 .place-rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid rgba(0,0,0,.1); }
 .place-row { border-bottom: 1px solid rgba(0,0,0,.1); padding: 4px 0; }
-.place-state {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: var(--ink);
-  text-decoration: none;
-}
-a.place-state:hover { color: var(--accent); text-decoration: underline; }
-.place-cities { list-style: none; margin: 0 0 8px; padding: 0 0 0 20px; }
+/* Every place is a link and looks like one: link color, a chevron on the
+   right, and the whole row is the tap target. */
+.place-state,
 .place-cities a {
   display: flex;
   align-items: center;
-  min-height: 40px;
+  justify-content: space-between;
+  gap: 12px;
   color: var(--accent);
   text-decoration: none;
 }
+.place-state { min-height: 44px; font-weight: 600; font-size: 1.05rem; }
+span.place-state { color: var(--ink); }
+.place-cities a { min-height: 40px; }
+a.place-state::after,
+.place-cities a::after {
+  content: "›";
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--accent);
+}
+a.place-state:hover,
 .place-cities a:hover { text-decoration: underline; }
+.place-cities { list-style: none; margin: 0 0 8px; padding: 0 0 0 20px; }
 .places-foot { margin: 24px 0 0; font-size: .92rem; color: var(--ink-soft); line-height: 1.8; }
 .places-foot a { color: var(--accent); }

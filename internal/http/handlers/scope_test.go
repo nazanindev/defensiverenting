@@ -227,8 +227,8 @@ func TestLocations_nationalHubGetsItsOwnSection(t *testing.T) {
 
 	// The nationwide guides are one small link at the end, not a section
 	// above the states (2026-10-04 place picker).
-	if !strings.Contains(body, `href="/j/united-states">Guides for rules that apply in every state`) {
-		t.Fatal("/locations should end with a link to the nationwide guides")
+	if !strings.Contains(body, `href="/j/united-states">US-wide`) {
+		t.Fatal("/locations should end with a US-wide row")
 	}
 	if strings.Index(body, `href="/j/united-states"`) < strings.Index(body, `class="place-rows"`) {
 		t.Error("the nationwide link belongs after the list of states")

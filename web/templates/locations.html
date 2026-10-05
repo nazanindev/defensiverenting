@@ -28,8 +28,8 @@
     {{/* The place picker: "Choose your location" in the header lands here.
          One A to Z list of states, each city indented under its state, in
          the thin-line rows guides use. No filter: people know their state.
-         Nationwide is a small link at the end, since every state is covered
-         and nationwide is rarely anyone's answer. Tapping a place saves it
+         The nationwide guides are the last row, "US-wide", since every state
+         is covered and they are rarely anyone's answer. Tapping a place saves it
          (data-set-location). */}}
     <h1>Where do you rent?</h1>
     <p class="lede">{{if .Groups}}Pick your state. If we cover your city, pick it under the state.{{else}}No guides are published yet.{{end}}</p>
@@ -50,11 +50,13 @@
         {{end}}
       </li>
       {{end}}
+      {{range .National}}
+      <li class="place-row place-row--us"><a class="place-state" href="{{.Path}}">US-wide</a></li>
+      {{end}}
     </ul>
     {{end}}
 
     <p class="places-foot">
-      {{range .National}}<a href="{{.Path}}">Guides for rules that apply in every state →</a><br />{{end}}
       Do not see your city? Your state's guides still apply to you. <a href="/contact">Ask us to cover your city.</a>
     </p>
   </main>
