@@ -45,15 +45,15 @@ When the site knows or can guess where the reader rents, the place line itself a
 
 Nazanin, 2026-10-04: "Renters are an at-risk population and they deserve to know what they're getting into." Many reference sites carry one disclaimer in the footer. We put ours first, and make it say something.
 
-- Directly under the title, before the place line, the intro and any rule, on every guide: a solid block in the header's color with an info mark. In plain words: "**This is not legal advice.** We explain what the law says. We cannot tell you what to do in your situation. For that, talk to a lawyer. Find free legal help in Pittsburgh." The link goes to the place's Local Help page. Without one: "Many places have a legal aid office with free lawyers."
+- Directly under the title, before the place line, the intro and any rule, on every guide: a solid block in the header's color with an info mark. In plain words: "**This is not legal advice.** We explain what the law says. We cannot tell you what to do in your situation. For that, talk to a lawyer. Find free legal and rent help in Pittsburgh." The link goes to the place's Local Help page. Without one: "Many places have a legal aid office with free lawyers."
 - Not in the site header: a strip on every page stops being seen, takes phone space on pages where it means nothing, and sits apart from the rules it warns about. Not above the title: the reader first needs to know they are on the right page, and a warning before anything else reads like an error.
 - The rows below it (place line, the reader's own place) share one look: thin lines between them, like the Local Help row. Nazanin: what is not important can be small and at the bottom.
 - The byline moves to the foot of the guide, as fine print: "Published by Nazanin · September 24, 2026 · sources checked October 3, 2026". The date is the oldest confirmation across the page's statements, and shown only when every statement has one. That is the same fully-earned-or-absent rule the per-statement line kept.
 - The per-statement "✓ Sources checked" line is removed from guides, FAQs and checklists. Rules pages keep it on each answer, since those answers are shown from other guides. Local Help keeps "Details checked" on each organization.
 
-### D4. Local help is a row under the intro
+### D4. Local help is the link in the legal note
 
-"Need help now? Local Help in Pittsburgh →", a row in the same style right under the intro, where the "rent assistance" searcher sees it before the rules. It replaces the box.
+The note's "Find free legal and rent help in Pittsburgh" is the one link to Local Help near the top. It replaces the help box, and no separate help row repeats it. The link names rent help as well as lawyers, because the page lists both and many searchers want money, not a lawyer ("rent assistance seattle").
 
 ### D5. The header is the logo and the reader's place
 

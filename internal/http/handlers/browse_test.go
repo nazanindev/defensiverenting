@@ -409,8 +409,8 @@ func TestPlaybookHandler_linksToLocalHelpWhenTheCityHasOne(t *testing.T) {
 	if !strings.Contains(body, `href="/j/massachusetts/boston/resource-directory"`) {
 		t.Error("no link to the city's Local Help page")
 	}
-	if !strings.Contains(body, "help-line") {
-		t.Error("the Local Help link should render as the help line above the guide")
+	if !strings.Contains(body, "Find free legal and rent help") {
+		t.Error("the legal note should link to Local Help")
 	}
 	// The generic dead-end sentence is replaced by the real link, not doubled up.
 	if strings.Contains(body, "legal aid office with free lawyers") {
@@ -425,8 +425,8 @@ func TestPlaybookHandler_noLocalHelpLinkWhenTheCityHasNone(t *testing.T) {
 		localHelpStub([]store.Topic{evictionTopic}, evictionTopic),
 		"/j/massachusetts/boston/eviction-defense")
 
-	if strings.Contains(body, "help-line") {
-		t.Error("a city with no Local Help page must not get a help bar")
+	if strings.Contains(body, "Find free legal and rent help") {
+		t.Error("a city with no Local Help page must not get the Local Help link")
 	}
 	if !strings.Contains(body, "legal aid office with free lawyers") {
 		t.Error("without a link, the generic fallback sentence should remain")
@@ -438,7 +438,7 @@ func TestPlaybookHandler_localHelpPageDoesNotLinkToItself(t *testing.T) {
 		localHelpStub([]store.Topic{evictionTopic, localHelpTopic}, localHelpTopic),
 		"/j/massachusetts/boston/resource-directory")
 
-	if strings.Contains(body, "help-line") {
+	if strings.Contains(body, "Find free legal and rent help") {
 		t.Error("the Local Help page must not link to itself")
 	}
 }

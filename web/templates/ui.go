@@ -40,10 +40,8 @@ var uiStrings = map[string]map[string]string{
 	"home":             {"en": "Home", "es": "Inicio"},
 
 	// Playbook page
-	"nationwide":    {"en": "Nationwide", "es": "Todo el país"},
-	"reviewed-by":   {"en": "Published by", "es": "Publicado por"},
-	"need-help-now": {"en": "Need help now?", "es": "¿Necesita ayuda ahora?"},
-	"in":            {"en": "in", "es": "en"},
+	"nationwide":  {"en": "Nationwide", "es": "Todo el país"},
+	"reviewed-by": {"en": "Published by", "es": "Publicado por"},
 	"page-disclaimer-help": {
 		"en": "Many places have a legal aid office with free lawyers.",
 		"es": "Muchos lugares tienen una oficina de ayuda legal con abogados gratis.",
@@ -53,7 +51,7 @@ var uiStrings = map[string]map[string]string{
 		"en": "We explain what the law says. We cannot tell you what to do in your situation. For that, talk to a lawyer.",
 		"es": "Explicamos lo que dice la ley. No podemos decirle qué hacer en su situación. Para eso, hable con un abogado.",
 	},
-	"legal-note-help":   {"en": "Find free legal help in %s", "es": "Busque ayuda legal gratis en %s"},
+	"legal-note-help":   {"en": "Find free legal and rent help in %s", "es": "Busque ayuda legal y para la renta gratis en %s"},
 	"see-instead":       {"en": "See %s instead", "es": "Vea %s"},
 	"sources":           {"en": "Sources", "es": "Fuentes"},
 	"sources-checked":   {"en": "Sources checked", "es": "Fuentes verificadas el"},

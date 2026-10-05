@@ -77,11 +77,6 @@
           </div>
           {{end}}
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
-          {{if .LocalHelpPath}}
-          <div class="top-rows">
-            <a class="top-row help-line" href="{{.LocalHelpPath}}"><span><strong>{{ui $l "need-help-now"}}</strong> {{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}}</span> <span aria-hidden="true">→</span></a>
-          </div>
-          {{end}}
         </header>
         {{if ne .Jurisdiction.Kind "country"}}
         {{/* ADR-031 D2: when the reader's place is known (saved on this
