@@ -311,4 +311,19 @@ func TestStage_splitFollowersKeepTheLeadsStage(t *testing.T) {
 	if strings.Join(got, "|") != "What the law says|What the law says|Ask for your deposit back" {
 		t.Fatalf("stages after split = %q", got)
 	}
+	// A follower that names its own stage lands under it.
+	pid, err = pg.FileProposal(ctx, store.FileProposalParams{StatementKey: pw.Statements[0].Key, PlaybookID: id, Reason: "agent-pass:triage", ProposedBy: "triage agent",
+		Proposed: &store.ProposedStatement{BodyMD: "Rulesland law says the first half.", Citations: []store.ProposedCitation{{URL: "https://example.gov/rules-" + t.Name(), Quote: "verbatim"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.ApproveProposal(ctx, store.ApproveProposalParams{ID: pid, By: store.ActorReviewAgent,
+		Statement: store.IngestStatementParams{BodyMD: "Rulesland law says the first half.", Sources: cite},
+		Followers: []store.IngestStatementParams{{BodyMD: "Rulesland law says a third thing.", Stage: "Going to court", Sources: cite}}}); err != nil {
+		t.Fatal(err)
+	}
+	pw, _ = pg.AuthorGetPlaybook(ctx, id)
+	if s := pw.Statements[1]; s.BodyMD != "Rulesland law says a third thing." || s.Stage != "Going to court" {
+		t.Fatalf("named follower stage = %q (%q)", s.Stage, s.BodyMD)
+	}
 }

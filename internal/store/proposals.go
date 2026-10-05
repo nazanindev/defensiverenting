@@ -44,9 +44,13 @@ type ProposedCitation struct {
 
 // ProposedStatement is the statement as it should read after approval.
 type ProposedStatement struct {
-	BodyMD    string             `json:"body_md"`
-	Concept   string             `json:"concept,omitempty"`
-	TopicRef  string             `json:"topic_ref,omitempty"`
+	BodyMD   string `json:"body_md"`
+	Concept  string `json:"concept,omitempty"`
+	TopicRef string `json:"topic_ref,omitempty"`
+	// Stage is the heading the statement lands under (ADR-028 D10). Empty
+	// keeps the replaced statement's stage, and puts a follower under the
+	// stage of the statement it was split from.
+	Stage     string             `json:"stage,omitempty"`
 	Citations []ProposedCitation `json:"citations"`
 	// Followers are statements inserted right after this one when the
 	// proposal is applied: a split (ADR-023). One claim that grew into a
