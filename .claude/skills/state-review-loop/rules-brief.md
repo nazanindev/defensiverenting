@@ -7,7 +7,7 @@ A rules page answers one state's rules for one topic: one statement per concept,
 You get a gap list from `triage gaps <state> <rules-topic>`. Each entry is a concept with its question and a state: `answered` (another page already says it: leave it alone), `no-law` (we looked and found no law: leave it alone), or `gap` (draft it).
 
 - Draft one statement per `gap` concept, tagged with that concept (field `concept`). The save refuses any other concept, a second statement on the same concept, and any concept another page in the state already answers.
-- The statement answers the question directly, in the first sentence, with the state named: "Ohio law does not limit how much a landlord can charge for a deposit." Then the conditions and numbers its quote supports.
+- The statement answers the question directly, in the first sentence, without the state name (the heading carries it): "The law does not limit how much a landlord can charge for a deposit." Then the conditions and numbers its quote supports.
 - No stages on a rules page. The question is the heading.
 - `page_kind` is `rules` (the store sets it anyway). Title: "{Topic name} in {State}: What Does the Law Say?". Intro: 2 short sentences naming what the page answers, no legal claim.
 - No steps, no "what to do". The situation page carries the steps; the rules page links to it.

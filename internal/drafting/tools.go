@@ -241,19 +241,6 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 		texts[fmt.Sprintf("statement %d body_md", si+1)] = st.BodyMD
 	}
 	violations := voice.LintAll(lang, texts)
-	// Every new statement names its place (ADR-028 D11): a passage shown
-	// alone in a search result loses the page title. Statements already on
-	// the page (they carry a key) are not retrofitted, and a directory's
-	// entries are organisations, not claims about the law.
-	if names := placeNames(jur); len(names) > 0 && (pageKind == "playbook" || pageKind == "rules") {
-		for si, st := range in.Statements {
-			if strings.TrimSpace(st.Key) == "" {
-				if v := voice.PlaceViolation(st.BodyMD, names); v != "" {
-					violations = append(violations, fmt.Sprintf("statement %d body_md: %s", si+1, v))
-				}
-			}
-		}
-	}
 	if len(violations) > 0 {
 		return SaveDraftOutput{}, reject("draft rejected by the editorial-voice lint. Rewrite the flagged text in plain language and save again (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 	}

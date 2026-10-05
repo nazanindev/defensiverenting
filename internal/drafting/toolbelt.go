@@ -519,27 +519,6 @@ func ResolveLanguage(lang string) (string, error) {
 	return "", reject("language %q is not supported. Use one of: %s.", lang, strings.Join(voice.Supported(), ", "))
 }
 
-// placeNames are the names a statement on this place's page may use to name
-// its place (ADR-028 D11): the place, and for a city its state, since city
-// pages state state law ("Pennsylvania law..."). Nil for the nationwide
-// page, whose statements name federal law or say how states differ.
-func placeNames(j store.Jurisdiction) []string {
-	if j.Kind == "country" {
-		return nil
-	}
-	names := []string{j.Name}
-	if j.Kind == "city" && j.ParentName != "" {
-		names = append(names, j.ParentName)
-	}
-	for _, n := range names {
-		if strings.Contains(n, "District of Columbia") || strings.Contains(n, "DC") {
-			names = append(names, "District of Columbia", "D.C.", "DC", "Washington")
-			break
-		}
-	}
-	return names
-}
-
 // checkStages refuses a stage the topic does not list (ADR-028 D10): the
 // store refuses it too, but here the rejection names the choices.
 func checkStages(topic store.Topic, stmts []StatementInput) error {

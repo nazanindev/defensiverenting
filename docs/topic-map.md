@@ -14,7 +14,7 @@ A statement is one informative claim, tagged with the concept whose question it 
 ## Rules every agent follows
 
 - **Stages.** Give each playbook statement one stage, copied exactly from its topic's list below. Never write a new heading. Stages follow the statement order: law, first step, next, if ignored, court.
-- **Place named.** Every new statement names its place ("Ohio law says..."). A statement can be shown alone in a search result.
+- **No place name in statements.** The page title carries the place. Name one only when a statement covers a different area than the page (a city ordinance on a state page, part of a state, federal law).
 - **Rules pages draft only gaps.** Run `triage gaps <place> <rules-topic>`. Draft one statement per concept marked `gap`, tagged with that concept. A concept answered on another page in the place is refused; the rules page shows it from there.
 - **No law found.** When you search and find no law on a gap, say so. The reviewer files a coverage record with `triage nolaw` (place, concept, the official places searched). Never write "{State} has no rule" unless an official source says so in those words; then it is a normal cited statement.
 - **National only.** Topics marked national have one page, on united-states. A state's own rules for them go on a rules page.

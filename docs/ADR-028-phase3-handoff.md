@@ -25,7 +25,7 @@ Up to 102 pages: 51 places (50 states and DC) times 2 topics. The thin-page rule
 
 - **Live statements to move.** Lockout statements already on live `landlord-entry` pages, and unlivable-home statements on live `repairs-and-habitability` pages, stay where they are (D7). After the new page exists, file the removal from the live page as a queue proposal for Nazanin. Never edit a live page.
 - **Constructive eviction.** The live US and PA `constructive-eviction` pages stay until `breaking-lease` publishes in those places. Then they are retired and redirected (Build notes, not built yet).
-- **Place named.** Every new statement must name its state; the save refuses one that does not.
+- **No place name.** Statements do not name the state (D11 amended 2026-10-04); name a place only when the statement covers a different area than the page.
 - **Tag concepts:** `court-eviction-only`, `illegal-lockout` (locked-out); `early-termination-rights`, `duty-to-mitigate`, `constructive-eviction` (breaking-lease). Statements citing only site guidance never count as a concept answer.
 
 ## Tooling notes for this machine

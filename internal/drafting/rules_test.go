@@ -65,20 +65,18 @@ func save(tb *Toolbelt, topic, kind string, stmts ...StatementInput) error {
 	return err
 }
 
-func TestSaveDraft_PlaceNamedInNewStatements(t *testing.T) {
+// A statement does not have to name its place (ADR-028 D11, amended
+// 2026-10-04): the page title and headings carry it, and repeating it in
+// every statement made pages hard to read.
+func TestSaveDraft_StatementNeedNotNamePlace(t *testing.T) {
 	fs := &rulesStore{}
 	tb := rulesToolbelt(t, fs)
 	bare := StatementInput{
 		BodyMD:    "Your landlord must return your deposit within 30 days.",
 		Citations: []CitationInput{{URL: depositURL, Kind: "statute", Locator: "§ 15B", Quote: "within thirty days after the termination of the tenancy"}},
 	}
-	if err := save(tb, "security-deposits", "", bare); err == nil || !strings.Contains(err.Error(), "name the place") {
-		t.Fatalf("a statement with no place saved: %v", err)
-	}
-	// Statements already on the page are not retrofitted.
-	bare.Key = "1f0e0b9a-0000-4000-8000-000000000001"
 	if err := save(tb, "security-deposits", "", bare); err != nil {
-		t.Fatalf("a kept statement was held to the new rule: %v", err)
+		t.Fatalf("a statement without its place name was refused: %v", err)
 	}
 }
 

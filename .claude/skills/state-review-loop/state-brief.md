@@ -20,7 +20,7 @@ Before you start, read these files with the Read tool:
 - Only what fits this page's situation (see the topic map "Covers" and "Not here" columns). If a true fact belongs on another page, leave it out.
 - Tag each statement with the concept slug from the topic map whose question it answers (field `concept`). Leave step-by-step procedure untagged when no concept fits. Never invent a slug.
 - Give each statement a stage (field `stage`), copied exactly from the topic's stage list in the topic map or `list_topics`. The stages follow the statement order above. Never write a new heading (ADR-028 D10).
-- Every statement names the state ("Ohio law says...", "In Ohio, ..."). A statement can be shown alone in a search result, so it must say where it applies. The save rejects a new statement that does not (ADR-028 D11).
+- Do not name the state in a statement. The page title already says it, and "In Ohio, ..." on every line makes the page hard to read (ADR-028 D11, amended 2026-10-04). Name a place only when the statement covers a different area than the page: a city ordinance on a state page ("In Little Rock, ..."), part of a state ("In the 17 Tennessee counties covered by the act"), or federal law on a state page ("Federal law ...").
 - No "where to get help" list on a playbook. Local help is its own page (resource-directory).
 
 ## Sources
@@ -89,7 +89,7 @@ The editorial-voice skill has the full rules. The ones that trip drafters most:
 - Belongings after a lawful court eviction (abandoned property, sheriff removal, storage rules) belong on eviction-defense. A locked-out page covers belongings a landlord takes or keeps without a court.
 - A lease-exit statement says what it is for: "papers for a victim who ends a lease early", never "you need a protection order" alone.
 - A list of crimes or grounds: name every item. When the reading lint refuses the list, split it across 2 or 3 short statements and write them to "you" ("you can end your lease early after ..."); that passes where "a tenant who" does not.
-- A rule only legal aid or a guidance page states names that source in the statement ("Ohio Legal Help says ..."). Never "contact legal aid" as advice.
+- A rule that only a legal aid group, a nonprofit or an undated page states names that source in the statement ("Ohio Legal Help says ..."), and so does a source that hedges ("could", "may be able to"). A government office stating the law (a state agency handbook, a court manual, an attorney general guide with section numbers) does not need naming in the text: state the rule, and the citation shows the source. Never "contact legal aid" as advice.
 - Do not cite a court-process statute for getting back in unless its text names who may bring the case; say nothing rather than infer.
 
 ## resource-directory only

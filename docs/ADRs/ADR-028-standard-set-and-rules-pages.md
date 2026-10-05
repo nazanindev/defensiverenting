@@ -180,8 +180,10 @@ Both kinds of heading also help search: a heading over a short passage is the cl
 
 Search engines rank a passage inside a page, and AI answers retrieve a chunk of one. Most renter questions are answered by a statement, not a title. The standing-alone rule (names its own subject, no pointer words, one claim, its own numbers and source) already serves that. Two additions:
 
-- **The place is named in every statement** ("Ohio law..."), since a passage shown alone loses the page title. A drafter rule and a lint on new saves; live pages are not retrofitted.
+- ~~**The place is named in every statement** ("Ohio law..."), since a passage shown alone loses the page title. A drafter rule and a lint on new saves; live pages are not retrofitted.~~ Withdrawn 2026-10-04, see the amendment below.
 - **Each statement has a stable link**, an anchor on its durable statement key, so a search result can jump to it and an AI answer can cite the exact claim.
+
+**Amendment (2026-10-04).** The place rule is withdrawn and the lint removed. After phase 3, pages read like forms: "In Nebraska, ..." opened nearly every statement. Nazanin: "We want people to actually be able to read these." Search results print the page title above a passage, and the title, H1, headings and concept-page place headings carry the place. A statement names a place only when it covers a different area than the page: a city ordinance on a state page, part of a state (Tennessee's 17 counties), or federal law on a state page. The phase 3 drafts were rewritten to match. The same pass dropped "the state handbook says" from statements whose source is a government office stating the law; legal aid, nonprofit, undated and hedged sources are still named in the text.
 
 ### D12. Batch order
 

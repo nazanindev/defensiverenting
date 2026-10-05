@@ -18,7 +18,7 @@ At most 30 tool calls. Fetch each source once. At 25 calls, save with what you h
 - When a fact varies by state, tag the statement with the concept whose question it answers (for example `deposit-cap`). The page then links the reader to the rule in every state. Never list states one by one.
 - Never cite one state's law for a nationwide claim.
 - Practical advice with no law behind it (take dated photos, keep copies, ask for a receipt) cites a citation with kind "editorial", no url, no quote. Only advice that legal aid groups give everywhere.
-- Nationwide statements do not need a place name (the place rule applies to state and city pages).
+- Nationwide statements do not need a place name. No page needs one in its statements (ADR-028 D11, amended 2026-10-04).
 
 ## Checklists (move-in-checklist, move-out-checklist, rental-application)
 
