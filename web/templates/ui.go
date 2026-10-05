@@ -44,14 +44,16 @@ var uiStrings = map[string]map[string]string{
 	"reviewed-by":   {"en": "Published by", "es": "Publicado por"},
 	"need-help-now": {"en": "Need help now?", "es": "¿Necesita ayuda ahora?"},
 	"in":            {"en": "in", "es": "en"},
-	"page-disclaimer": {
-		"en": "Each answer below links to where it comes from. Read it before you act.",
-		"es": "Cada afirmación de abajo enlaza a la ley de donde viene. Lea la fuente antes de actuar.",
-	},
 	"page-disclaimer-help": {
-		"en": "If you need legal help, contact a legal aid office near you.",
-		"es": "Si necesita ayuda legal, contacte a la organización de ayuda legal de su área.",
+		"en": "For help with your case, contact a legal aid office near you.",
+		"es": "Para ayuda con su caso, contacte a la organización de ayuda legal de su área.",
 	},
+	"legal-note-general": {
+		"en": "This page explains the law in general. It cannot tell you what to do in your case.",
+		"es": "Esta página explica la ley en general. No puede decirle qué hacer en su caso.",
+	},
+	"legal-note-help":   {"en": "For help with your case, contact", "es": "Para ayuda con su caso, contacte a"},
+	"legal-aid-in":      {"en": "legal aid in %s", "es": "ayuda legal en %s"},
 	"sources":           {"en": "Sources", "es": "Fuentes"},
 	"sources-checked":   {"en": "Sources checked", "es": "Fuentes verificadas el"},
 	"details-checked":   {"en": "Details checked", "es": "Datos verificados el"},

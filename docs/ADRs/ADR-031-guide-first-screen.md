@@ -41,11 +41,13 @@ When the site knows or can guess where the reader rents, the place line adds: "D
 
 **Not live yet:** renterlaw.org is served by Fly directly, not through the Cloudflare proxy, so the headers do not arrive and the guess returns nothing. It turns on when the domain is proxied through Cloudflare with "Add visitor location headers" enabled. The saved-place offer works now.
 
-### D3. The disclaimer stands out at the top; the byline is fine print at the foot
+### D3. Not legal advice comes first; the byline is fine print at the foot
 
-The top of a guide is a short stack of rows divided by thin lines, one look for all of them: the place line, the reader's own place when known, then the disclaimer. Nazanin, 2026-10-04: what is not important can be small and at the bottom, and "Not legal advice" must be obvious.
+Nazanin, 2026-10-04: "Renters are an at-risk population and they deserve to know what they're getting into." Many reference sites carry one disclaimer in the footer. We put ours first, and make it say something.
 
-- "Not legal advice" is its own row with a red bar and a red label, above the intro, on every guide.
+- Directly under the title, before the place line, the intro and any rule, on every guide: a solid block in the header's color with an info mark. "**Not legal advice.** This page explains the law in general. It cannot tell you what to do in your case. For help with your case, contact legal aid in Pittsburgh." The link goes to the place's Local Help page. Without one: "contact a legal aid office near you."
+- Not in the site header: a strip on every page stops being seen, takes phone space on pages where it means nothing, and sits apart from the rules it warns about. Not above the title: the reader first needs to know they are on the right page, and a warning before anything else reads like an error.
+- The rows below it (place line, the reader's own place) share one look: thin lines between them, like the Local Help row. Nazanin: what is not important can be small and at the bottom.
 - The byline moves to the foot of the guide, as fine print: "Published by Nazanin · September 24, 2026 · sources checked October 3, 2026". The date is the oldest confirmation across the page's statements, and shown only when every statement has one. That is the same fully-earned-or-absent rule the per-statement line kept.
 - The per-statement "✓ Sources checked" line is removed from guides, FAQs and checklists. Rules pages keep it on each answer, since those answers are shown from other guides. Local Help keeps "Details checked" on each organization.
 

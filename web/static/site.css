@@ -318,13 +318,25 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .place-switch summary::-webkit-details-marker { display: none; }
 .place-switch[open] .city-list { margin: 12px 0 8px; }
 
-/* Not legal advice stands out from the other rows (ADR-031 D3). */
-.page-disclaimer {
-  border-left: 4px solid #c8102e;
-  padding-left: 12px;
-  font-size: 1rem;
+/* Not legal advice, directly under the title (ADR-031 D3). The one solid
+   block at the top of a guide, in the header's color, so it reads as part of
+   the site rather than an error, and nothing else up here competes with it. */
+.legal-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 4px 0 18px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--accent-dark);
+  color: #fff;
+  font-size: 1.02rem;
+  line-height: 1.5;
 }
-.page-disclaimer strong { color: #c8102e; }
+.legal-note p { margin: 0; }
+.legal-note strong { font-weight: 700; }
+.legal-note a { color: #fff; text-decoration: underline; font-weight: 600; }
+.legal-note-icon { flex-shrink: 0; margin-top: 1px; }
 
 .help-line strong { color: var(--accent); }
 
