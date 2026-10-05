@@ -41,15 +41,17 @@ When the site knows or can guess where the reader rents, the place line adds: "D
 
 **Not live yet:** renterlaw.org is served by Fly directly, not through the Cloudflare proxy, so the headers do not arrive and the guess returns nothing. It turns on when the domain is proxied through Cloudflare with "Add visitor location headers" enabled. The saved-place offer works now.
 
-### D3. One trust line, one disclaimer, at the top
+### D3. The disclaimer stands out at the top; the byline is fine print at the foot
 
-- The byline carries the page's one date: "Published by Nazanin · September 24, 2026 · sources checked October 3, 2026". It is the oldest confirmation across the page's statements, and shown only when every statement has one. That is the same fully-earned-or-absent rule the per-statement line kept.
+The top of a guide is a short stack of rows divided by thin lines, one look for all of them: the place line, the reader's own place when known, then the disclaimer. Nazanin, 2026-10-04: what is not important can be small and at the bottom, and "Not legal advice" must be obvious.
+
+- "Not legal advice" is its own row with a red bar and a red label, above the intro, on every guide.
+- The byline moves to the foot of the guide, as fine print: "Published by Nazanin · September 24, 2026 · sources checked October 3, 2026". The date is the oldest confirmation across the page's statements, and shown only when every statement has one. That is the same fully-earned-or-absent rule the per-statement line kept.
 - The per-statement "✓ Sources checked" line is removed from guides, FAQs and checklists. Rules pages keep it on each answer, since those answers are shown from other guides. Local Help keeps "Details checked" on each organization.
-- "Not legal advice" stays at the top of every guide, visible, right under the byline. Decided by Nazanin 2026-10-04: it must be visible and at the top.
 
-### D4. Local help is one line under the intro
+### D4. Local help is a row under the intro
 
-"Need help now? Local Help in Pittsburgh →", one line right under the intro, where the "rent assistance" searcher sees it before the rules. It replaces the box.
+"Need help now? Local Help in Pittsburgh →", a row in the same style right under the intro, where the "rent assistance" searcher sees it before the rules. It replaces the box.
 
 ### D5. The header is the logo and the reader's place
 
