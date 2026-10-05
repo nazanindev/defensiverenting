@@ -225,11 +225,13 @@ func TestLocations_nationalHubGetsItsOwnSection(t *testing.T) {
 	rec := serve(t, nationalStub(), "/locations")
 	body := rec.Body.String()
 
-	if !strings.Contains(body, "Nationwide") {
-		t.Fatal("expected a nationwide section on /locations")
+	// The nationwide guides are one small link at the end, not a section
+	// above the states (2026-10-04 place picker).
+	if !strings.Contains(body, `href="/j/united-states">Guides for rules that apply in every state`) {
+		t.Fatal("/locations should end with a link to the nationwide guides")
 	}
-	if !strings.Contains(body, `href="/j/united-states"`) {
-		t.Error("nationwide section should link the national hub")
+	if strings.Index(body, `href="/j/united-states"`) < strings.Index(body, `class="place-rows"`) {
+		t.Error("the nationwide link belongs after the list of states")
 	}
 	if strings.Contains(body, ">Other<") {
 		t.Error("the country must not fall into the parentless 'Other' city group")
@@ -299,7 +301,11 @@ func TestLocations_listsStatewideGuides(t *testing.T) {
 	stub.jurisdictions = append(stub.jurisdictions, store.Jurisdiction{ID: 50, Kind: "state", Name: "Vermont", Slug: "vermont"})
 
 	body := serve(t, stub, "/locations").Body.String()
-	for _, want := range []string{`href="/j/vermont"`, "All of Vermont", "All of Massachusetts", "2 states and "} {
+	for _, want := range []string{
+		`href="/j/vermont" data-set-location="vermont">Vermont</a>`,
+		`data-set-location="massachusetts">Massachusetts</a>`,
+		"Where do you rent?",
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("/locations missing %q", want)
 		}

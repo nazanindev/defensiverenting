@@ -4,18 +4,18 @@
   <meta charset="utf-8" />
   <link rel="icon" type="image/png" href="/static/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>All locations · RenterLaw</title>
+  <title>Where Do You Rent? · RenterLaw</title>
   <meta name="description" content="Every place RenterLaw covers, listed by state. Free tenant rights guides that link to the law they come from." />
   <link rel="canonical" href="{{absURL "/locations"}}"/>
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="RenterLaw" />
   <meta property="og:url" content="{{absURL "/locations"}}" />
-  <meta property="og:title" content="All locations · RenterLaw" />
+  <meta property="og:title" content="Where Do You Rent? · RenterLaw" />
   <meta property="og:description" content="Every place RenterLaw covers, listed by state. Free tenant rights guides that link to the law they come from." />
   <meta property="og:image" content="{{absURL "/static/og.png"}}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
-  <meta name="twitter:title" content="All locations · RenterLaw" />
+  <meta name="twitter:title" content="Where Do You Rent? · RenterLaw" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -24,99 +24,41 @@
 <body>
   {{template "site-header" .}}
 
-  <main class="wrap">
-    <div class="halo" aria-hidden="true"></div>
-
-    <nav class="breadcrumb" aria-label="breadcrumb">
-      <a href="/">Home</a> <span aria-hidden="true">›</span>
-      <span aria-current="page">All locations</span>
-    </nav>
-
-    <section class="hero">
-      <h1>All locations</h1>
-      <p class="lede">
-        {{if or .CityCount .StateSlugs}}Guides for {{placeCount .StateSlugs .CityCount}}, grouped by state. Pick your city, or your whole state if we do not cover your city yet.{{else}}No guides are published yet.{{end}}
-      </p>
-    </section>
-
-    {{if .National}}
-    <section class="city-section" aria-labelledby="national-heading">
-      <h2 id="national-heading" class="section-title">Nationwide</h2>
-      <ul class="city-list city-list--wide">
-        {{range .National}}
-        <li><a href="{{.Path}}">{{.Name}}</a></li>
-        {{end}}
-      </ul>
-      <p class="empty-state-hint">These guides cover rules that apply in every state. Your state and city can add more protections.</p>
-    </section>
-    {{end}}
+  <main class="wrap places-page">
+    {{/* The place picker: "Choose your location" in the header lands here.
+         One A to Z list of states, each city indented under its state, in
+         the thin-line rows guides use. No filter: people know their state.
+         Nationwide is a small link at the end, since every state is covered
+         and nationwide is rarely anyone's answer. Tapping a place saves it
+         (data-set-location). */}}
+    <h1>Where do you rent?</h1>
+    <p class="lede">{{if .Groups}}Pick your state. If we cover your city, pick it under the state.{{else}}No guides are published yet.{{end}}</p>
 
     {{if .Groups}}
-    <div class="filter-row">
-      <label class="visually-hidden" for="loc-filter">Filter locations</label>
-      <input class="filter-input" id="loc-filter" type="search" placeholder="Filter by city or state…" autocomplete="off" />
-      <p class="filter-empty" hidden>No location matches that.</p>
-    </div>
-
-    <div class="state-index">
+    <ul class="place-rows">
       {{range .Groups}}
-      <section class="state-group" data-state="{{.Name}}">
-        <h2 class="state-name">
-          {{if and .Path (not .Selectable)}}<a href="{{.Path}}">{{.Name}}</a>{{else if .Name}}{{.Name}}{{else}}Other{{end}}
-        </h2>
-        <ul class="city-list">
-          {{if .Selectable}}<li class="statewide-row" data-city="{{.Name}}"><a href="{{.Path}}" data-set-location="{{.Slug}}">All of {{.Name}} <span class="statewide-note">statewide</span></a></li>{{end}}
+      <li class="place-row">
+        {{if .Selectable}}<a class="place-state" href="{{.Path}}" data-set-location="{{.Slug}}">{{.Name}}</a>
+        {{else if .Path}}<a class="place-state" href="{{.Path}}">{{.Name}}</a>
+        {{else}}<span class="place-state">{{if .Name}}{{.Name}}{{else}}Other{{end}}</span>{{end}}
+        {{if .Cities}}
+        <ul class="place-cities">
           {{range .Cities}}
-          <li data-city="{{.Name}}"><a href="{{.Path}}" data-set-location="{{.Slug}}">{{.Name}}</a></li>
+          <li><a href="{{.Path}}" data-set-location="{{.Slug}}">{{.Name}}</a></li>
           {{end}}
         </ul>
-      </section>
+        {{end}}
+      </li>
       {{end}}
-    </div>
+    </ul>
     {{end}}
 
-    {{/* Below the list, so a filter that matches nothing leaves this line
-         right under "No location matches that." */}}
-    <p class="empty-state-hint">Do not see your place? We add new places one at a time. <a href="/contact">Ask us to cover your city or state.</a></p>
+    <p class="places-foot">
+      {{range .National}}<a href="{{.Path}}">Guides for rules that apply in every state →</a><br />{{end}}
+      Do not see your city? Your state's guides still apply to you. <a href="/contact">Ask us to cover your city.</a>
+    </p>
   </main>
 
   {{template "site-footer" .}}
-
-  <script>
-  // Filtering is an enhancement over a list that is already complete and
-  // crawlable. With JS off every city above is still a plain link.
-  (function () {
-    var input = document.getElementById('loc-filter');
-    if (!input) return;
-    var groups = document.querySelectorAll('.state-group');
-    var empty = document.querySelector('.filter-empty');
-
-    input.addEventListener('input', function () {
-      var q = input.value.trim().toLowerCase();
-      var anyVisible = false;
-
-      for (var g = 0; g < groups.length; g++) {
-        var group = groups[g];
-        var stateMatch = group.getAttribute('data-state').toLowerCase().indexOf(q) !== -1;
-        var cities = group.querySelectorAll('.city-list li');
-        var shown = 0;
-
-        for (var c = 0; c < cities.length; c++) {
-          // A state match reveals all of its cities, so typing "mass" shows
-          // Boston rather than an empty Massachusetts heading.
-          var hit = !q || stateMatch ||
-            cities[c].getAttribute('data-city').toLowerCase().indexOf(q) !== -1;
-          cities[c].hidden = !hit;
-          if (hit) shown++;
-        }
-
-        group.hidden = shown === 0;
-        if (shown > 0) anyVisible = true;
-      }
-
-      if (empty) empty.hidden = anyVisible;
-    });
-  })();
-  </script>
 </body>
 </html>

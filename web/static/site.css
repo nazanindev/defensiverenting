@@ -1419,3 +1419,34 @@ input:focus-visible,
 .concept-others summary::after { content: " ▸"; color: var(--ink-soft); }
 .concept-others[open] summary::after { content: " ▾"; }
 .concept-others[open] summary { margin-bottom: 16px; }
+
+/* ── Where do you rent? (/locations) ───────────────────── */
+
+/* One A to Z list of states in the thin-line rows guides use, each city
+   indented under its state. */
+.places-page { max-width: 820px; padding-top: 40px; padding-bottom: 60px; }
+.places-page h1 { margin-bottom: 10px; }
+.places-page .lede { margin-bottom: 24px; }
+.place-rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid rgba(0,0,0,.1); }
+.place-row { border-bottom: 1px solid rgba(0,0,0,.1); padding: 4px 0; }
+.place-state {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.place-state:hover { color: var(--accent); text-decoration: underline; }
+.place-cities { list-style: none; margin: 0 0 8px; padding: 0 0 0 20px; }
+.place-cities a {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.place-cities a:hover { text-decoration: underline; }
+.places-foot { margin: 24px 0 0; font-size: .92rem; color: var(--ink-soft); line-height: 1.8; }
+.places-foot a { color: var(--accent); }
