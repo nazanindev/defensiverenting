@@ -284,25 +284,51 @@ h1 {
 }
 
 /* Whose rules these are, and one way to switch place (ADR-031 D1, D2). */
-.place-line { margin: 4px 0 14px; }
-.place-line p { margin: 0 0 6px; }
+.place-line { margin: 0 0 18px; }
+.place-line p { margin: 0; }
 .place-for { font-weight: 600; color: var(--ink); }
-.place-suggest a,
-.place-switch summary,
-.place-lang a {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
+.place-switch summary {
+  list-style: none;
   cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.place-switch summary { display: inline-block; min-height: 44px; line-height: 44px; }
-.place-switch[open] summary { margin-bottom: 8px; }
-.place-switch .city-list { margin: 0 0 10px; }
+.place-switch summary::-webkit-details-marker { display: none; }
+.place-change { color: var(--accent); font-weight: 600; text-decoration: underline; }
+.place-switch[open] .city-list { margin: 6px 0 10px; }
+.place-suggest {
+  margin-top: 6px !important;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--mint);
+}
+.place-suggest a,
+.place-lang a { color: var(--accent); font-weight: 600; }
 
-/* Local help, one line under the intro (ADR-031 D4). */
-.help-line { margin: 16px 0 0; }
-.help-line a { color: var(--accent); text-decoration: underline; }
-.help-line strong { color: var(--accent); }
+/* Byline and disclaimer read as one block of fine print (ADR-031 D3). */
+.fine-print { margin: 0 0 22px; font-size: .92rem; color: var(--ink-soft); line-height: 1.5; }
+.fine-print p { margin: 0; }
+.fine-print .byline { margin: 0; }
+.page-disclaimer strong { color: var(--ink); }
+
+/* Local help, one row under the intro (ADR-031 D4). */
+.help-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px 0;
+  min-height: 44px;
+  border-top: 1px solid var(--line, rgba(0,0,0,.1));
+  border-bottom: 1px solid var(--line, rgba(0,0,0,.1));
+  color: var(--accent);
+  text-decoration: none;
+}
+.help-line:hover span:first-child { text-decoration: underline; }
 
 /* ── Disclaimer box ─────────────────────────────────────── */
 

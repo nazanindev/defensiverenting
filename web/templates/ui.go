@@ -75,7 +75,7 @@ var uiStrings = map[string]map[string]string{
 	},
 	"all-cities-topic":      {"en": "All cities for this topic →", "es": "Todas las ciudades para este tema →"},
 	"guide-for":             {"en": "For %s.", "es": "Para %s."},
-	"rent-elsewhere":        {"en": "Rent somewhere else?", "es": "¿Renta en otro lugar?"},
+	"change-place":          {"en": "Change", "es": "Cambiar"},
 	"do-you-rent-in":        {"en": "Do you rent in %s?", "es": "¿Renta en %s?"},
 	"see-guide-for":         {"en": "See this guide for %s", "es": "Vea esta guía para %s"},
 	"sources-checked-lower": {"en": "sources checked", "es": "fuentes verificadas el"},

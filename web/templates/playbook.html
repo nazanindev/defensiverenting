@@ -51,15 +51,9 @@
           <h1>{{.Playbook.Title}}</h1>
           {{if ne .Jurisdiction.Kind "country"}}
           <div class="place-line">
-            <p class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</p>
-            <p class="place-suggest" hidden
-               data-topic="{{.Topic.Slug}}"
-               data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
-               data-ask="{{ui $l "do-you-rent-in"}}"
-               data-see="{{ui $l "see-guide-for"}}"><span></span> <a href="#"></a></p>
             {{if .OtherCities}}
             <details class="place-switch">
-              <summary>{{ui $l "rent-elsewhere"}}</summary>
+              <summary><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span> <span class="place-change">{{ui $l "change-place"}}</span></summary>
               <ul class="city-list city-list--wide">
                 {{$t := .Topic}}
                 {{range .OtherCities}}
@@ -68,17 +62,24 @@
               </ul>
               <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
             </details>
+            {{else}}
+            <p class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</p>
             {{end}}
+            <p class="place-suggest" hidden
+               data-topic="{{.Topic.Slug}}"
+               data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
+               data-ask="{{ui $l "do-you-rent-in"}}"
+               data-see="{{ui $l "see-guide-for"}}"><span></span> <a href="#"></a></p>
             {{if .OtherLangPath}}<p class="place-lang"><a href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a></p>{{end}}
           </div>
           {{end}}
-          <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}{{with .SourcesCheckedOn}} · {{ui $l "sources-checked-lower"}} {{.}}{{end}}</p>
-          <div class="disclaimer-box" role="note">
-            <strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}
+          <div class="fine-print">
+            <p class="byline">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}{{with .SourcesCheckedOn}} · {{ui $l "sources-checked-lower"}} {{.}}{{end}}</p>
+            <p class="page-disclaimer" role="note"><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "page-disclaimer"}}{{if not .LocalHelpPath}} {{ui $l "page-disclaimer-help"}}{{end}}</p>
           </div>
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
           {{if .LocalHelpPath}}
-          <p class="help-line"><a href="{{.LocalHelpPath}}"><strong>{{ui $l "need-help-now"}}</strong> {{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}} →</a></p>
+          <a class="help-line" href="{{.LocalHelpPath}}"><span><strong>{{ui $l "need-help-now"}}</strong> {{.LocalHelpName}} {{ui $l "in"}} {{.Jurisdiction.Name}}</span> <span aria-hidden="true">→</span></a>
           {{end}}
         </header>
         {{if ne .Jurisdiction.Kind "country"}}
