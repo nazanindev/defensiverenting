@@ -55,7 +55,7 @@
                instead, before they read anything they might act on. */}}
           <div class="legal-note" role="note">
             <svg class="legal-note-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10.5v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.3" r="1.3" fill="currentColor"/></svg>
-            <p><strong>{{ui $l "legal-note-lead"}}</strong> {{ui $l "legal-note-general"}} {{if .LocalHelpPath}}<a href="{{.LocalHelpPath}}">{{uif $l "legal-note-help" .Jurisdiction.Name}}</a>.{{else}}{{ui $l "page-disclaimer-help"}}{{end}}</p>
+            <p><strong>{{ui $l "legal-note-lead"}}</strong> {{ui $l "legal-note-general"}} {{if .LocalHelpPath}}<a href="{{.LocalHelpPath}}">{{uif $l "legal-note-help" .Jurisdiction.Name}}</a>.{{else if .IsLocalHelp}}{{ui $l "legal-note-groups"}}{{else}}{{ui $l "page-disclaimer-help"}}{{end}}</p>
           </div>
           {{if ne .Jurisdiction.Kind "country"}}
           <div class="top-rows">
@@ -184,22 +184,22 @@
                cards belonged together. See groupByOrg. */}}
           <ul class="directory-list">
             {{range groupByOrg .Statements}}
+            {{/* ADR-031 D6: the organization's name is the heading, what
+                 kind of group it is sits under it, and calling or visiting
+                 are buttons. The website button is the entry's source, so
+                 every entry still links to where its facts come from. The
+                 page's one checked date is in the fine print at the foot. */}}
+            {{$g := .}}
             <li class="directory-entry"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
-              <div class="citation-chips" aria-label="Source">
-                <a class="{{chipClass .Chip.SourceKind}}" data-out="{{.Chip.SourceID}}"
-                   href="{{.Chip.URL}}"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   title="{{.Chip.Label}}">
-                  {{.Chip.Label}}
-                </a>
-              </div>
-              {{range .Statements}}
-              <div class="directory-body">{{.BodyHTML}}</div>
+              <h2 class="directory-name">{{.Chip.Label}}</h2>
+              {{with .KindLabel $l}}<p class="directory-kind">{{.}}</p>{{end}}
+              {{range .Bodies}}
+              <div class="directory-body">{{.}}</div>
               {{end}}
-              {{with .CheckedOn}}
-              <p class="statement-checked">✓ {{ui $l "details-checked"}} {{.}}</p>
-              {{end}}
+              <p class="directory-actions">
+                {{with .Call}}<a class="directory-btn directory-btn--call" href="{{.Href}}" data-out="{{$g.Chip.SourceID}}">{{uif $l "call-number" .Label}}</a>{{end}}
+                <a class="directory-btn" href="{{.Chip.URL}}" target="_blank" rel="noopener noreferrer" data-out="{{.Chip.SourceID}}">{{ui $l "visit-website"}} <span aria-hidden="true">↗</span></a>
+              </p>
               {{/* No per-entry report link. Repeated under every organisation it
                    read as part of each entry rather than as a page action, and
                    on a directory trimmed to three entries it was three

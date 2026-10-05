@@ -59,6 +59,16 @@ The note's "Find free legal and rent help in Pittsburgh" is the one link to Loca
 
 On every page. The tagline goes. The header search goes until vector search exists. Then we decide where search lives. The search boxes on the homepage, hubs and 404 page stay as they are until then. Legal terms and Sign in move to the footer.
 
+### D6. A Local Help entry leads with the name and ends with buttons
+
+Added 2026-10-04 after Nazanin flagged the Local Help pages as a mess: each entry showed the organization's name twice (a source chip, then in bold), buried the phone number mid-sentence, and repeated "Details checked" under every entry.
+
+- The organization's name is the entry's heading. Under it, in small text, what kind of group it is: "Government office" or "Nonprofit group", from the source's kind.
+- The description follows. The bold "Name, phone." lead the drafting rules put first is hidden when it starts with the heading's name. The stored text does not change.
+- Then the actions as buttons: "Call 312-744-3653", taken from the first phone number in the entry's own text (no phone, no button), and "Visit website", which is the entry's source. Both report the tap like a source click (ADR-029 D6).
+- No per-entry checked line. The page's one date is in the fine print at the foot (D3).
+- On a Local Help page the legal note ends "Some of the groups below can help." instead of pointing elsewhere.
+
 ## Consequences
 
 - The top of a guide answers "is this my place?" and offers one tap when it is not. The page loses four navigation markers and a 62-link list.

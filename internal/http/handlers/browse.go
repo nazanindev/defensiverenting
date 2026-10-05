@@ -631,6 +631,12 @@ func servePlaybook(w http.ResponseWriter, r *http.Request, db browseStore, logge
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	// The playbook query carries the place without its parent's name; j,
+	// resolved from the URL, has it. The place line needs it ("For Chicago,
+	// Illinois.", ADR-031 D1).
+	if pb.Jurisdiction.ParentName == "" && pb.Jurisdiction.Slug == j.Slug {
+		pb.Jurisdiction.ParentName = j.ParentName
+	}
 
 	// ADR-029 D3: a statement citing a small local org that has not said yes
 	// to its listing stays off the live site. Fails closed: if we cannot tell

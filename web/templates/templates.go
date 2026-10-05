@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -490,6 +491,10 @@ func (p PlaybookPage) SourcesCheckedOn() string {
 	return UIDate(p.Playbook.Language, *oldest)
 }
 
+// IsLocalHelp reports whether this page is a place's Local Help list, where
+// the legal note points at the groups below instead of elsewhere.
+func (p PlaybookPage) IsLocalHelp() bool { return p.Topic.Slug == LocalHelpTopic }
+
 // LocalHelpTopic is the slug of the topic whose pages list local organisations
 // rather than explain law. The slug is historical; its display name is "Local
 // Help". It is a topic, not to be confused with the "directory" page_kind,
@@ -600,23 +605,62 @@ func (g OrgGroup) Anchor() string {
 	return ""
 }
 
-// CheckedOn is the group's trust line: the oldest source confirmation across
-// the organisation's statements, and only when every statement has one — the
-// same fully-earned-or-absent rule the per-statement line keeps.
-func (g OrgGroup) CheckedOn() string {
-	var oldest *time.Time
+// A directory entry shows the organization as a heading with its actions as
+// buttons (ADR-031 D6). These read what is already there: the name is the
+// source's publisher, the call button is the first phone link LinkPhones made
+// in the entry's own text, and the repeated "Name, phone." lead the drafting
+// rules put at the start of an entry is hidden when it matches the heading.
+var (
+	telLinkRE = regexp.MustCompile(`<a href="(tel:\+?[0-9]+)"[^>]*>([^<]+)</a>`)
+	entryLead = regexp.MustCompile(`^(\s*<p>)\s*<strong>(.*?)</strong>\s*`)
+	tagRE     = regexp.MustCompile(`<[^>]+>`)
+)
+
+// OrgCall is a directory entry's call button.
+type OrgCall struct {
+	Href  template.URL // tel: and digits only, so safe to mark as a URL
+	Label string       // the number as the entry writes it
+}
+
+// Call is the first phone number in the entry's text, or nil.
+func (g OrgGroup) Call() *OrgCall {
 	for _, s := range g.Statements {
-		if s.CheckedAt == nil {
-			return ""
-		}
-		if oldest == nil || s.CheckedAt.Before(*oldest) {
-			oldest = s.CheckedAt
+		if m := telLinkRE.FindStringSubmatch(string(s.BodyHTML)); m != nil {
+			return &OrgCall{Href: template.URL(m[1]), Label: m[2]} // #nosec G203 -- matched tel:+digits only
 		}
 	}
-	if oldest == nil {
-		return ""
+	return nil
+}
+
+// KindLabel says what kind of group this is, in plain words, from the
+// source's kind. Empty for kinds a directory does not list.
+func (g OrgGroup) KindLabel(lang string) string {
+	switch g.Chip.SourceKind {
+	case "gov_guidance", "regulation", "statute":
+		return UIString(lang, "org-kind-gov")
+	case "nonprofit":
+		return UIString(lang, "org-kind-nonprofit")
 	}
-	return oldest.Format("January 2, 2006")
+	return ""
+}
+
+// Bodies are the entry's statements with the leading bold "Name, contact."
+// removed when it starts with the heading's name. The text is unchanged
+// otherwise; the number and the website it named are the buttons below.
+func (g OrgGroup) Bodies() []template.HTML {
+	name := strings.ToLower(strings.TrimSpace(g.Chip.Label))
+	out := make([]template.HTML, 0, len(g.Statements))
+	for _, s := range g.Statements {
+		body := string(s.BodyHTML)
+		if m := entryLead.FindStringSubmatchIndex(body); m != nil && name != "" {
+			lead := strings.ToLower(strings.TrimSpace(tagRE.ReplaceAllString(body[m[4]:m[5]], "")))
+			if strings.HasPrefix(lead, name) {
+				body = body[m[2]:m[3]] + body[m[1]:]
+			}
+		}
+		out = append(out, template.HTML(body)) // #nosec G203 -- already-rendered statement HTML, only trimmed
+	}
+	return out
 }
 
 // groupByOrg collapses consecutive statements sharing a first citation into one

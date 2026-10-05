@@ -616,29 +616,60 @@ a.top-row:hover span:first-child { text-decoration: underline; }
   padding: 0;
 }
 
+/* Each entry: the organization's name as the heading, what kind of group
+   it is, what it does, then call and website as buttons (ADR-031 D6).
+   Entries are divided by the same thin line as the rows at the top. */
 .directory-entry {
-  padding: 20px 0;
-  border-top: 1px solid #f0c0c8;
+  padding: 22px 0;
+  border-bottom: 1px solid rgba(0,0,0,.1);
 }
+.directory-entry:first-child { padding-top: 6px; }
 
-.directory-entry:first-child { border-top: 0; padding-top: 4px; }
-.directory-entry:last-child { padding-bottom: 4px; }
-
-/* The organisation's chip labels the entry, so it leads rather than trailing
-   the way a per-statement citation does. */
-.directory-entry .citation-chips { margin: 0 0 10px; }
+.directory-name {
+  font-family: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--ink);
+}
+.directory-kind {
+  margin: 4px 0 10px;
+  font-size: .88rem;
+  color: var(--ink-soft);
+}
 
 .directory-body {
   font-size: 1rem;
   line-height: 1.6;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
-
-.directory-body:last-child { margin-bottom: 0; }
-
 .directory-body p { margin: 0 0 6px; }
 .directory-body p:last-child { margin: 0; }
 .directory-body strong { color: var(--ink); }
+.directory-body a { color: var(--accent); }
+
+.directory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+.directory-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.directory-btn:hover { background: var(--mint); }
+.directory-btn--call { background: var(--accent); color: #fff; }
+.directory-btn--call:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 
 /* ── FAQ ────────────────────────────────────────────────── */
 
