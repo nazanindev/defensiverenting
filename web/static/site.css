@@ -307,6 +307,9 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 
 .place-for { font-weight: 600; color: var(--ink); }
 .place-change { color: var(--accent); font-weight: 600; text-decoration: underline; margin-left: 6px; }
+.place-suggest { color: var(--accent); font-weight: 600; text-decoration: underline; margin-left: 6px; }
+.place-suggest[hidden], .place-sep[hidden] { display: none; }
+.place-sep { color: var(--ink-soft); }
 .place-switch { display: block; }
 .place-switch summary {
   list-style: none;

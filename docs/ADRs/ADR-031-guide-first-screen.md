@@ -31,11 +31,11 @@ The list of other places at the foot of a guide is removed. "More tenant rights 
 
 ### D2. Offer the reader's own place
 
-When the site knows or can guess where the reader rents, the place line adds: "Do you rent in Ohio? See this guide for Ohio". The link goes to the nearest guide for this topic there (`/api/coverage`).
+When the site knows or can guess where the reader rents, the place line itself adds "See Ohio instead", next to "Change". No second row. The link goes to the nearest guide for this topic there (`/api/coverage`).
 
 - **Known:** the place saved on this device, or in the reader's account (ADR-017).
 - **Guessed:** when nothing is saved, `/api/where` returns a US state from the visitor location headers the CDN adds (`CF-IPCountry`, `CF-Region-Code`). Decided by Nazanin 2026-10-04: worth it if it routes people to the right page.
-- A guess is shown as a question and is never stored. Tapping the link saves it, like any other place pick. `/api/where` stores and logs nothing and is never cached.
+- A guess is shown as an offer, never as a statement about the reader, and is never stored. Tapping the link saves it, like any other place pick. `/api/where` stores and logs nothing and is never cached.
 - A guess of the page's own state is not offered on a city page, since the reader may be in that city.
 - The page is shared-cached, so all of this runs in the browser after load. Without a known or guessed place, nothing shows.
 
@@ -45,7 +45,7 @@ When the site knows or can guess where the reader rents, the place line adds: "D
 
 Nazanin, 2026-10-04: "Renters are an at-risk population and they deserve to know what they're getting into." Many reference sites carry one disclaimer in the footer. We put ours first, and make it say something.
 
-- Directly under the title, before the place line, the intro and any rule, on every guide: a solid block in the header's color with an info mark. "**Not legal advice.** This page explains the law in general. It cannot tell you what to do in your case. For help with your case, contact legal aid in Pittsburgh." The link goes to the place's Local Help page. Without one: "contact a legal aid office near you."
+- Directly under the title, before the place line, the intro and any rule, on every guide: a solid block in the header's color with an info mark. In plain words: "**This is not legal advice.** We explain what the law says. We cannot tell you what to do in your situation. For that, talk to a lawyer. Find free legal help in Pittsburgh." The link goes to the place's Local Help page. Without one: "Many places have a legal aid office with free lawyers."
 - Not in the site header: a strip on every page stops being seen, takes phone space on pages where it means nothing, and sits apart from the rules it warns about. Not above the title: the reader first needs to know they are on the right page, and a warning before anything else reads like an error.
 - The rows below it (place line, the reader's own place) share one look: thin lines between them, like the Local Help row. Nazanin: what is not important can be small and at the bottom.
 - The byline moves to the foot of the guide, as fine print: "Published by Nazanin · September 24, 2026 · sources checked October 3, 2026". The date is the oldest confirmation across the page's statements, and shown only when every statement has one. That is the same fully-earned-or-absent rule the per-statement line kept.

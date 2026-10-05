@@ -99,6 +99,17 @@
 {{end}}
 
 {{/*
+  place-suggest — on a guide's place row, the link to this same topic where
+  the reader rents, when that is known or guessed (ADR-031 D2). Hidden until
+  the guide's script fills it in; it lives on the place row, not a row of
+  its own, so the top of the page says "where" once.
+*/}}
+{{define "place-suggest"}}{{$l := pageLang .}} <a class="place-suggest" href="#" hidden
+   data-topic="{{.Topic.Slug}}"
+   data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
+   data-see="{{ui $l "see-instead"}}"></a><span class="place-sep" hidden aria-hidden="true"> ·</span>{{end}}
+
+{{/*
   scope-search — the search box with a location scope attached.
 
   The location is a <select name="j"> submitted with the query, so it costs no

@@ -55,13 +55,13 @@
                instead, before they read anything they might act on. */}}
           <div class="legal-note" role="note">
             <svg class="legal-note-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10.5v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.3" r="1.3" fill="currentColor"/></svg>
-            <p><strong>{{ui $l "not-legal-advice"}}</strong> {{ui $l "legal-note-general"}} {{if .LocalHelpPath}}{{ui $l "legal-note-help"}} <a href="{{.LocalHelpPath}}">{{uif $l "legal-aid-in" .Jurisdiction.Name}}</a>.{{else}}{{ui $l "page-disclaimer-help"}}{{end}}</p>
+            <p><strong>{{ui $l "legal-note-lead"}}</strong> {{ui $l "legal-note-general"}} {{if .LocalHelpPath}}<a href="{{.LocalHelpPath}}">{{uif $l "legal-note-help" .Jurisdiction.Name}}</a>.{{else}}{{ui $l "page-disclaimer-help"}}{{end}}</p>
           </div>
           {{if ne .Jurisdiction.Kind "country"}}
           <div class="top-rows">
             {{if .OtherCities}}
             <details class="top-row place-switch">
-              <summary><span><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span> <span class="place-change">{{ui $l "change-place"}}</span></span></summary>
+              <summary><span><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span>{{template "place-suggest" .}} <span class="place-change">{{ui $l "change-place"}}</span></span></summary>
               <ul class="city-list city-list--wide">
                 {{$t := .Topic}}
                 {{range .OtherCities}}
@@ -71,13 +71,8 @@
               <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
             </details>
             {{else}}
-            <p class="top-row"><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span></p>
+            <p class="top-row"><span><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span>{{template "place-suggest" .}}</span></p>
             {{end}}
-            <a class="top-row place-suggest" href="#" hidden
-               data-topic="{{.Topic.Slug}}"
-               data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
-               data-ask="{{ui $l "do-you-rent-in"}}"
-               data-see="{{ui $l "see-guide-for"}}"><span><strong class="suggest-ask"></strong> <span class="suggest-see"></span></span> <span aria-hidden="true">→</span></a>
             {{if .OtherLangPath}}<a class="top-row" href="{{.OtherLangPath}}"><span>{{.OtherLangLabel}}</span> <span aria-hidden="true">→</span></a>{{end}}
           </div>
           {{end}}
@@ -109,11 +104,12 @@
                 if (!d || !d.guides) return;
                 var g = d.guides.filter(function (x) { return x.topic === topic; })[0];
                 if (!g || g.path === location.pathname) return;
-                box.querySelector('.suggest-ask').textContent = box.getAttribute('data-ask').replace('%s', d.name);
-                box.querySelector('.suggest-see').textContent = box.getAttribute('data-see').replace('%s', d.name);
+                box.textContent = box.getAttribute('data-see').replace('%s', d.name);
                 box.setAttribute('href', g.path);
                 box.setAttribute('data-set-location', d.j);
                 box.hidden = false;
+                var sep = document.querySelector('.place-sep');
+                if (sep) sep.hidden = false;
               })
               .catch(function () {});
           }

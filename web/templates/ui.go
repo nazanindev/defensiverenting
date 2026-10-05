@@ -45,15 +45,16 @@ var uiStrings = map[string]map[string]string{
 	"need-help-now": {"en": "Need help now?", "es": "¿Necesita ayuda ahora?"},
 	"in":            {"en": "in", "es": "en"},
 	"page-disclaimer-help": {
-		"en": "For help with your case, contact a legal aid office near you.",
-		"es": "Para ayuda con su caso, contacte a la organización de ayuda legal de su área.",
+		"en": "Many places have a legal aid office with free lawyers.",
+		"es": "Muchos lugares tienen una oficina de ayuda legal con abogados gratis.",
 	},
+	"legal-note-lead": {"en": "This is not legal advice.", "es": "Esto no es asesoría legal."},
 	"legal-note-general": {
-		"en": "This page explains the law in general. It cannot tell you what to do in your case.",
-		"es": "Esta página explica la ley en general. No puede decirle qué hacer en su caso.",
+		"en": "We explain what the law says. We cannot tell you what to do in your situation. For that, talk to a lawyer.",
+		"es": "Explicamos lo que dice la ley. No podemos decirle qué hacer en su situación. Para eso, hable con un abogado.",
 	},
-	"legal-note-help":   {"en": "For help with your case, contact", "es": "Para ayuda con su caso, contacte a"},
-	"legal-aid-in":      {"en": "legal aid in %s", "es": "ayuda legal en %s"},
+	"legal-note-help":   {"en": "Find free legal help in %s", "es": "Busque ayuda legal gratis en %s"},
+	"see-instead":       {"en": "See %s instead", "es": "Vea %s"},
 	"sources":           {"en": "Sources", "es": "Fuentes"},
 	"sources-checked":   {"en": "Sources checked", "es": "Fuentes verificadas el"},
 	"details-checked":   {"en": "Details checked", "es": "Datos verificados el"},
@@ -78,8 +79,6 @@ var uiStrings = map[string]map[string]string{
 	"all-cities-topic":      {"en": "All cities for this topic →", "es": "Todas las ciudades para este tema →"},
 	"guide-for":             {"en": "For %s.", "es": "Para %s."},
 	"change-place":          {"en": "Change", "es": "Cambiar"},
-	"do-you-rent-in":        {"en": "Do you rent in %s?", "es": "¿Renta en %s?"},
-	"see-guide-for":         {"en": "See this guide for %s", "es": "Vea esta guía para %s"},
 	"sources-checked-lower": {"en": "sources checked", "es": "fuentes verificadas el"},
 
 	// Jurisdiction hub
