@@ -614,6 +614,8 @@ var (
 	telLinkRE = regexp.MustCompile(`<a href="(tel:\+?[0-9]+)"[^>]*>([^<]+)</a>`)
 	entryLead = regexp.MustCompile(`^(\s*<p>)\s*<strong>(.*?)</strong>\s*`)
 	tagRE     = regexp.MustCompile(`<[^>]+>`)
+	// bareCallRE is a whole sentence that only says to call a number.
+	bareCallRE = regexp.MustCompile(`\s*\b(?:Call|Llame al?)\s+<a href="(tel:\+?[0-9]+)"[^>]*>[^<]+</a>\s*\.`)
 )
 
 // OrgCall is a directory entry's call button.
@@ -649,6 +651,10 @@ func (g OrgGroup) KindLabel(lang string) string {
 // otherwise; the number and the website it named are the buttons below.
 func (g OrgGroup) Bodies() []template.HTML {
 	name := strings.ToLower(strings.TrimSpace(g.Chip.Label))
+	var callHref string
+	if c := g.Call(); c != nil {
+		callHref = string(c.Href)
+	}
 	out := make([]template.HTML, 0, len(g.Statements))
 	for _, s := range g.Statements {
 		body := string(s.BodyHTML)
@@ -657,6 +663,20 @@ func (g OrgGroup) Bodies() []template.HTML {
 			if strings.HasPrefix(lead, name) {
 				body = body[m[2]:m[3]] + body[m[1]:]
 			}
+		}
+		// A sentence that is only "Call <number>." repeats the call button
+		// word for word, so it goes when the button dials that same number.
+		// A sentence that says more ("Its hotline is ...") stays.
+		if callHref != "" {
+			body = bareCallRE.ReplaceAllStringFunc(body, func(m string) string {
+				if sub := bareCallRE.FindStringSubmatch(m); sub != nil && sub[1] == callHref {
+					return ""
+				}
+				return m
+			})
+		}
+		if strings.TrimSpace(tagRE.ReplaceAllString(body, "")) == "" {
+			continue // nothing was left but the number the button shows
 		}
 		out = append(out, template.HTML(body)) // #nosec G203 -- already-rendered statement HTML, only trimmed
 	}
