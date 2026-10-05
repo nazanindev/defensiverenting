@@ -276,6 +276,13 @@ h1 {
   margin-bottom: 28px;
 }
 
+/* A thin line closes the intro, the same line as the rows above it, so the
+   guide's own content starts clearly below (ADR-031). */
+.playbook-header .lede {
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(0,0,0,.1);
+}
+
 /* One column for a guide (ADR-031): the sidebar is gone, and a line of
    reading text stays a comfortable length on a wide screen. */
 .layout--single {
@@ -623,7 +630,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
   padding: 22px 0;
   border-bottom: 1px solid rgba(0,0,0,.1);
 }
-.directory-entry:first-child { padding-top: 6px; }
+.directory-entry:first-child { padding-top: 0; }
 
 .directory-name {
   font-family: inherit;
