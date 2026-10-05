@@ -82,6 +82,16 @@ The editorial-voice skill has the full rules. The ones that trip drafters most:
   - any rules topic: "{Topic name} in {State}: What Does the Law Say?", for example "Security Deposit Rules in Ohio: What Does the Law Say?". Rules pages follow rules-brief.md.
 - Intro: 2 or 3 short sentences saying what the page covers. Same voice rules. The intro makes NO legal claim (no "Montana has no rule on X", no numbers, no deadlines): it only names the topics the page covers.
 
+## locked-out and breaking-lease (ADR-028 phase 3 lessons, 2026-10-04)
+
+- Money a court awards and its win-and-pays line sit in the SAME statement, with the worked dollar example. Never a statement that is only the win line, only a risk line, or only an example: each points at another statement and fails "stands alone".
+- A statement that offers ending the lease or moving out carries the risk line itself, even when the next statement repeats it.
+- Belongings after a lawful court eviction (abandoned property, sheriff removal, storage rules) belong on eviction-defense. A locked-out page covers belongings a landlord takes or keeps without a court.
+- A lease-exit statement says what it is for: "papers for a victim who ends a lease early", never "you need a protection order" alone.
+- A list of crimes or grounds: name every item. When the reading lint refuses the list, split it across 2 or 3 short statements and write them to "you" ("you can end your lease early after ..."); that passes where "a tenant who" does not.
+- A rule only legal aid or a guidance page states names that source in the statement ("Ohio Legal Help says ..."). Never "contact legal aid" as advice.
+- Do not cite a court-process statute for getting back in unless its text names who may bring the case; say nothing rather than infer.
+
 ## resource-directory only
 
 - page_kind "directory". 8 to 12 entries, one organisation or government program per statement: who it helps and how to reach it (phone or website).
