@@ -624,14 +624,21 @@ type OrgCall struct {
 	Label string       // the number as the entry writes it
 }
 
-// Call is the first phone number in the entry's text, or nil.
-func (g OrgGroup) Call() *OrgCall {
+// Calls are the entry's call buttons: one per distinct phone number in its
+// text, in the order the text gives them.
+func (g OrgGroup) Calls() []OrgCall {
+	var out []OrgCall
+	seen := map[string]bool{}
 	for _, s := range g.Statements {
-		if m := telLinkRE.FindStringSubmatch(string(s.BodyHTML)); m != nil {
-			return &OrgCall{Href: template.URL(m[1]), Label: m[2]} // #nosec G203 -- matched tel:+digits only
+		for _, m := range telLinkRE.FindAllStringSubmatch(string(s.BodyHTML), -1) {
+			if seen[m[1]] {
+				continue
+			}
+			seen[m[1]] = true
+			out = append(out, OrgCall{Href: template.URL(m[1]), Label: m[2]}) // #nosec G203 -- matched tel:+digits only
 		}
 	}
-	return nil
+	return out
 }
 
 // KindLabel says what kind of group this is, in plain words, from the
@@ -651,9 +658,9 @@ func (g OrgGroup) KindLabel(lang string) string {
 // otherwise; the number and the website it named are the buttons below.
 func (g OrgGroup) Bodies() []template.HTML {
 	name := strings.ToLower(strings.TrimSpace(g.Chip.Label))
-	var callHref string
-	if c := g.Call(); c != nil {
-		callHref = string(c.Href)
+	buttons := map[string]bool{}
+	for _, c := range g.Calls() {
+		buttons[string(c.Href)] = true
 	}
 	out := make([]template.HTML, 0, len(g.Statements))
 	for _, s := range g.Statements {
@@ -664,17 +671,15 @@ func (g OrgGroup) Bodies() []template.HTML {
 				body = body[m[2]:m[3]] + body[m[1]:]
 			}
 		}
-		// A sentence that is only "Call <number>." repeats the call button
-		// word for word, so it goes when the button dials that same number.
-		// A sentence that says more ("Its hotline is ...") stays.
-		if callHref != "" {
-			body = bareCallRE.ReplaceAllStringFunc(body, func(m string) string {
-				if sub := bareCallRE.FindStringSubmatch(m); sub != nil && sub[1] == callHref {
-					return ""
-				}
-				return m
-			})
-		}
+		// A sentence that is only "Call <number>." repeats a call button word
+		// for word, so it goes when a button dials that same number. A
+		// sentence that says more ("Its hotline is ...") stays.
+		body = bareCallRE.ReplaceAllStringFunc(body, func(m string) string {
+			if sub := bareCallRE.FindStringSubmatch(m); sub != nil && buttons[sub[1]] {
+				return ""
+			}
+			return m
+		})
 		if strings.TrimSpace(tagRE.ReplaceAllString(body, "")) == "" {
 			continue // nothing was left but the number the button shows
 		}

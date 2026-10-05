@@ -197,7 +197,7 @@
               <div class="directory-body">{{.}}</div>
               {{end}}
               <p class="directory-actions">
-                {{with .Call}}<a class="directory-btn directory-btn--call" href="{{.Href}}" data-out="{{$g.Chip.SourceID}}">{{uif $l "call-number" .Label}}</a>{{end}}
+                {{range .Calls}}<a class="directory-btn directory-btn--call" href="{{.Href}}" data-out="{{$g.Chip.SourceID}}">{{uif $l "call-number" .Label}}</a>{{end}}
                 <a class="directory-btn" href="{{.Chip.URL}}" target="_blank" rel="noopener noreferrer" data-out="{{.Chip.SourceID}}">{{ui $l "visit-website"}} <span aria-hidden="true">↗</span></a>
               </p>
               {{/* No per-entry report link. Repeated under every organisation it
