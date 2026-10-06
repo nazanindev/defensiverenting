@@ -176,6 +176,14 @@ How stages work:
 
 Both kinds of heading also help search: a heading over a short passage is the clearest signal for both a search result snippet and an AI answer.
 
+**Amendment (2026-10-06): order and repetition.** The phase 3 pages read as a pile: breaking-a-lease pages opened with domestic violence, sexual assault and military exits (37 of 51), and lockout pages restated the same rule two or three times. Nazanin: edge cases like sexual assault "never need to be first, those are edge cases, and none help a reader in a common situation." Rules, for drafters, reviewers and the backfill of every existing page:
+
+- **The common case leads.** Within each stage, the rule most readers need comes first; exceptions, carve-outs (hotel stays, lawful evictions, covered units) and narrow cases come last.
+- **Breaking a lease has a Special protections stage** for victim exits (domestic violence, sexual assault, stalking, trafficking, crime victims) and military exits, with their notice, papers and rent rules. Stage order: What you may still owe · When you can leave early · How to leave · Special protections · After you move out (migration 000064).
+- **One rule, one statement.** Two statements that say the same rule, or where one only points to the other's list, are merged; every condition and citation of both is kept.
+- **Warnings stay per statement for now.** The risk and win-and-pays lines repeat on each statement that needs them; showing them once per section is deferred.
+- The review screen shows stage headings on a page's view (9ee789d). Live pages carry no stages yet; they get them through the queue.
+
 ### D11. Every statement stands alone for search
 
 Search engines rank a passage inside a page, and AI answers retrieve a chunk of one. Most renter questions are answered by a statement, not a title. The standing-alone rule (names its own subject, no pointer words, one claim, its own numbers and source) already serves that. Two additions:

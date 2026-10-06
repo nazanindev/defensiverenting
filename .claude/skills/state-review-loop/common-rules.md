@@ -21,3 +21,5 @@ Clarification: a risk warning in any plain wording is site guidance when it carr
 Draft pages are invisible to get_playbook and list_topics (they show published pages only). The statement text in your input file is the draft text. Do not spawn subagents or forks; do the work yourself. Write only your own output file and prefixed scratch files.
 Utah: only versioned le.utah.gov urls (C57-17-S3_YYYYMMDDYYYYMMDD.html) carry text; the brief lists them.
 Wyoming: title01.pdf quotes must not contain a page-footer line; split into two citations at the break.
+
+Order and repetition (ADR-028 amendment 2026-10-06): within each stage the common case comes first; exceptions, carve-outs and narrow cases come last. Victim and military exits on breaking-a-lease pages go in the "Special protections" stage, never first on the page. Two statements that say the same rule, or where one only points to the other's list, are merged into one that keeps every condition and citation. Warnings ("If a court later disagrees...", "You get this money only if...") stay on each statement that needs them.

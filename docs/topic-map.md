@@ -32,7 +32,7 @@ A statement is one informative claim, tagged with the concept whose question it 
 | heat-not-working | "My heat or AC doesn't work. What can I do?" | heat season and temperatures, hot water, AC if the landlord supplied it, your own cooling device, reporting, staying safe in heat or cold | the general duty to repair: **repairs-and-habitability**; utilities shut off: **utility-shutoff** |
 | utility-shutoff | "My utilities were shut off. What can I do?" | landlord cut them (link to locked-out), landlord did not pay the bill, I could not pay (winter and medical rules), energy help | the landlord forcing you out: **locked-out** |
 | locked-out | "My landlord locked me out. What can I do?" | only a court can remove you, getting back in, getting belongings back, utilities cut to force you out, what a court can order | the court eviction case: **eviction-defense** |
-| breaking-lease | "I need to leave before my lease ends. What can I do?" | when the law lets you leave early (abuse, military, unlivable home), what you may still owe, the landlord's duty to look for a new renter, giving notice, the deposit after leaving early | the landlord ending the lease: **lease-renewal** or **eviction-defense** |
+| breaking-lease | "I need to leave before my lease ends. What can I do?" | what you may still owe and the landlord's duty to look for a new renter (first), leaving early over an unlivable home, giving notice, special protections (abuse, military: never first), the deposit after leaving early | the landlord ending the lease: **lease-renewal** or **eviction-defense** |
 | lease-renewal | "My landlord won't renew my lease. What can I do?" | notice to end a month-to-month lease, just cause rules where they exist, answering the notice, when it turns into a court case | the court case itself: **eviction-defense** |
 | landlord-entry | "Can my landlord come in?" | notice to enter, allowed reasons, emergencies, saying no, illegal entry, harassment, your own lock rights (rekey, lock change after abuse), quiet enjoyment | lockouts: **locked-out** |
 | rent-increase | "My landlord raised my rent. Is that allowed?" | notice periods, caps and rent control, increases during a lease, new fees, utility billing, price gouging in a disaster, retaliatory increases | being told to leave at the end of a lease: **lease-renewal** |
@@ -96,7 +96,7 @@ Tag a statement with the concept whose question it answers. Each topic's rules p
 - subsidized-rent-change: If the government helps pay my rent, can my part go down when I earn less?
 - rent-debt-collection: What happens to rent I still owe?
 
-**breaking-lease** · stages: When you can leave early · What you may still owe · How to leave · After you move out · rules page: `lease-breaking-rules`
+**breaking-lease** · stages: What you may still owe · When you can leave early · How to leave · Special protections · After you move out · rules page: `lease-breaking-rules`
 
 - early-termination-rights: When can I end my lease early without paying the rest?
 - constructive-eviction: Can I move out because my home is not safe to live in?
