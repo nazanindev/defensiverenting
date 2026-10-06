@@ -60,6 +60,10 @@ Gap: Washington, DC (729). The DC deposit regulations (14 DCMR 308-311) could no
 - Retire the nationwide and Pennsylvania constructive-eviction pages once breaking-lease is live there.
 - Live pages from before 2026-10-04 still name their state in statements. Rewrite them as queue proposals only if wanted.
 
+### Queue (live pages)
+
+- 12 live statements: "materially" gloss changed to "(seriously)" to match the drafts.
+
 ## Waiting on the editor (notes on statements)
 
 - Georgia · Breaking a Lease: no duty to re-rent after HB 404?
@@ -94,6 +98,10 @@ A second agent could not confirm "no law found" for these, so they stay open que
 
 - 20 sit on statements with open editor notes; rewrite after the note closes. Pages: Georgia, Louisiana, Montana, North Carolina, Rhode Island, Washington DC and West Virginia breaking-lease; Idaho, Indiana, Louisiana, Missouri and New Jersey locked-out; Connecticut and West Virginia can't-pay; Mississippi and North Carolina rent increases.
 - 6 fail the reading-level lint without the place unless a legal term is loosened: Massachusetts, Virginia, Missouri, New Hampshire and South Dakota breaking-lease; Minnesota locked-out.
+
+### Michigan site down (2026-10-06)
+
+- Michigan · Breaking a Lease (601): two moves to Special protections (proposal 16752 and the 554.601a age/disability exit) and one merge (the damage-list and 7-day reply statements) wait because legislature.mi.gov could not be read. Re-run when it loads.
 
 ### Dated re-checks
 
