@@ -1,16 +1,32 @@
-**RenterLaw** is a free tenant rights site: plain-language guides, each sentence backed by a quote from the law it rests on, and local directories of who can help. Organized by city, state, and situation.
+**RenterLaw** is a nationwide, free database of tenant law in plain language. It covers all 50 states, Washington, DC, and federal law, with city pages for 10 cities. Every sentence a renter reads is backed by a verbatim quote from the statute, regulation, or agency text it rests on, and every page is published by a person.
 
 https://renterlaw.org
 
 Repo and internal codename: Defensive Renting.
 
-## What a renter gets
+## What it is
 
-Tenant law is public and nearly unreadable in a crisis. It is spread across statutes, regulations, and agency PDFs written for lawyers.
+Tenant law is public and nearly unreadable in a crisis. It is spread across 50 state codes, city ordinances, and agency PDFs written for lawyers.
 
-RenterLaw turns that into guides a renter can act on. Each guide is a short sequence of statements. Each statement carries a citation chip; click it and you are reading the statute, not a summary of it. Directory pages list the legal aid offices, tenant unions, and agencies for that place, cited to their own sites.
+RenterLaw is a structured database of that law, rendered as a website:
 
-Renters search by situation or browse by place. A city page inherits its state's rules and the federal ones, so Boston shows Massachusetts law without repeating it.
+- **Guides.** About 435 published pages, one per place and situation: eviction, repairs, deposits, rent increases, landlord entry, can't pay rent, locked out, breaking a lease, and more. Each guide is a short sequence of statements. Each statement carries a citation chip; click it and you are reading the law, not a summary of it.
+- **Statements, not articles.** The unit of content is a single cited claim with a stable key. Statements are tagged with legal concepts, so one claim appears on its guide and on a concept page (`/c/{slug}`) that shows how each state answers the same question.
+- **Places that inherit.** Jurisdictions nest. A city page inherits its state's rules and the federal ones, so Boston shows Massachusetts law without repeating it.
+- **Who can help.** Directory pages list legal aid offices, tenant unions, and agencies for each place, cited to their own sites.
+
+## Language rigor
+
+The reader may be under stress, reading on a phone, and in a second language. The writing rules are enforced in code (`internal/voice`), not left to prompts. A statement that breaks one blocks its page from being published:
+
+- At most 120 words, and a Dale-Chall readability score under 6.5 (about grade 7).
+- Every word outside an everyday-English word list is rejected, unless it is an official term a renter will meet (a judgment, a notice to quit) followed at once by a plain explanation in parentheses. The explanation travels with the statement, because statements also appear alone on concept pages.
+- Short sentences, numbers as digits, no em dashes, no idioms that break in translation.
+- Any percentage or multiplied amount carries a worked dollar example.
+- An edit that makes a statement harder to read is refused, even if it makes it shorter.
+- A statement that tells a renter they can end the lease or hold back rent must say the risk in the same statement.
+
+The full style guide is in `.claude/skills/editorial-voice`.
 
 ## How a claim gets published
 
@@ -132,9 +148,10 @@ Known gaps:
 
 ## Roadmap
 
-- **More places.** Adding a city or state is research time, not infrastructure.
+- **More topics per state.** Deposit rules, heat and AC standards, and the rest of the 15-topic set (ADR-028).
+- **More cities.** State coverage is complete. Cities with their own ordinances come next.
 - **Semantic search.** The `embedding` column exists. A vector index and an embedding step would let renters describe a situation in their own words.
-- **Spanish.** The plumbing is built and parked until there is a reviewer for it.
+- **Spanish.** The plumbing is built and parked until there is a reviewer for it (ADR-015).
 
 ---
 
