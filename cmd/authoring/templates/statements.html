@@ -57,6 +57,7 @@
   .stmt .where { font-size: .76rem; color: #9a7878; margin-bottom: 4px; }
   .stmt .where a { color: #9b2335; text-decoration: none; }
   .body { font-size: 1rem; line-height: 1.65; white-space: pre-wrap; }
+  .stmt .ask { font-weight: 600; font-size: .95rem; margin-bottom: 4px; }
   .q { margin-top: 8px; font-size: .84rem; line-height: 1.5; color: #5c3a3a; }
   .q i { color: #3d2b2b; }
   .q a { color: #9b2335; text-decoration: none; }
@@ -131,6 +132,7 @@
   <div class="n">{{.Position}}</div>
   <div>
     {{if .ShowPage}}<div class="where"><a href="/statements?page={{.PlaybookID}}">{{.Jurisdiction}} · {{.Topic}}</a> · {{.PageStatus}}</div>{{end}}
+    {{with .Question}}<div class="ask">{{.}}</div>{{end}}
     <div class="body">{{.Stmt.BodyMD}}</div>
     {{range .Stmt.Citations}}{{if ne .SourceKind "editorial"}}
     <div class="q">{{if .Quote}}<i>“{{.Quote}}”</i>{{else}}<span class="w">No quote recorded.</span>{{end}} — <a href="{{.SourceURL}}" target="_blank" rel="noopener">{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}{{if .Locator}}, {{.Locator}}{{end}} ↗</a>{{if and .Quote (not .CheckedAt)}} <span class="w">not confirmed at the source</span>{{end}}<button type="button" class="src-btn" data-url="{{.SourceURL}}" data-pub="{{if .Publisher}}{{.Publisher}}{{else}}{{.SourceURL}}{{end}}" data-src="{{.SourceID}}" data-quote="{{.Quote}}" onclick="openPanel(this)">read source</button></div>

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/drafting"
+	sitehandlers "github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/sourcecheck"
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -50,6 +51,11 @@ type stmtCard struct {
 	// statement out now or will once hiding turns on.
 	HeldBy string
 	Hiding bool
+	// Question is the renter's question a rules-page statement answers,
+	// with the place added (ADR-028 D4). The live page shows it as the
+	// heading; without it here, an answer that opens "Yes." or "It
+	// depends" has nothing to answer.
+	Question string
 }
 
 func (c stmtCard) CardIndex() int { return c.Position - 1 }
@@ -229,11 +235,17 @@ func (s *srv) statements(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	questions := rulesQuestions(ctx, s.pg, rows)
 	cards := make([]stmtCard, 0, len(rows))
 	todo := 0
 	for _, row := range rows {
 		c := cardFromRow(row, f)
 		c.HeldBy, c.Hiding = heldBy[row.Stmt.ID], hiding
+		if row.PageKind == "rules" {
+			if q, ok := questions[row.Stmt.ConceptSlug]; ok {
+				c.Question = sitehandlers.QuestionIn(q[0], q[1], row.Jurisdiction)
+			}
+		}
 		for _, pr := range changes[row.Stmt.Key] {
 			c.Changes = append(c.Changes, newQueueItem(pr))
 		}
@@ -476,4 +488,28 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 		msg += fmt.Sprintf(" %d draft(s) still held: %s.", len(held), strings.Join(held, "; "))
 	}
 	http.Redirect(w, r, "/?status=draft&msg="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
+// rulesQuestions maps concept slug to its question and name when any row is
+// on a rules page; nil otherwise, so other screens skip the query.
+func rulesQuestions(ctx context.Context, pg store.Store, rows []store.ReviewRow) map[string][2]string {
+	need := false
+	for _, r := range rows {
+		if r.PageKind == "rules" {
+			need = true
+			break
+		}
+	}
+	if !need {
+		return nil
+	}
+	concepts, err := pg.ListConcepts(ctx)
+	if err != nil {
+		return nil
+	}
+	out := make(map[string][2]string, len(concepts))
+	for _, c := range concepts {
+		out[c.Slug] = [2]string{c.Question, c.Name}
+	}
+	return out
 }

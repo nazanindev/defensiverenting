@@ -575,6 +575,10 @@ func TestStatementTemplatesRender(t *testing.T) {
 	cards := []stmtCard{cardFromRow(rows[0], filter{Page: 3}), cardFromRow(rows[1], filter{Page: 3})}
 	drift := store.ProposalRow{Proposal: store.Proposal{ID: 9, StatementKey: "k", Reason: "source-drift", ProposedBy: store.ActorSourceCheck, CreatedAt: now,
 		Evidence: []byte(`{"old_quote":"verbatim","new_quote":"verbatim words","similarity":0.8,"old_context":"the verbatim text","new_context":"the verbatim words text"}`)}}
+	asked := cardFromRow(rows[1], filter{Page: 3})
+	asked.Position, asked.Stmt.ID, asked.PageKind = 4, 14, "rules"
+	asked.Question = "Do I get a receipt for my deposit in Texas?"
+	cards = append(cards, asked)
 	changed := cardFromRow(rows[0], filter{Page: 3})
 	changed.Position, changed.Stmt.ID, changed.Stmt.ProposalPending = 3, 13, true
 	changed.Changes = []queueItem{newQueueItem(drift)}
@@ -601,7 +605,7 @@ func TestStatementTemplatesRender(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if name == "page" {
-			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "2 of 3 to do", `name="quote_7"`, `id="panel"`, "Keep as written", "On the page now"} {
+			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "2 of 4 to do", `name="quote_7"`, `id="panel"`, "Keep as written", "On the page now", `<div class="ask">Do I get a receipt for my deposit in Texas?</div>`} {
 				if !strings.Contains(buf.String(), want) {
 					t.Errorf("page: missing %q", want)
 				}
