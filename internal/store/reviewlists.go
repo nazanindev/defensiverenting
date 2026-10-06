@@ -147,7 +147,7 @@ func (pg *PG) ReviewStatementsWithNotes(ctx context.Context) ([]ReviewRow, error
 
 func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRow, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT pb.id, pb.title, pb.status, pb.page_kind, j.name, t.name, ps.position,
+		SELECT pb.id, pb.title, pb.status, pb.page_kind, j.name, t.name, ps.position, ps.stage,
 		       s.id, s.key::text, s.body_md, COALESCE(co.slug, ''), COALESCE(tr.slug, ''),
 		       `+reviewedAtSQL+`, `+reviewedBySQL+`, `+undecidedSQL+`, `+proposalPendingSQL+`,
 		       c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at, c.checked_by,
@@ -176,6 +176,7 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 			r          ReviewRow
 			stmtID     int64
 			position   int
+			stage      string
 			reviewedAt *time.Time
 			reviewedBy string
 			undecided  bool
@@ -189,7 +190,7 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 			url, pub   *string
 			kind       *string
 		)
-		if err := rows.Scan(&r.PlaybookID, &r.PageTitle, &r.PageStatus, &r.PageKind, &r.Jurisdiction, &r.Topic, &position,
+		if err := rows.Scan(&r.PlaybookID, &r.PageTitle, &r.PageStatus, &r.PageKind, &r.Jurisdiction, &r.Topic, &position, &stage,
 			&stmtID, &r.Stmt.Key, &r.Stmt.BodyMD, &r.Stmt.ConceptSlug, &r.Stmt.TopicRefSlug,
 			&reviewedAt, &reviewedBy, &undecided, &pending,
 			&sourceID, &loc, &quote, &manual, &c.CheckedAt, &checkedBy, &url, &pub, &kind, &unreadable); err != nil {
@@ -198,6 +199,7 @@ func (pg *PG) reviewRows(ctx context.Context, scope string, arg any) ([]ReviewRo
 		i, ok := idx[stmtID]
 		if !ok {
 			r.Position = position + 1
+			r.Stmt.Stage = stage
 			r.Stmt.ID, r.Stmt.ReviewedAt, r.Stmt.ReviewedBy, r.Stmt.Undecided = stmtID, reviewedAt, reviewedBy, undecided
 			r.Stmt.ProposalPending = pending
 			i = len(out)

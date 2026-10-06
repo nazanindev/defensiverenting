@@ -57,6 +57,7 @@
   .stmt .where { font-size: .76rem; color: #9a7878; margin-bottom: 4px; }
   .stmt .where a { color: #9b2335; text-decoration: none; }
   .body { font-size: 1rem; line-height: 1.65; white-space: pre-wrap; }
+  .stage-head { font-size: 1.1rem; margin: 28px 0 10px; }
   .stmt .ask { font-weight: 600; font-size: .95rem; margin-bottom: 4px; }
   .q { margin-top: 8px; font-size: .84rem; line-height: 1.5; color: #5c3a3a; }
   .q i { color: #3d2b2b; }
@@ -128,6 +129,7 @@
 </header>
 {{define "stmtcard"}}
 {{$c := .}}
+{{with .StageHead}}<h2 class="stage-head">{{.}}</h2>{{end}}
 <div class="stmt{{if .Done}} done{{end}}" id="p{{.PlaybookID}}-{{.Position}}" data-n="{{.Position}}">
   <div class="n">{{.Position}}</div>
   <div>

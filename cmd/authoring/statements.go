@@ -56,6 +56,10 @@ type stmtCard struct {
 	// heading; without it here, an answer that opens "Yes." or "It
 	// depends" has nothing to answer.
 	Question string
+	// StageHead is the stage heading (ADR-028 D10) the live page shows
+	// above this statement: set on the first card of each run, on a single
+	// page's screen only.
+	StageHead string
 }
 
 func (c stmtCard) CardIndex() int { return c.Position - 1 }
@@ -267,8 +271,13 @@ func (s *srv) statements(w http.ResponseWriter, r *http.Request) {
 	questions := rulesQuestions(ctx, s.pg, rows)
 	cards := make([]stmtCard, 0, len(rows))
 	todo := 0
+	lastStage := ""
 	for _, row := range rows {
 		c := cardFromRow(row, f)
+		if f.Page != 0 && row.Stmt.Stage != "" && row.Stmt.Stage != lastStage {
+			c.StageHead = row.Stmt.Stage
+		}
+		lastStage = row.Stmt.Stage
 		c.HeldBy, c.Hiding = heldBy[row.Stmt.ID], hiding
 		if row.PageKind == "rules" {
 			if q, ok := questions[row.Stmt.ConceptSlug]; ok {

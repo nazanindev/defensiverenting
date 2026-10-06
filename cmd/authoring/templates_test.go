@@ -573,6 +573,7 @@ func TestStatementTemplatesRender(t *testing.T) {
 			Citations: []store.CitationWithSource{{SourceID: 7, Quote: "q", CheckedAt: &now, SourceKind: "statute", Locator: "§ 2"}}},
 	}}
 	cards := []stmtCard{cardFromRow(rows[0], filter{Page: 3}), cardFromRow(rows[1], filter{Page: 3})}
+	cards[0].StageHead = "Only a court can make you leave"
 	drift := store.ProposalRow{Proposal: store.Proposal{ID: 9, StatementKey: "k", Reason: "source-drift", ProposedBy: store.ActorSourceCheck, CreatedAt: now,
 		Evidence: []byte(`{"old_quote":"verbatim","new_quote":"verbatim words","similarity":0.8,"old_context":"the verbatim text","new_context":"the verbatim words text"}`)}}
 	asked := cardFromRow(rows[1], filter{Page: 3})
@@ -605,7 +606,7 @@ func TestStatementTemplatesRender(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if name == "page" {
-			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "2 of 4 to do", `name="quote_7"`, `id="panel"`, "Keep as written", "On the page now", `<div class="ask">Do I get a receipt for my deposit in Texas?</div>`} {
+			for _, want := range []string{"Note: Doubt.", "not confirmed at the source", ">Done<", "Done · ", "2 of 4 to do", `name="quote_7"`, `id="panel"`, "Keep as written", "On the page now", `<div class="ask">Do I get a receipt for my deposit in Texas?</div>`, `<h2 class="stage-head">Only a court can make you leave</h2>`} {
 				if !strings.Contains(buf.String(), want) {
 					t.Errorf("page: missing %q", want)
 				}
