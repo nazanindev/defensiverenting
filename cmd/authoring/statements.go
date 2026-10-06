@@ -60,6 +60,35 @@ type stmtCard struct {
 
 func (c stmtCard) CardIndex() int { return c.Position - 1 }
 
+// citeGroup is one quote block on a card: citations of one source and
+// locator that sit next to each other. A two-column PDF can only be quoted
+// one printed line at a time, so one handbook paragraph arrives as eight
+// citations; shown one by one it reads as a broken list.
+type citeGroup struct {
+	First       store.CitationWithSource
+	Quote       string // the fragments joined with " … "
+	Unconfirmed bool   // a fragment has a quote nobody confirmed
+}
+
+// CiteGroups joins neighbouring citations of the same source and locator,
+// leaving site guidance out as the card always has.
+func (c stmtCard) CiteGroups() []citeGroup {
+	var out []citeGroup
+	for _, ct := range c.Stmt.Citations {
+		if ct.SourceKind == "editorial" {
+			continue
+		}
+		unconfirmed := ct.Quote != "" && ct.CheckedAt == nil
+		if n := len(out); n > 0 && out[n-1].First.SourceID == ct.SourceID && out[n-1].First.Locator == ct.Locator && ct.Quote != "" && out[n-1].Quote != "" {
+			out[n-1].Quote += " … " + ct.Quote
+			out[n-1].Unconfirmed = out[n-1].Unconfirmed || unconfirmed
+			continue
+		}
+		out = append(out, citeGroup{First: ct, Quote: ct.Quote, Unconfirmed: unconfirmed})
+	}
+	return out
+}
+
 func cardFromRow(r store.ReviewRow, f filter) stmtCard {
 	st := r.Stmt.Standing()
 	return stmtCard{

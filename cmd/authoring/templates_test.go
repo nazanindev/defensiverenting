@@ -622,3 +622,27 @@ func TestStatementTemplatesRender(t *testing.T) {
 		}
 	}
 }
+
+func TestCiteGroupsJoinLineByLineQuotes(t *testing.T) {
+	now := time.Now()
+	line := func(q string) store.CitationWithSource {
+		return store.CitationWithSource{SourceID: 4, Locator: "p. 8", Quote: q, SourceKind: "gov_guidance", CheckedAt: &now}
+	}
+	c := stmtCard{Stmt: store.CitedStatement{Citations: []store.CitationWithSource{
+		{SourceKind: "editorial"},
+		line("Escrow Account: Landlords who own more than ten"),
+		line("(10) rental units"),
+		{SourceID: 4, Locator: "p. 9", Quote: "another page", SourceKind: "gov_guidance"},
+		{SourceID: 5, Quote: "No. The law does not make the landlord pay you interest.", SourceKind: "nonprofit", CheckedAt: &now},
+	}}}
+	g := c.CiteGroups()
+	if len(g) != 3 {
+		t.Fatalf("got %d groups, want 3 (one per source and locator run)", len(g))
+	}
+	if g[0].Quote != "Escrow Account: Landlords who own more than ten … (10) rental units" || g[0].Unconfirmed {
+		t.Errorf("line-by-line quotes not joined: %+v", g[0])
+	}
+	if !g[1].Unconfirmed {
+		t.Error("an unconfirmed quote lost its warning")
+	}
+}
