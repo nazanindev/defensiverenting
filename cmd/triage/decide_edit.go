@@ -100,7 +100,13 @@ func decideEditFile(ctx context.Context, pg *store.PG, path string, args []strin
 		fatal(fmt.Errorf("decode %s: %w", path, err))
 	}
 	_, rows := pendingEdits(ctx, pg)
-	check := drafting.LiveQuoteCheck()
+	var urls []string
+	for _, d := range decisions {
+		if p, ok := rows[d.ID]; ok && p.Proposed != nil {
+			urls = append(urls, proposedURLs(*p.Proposed)...)
+		}
+	}
+	check := drafting.PrefetchedQuoteCheck(urls, fetchWorkers)
 	seen, applied, left := 0, 0, 0
 	for _, d := range decisions {
 		p, ok := rows[d.ID]
@@ -220,4 +226,19 @@ func statementVerdict(ctx context.Context, ps store.ProposedStatement, lang stri
 		return "the replacement cites nothing; left"
 	}
 	return ""
+}
+
+// fetchWorkers is how many sources a bulk decide run fetches at once.
+const fetchWorkers = 8
+
+// proposedURLs lists every source a proposal cites, followers included.
+func proposedURLs(p store.ProposedStatement) []string {
+	var out []string
+	for _, c := range p.Citations {
+		out = append(out, c.URL)
+	}
+	for _, f := range p.Followers {
+		out = append(out, proposedURLs(f)...)
+	}
+	return out
 }

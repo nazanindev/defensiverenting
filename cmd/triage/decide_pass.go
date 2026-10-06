@@ -105,7 +105,13 @@ func decidePassFile(ctx context.Context, pg *store.PG, path string, args []strin
 	for _, it := range unstamped(ctx, pg) {
 		byKey[fmt.Sprintf("%d/%s", it.PlaybookID, it.Key)] = it
 	}
-	check := drafting.LiveQuoteCheck()
+	var urls []string
+	for _, d := range decisions {
+		if strings.EqualFold(strings.TrimSpace(d.Verdict), "pass") {
+			urls = append(urls, strings.TrimSpace(d.SourceURL))
+		}
+	}
+	check := drafting.PrefetchedQuoteCheck(urls, fetchWorkers)
 	seen, passed, left, noted := 0, 0, 0, 0
 	for _, d := range decisions {
 		it, ok := byKey[fmt.Sprintf("%d/%s", d.PlaybookID, strings.ToLower(strings.TrimSpace(d.Key)))]

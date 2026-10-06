@@ -2,8 +2,15 @@ package drafting
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/nazanindev/defensiverenting/internal/discover"
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -124,16 +131,51 @@ func SourceKindOrDefault(k string) string {
 // LiveQuoteCheck is a QuoteCheck that fetches each source once per run
 // through the same tiers the authoring form uses (direct, then a headless
 // render; never an archive snapshot) and matches the quote verbatim.
-func LiveQuoteCheck() QuoteCheck {
-	type got struct {
-		rc  Receipt
-		err error
+func LiveQuoteCheck() QuoteCheck { return PrefetchedQuoteCheck(nil, 0) }
+
+type fetched struct {
+	rc  Receipt
+	err error
+}
+
+// PrefetchedQuoteCheck is LiveQuoteCheck with urls fetched up front, workers
+// at a time. A bulk decide run cites hundreds of sources, and fetched one by
+// one inside the loop they took hours (967 edits, 2026-10-04). The check
+// itself is unchanged: every quote is still read against the live page.
+func PrefetchedQuoteCheck(urls []string, workers int) QuoteCheck {
+	cache := map[string]fetched{}
+	if workers < 1 {
+		workers = 1
 	}
-	cache := map[string]got{}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	jobs := make(chan string)
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for u := range jobs {
+				rc, err := cachedFetchExtract(u)
+				mu.Lock()
+				cache[u] = fetched{rc, err}
+				mu.Unlock()
+			}
+		}()
+	}
+	seen := map[string]bool{}
+	for _, u := range urls {
+		if u == "" || u == "/editorial" || seen[u] {
+			continue
+		}
+		seen[u] = true
+		jobs <- u
+	}
+	close(jobs)
+	wg.Wait()
 	return func(_ context.Context, _ int, url, quote string) QuoteVerdict {
 		g, ok := cache[url]
 		if !ok {
-			g.rc, g.err = FetchExtract(url)
+			g.rc, g.err = cachedFetchExtract(url)
 			cache[url] = g
 		}
 		if g.err != nil {
@@ -146,4 +188,44 @@ func LiveQuoteCheck() QuoteCheck {
 		}
 		return QuoteVerdict{Overridable: !g.rc.Readable()}
 	}
+}
+
+// liveFetchTTL is how long a live fetch is reused by the next decide run on
+// this machine. An edit run followed by its pass run reads the same sources
+// minutes apart; reading them twice doubled a slow bulk run. A day-old page
+// is still "live" for a review stamp; the source-change checker does not
+// use this cache.
+const liveFetchTTL = 12 * time.Hour
+
+type cachedFetch struct {
+	At      time.Time `json:"at"`
+	Receipt Receipt   `json:"receipt"`
+}
+
+// cachedFetchExtract is FetchExtract with a short-lived copy on local disk.
+// Failed fetches are not kept, so a site that was down is tried again.
+func cachedFetchExtract(url string) (Receipt, error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return FetchExtract(url)
+	}
+	dir = filepath.Join(dir, "defensiverenting", "live-fetch")
+	sum := sha256.Sum256([]byte(url))
+	path := filepath.Join(dir, hex.EncodeToString(sum[:])+".json")
+	if raw, err := os.ReadFile(path); err == nil { // #nosec G304 -- name is a hash under our cache dir
+		var c cachedFetch
+		if json.Unmarshal(raw, &c) == nil && time.Since(c.At) < liveFetchTTL {
+			return c.Receipt, nil
+		}
+	}
+	rc, err := FetchExtract(url)
+	if err != nil {
+		return rc, err
+	}
+	if raw, err := json.Marshal(cachedFetch{At: time.Now(), Receipt: rc}); err == nil {
+		if os.MkdirAll(dir, 0o700) == nil {
+			_ = os.WriteFile(path, raw, 0o600)
+		}
+	}
+	return rc, nil
 }
