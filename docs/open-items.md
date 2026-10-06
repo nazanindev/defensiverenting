@@ -1,6 +1,6 @@
 # Open items
 
-One list of everything still open on the content work, so nothing lives only in a chat. Updated 2026-10-05. Each item says whose move it is.
+One list of everything still open on the content work, so nothing lives only in a chat. Updated 2026-10-06. Each item says whose move it is.
 
 ## Waiting on Nazanin
 
@@ -19,6 +19,32 @@ One list of everything still open on the content work, so nothing lives only in 
 | Wyoming · Can't Pay Rent | 526 | Thin law |
 | Mississippi · Rent Increases | 550 | No source on how rent can be raised |
 
+### Deposit rules pages held (ADR-028 phase 4; page flags)
+
+Thin: the state has little deposit law or its code cannot be read, so the page answers 3 or fewer questions of its own. Publish short, or no page.
+
+| Page | Id | Why |
+|---|---|---|
+| Alabama | 693 | Little deposit law |
+| Arkansas | 696 | Code is Lexis-only; no "no law" lines filed |
+| Indiana | 702 | Deposit chapter IC 32-31-3 cannot be fetched |
+| Iowa | 703 | Little deposit law |
+| Kansas | 704 | 2 answers |
+| Kentucky | 705 | Deposit rules apply only where a city or county adopted the uniform act |
+| Louisiana | 706 | 1 answer; AG move-in guide could not be read |
+| Mississippi | 711 | Code is Lexis-only; 2 answers from the AG copy |
+| Nebraska | 714 | 2 answers |
+| Ohio | 689 | Little deposit law (pilot) |
+| Pennsylvania | 686 | 1 answer, from AG guidance |
+| South Carolina | 723 | 1 answer |
+| South Dakota | 724 | 3 answers, 2 from AG guidance |
+| Tennessee | 725 | Code is Lexis-only; Legal Aid booklets and one 2020 ruling |
+| Texas | 690 | Little deposit law (pilot) |
+| West Virginia | 730 | 2 answers |
+| Wyoming | 732 | 3 answers |
+
+Gap: Washington, DC (729). The DC deposit regulations (14 DCMR 308-311) could not be fetched, and the DC Law Help packet loads only as an archive copy. Escrow and interest, last month's rent, charges above the deposit, the sale rule and inspections are unanswered until a live copy is found.
+
 ### National pages held
 
 - United States · Applying for a Rental (572) and Assistance Animals (573): HUD guidance could not be fetched and may be withdrawn.
@@ -26,6 +52,7 @@ One list of everything still open on the content work, so nothing lives only in 
 ### Ready to publish
 
 - ADR-028 phase 3: the locked-out and breaking-lease drafts (580-681) not listed above or below.
+- ADR-028 phase 4: the deposit rules drafts for the other 33 places (682-732 not listed above). Every statement is read against its quote; 178 "no law found" lines are filed, each confirmed by a second agent.
 
 ### After publishing phase 3
 
@@ -53,15 +80,15 @@ One list of everything still open on the content work, so nothing lives only in 
 
 ## Claude's
 
-### Phase 4 (deposit rules pages): redo as a pilot
+### Phase 4 lawyer questions (open, not filed as "no law")
 
-The first wave drafted sparse pages from a search of one or two code sections. Those drafts (682-688: California, New York, Illinois, Washington, Pennsylvania, Massachusetts, Florida) are parked with a page flag; nothing from them is trusted or filed. The pilot:
+A second agent could not confirm "no law found" for these, so they stay open questions on the page rather than a dated no-law line:
 
-1. Four states: Texas, Ohio, Georgia, Oregon.
-2. Each drafter reads the whole landlord-tenant chapter, the state agency or Attorney General guide, and statewide legal aid, and records what it searched per concept.
-3. A second agent checks every "no law found" before a coverage record is filed.
-4. Cross-check against the citation leads in `notes/citation-leads/` (discovery only, never cited).
-5. Nazanin reviews the rendered pilot pages before the other 47 places start.
+- Holding deposits: whether the deposit definition reaches them in Massachusetts (15B(1)(b) list), Maryland (8-213 prospective-tenant fees), Michigan, Missouri, New Hampshire, New York (238-a).
+- Nonrefundable fees: whether a deposit cap "however denominated" covers them in Kansas, Minnesota, Nebraska, North Dakota, South Dakota.
+- Charges above the deposit: Kansas, Maine, Minnesota, Montana, New Mexico, North Carolina, Pennsylvania.
+- Deposit increases: Michigan, Nevada, New Mexico, Virginia (1226(A) cap plus 1204(I)).
+- Other: Kansas and Maine forwarding address; North Carolina last month's rent; Pennsylvania 511.2(a) bank notice as a receipt; Massachusetts fee-in-lieu rules (15B(1)(b)(iii)) may or may not exist.
 
 ### Still naming their state (26 statements)
 
@@ -72,6 +99,8 @@ The first wave drafted sparse pages from a search of one or two code sections. T
 
 - New Hampshire · Locked Out (654): RSA 540-A:2 is rewritten 2026-10-08; re-quote after.
 - Utah · Breaking a Lease (664): 57-22-5.1 has a new version from 2027-01-01.
+- Virginia · Security Deposit Rules (728): 55.1-1203 and 55.1-1204 have new versions from 2027-07-01.
+- South Dakota · Security Deposit Rules (724): 43-32-24 now says 21 days (SL 2026 ch 179); some guides still say two weeks.
 
 ## How we work (agreed 2026-10-05)
 
