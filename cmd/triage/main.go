@@ -28,7 +28,7 @@
 //	triage merge [-apply]        re-file triage edits a widening superseded, quote carried
 //	triage gaps <place> [<rules-topic>]
 //	                             a place's rules-page gaps: each concept answered, no law found, or a gap (ADR-028)
-//	triage nolaw <records.json> [-by <name>] [-apply]
+//	triage nolaw <records.json> [-by <name>] [-remove] [-apply]
 //	                             file "searched, no law found" coverage records (ADR-028 D5)
 //	triage retag <tags.json>     tag decisions [{key, concept, why}] as a propose file, tag change only (ADR-028 D9)
 //
@@ -140,7 +140,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-apply] | retag <tags.json>")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-remove] [-apply] | retag <tags.json>")
 	os.Exit(2)
 }
 

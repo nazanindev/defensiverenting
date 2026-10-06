@@ -223,6 +223,38 @@ func TestCoverageRecord_invariants(t *testing.T) {
 	}
 }
 
+// A record filed in error can be taken back, and only the one named.
+func TestCoverageRecord_remove(t *testing.T) {
+	pg, j := rulesFixture(t)
+	ctx := context.Background()
+	for _, c := range []string{"deposit-receipt", "holding-deposit"} {
+		if err := pg.FileCoverageRecord(ctx, store.FileCoverageParams{
+			JurisdictionSlug: j.Slug, ConceptSlug: c, SourcesChecked: []string{"https://example.gov"}, By: "test",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ok, err := pg.RemoveCoverageRecord(ctx, j.Slug, "deposit-receipt"); err != nil || !ok {
+		t.Fatalf("remove = %v, %v", ok, err)
+	}
+	if ok, _ := pg.RemoveCoverageRecord(ctx, j.Slug, "deposit-receipt"); ok {
+		t.Fatal("removed a record twice")
+	}
+	recs, err := pg.ListCoverageRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, r := range recs {
+		if r.JurisdictionSlug == j.Slug {
+			left = append(left, r.ConceptSlug)
+		}
+	}
+	if len(left) != 1 || left[0] != "holding-deposit" {
+		t.Fatalf("records left = %v, want [holding-deposit]", left)
+	}
+}
+
 // A rules topic is always laid out as rules, and no other topic may use the
 // layout (ADR-028 D4), on every save path.
 func TestRulesLayout_followsTheTopic(t *testing.T) {

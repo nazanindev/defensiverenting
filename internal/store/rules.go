@@ -112,6 +112,21 @@ func (pg *PG) FileCoverageRecord(ctx context.Context, p FileCoverageParams) erro
 	})
 }
 
+// RemoveCoverageRecord takes back a record filed in error: one that claims
+// "we did not find a law" where the search could not reach the law (a
+// state whose code only Lexis publishes). Reports whether one existed.
+func (pg *PG) RemoveCoverageRecord(ctx context.Context, jurisdictionSlug, conceptSlug string) (bool, error) {
+	tag, err := pg.pool.Exec(ctx, `
+		DELETE FROM coverage_records r
+		USING jurisdictions j, concepts c
+		WHERE r.jurisdiction_id = j.id AND r.concept_id = c.id
+		  AND j.slug = $1 AND c.slug = $2`, jurisdictionSlug, conceptSlug)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 // coverageRecords lists records, filtered by place or concept (0 = any).
 func (pg *PG) coverageRecords(ctx context.Context, jurisdictionID, conceptID int64) ([]CoverageRecord, error) {
 	rows, err := pg.pool.Query(ctx, `

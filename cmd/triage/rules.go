@@ -78,6 +78,7 @@ type noLawEntry struct {
 func nolaw(ctx context.Context, pg *store.PG, args []string) {
 	fs := flag.NewFlagSet("nolaw", flag.ExitOnError)
 	apply := fs.Bool("apply", false, "file the records")
+	remove := fs.Bool("remove", false, "take the named records back instead of filing them")
 	by := fs.String("by", store.ActorReviewAgent, "who searched")
 	if len(args) < 1 {
 		usage()
@@ -92,6 +93,29 @@ func nolaw(ctx context.Context, pg *store.PG, args []string) {
 	var entries []noLawEntry
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		fatal(fmt.Errorf("%s: %w", args[0], err))
+	}
+	if *remove {
+		removed := 0
+		for _, e := range entries {
+			if !*apply {
+				fmt.Printf("would remove: %s %s\n", e.Place, e.Concept)
+				continue
+			}
+			ok, err := pg.RemoveCoverageRecord(ctx, e.Place, e.Concept)
+			switch {
+			case err != nil:
+				fmt.Printf("refused %s %s: %v\n", e.Place, e.Concept, err)
+			case !ok:
+				fmt.Printf("no record: %s %s\n", e.Place, e.Concept)
+			default:
+				removed++
+				fmt.Printf("removed: %s %s\n", e.Place, e.Concept)
+			}
+		}
+		if *apply {
+			fmt.Printf("%d of %d removed\n", removed, len(entries))
+		}
+		return
 	}
 	filed := 0
 	for _, e := range entries {
