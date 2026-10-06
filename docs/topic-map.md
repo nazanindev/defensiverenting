@@ -96,7 +96,7 @@ Tag a statement with the concept whose question it answers. Each topic's rules p
 - subsidized-rent-change: If the government helps pay my rent, can my part go down when I earn less?
 - rent-debt-collection: What happens to rent I still owe?
 
-**breaking-lease** · stages: What you may still owe · When you can leave early · How to leave · Special protections · After you move out · rules page: `lease-breaking-rules`
+**breaking-lease** · stages: What you may still owe · When you can leave early · How to leave · After you move out · Special protections · rules page: `lease-breaking-rules`
 
 - early-termination-rights: When can I end my lease early without paying the rest?
 - constructive-eviction: Can I move out because my home is not safe to live in?

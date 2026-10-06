@@ -16,7 +16,7 @@ Each playbook gets 3 to 5 stage headings, in this order. Drafters and reviewers 
 | landlord-entry | When your landlord can come in · Your locks · If your landlord comes in without notice |
 | rent-increase | How much notice you get · Check the new rent · If the increase is not allowed |
 | resource-directory | Free legal help · Help lines · Help with rent and housing |
-| breaking-lease | What you may still owe · When you can leave early · How to leave · Special protections · After you move out |
+| breaking-lease | What you may still owe · When you can leave early · How to leave · After you move out · Special protections |
 | lease-renewal | How much notice you get · When your landlord needs a reason · Answer the notice · If your landlord goes to court |
 | locked-out | Only a court can make you leave · Get back into your home · Get your things back · What a court can make your landlord do |
 | utility-shutoff | If your landlord cut them off · If your landlord did not pay the bill · If you could not pay · Help paying the bill |
