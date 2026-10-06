@@ -23,3 +23,4 @@ Utah: only versioned le.utah.gov urls (C57-17-S3_YYYYMMDDYYYYMMDD.html) carry te
 Wyoming: title01.pdf quotes must not contain a page-footer line; split into two citations at the break.
 
 Order and repetition (ADR-028 amendment 2026-10-06): within each stage the common case comes first; exceptions, carve-outs and narrow cases come last. Victim and military exits on breaking-a-lease pages go in the "Special protections" stage, never first on the page. Two statements that say the same rule, or where one only points to the other's list, are merged into one that keeps every condition and citation. Warnings ("If a court later disagrees...", "You get this money only if...") stay on each statement that needs them.
+Word choice (2026-10-06): say "limit the loss" or "reduce what you owe", never "mitigate", except in an official program name; gloss "materially" as "(seriously)".
