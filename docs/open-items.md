@@ -45,6 +45,11 @@ Thin: the state has little deposit law or its code cannot be read, so the page a
 
 Gap: Washington, DC (729). The DC deposit regulations (14 DCMR 308-311) could not be fetched, and the DC Law Help packet loads only as an archive copy. Escrow and interest, last month's rent, charges above the deposit, the sale rule and inspections are unanswered until a live copy is found.
 
+### Editorial statements to stamp (no source quote; a person stamps)
+
+- 50 breaking-a-lease summaries (the first statement on each page, 2026-10-06).
+- United States · Bill After Moving Out (733): statements 1 to 5; 1 and 2 also carry editor notes (no federal source says what a landlord may charge or defines wear and tear).
+
 ### National pages held
 
 - United States · Applying for a Rental (572) and Assistance Animals (573): HUD guidance could not be fetched and may be withdrawn.
@@ -101,7 +106,7 @@ A second agent could not confirm "no law found" for these, so they stay open que
 
 ### Michigan site down (2026-10-06)
 
-- Michigan · Breaking a Lease (601): two moves to Special protections (proposal 16752 and the 554.601a age/disability exit) and one merge (the damage-list and 7-day reply statements) wait because legislature.mi.gov could not be read. Re-run when it loads.
+- Michigan · Breaking a Lease (601): waits because legislature.mi.gov could not be read. Re-run when it loads: two moves to Special protections (proposal 16752 and the 554.601a exit), one merge, the clarity pass (summary, examples, grouping; draft in scratch held601.json), Special protections last, and the two CFPB statements.
 
 ### Dated re-checks
 

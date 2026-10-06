@@ -183,6 +183,7 @@ Both kinds of heading also help search: a heading over a short passage is the cl
 - **One rule, one statement.** Two statements that say the same rule, or where one only points to the other's list, are merged; every condition and citation of both is kept.
 - **Warnings stay per statement for now.** The risk and win-and-pays lines repeat on each statement that needs them; showing them once per section is deferred.
 - Backfilled 2026-10-06 on all 102 phase 3 drafts: 189 statements moved to Special protections, repeats merged (locked-out 400 to 354 statements, breaking-a-lease 652 to 611), every page reordered and re-stamped. "materially" is glossed "(seriously)" everywhere (Nazanin); 12 live statements wait in the queue.
+- Clarity pass (Nazanin approved the Washington pilot, 2026-10-06): every breaking-a-lease page opens with an editorial summary (owe vs owe nothing, and what happens to the deposit), worked dollar examples follow rent math, each special exit's statements sit together, and a statement says what the landlord may keep the deposit for after leaving without a legal reason. Two CFPB statements (debt collectors must validate and pause on a written dispute; pay or benefits can be taken only after a court judgment) close "After you move out" and link the national move-out-bill page (733). Move-out-bill stays national: per-state pages would be thin.
 - The review screen shows stage headings on a page's view (9ee789d). Live pages carry no stages yet; they get them through the queue.
 
 ### D11. Every statement stands alone for search
