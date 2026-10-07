@@ -512,3 +512,26 @@ func TestNetIsBanned(t *testing.T) {
 		t.Error("web address flagged")
 	}
 }
+
+func TestRiskWarningFitsTheStep(t *testing.T) {
+	bad := []string{
+		"If repairs are not made, you can end your lease and move out. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
+		"You may move out and stop paying rent if the home is unlivable. You could face eviction if a court disagrees.",
+	}
+	for _, s := range bad {
+		if riskViolation("en", s) == "" {
+			t.Errorf("eviction warning on a move-out step not flagged: %s", s)
+		}
+	}
+	good := []string{
+		"If repairs are not made, you can end your lease and move out. If a court later disagrees, you can still owe the rent. Get legal help first.",
+		"You can withhold rent until repairs are made. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
+		"Once the landlord gets notice, you can end your lease and move. Keep paying rent until then. If you fall behind, your landlord can try to evict you.",
+		"You can end your lease after this is known as constructive eviction. If a court later disagrees, you can still owe the rent. Get legal help first.",
+	}
+	for _, s := range good {
+		if v := riskViolation("en", s); v != "" {
+			t.Errorf("flagged %q: %v", s, v)
+		}
+	}
+}

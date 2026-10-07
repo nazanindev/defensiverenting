@@ -411,11 +411,36 @@ func riskViolation(lang, text string) string {
 	}
 	// Naming a law is not telling the renter to act under it.
 	named := rentWithholdingAct.ReplaceAllString(text, " ")
-	if m := rs.riskyStep.FindString(named); m != "" && !rs.riskWarning.MatchString(text) {
+	m := rs.riskyStep.FindString(named)
+	if m == "" {
+		return ""
+	}
+	// The risk depends on the step. A renter who stays and pays less can be
+	// evicted; a renter who ends the lease and moves out (constructive
+	// eviction included) has already left, so the risk is owing the rent.
+	stays := lang == "en" && stayStep.MatchString(movesOut.ReplaceAllString(named, " "))
+	if lang == "en" && !stays {
+		if e := evictionRisk.FindString(text); e != "" {
+			return fmt.Sprintf(`%q does not fit %q: a renter who has moved out cannot be evicted. Say the real risk, like "If a court later disagrees, you can still owe the rent. Get legal help first."`, e, m)
+		}
+	}
+	if !rs.riskWarning.MatchString(text) {
+		if lang == "en" && !stays {
+			return fmt.Sprintf(`%q is a step a court judges only afterwards: say the risk in this statement, like "If a court later disagrees, you can still owe the rent. Get legal help first."`, m)
+		}
 		return fmt.Sprintf(`%q is a step a court judges only afterwards: say the risk in this statement, like "If a court later disagrees, you can owe the rent and face eviction. Get legal help first."`, m)
 	}
 	return ""
 }
+
+// stayStep is a risky step taken while the renter stays in the home.
+var stayStep = regexp.MustCompile(`(?i)\b(stop paying|withhold|hold back|pay less)\b|\brent withholding\b`)
+
+// movesOut is the move-out step, whose "stop paying" is not staying.
+var movesOut = regexp.MustCompile(`(?i)\b(move|moving) out and stop (paying|owing)`)
+
+// evictionRisk is an eviction warning, which only fits a renter who stays.
+var evictionRisk = regexp.MustCompile(`(?i)\b(face|risk|risking) (an )?eviction\b`)
 
 var ifOweNothing = regexp.MustCompile(`(?i)\b(if|when|unless) you (move out )?(owe|owing) (no|nothing)[^.,]*|\bargue (that )?you (do not|don't) owe\b`)
 
