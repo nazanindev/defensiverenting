@@ -187,6 +187,7 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\b(cops?|stuff|gonna|a bunch of|tons of|pricey)\b`), `slang; use the plain standard word`},
 		{regexp.MustCompile(`(?i)\bbug problems?\b`), `slang; say "insects" or "pests"`},
 		{regexp.MustCompile(`(?i)\bkeep in mind\b`), `drop it; state the fact directly`},
+		{regexp.MustCompile(`(?i)(^|[^.\w])net\b`), `banned word "net": say what is left, like "the rent the landlord gets, minus the costs of renting it again"`},
 	},
 	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
 	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),

@@ -500,3 +500,15 @@ func TestNoOweLeavesConditionsAndUnpaidRentAlone(t *testing.T) {
 		}
 	}
 }
+
+func TestNetIsBanned(t *testing.T) {
+	if len(Lint("en", "The claim is reduced by the net rent.")) == 0 {
+		t.Error(`"net" not flagged`)
+	}
+	if len(Lint("en", "Your landlord must try to rent the home again.")) != 0 {
+		t.Error("clean sentence flagged")
+	}
+	if len(Lint("en", "Go to palegalaid.net to find help.")) != 0 {
+		t.Error("web address flagged")
+	}
+}
