@@ -28,3 +28,5 @@ Glosses (2026-10-06): a gloss never reuses the word it explains ("periodic renta
 Owing nothing (2026-10-06 lint): a statement that says you owe no rent, money or fee must also say a landlord can still sue, like "If your landlord sues and wins, you can still owe the money. Get legal help first."
 
 Intro opening (2026-10-07): a breaking-lease intro opens with the common case ("If you leave early without a legal reason, you can owe rent"), then gives the real path in one or two sentences, like "If your home is unsafe, the law has steps that can end your lease. They start with telling the owner in writing what is wrong." Never tell a renter in an unsafe home not to move out. Never open with "You owe no more rent only in a few cases." The steps of that path come right after the intro, in the order the renter takes them.
+
+Breaking-lease disclaimer (2026-10-07): every breaking-lease intro starts with "Breaking a lease early is legally complicated. If you are in danger, leave and get safe first. Otherwise, talk to legal aid as soon as you can, before you move out or stop paying rent." Then the common case and the real path.
