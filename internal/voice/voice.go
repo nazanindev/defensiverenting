@@ -96,8 +96,9 @@ type ruleset struct {
 	// no money, no fee). A landlord can still sue, and if a court sides with
 	// the landlord the renter owes after all (Nazanin 2026-10-06: never say
 	// "you owe no money" without that reminder or a pointer to legal help).
-	// The same riskWarning satisfies it.
-	noOwe *regexp.Regexp
+	// Only a reminder about being sued, court, still owing, or legal help
+	// satisfies it (noOweWarning); "you may owe rent" elsewhere does not.
+	noOwe, noOweWarning *regexp.Regexp
 	// inspectStep finds a statement telling the renter to call or ask for a
 	// code inspection. For very bad conditions an inspector can declare the
 	// home unfit and order everyone out, so the same statement must say so
@@ -192,6 +193,7 @@ var enRuleset = ruleset{
 	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
 	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b`),
 	noOwe:           regexp.MustCompile(`(?i)\byou (do not|don't|will not|won't|would not|wouldn't) owe (any|more|the|future|further|that)?\s*(rent|money|fees?|penalt(y|ies))\b|\b(owe|owes) (no|nothing)\b|\bowe little or no\b|\b(released|free|freed) (without penalty )?from (any |all )?(further |future |more )?(rent|payments?)\b`),
+	noOweWarning:    regexp.MustCompile(`(?i)\b(sues?|sued|suing|lawsuit|court|legal help|legal aid|lawyer)\b|\bstill owe\b`),
 	police:          regexp.MustCompile(`(?i)\b(police|911|cops?)\b`),
 	policeOrder:     regexp.MustCompile(`(?i)(^|[.!?]\s+)(then |first |also )?(call|contact|phone|get) (the )?(police|911|cops)\b`),
 	policeChoice:    regexp.MustCompile(`(?i)\b(if you feel safe|you can (choose|decide|ask)|you may (choose|want)|your choice|it is up to you)\b`),
@@ -426,7 +428,7 @@ func noOweViolation(lang, text string) string {
 	}
 	// "If you owe no rent, ..." is a condition, not a promise.
 	stripped := ifOweNothing.ReplaceAllString(text, " ")
-	if m := rs.noOwe.FindString(stripped); m != "" && !rs.riskWarning.MatchString(text) {
+	if m := rs.noOwe.FindString(stripped); m != "" && !rs.noOweWarning.MatchString(text) {
 		return fmt.Sprintf(`%q tells the renter they owe nothing: say in this statement that a landlord can still sue, like "If your landlord sues and wins, you can still owe the money. Get legal help first."`, m)
 	}
 	return ""

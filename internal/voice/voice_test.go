@@ -468,6 +468,7 @@ func TestNoOweNeedsTheLawsuitReminder(t *testing.T) {
 		"You do not owe future rent after you leave.",
 		"The renter is released without penalty from any further rent.",
 		"If you leave for abuse and follow the notice rules, you owe no early end fee.",
+		"If you leave early, you may owe rent. You owe no more rent after you leave only in a few cases the law sets out.",
 	}
 	for _, s := range bad {
 		if noOweViolation("en", s) == "" {
