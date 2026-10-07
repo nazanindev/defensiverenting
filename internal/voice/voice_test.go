@@ -461,3 +461,41 @@ func TestLint_slangBanned(t *testing.T) {
 		t.Errorf("plain text flagged: %v", v)
 	}
 }
+
+func TestNoOweNeedsTheLawsuitReminder(t *testing.T) {
+	bad := []string{
+		"You owe no rent for the time after you move out.",
+		"You do not owe future rent after you leave.",
+		"The renter is released without penalty from any further rent.",
+		"If you leave for abuse and follow the notice rules, you owe no early end fee.",
+	}
+	for _, s := range bad {
+		if noOweViolation("en", s) == "" {
+			t.Errorf("no violation for %q", s)
+		}
+	}
+	good := []string{
+		"You owe no rent for the time after you move out. If your landlord sues and wins, you can still owe the money. Get legal help first.",
+		"You owe no more rent after you leave. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
+		"If you leave early, you can owe rent until the home is rented again.",
+	}
+	for _, s := range good {
+		if v := noOweViolation("en", s); v != "" {
+			t.Errorf("%q: unexpected %s", s, v)
+		}
+	}
+}
+
+func TestNoOweLeavesConditionsAndUnpaidRentAlone(t *testing.T) {
+	for _, s := range []string{
+		"If you do not pay rent on time, your landlord must send you a written notice.",
+		"If you owe no rent and caused no damage, you get the whole deposit back.",
+		"If you move out owing no rent, your landlord must mail you a notice.",
+		"Your landlord must also give you a way to pay with no fee.",
+		"You can still argue you do not owe the rent.",
+	} {
+		if v := noOweViolation("en", s); v != "" {
+			t.Errorf("%q: unexpected %s", s, v)
+		}
+	}
+}
