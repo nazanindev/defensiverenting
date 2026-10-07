@@ -517,6 +517,7 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 	bad := []string{
 		"If repairs are not made, you can end your lease and move out. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
 		"You may move out and stop paying rent if the home is unlivable. You could face eviction if a court disagrees.",
+		"A court can find you owe no rent for the time after you move out. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
 	}
 	for _, s := range bad {
 		if riskViolation("en", s) == "" {

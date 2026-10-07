@@ -413,6 +413,13 @@ func riskViolation(lang, text string) string {
 	named := rentWithholdingAct.ReplaceAllString(text, " ")
 	m := rs.riskyStep.FindString(named)
 	if m == "" {
+		// No step named, but the renter has left: an eviction warning
+		// still does not fit.
+		if lang == "en" && leftHome.MatchString(named) && !stayStep.MatchString(movesOut.ReplaceAllString(named, " ")) {
+			if e := evictionRisk.FindString(text); e != "" {
+				return fmt.Sprintf(`%q does not fit a renter who has moved out: they cannot be evicted. Say the real risk, like "If a court later disagrees, you can still owe the rent. Get legal help first."`, e)
+			}
+		}
 		return ""
 	}
 	// The risk depends on the step. A renter who stays and pays less can be
@@ -438,6 +445,9 @@ var stayStep = regexp.MustCompile(`(?i)\b(stop paying|withhold|hold back|pay les
 
 // movesOut is the move-out step, whose "stop paying" is not staying.
 var movesOut = regexp.MustCompile(`(?i)\b(move|moving) out and stop (paying|owing)`)
+
+// leftHome is a statement about a renter who has moved out.
+var leftHome = regexp.MustCompile(`(?i)\b(move|moved|moving) out\b|\bafter you leave\b|\byou (leave|left) (early|because)\b`)
 
 // evictionRisk is an eviction warning, which only fits a renter who stays.
 var evictionRisk = regexp.MustCompile(`(?i)\b(face|risk|risking) (an )?eviction\b`)
