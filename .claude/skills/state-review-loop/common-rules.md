@@ -26,3 +26,5 @@ Order and repetition (ADR-028 amendment 2026-10-06): within each stage the commo
 Word choice (2026-10-06): say "limit the loss" or "reduce what you owe", never "mitigate", except in an official program name; gloss "materially" as "(seriously)".
 Glosses (2026-10-06): a gloss never reuses the word it explains ("periodic rental (one that runs in periods)" is circular); say what it means in other words.
 Owing nothing (2026-10-06 lint): a statement that says you owe no rent, money or fee must also say a landlord can still sue, like "If your landlord sues and wins, you can still owe the money. Get legal help first."
+
+Intro opening (2026-10-07): a breaking-lease intro opens with the common case ("If you leave early without a legal reason, you can owe rent"), then gives the real path in one or two sentences, like "If your home is unsafe, do not just move out. First tell the owner in writing." Never open with "You owe no more rent only in a few cases." The steps of that path come right after the intro, in the order the renter takes them.
