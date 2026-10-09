@@ -168,7 +168,28 @@ The risk warning, the lawsuit reminder, the win-and-pays line, and "don't ignore
 3. Live pages: the same proposals go to the queue for a person, as all live edits do.
 4. The 350 editorial-only statements are sorted three ways: a registry entry (replaced by a reference), page-specific guidance (stays), or a claim with no law behind it (cut).
 
-### A5. Open questions for Nazanin
+### A5. Two kinds of content, one set of checks
+
+After this amendment the site has exactly two kinds of content. They differ only where they must; every check that can be shared is shared, so neither kind gets a weaker copy.
+
+| | Statement (the law) | Advice (what to do) |
+|---|---|---|
+| What it says | What a law requires, in one place | A habit that stays true everywhere |
+| Lives on | One page, one place | The registry, referenced by pages |
+| Who writes it | Drafting agents, reviewed by a person and the review loop | A person, added by migration and reviewed as code |
+| Sources allowed | statute, regulation, court_ruling, gov_guidance | gov_guidance and nonprofit only |
+| Quote check | Verbatim, the one checker | The same checker |
+| Source monitoring | Yes | Yes (monitor.go gains these kinds) |
+| Voice lint | The one lint | The same lint |
+| Review | Statement stamps and the queue | Entry stamp; later the lawyer stamp |
+| Edits | Proposals in the queue; live pages by a person | A migration; one change reaches every page |
+| Place | Implied by the page | Never; if it holds only in some places, it is a statement |
+
+Shared, never forked: the verbatim quote checker, the voice lint, the source monitor, and the reference-only refusal (`discover.ReferenceOnly`).
+
+**No editorial-only statements.** Every statement has at least one citation that is not editorial; editorial alone never backs a statement. The save path and `triage check` enforce it. The editorial citation survives only beside a real quote, for framing such as a worked example of a quoted rule. The disclaimer is the one piece of pure site voice, and it is an advice entry with a written exemption from A1's backing rule, not a statement. The 350 editorial-only statements are sorted in A4 step 4; until each is sorted, existing ones are not blocked, the same as every new lint (ADR-023 amendment).
+
+### A6. Open questions for Nazanin
 
 - Does per-stage advice render with a heading ("What to do") or simply lead the section?
 - Pilot topic: breaking-lease first, on one state, before the registry is built out?
