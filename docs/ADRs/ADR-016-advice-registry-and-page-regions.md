@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed |
+| Status | Proposed (amended 2026-10-09) |
 | Date | 2026-09-08 |
 | Amends | ADR-003 (a second kind of statement-shaped content that is not a citation), ADR-011 (registry pattern reused), ADR-014 D2 (proposals lose the editorial path) |
 
@@ -116,3 +116,60 @@ Advice has nothing to fetch, so the source checker never sees it. The issue chec
 - **Drop practical advice from the site.** Renters need it, and the legal aid pages the agent was citing exist because someone had to say it.
 - **Interleave advice with statements at a per-page position.** Contextual placement is sometimes better, but it makes advice look like a numbered claim, and it means the advice block differs on every page. One block, one look, one job.
 - **Author advice in the portal instead of by migration.** Thirty rows edited a few times a year do not justify a form, and a migration is the only path already reviewed and deployed as code.
+
+## Amendment, 2026-10-09: advice is backed, leads the stressful pages, and carries the warnings
+
+Four weeks of review changed the problem this ADR was written for. Agents could not write advice, so the loop wrote it as editorial statements, one copy per statement. On 2026-10-07 the corpus held "If a court later disagrees" 424 times, "Get legal help first" 501 times, the win-and-pays line 370 times, and the same two collections statements on 52 pages. Lints require the warning inside each statement (the risky-step and owe-nothing rules), so the copies are enforced. The pages got long, and Nazanin's read of the breaking-lease pages was that they are too much for a renter in a stressful situation. The most useful content on those pages is not law at all: get safe, put it in writing, keep proof, make sure your landlord knows you have it. In her words: "Your landlord might sue if they want the money. Make sure they know you have proof."
+
+This amendment keeps D2 (agents reference, never author), D3 (the statute decides the line) and D6, and changes D1, D4 and how the warnings are enforced.
+
+### A1. Every entry is backed (replaces D1's "no citation")
+
+An advice entry carries one or more citations, each a source URL and a verbatim quote, checked by the same quote check as statements. Advice stays jurisdiction-free: if it is only true in some places, it is a claim and belongs in a statement on those pages.
+
+- **Who can back it.** Only sources of kind `gov_guidance` (federal or state government pages, like HUD and the CFPB) or `nonprofit` (legal aid organizations and housing nonprofits). Enforced in code at save time, not by review. Statutes do not back advice: a habit a statute makes matter is a statement (D3). `discover.ReferenceOnly` sites (law firm blogs, Nolo, Justia, FindLaw, Lexis) are refused as they are everywhere.
+- **No backing, no publish.** An entry without a backing quote cannot be referenced by a page that publishes. The one exception is the site's own disclaimer, which is the site speaking and says so.
+- **The checker watches it.** The source checker re-checks advice quotes like statement quotes. Today `store/monitor.go` re-checks only `statute` and `regulation` sources; it gains `gov_guidance` and `nonprofit` for advice citations. A drifted quote on an entry flags the entry once, not every page that references it.
+- **Lawyer review, later.** When the project has its own lawyer, they review entries one at a time. A reviewed entry carries a stamp with the reviewer's name and date, and renders a different chip from a source-backed one. This is not a lawyer article as a source (the lawyer article policy stands): it is the project's lawyer approving the project's text. An entry may be lawyer-reviewed and source-backed at once; lawyer review never replaces the quote.
+
+```
+advice_citations
+  advice_id   BIGINT REFERENCES advice ON DELETE CASCADE
+  source_id   BIGINT REFERENCES sources   -- kind must be gov_guidance or nonprofit
+  quote       TEXT NOT NULL               -- verbatim, checked
+  position    INT
+
+advice  (+ columns)
+  lawyer_reviewed_by  TEXT NULL
+  lawyer_reviewed_at  TIMESTAMPTZ NULL
+```
+
+### A2. Advice can lead, per stage (amends D4)
+
+D4 put advice in one block after the law. For a page whose reader is in a crisis (breaking a lease, locked out, eviction), the advice is the first answer and the law is how it holds up. So advice attaches to a stage, not only to the page:
+
+- A page's advice references carry an optional stage. An entry with a stage renders at the top of that stage's section, before its statements. An entry with no stage renders in the page-level block as D4 describes.
+- The topic decides the default: a topic lists its advice entries per stage, and a new draft inherits them. A page may add or drop references; the reviewer sees the change.
+- Rendering stays plain: the body, then one chip naming the source ("From the CFPB") or the lawyer stamp. No trust line, no anchor, no onward link.
+- D5's table gains the per-stage advice as part of the statement list region, not a new region.
+
+### A3. Warnings move to advice, and the lints check the page (amends the risky-step and owe-nothing rules)
+
+The risk warning, the lawsuit reminder, the win-and-pays line, and "don't ignore court papers" become advice entries. A statement no longer carries them. The guarantee moves up one level and stays in code:
+
+- A statement that names a risky step (riskyStep) or tells the renter they owe nothing (noOwe) passes the lint when its stage, or the page, references the matching warning entry. Without the reference it fails exactly as today.
+- The warning fits the step, as the 2026-10-06 rule does: the move-out entry says you can still owe the rent; the stay-and-withhold entry names eviction.
+- The page-level disclaimer for breaking-lease ("Breaking a lease early is legally complicated...") becomes the topic's first entry, rendered at the top of the page, and leaves the intro statement.
+
+### A4. Migration
+
+1. Seed the registry with the repeated sentences above plus the breaking-lease set, each with a backing quote found on gov or nonprofit pages. An entry for which no source says it waits, unpublished, for the lawyer. Expected breaking-lease set: the disclaimer; get safe first; tell your landlord in writing; take dated photos; call the inspector; keep copies; your landlord might sue if they want the money, make sure they know you have proof; do not ignore court papers.
+2. Draft pages: the loop removes the warning sentences from statements and adds the references, through ordinary proposals. Statements get shorter; nothing else in them changes.
+3. Live pages: the same proposals go to the queue for a person, as all live edits do.
+4. The 350 editorial-only statements are sorted three ways: a registry entry (replaced by a reference), page-specific guidance (stays), or a claim with no law behind it (cut).
+
+### A5. Open questions for Nazanin
+
+- Does per-stage advice render with a heading ("What to do") or simply lead the section?
+- Pilot topic: breaking-lease first, on one state, before the registry is built out?
+- Lawyer review: does a reviewed entry show the lawyer's name to readers, or only "Reviewed by a lawyer"?
