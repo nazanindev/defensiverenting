@@ -633,3 +633,7 @@ func TestNearest_keepsTheMatchedSentences(t *testing.T) {
 		t.Errorf("Nearest = %q\nwant       %q", got, body)
 	}
 }
+
+func (f *fakeStore) ListAdviceCitationsForCheck(context.Context) ([]store.AdviceCheckRow, error) {
+	return nil, nil
+}

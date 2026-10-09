@@ -404,7 +404,7 @@ var rentWithholdingAct = regexp.MustCompile(`(?i)\brent withholding act\b`)
 // riskViolation is the statement-only rule for riskyStep. A page intro may
 // name the step ("when you can end your lease"); a statement that tells the
 // renter they can take it must say the risk too.
-func riskViolation(lang, text string) string {
+func riskViolation(lang, text string, page Page) string {
 	rs, ok := rulesets[lang]
 	if !ok || rs.riskyStep == nil {
 		return ""
@@ -430,6 +430,11 @@ func riskViolation(lang, text string) string {
 		if e := evictionRisk.FindString(text); e != "" {
 			return fmt.Sprintf(`%q does not fit %q: a renter who has moved out cannot be evicted. Say the real risk, like "If a court later disagrees, you can still owe the rent. Get legal help first."`, e, m)
 		}
+	}
+	// The page says the risk once at the top (ADR-016 A3): the statement
+	// need not, when the page's warning fits the step.
+	if (stays && page.Warns["evict"]) || (!stays && page.Warns["owe"]) {
+		return ""
 	}
 	if !rs.riskWarning.MatchString(text) {
 		if lang == "en" && !stays {
@@ -457,9 +462,9 @@ var ifOweNothing = regexp.MustCompile(`(?i)\b(if|when|unless) you (move out )?(o
 // noOweViolation is the statement-only rule for noOwe: telling a renter
 // they owe nothing must come with the reminder that a landlord can sue and
 // win, or a pointer to legal help.
-func noOweViolation(lang, text string) string {
+func noOweViolation(lang, text string, page Page) string {
 	rs, ok := rulesets[lang]
-	if !ok || rs.noOwe == nil {
+	if !ok || rs.noOwe == nil || page.Warns["owe"] {
 		return ""
 	}
 	// "If you owe no rent, ..." is a condition, not a promise.
@@ -569,7 +574,35 @@ func mailRecordViolation(lang, text string) string {
 	return ""
 }
 
+// Page is what the lint knows about the page a statement sits on.
+type Page struct {
+	// Warns holds the risks the page says once at the top ("owe", "evict"),
+	// from its advice page notes (ADR-016 A3).
+	Warns map[string]bool
+}
+
+// repeatedWarning is a warning sentence a statement carried before the page
+// said it once at the top.
+var repeatedWarning = regexp.MustCompile(`(?i)[^.]*\b(if a court later disagrees|if your landlord sues and wins|ending a lease early is risky)\b[^.]*\.(\s*Get legal help first\.)?`)
+
+// warnedTwice flags a statement that repeats the page's own warning.
+func warnedTwice(lang, text string, page Page) string {
+	if lang != "en" || len(page.Warns) == 0 {
+		return ""
+	}
+	if m := repeatedWarning.FindString(text); m != "" {
+		return fmt.Sprintf(`%q: the page says this once at the top; drop it from the statement`, strings.TrimSpace(m))
+	}
+	return ""
+}
+
+// LintAll lints statement text as if its page carried no advice.
 func LintAll(lang string, labeled map[string]string) []string {
+	return LintOn(lang, labeled, Page{})
+}
+
+// LintOn lints statement text on a page whose advice the lint can see.
+func LintOn(lang string, labeled map[string]string, page Page) []string {
 	const maxViolations = 10
 	var out []string
 	for _, label := range sortedKeys(labeled) {
@@ -577,10 +610,13 @@ func LintAll(lang string, labeled map[string]string) []string {
 			if n := len(wordRe.FindAllString(labeled[label], -1)); n > MaxStatementWords {
 				out = append(out, fmt.Sprintf("%s: statement runs %d words (max %d); split it into separate statements, one claim each, or cut a fact. Do not swap in harder words to make it shorter", label, n, MaxStatementWords))
 			}
-			if v := riskViolation(lang, labeled[label]); v != "" {
+			if v := riskViolation(lang, labeled[label], page); v != "" {
 				out = append(out, label+": "+v)
 			}
-			if v := noOweViolation(lang, labeled[label]); v != "" {
+			if v := noOweViolation(lang, labeled[label], page); v != "" {
+				out = append(out, label+": "+v)
+			}
+			if v := warnedTwice(lang, labeled[label], page); v != "" {
 				out = append(out, label+": "+v)
 			}
 			if v := inspectViolation(lang, labeled[label]); v != "" {

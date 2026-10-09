@@ -431,6 +431,9 @@ type PlaybookPage struct {
 	Description    string      // meta description, derived from the intro when present
 	Canonical      string      // absolute canonical URL
 	StructuredData template.JS // JSON-LD Article + BreadcrumbList schema, pre-marshaled
+	// PageNotes are the registry notes said once at the top of the page
+	// (ADR-016 A3): the topic disclaimer and the risk warning.
+	PageNotes []AdviceLine
 	// StageGroups are the playbook's statements under their stage headings
 	// (ADR-028 D10), in order. One group with no heading when the page has
 	// no stages.
@@ -537,6 +540,17 @@ type RenderedStatement struct {
 	CheckedOn string
 	CheckedAt *time.Time
 	Citations []CitationChip
+	// Tips are registry advice lines that sit under this statement
+	// (ADR-016 A2), each once per page.
+	Tips []AdviceLine
+}
+
+// AdviceLine is one registry entry as a guide shows it (ADR-016, amended
+// 2026-10-09): the text and the source that backs it, nothing else.
+type AdviceLine struct {
+	BodyHTML template.HTML
+	// Chip is the backing source; nil for the site's own voice.
+	Chip *CitationChip
 }
 
 // StageGroup is a run of statements under one stage heading. Start is the

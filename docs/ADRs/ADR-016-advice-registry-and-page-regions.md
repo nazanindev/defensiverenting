@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed (amended 2026-10-09) |
+| Status | Accepted 2026-10-09 as amended; pilot built (Pennsylvania breaking-lease) |
 | Date | 2026-09-08 |
 | Amends | ADR-003 (a second kind of statement-shaped content that is not a citation), ADR-011 (registry pattern reused), ADR-014 D2 (proposals lose the editorial path) |
 
@@ -196,3 +196,20 @@ Shared, never forked: the verbatim quote checker, the voice lint, the source mon
 - **Lawyer stamp: deferred.** The columns stay in the schema, but no chip or UI is built. If the project gets a lawyer, the chip links to a page written then about how lawyer review works. It does not name the lawyer on each entry.
 - **Pilot on one state's breaking-lease page** before the registry is filled out or any other page is migrated.
 - **No advice headings.** Tips attach to statements with the label "Tip" (A2); the risk is said once at the top of the page (A3). Both chosen on the Pennsylvania mock, 2026-10-09.
+
+### A7. Pilot build (2026-10-09)
+
+Built:
+
+- Migration 000066: `advice` (kind `tip` or `page_note`, `warns`, `site_voice`, lawyer columns unused), `advice_citations` (a trigger refuses any source that is not `gov_guidance` or `nonprofit`), `playbook_advice` (a trigger requires a tip to name a statement key and a page note to name none). Seeded with the breaking-lease set: the disclaimer (site voice), the leave risk note, four backed tips, and `show-your-proof`, which has no source and cannot publish.
+- Store: `PageAdvice` loaded with every page; `SetPageAdvice` / `RemovePageAdvice` (draft pages only, every reference validated before any is written); `PageWarns`, `KeyPageWarns`, `SlotPageWarns` for the lint; a new draft beside a live page copies the live page's references.
+- Publish gate: `advice-unbacked` (no confirmed government or nonprofit quote, unless site voice), `advice-retired`, `tip-orphan` (the tip's statement left the page).
+- Lint: `voice.LintOn` takes the page's warnings. A risky step or an owe-nothing claim passes when the page warns the matching risk; a statement that repeats the page's warning is flagged. Wired into `triage check`, `decide edit`, `propose_statement`, `save_draft_playbook`, and `lintprops` (`LINTPROPS_WARNED`).
+- Render: page notes under the legal note; a tip as one line under its statement. A tip shows only while a confirmed quote backs it; a risk note shows even after its quote drifts.
+- Source check: `sourcecheck.RunAdvice` stamps or drifts each advice quote; run by `check-sources` (or `-advice-only`) and `triage advice check`. Sources that back advice are never listed as unused.
+- `triage advice` lists the registry; `triage advice <refs.json> [-remove] [-apply]` attaches references to drafts.
+
+Not built yet, and needed before the pilot page publishes:
+
+- A statement shown away from its page (concept pages, search) does not yet bring the page warning with it (A3).
+- The authoring portal shows advice in the preview but has no picker to add or remove references; agents use `triage advice`.

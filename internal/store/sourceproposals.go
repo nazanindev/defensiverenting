@@ -50,7 +50,8 @@ const unusedSourceSQL = `
 	AND NOT EXISTS (
 		SELECT 1 FROM citations c
 		JOIN playbook_statements ps ON ps.statement_id = c.statement_id
-		WHERE c.source_id = s.id)`
+		WHERE c.source_id = s.id)
+	AND NOT EXISTS (SELECT 1 FROM advice_citations ac WHERE ac.source_id = s.id)`
 
 // FileUnusedSourceProposals files an unused-source proposal for every source
 // no page cites that has no proposal waiting, snoozed, or rejected. A

@@ -20,6 +20,7 @@ import (
 func main() {
 	log.SetFlags(0)
 	dsn := flag.String("db", os.Getenv("DATABASE_URL"), "Postgres DSN")
+	adviceOnly := flag.Bool("advice-only", false, "confirm only the quotes behind registry advice (ADR-016)")
 	flag.Parse()
 	if *dsn == "" {
 		log.Fatal("check-sources: DATABASE_URL (or -db) is required")
@@ -32,9 +33,18 @@ func main() {
 	}
 	defer pg.Close()
 
-	res, err := sourcecheck.Run(ctx, pg, drafting.FetchExtract, func(format string, a ...any) {
+	logf := func(format string, a ...any) {
 		fmt.Fprintf(os.Stderr, format+"\n", a...)
-	})
+	}
+	if *adviceOnly {
+		var res sourcecheck.Result
+		if err := sourcecheck.RunAdvice(ctx, pg, drafting.FetchExtract, logf, &res); err != nil {
+			log.Fatalf("check-sources: %v", err)
+		}
+		fmt.Printf("advice: %d quote(s) confirmed, %d missing from their source\n", res.AdviceConfirmed, res.AdviceDrifted)
+		return
+	}
+	res, err := sourcecheck.Run(ctx, pg, drafting.FetchExtract, logf)
 	if err != nil {
 		log.Fatalf("check-sources: %v", err)
 	}
@@ -50,6 +60,9 @@ func main() {
 	}
 	if res.Unused > 0 {
 		fmt.Printf("%d unused source(s) filed for deletion under Proposed changes\n", res.Unused)
+	}
+	if res.AdviceConfirmed+res.AdviceDrifted > 0 {
+		fmt.Printf("advice: %d quote(s) confirmed, %d missing from their source\n", res.AdviceConfirmed, res.AdviceDrifted)
 	}
 	if res.Skipped > 0 {
 		// Reported on its own line, and last, because it is the number that

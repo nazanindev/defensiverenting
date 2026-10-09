@@ -471,7 +471,7 @@ func TestNoOweNeedsTheLawsuitReminder(t *testing.T) {
 		"If you leave early, you may owe rent. You owe no more rent after you leave only in a few cases the law sets out.",
 	}
 	for _, s := range bad {
-		if noOweViolation("en", s) == "" {
+		if noOweViolation("en", s, Page{}) == "" {
 			t.Errorf("no violation for %q", s)
 		}
 	}
@@ -481,7 +481,7 @@ func TestNoOweNeedsTheLawsuitReminder(t *testing.T) {
 		"If you leave early, you can owe rent until the home is rented again.",
 	}
 	for _, s := range good {
-		if v := noOweViolation("en", s); v != "" {
+		if v := noOweViolation("en", s, Page{}); v != "" {
 			t.Errorf("%q: unexpected %s", s, v)
 		}
 	}
@@ -495,7 +495,7 @@ func TestNoOweLeavesConditionsAndUnpaidRentAlone(t *testing.T) {
 		"Your landlord must also give you a way to pay with no fee.",
 		"You can still argue you do not owe the rent.",
 	} {
-		if v := noOweViolation("en", s); v != "" {
+		if v := noOweViolation("en", s, Page{}); v != "" {
 			t.Errorf("%q: unexpected %s", s, v)
 		}
 	}
@@ -520,7 +520,7 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 		"A court can find you owe no rent for the time after you move out. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
 	}
 	for _, s := range bad {
-		if riskViolation("en", s) == "" {
+		if riskViolation("en", s, Page{}) == "" {
 			t.Errorf("eviction warning on a move-out step not flagged: %s", s)
 		}
 	}
@@ -531,8 +531,32 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 		"You can end your lease after this is known as constructive eviction. If a court later disagrees, you can still owe the rent. Get legal help first.",
 	}
 	for _, s := range good {
-		if v := riskViolation("en", s); v != "" {
+		if v := riskViolation("en", s, Page{}); v != "" {
 			t.Errorf("flagged %q: %v", s, v)
 		}
+	}
+}
+
+func TestPageWarningCoversRiskyStatements(t *testing.T) {
+	owe := Page{Warns: map[string]bool{"owe": true}}
+	leave := "You can end your lease if your landlord does not fix a serious problem after written notice."
+	if v := riskViolation("en", leave, Page{}); v == "" {
+		t.Fatal("a risky step with no warning anywhere should fail")
+	}
+	if v := riskViolation("en", leave, owe); v != "" {
+		t.Errorf("the page warning should cover the step: %s", v)
+	}
+	stay := "You can withhold rent until the repair is made."
+	if v := riskViolation("en", stay, owe); v == "" {
+		t.Error("an owe warning does not cover withholding while staying")
+	}
+	if v := noOweViolation("en", "You owe no rent after you move out.", owe); v != "" {
+		t.Errorf("the page warning should cover owe-nothing: %s", v)
+	}
+	if v := warnedTwice("en", leave+" If a court later disagrees, you can still owe the rent. Get legal help first.", owe); v == "" {
+		t.Error("a statement repeating the page warning should be flagged")
+	}
+	if v := warnedTwice("en", leave+" If a court later disagrees, you can still owe the rent.", Page{}); v != "" {
+		t.Error("with no page warning the statement keeps its own")
 	}
 }

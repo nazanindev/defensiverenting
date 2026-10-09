@@ -115,6 +115,17 @@ type Store interface {
 	DecideProposal(ctx context.Context, id int64, status, by, note string, snoozedUntil *time.Time) error
 	ApproveProposal(ctx context.Context, p ApproveProposalParams) error
 	LanguageOfStatementKey(ctx context.Context, key string) (string, error)
+	// KeyPageWarns returns the risks the page a statement sits on says once at
+	// the top (ADR-016 A3), for the voice lint.
+	KeyPageWarns(ctx context.Context, key string, playbookID int64) (map[string]bool, error)
+	// PageWarns is KeyPageWarns for a page already known.
+	PageWarns(ctx context.Context, playbookID int64) (map[string]bool, error)
+	// SlotPageWarns is PageWarns for the draft in a slot, if any.
+	SlotPageWarns(ctx context.Context, jurisdictionSlug, topicSlug, language string) (map[string]bool, error)
+	// ListAdviceCitationsForCheck and MarkAdviceCitation let the source
+	// checker confirm the quotes behind registry advice (ADR-016 A1).
+	ListAdviceCitationsForCheck(ctx context.Context) ([]AdviceCheckRow, error)
+	MarkAdviceCitation(ctx context.Context, id int64, found bool, note string) error
 	// StatementByKey reads the statement as it currently stands, in the
 	// shape a proposal carries, so a proposer can file "the same statement
 	// with one thing changed".

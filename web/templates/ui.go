@@ -49,6 +49,7 @@ var uiStrings = map[string]map[string]string{
 		"es": "Muchos lugares tienen una oficina de ayuda legal con abogados gratis.",
 	},
 	"legal-note-lead": {"en": "This is not legal advice.", "es": "Esto no es asesoría legal."},
+	"tip":             {"en": "Tip", "es": "Consejo"},
 	"legal-note-general": {
 		"en": "We explain what the law says. We cannot tell you what to do in your situation. For that, talk to a lawyer.",
 		"es": "Explicamos lo que dice la ley. No podemos decirle qué hacer en su situación. Para eso, hable con un abogado.",

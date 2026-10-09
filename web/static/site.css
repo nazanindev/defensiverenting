@@ -348,6 +348,45 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .legal-note a { color: #fff; text-decoration: underline; font-weight: 600; }
 .legal-note-icon { flex-shrink: 0; margin-top: 1px; }
 
+/* ADR-016 A3: the notes said once for the whole page, under the legal note.
+   Quieter than the legal note, louder than a statement's fine print. */
+.page-notes {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 14px 14px 0;
+  background: white;
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+.page-note p { display: inline; margin: 0; }
+.page-note .chip { margin-left: 6px; vertical-align: 1px; }
+
+/* ADR-016 A2: a tip is one quiet line under the law it helps with: a thin
+   rule, a small label, smaller text. The law stays the headline. */
+.statement-tip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: baseline;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #efe3e5;
+  max-width: 70ch;
+}
+.tip-label {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #0a5432;
+}
+.tip-body { font-size: .95rem; line-height: 1.55; color: var(--ink-soft); }
+.tip-body p { display: inline; margin: 0; }
+.chip--small { padding: 2px 9px; font-size: .76rem; }
+
 
 /* Who published the guide and when sources were checked: fine print at the
    foot of the guide (ADR-031 D3). */

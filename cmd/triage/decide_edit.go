@@ -116,7 +116,11 @@ func decideEditFile(ctx context.Context, pg *store.PG, path string, args []strin
 		}
 		seen++
 		fmt.Printf("#%d %s · statement %d (%s)\n", p.ID, p.JurisdictionName+" · "+p.TopicName, p.Position, p.Reason)
-		why := editVerdict(ctx, d, p, check)
+		warns, err := pg.PageWarns(ctx, p.TargetPlaybookID)
+		if err != nil {
+			fatal(err)
+		}
+		why := editVerdict(ctx, d, p, voice.Page{Warns: warns}, check)
 		if why != "" {
 			left++
 			fmt.Printf("    left pending: %s\n", why)
@@ -152,7 +156,7 @@ func decideEditFile(ctx context.Context, pg *store.PG, path string, args []strin
 
 // editVerdict holds a reader's "apply" to the rule. It returns "" when the
 // edit may be applied, else why it stays pending.
-func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, check drafting.QuoteCheck) string {
+func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, page voice.Page, check drafting.QuoteCheck) string {
 	if strings.ToLower(strings.TrimSpace(d.Verdict)) != "apply" {
 		if r := strings.TrimSpace(d.Reason); r != "" {
 			return "left by the reader: " + r
@@ -170,7 +174,7 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, check
 	if a := p.Proposed.Action; a == store.ActionRemove || a == store.ActionReorder {
 		return ""
 	}
-	if why := statementVerdict(ctx, *p.Proposed, p.Language, p.Position, check); why != "" {
+	if why := statementVerdict(ctx, *p.Proposed, p.Language, page, p.Position, check); why != "" {
 		return why
 	}
 	if p.Proposed.BodyMD != p.CurrentBody {
@@ -179,7 +183,7 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, check
 		}
 	}
 	for i, f := range p.Proposed.Followers {
-		if why := statementVerdict(ctx, f, p.Language, p.Position, check); why != "" {
+		if why := statementVerdict(ctx, f, p.Language, page, p.Position, check); why != "" {
 			return fmt.Sprintf("follower %d: %s", i+1, why)
 		}
 	}
@@ -189,11 +193,11 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, check
 // statementVerdict holds one proposed statement (the replacement or a
 // follower of a split) to the rule: text, voice lint, a quote on every
 // citation, every quote confirmed live.
-func statementVerdict(ctx context.Context, ps store.ProposedStatement, lang string, position int, check drafting.QuoteCheck) string {
+func statementVerdict(ctx context.Context, ps store.ProposedStatement, lang string, page voice.Page, position int, check drafting.QuoteCheck) string {
 	if strings.TrimSpace(ps.BodyMD) == "" {
 		return "the replacement has no text; left"
 	}
-	if v := voice.LintAll(lang, map[string]string{"body_md": ps.BodyMD}); len(v) > 0 {
+	if v := voice.LintOn(lang, map[string]string{"body_md": ps.BodyMD}, page); len(v) > 0 {
 		return "the replacement fails the voice lint: " + strings.Join(v, "; ")
 	}
 	cited := false

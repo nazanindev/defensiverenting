@@ -905,3 +905,11 @@ func TestFetchSource_PagesLongSources(t *testing.T) {
 		t.Errorf("negative offset: got %v, want a rejection", err)
 	}
 }
+
+func (f *fakeStore) SlotPageWarns(context.Context, string, string, string) (map[string]bool, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) KeyPageWarns(context.Context, string, int64) (map[string]bool, error) {
+	return nil, nil
+}

@@ -1,0 +1,199 @@
+package store_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/nazanindev/defensiverenting/internal/store"
+	"github.com/nazanindev/defensiverenting/internal/voice"
+)
+
+func adviceFirstKey(t *testing.T, pg *store.PG, id int64) string {
+	t.Helper()
+	pw, err := pg.AuthorGetPlaybook(context.Background(), id)
+	if err != nil || len(pw.Statements) == 0 {
+		t.Fatalf("load page %d: %v", id, err)
+	}
+	return pw.Statements[0].Key
+}
+
+// confirmAdvice stamps every quote behind the named entries as the source
+// checker would after finding them live.
+func confirmAdvice(t *testing.T, pg *store.PG, slugs ...string) {
+	t.Helper()
+	for _, s := range slugs {
+		if _, err := pg.Pool().Exec(context.Background(), `
+			UPDATE advice_citations SET checked_at = now(), drift_at = NULL
+			WHERE advice_id = (SELECT id FROM advice WHERE slug = $1)`, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestAdvice_registryIsSeededAndBacked(t *testing.T) {
+	pg := testDB(t)
+	list, err := pg.ListAdvice(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bySlug := map[string]store.Advice{}
+	for _, a := range list {
+		bySlug[a.Slug] = a
+	}
+	for _, s := range []string{"breaking-lease-disclaimer", "leave-risk-owe", "read-your-lease", "write-down-the-problem", "photos-when-you-leave", "answer-court-papers", "show-your-proof"} {
+		if _, ok := bySlug[s]; !ok {
+			t.Errorf("registry is missing %q", s)
+		}
+	}
+	if !bySlug["breaking-lease-disclaimer"].Backed() {
+		t.Error("the disclaimer is the site's own voice and needs no quote")
+	}
+	if len(bySlug["show-your-proof"].Citations) != 0 {
+		t.Error("show-your-proof has no source yet and must not pretend to")
+	}
+	if bySlug["leave-risk-owe"].Warns != "owe" {
+		t.Error("the leave risk note must warn about owing rent")
+	}
+}
+
+func TestAdvice_onlyGovernmentOrNonprofitBacksAdvice(t *testing.T) {
+	pg := testDB(t)
+	ctx := context.Background()
+	src, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: "https://example.gov/statute-" + t.Name(), Publisher: "Example", Kind: "statute"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = pg.Pool().Exec(ctx, `
+		INSERT INTO advice_citations (advice_id, source_id, quote)
+		VALUES ((SELECT id FROM advice WHERE slug = 'show-your-proof'), $1, 'a statute says so')`, src.ID)
+	if err == nil {
+		t.Fatal("a statute was allowed to back advice")
+	}
+}
+
+func TestAdvice_pageReferencesAreChecked(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	draft := seedPlaybook(t, pg, jID, tID, "draft", "Advice draft")
+	key := adviceFirstKey(t, pg, draft)
+
+	cases := []struct {
+		name string
+		ref  store.AdviceRef
+	}{
+		{"unknown slug", store.AdviceRef{PlaybookID: draft, Slug: "no-such-advice"}},
+		{"tip with no statement", store.AdviceRef{PlaybookID: draft, Slug: "read-your-lease"}},
+		{"tip on a statement elsewhere", store.AdviceRef{PlaybookID: draft, Slug: "read-your-lease", StatementKey: "00000000-0000-0000-0000-000000000000"}},
+		{"page note on a statement", store.AdviceRef{PlaybookID: draft, Slug: "leave-risk-owe", StatementKey: key}},
+	}
+	for _, c := range cases {
+		if err := pg.SetPageAdvice(ctx, []store.AdviceRef{c.ref}, store.ActorReviewAgent); !errors.Is(err, store.ErrAdviceRef) {
+			t.Errorf("%s: got %v, want ErrAdviceRef", c.name, err)
+		}
+	}
+
+	live := seedPlaybook(t, pg, jID, tID, "published", "Advice live")
+	if err := pg.SetPageAdvice(ctx, []store.AdviceRef{{PlaybookID: live, Slug: "leave-risk-owe"}}, store.ActorReviewAgent); !errors.Is(err, store.ErrAdviceRef) {
+		t.Errorf("an agent attached advice to a live page: %v", err)
+	}
+}
+
+func TestAdvice_gateHoldsUnconfirmedAdvice(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	draft := seedPlaybook(t, pg, jID, tID, "draft", "Gate draft")
+	key := adviceFirstKey(t, pg, draft)
+	if _, err := pg.Pool().Exec(ctx, `UPDATE advice_citations SET checked_at = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	refs := []store.AdviceRef{
+		{PlaybookID: draft, Slug: "breaking-lease-disclaimer"},
+		{PlaybookID: draft, Slug: "leave-risk-owe"},
+		{PlaybookID: draft, Slug: "read-your-lease", StatementKey: key},
+	}
+	if err := pg.SetPageAdvice(ctx, refs, store.ActorReviewAgent); err != nil {
+		t.Fatal(err)
+	}
+	codes := pageIssueCodes(t, pg, draft)
+	unbacked := 0
+	for _, c := range codes {
+		if c == "advice-unbacked" {
+			unbacked++
+		}
+	}
+	if unbacked != 2 {
+		t.Fatalf("issues = %v, want two advice-unbacked (the disclaimer needs no quote)", codes)
+	}
+	confirmAdvice(t, pg, "leave-risk-owe", "read-your-lease")
+	if codes := pageIssueCodes(t, pg, draft); len(codes) != 0 {
+		t.Fatalf("confirmed advice still blocks publish: %v", codes)
+	}
+
+	warns, err := pg.PageWarns(ctx, draft)
+	if err != nil || !warns["owe"] {
+		t.Fatalf("PageWarns = %v, %v; want owe", warns, err)
+	}
+	pw, err := pg.AuthorGetPlaybook(ctx, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pw.Advice) != 3 || pw.Advice[0].Kind != "page_note" {
+		t.Fatalf("page advice = %+v, want notes first then the tip", pw.Advice)
+	}
+
+	if err := pg.RemovePageAdvice(ctx, []store.AdviceRef{{PlaybookID: draft, Slug: "read-your-lease"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.RemovePageAdvice(ctx, []store.AdviceRef{{PlaybookID: draft, Slug: "read-your-lease"}}); !errors.Is(err, store.ErrAdviceRef) {
+		t.Fatalf("removing a reference twice: %v", err)
+	}
+}
+
+func TestAdvice_newDraftKeepsTheLivePagesAdvice(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	draft := seedPlaybook(t, pg, jID, tID, "draft", "First version")
+	if err := pg.SetPageAdvice(ctx, []store.AdviceRef{{PlaybookID: draft, Slug: "leave-risk-owe"}}, store.ActorReviewAgent); err != nil {
+		t.Fatal(err)
+	}
+	confirmAdvice(t, pg, "leave-risk-owe")
+	if err := pg.AuthorPublishPlaybook(ctx, draft, "test"); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	next := seedPlaybook(t, pg, jID, tID, "draft", "Second version")
+	if next == draft {
+		t.Fatal("the revision replaced the live page")
+	}
+	warns, err := pg.PageWarns(ctx, next)
+	if err != nil || !warns["owe"] {
+		t.Fatalf("the new draft lost the live page's warning: %v %v", warns, err)
+	}
+}
+
+func TestAdvice_unusedSourcesSpareAdviceSources(t *testing.T) {
+	pg := testDB(t)
+	unused, err := pg.ListUnusedSources(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range unused {
+		if s.URL == "https://www.attorneygeneral.gov/wp-content/uploads/ConsumerTenant-Landlord-Guide.pdf" {
+			t.Fatal("a source that backs advice was listed for deletion")
+		}
+	}
+}
+
+// Registry entries are site voice: they pass the same lint as statements.
+func TestAdvice_entriesPassTheVoiceLint(t *testing.T) {
+	pg := testDB(t)
+	list, err := pg.ListAdvice(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range list {
+		if v := voice.LintAll("en", map[string]string{"body_md": a.BodyMD}); len(v) > 0 {
+			t.Errorf("%s: %v", a.Slug, v)
+		}
+	}
+}

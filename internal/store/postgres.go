@@ -442,7 +442,12 @@ func (pg *PG) GetPlaybook(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	defer statementRows.Close()
 
 	p.Statements = assembleStatements(statementRows)
-	return p, statementRows.Err()
+	if err := statementRows.Err(); err != nil {
+		return p, err
+	}
+	statementRows.Close()
+	p.Advice, err = pg.PageAdvice(ctx, p.Playbook.ID)
+	return p, err
 }
 
 // ---- Search ----------------------------------------------------------------
@@ -1124,6 +1129,20 @@ func (pg *PG) IngestPlaybook(ctx context.Context, params IngestPlaybookParams) e
 				params.JurisdictionID, params.TopicID, params.Language,
 				params.Slug, params.Title, params.IntroMD, status, pageKind, params.UpdatedBy,
 			).Scan(&playbookID)
+			if err == nil && status == "draft" {
+				// A new draft beside a live page is its next version: it
+				// keeps the live page's advice (ADR-016 A2). Tips follow
+				// their statements by key, which a revision keeps.
+				_, err = tx.Exec(ctx, `
+					INSERT INTO playbook_advice (playbook_id, advice_id, statement_key, position, created_by)
+					SELECT $1, pa.advice_id, pa.statement_key, pa.position, pa.created_by
+					FROM playbook_advice pa
+					JOIN playbooks live ON live.id = pa.playbook_id
+					WHERE live.jurisdiction_id = $2 AND live.topic_id = $3 AND live.language = $4
+					  AND live.status = 'published'
+					ON CONFLICT DO NOTHING`,
+					playbookID, params.JurisdictionID, params.TopicID, params.Language)
+			}
 		case err != nil:
 			return fmt.Errorf("find playbook slot: %w", err)
 		default:
@@ -1389,6 +1408,9 @@ func (pg *PG) AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStat
 		return p, err
 	}
 	statementRows.Close()
+	if p.Advice, err = pg.PageAdvice(ctx, p.Playbook.ID); err != nil {
+		return p, err
+	}
 	return p, pg.attachNotes(ctx, &p)
 }
 

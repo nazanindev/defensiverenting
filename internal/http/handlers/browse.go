@@ -923,6 +923,8 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 	// Render markdown intro to HTML
 	introHTML := content.RenderMarkdown(pb.IntroMD)
 
+	pageNotes, tips := adviceLines(pb.Advice)
+
 	// Render each statement's body markdown and validate citation invariant
 	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
 	var sourceURLs []string
@@ -995,6 +997,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 			CheckedAt:     checkedAt,
 			CheckedOn:     checkedOn,
 			Citations:     chips,
+			Tips:          tips[s.Key],
 		})
 	}
 
@@ -1014,6 +1017,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 		Topic:          pb.Topic,
 		IntroHTML:      introHTML,
 		Statements:     statements,
+		PageNotes:      pageNotes,
 		StageGroups:    stageGroups(statements),
 		Description:    playbookDescription(pb.IntroMD, pb.Playbook.Title, pb.Playbook.Language, pb.Jurisdiction),
 		Canonical:      canonical,
@@ -1021,6 +1025,41 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 		ReviewedOn:     reviewedOn,
 		ReviewedByName: reviewerDisplay(pb.Playbook.UpdatedBy),
 	}
+}
+
+// adviceLines splits a page's registry references into the notes said once
+// at the top and the tips keyed by the statement they sit under (ADR-016,
+// amended 2026-10-09). A retired entry stops showing everywhere at once. A
+// tip shows only while a confirmed quote backs it; the publish gate keeps an
+// unbacked one off a new page, and one whose quote drifted since is hidden
+// until it is fixed. A note that states a risk keeps showing even then,
+// because the statements under it no longer carry their own warning.
+func adviceLines(advice []store.Advice) ([]tmpl.AdviceLine, map[string][]tmpl.AdviceLine) {
+	var notes []tmpl.AdviceLine
+	tips := map[string][]tmpl.AdviceLine{}
+	for _, a := range advice {
+		if a.Retired {
+			continue
+		}
+		line := tmpl.AdviceLine{BodyHTML: content.RenderMarkdown(a.BodyMD)}
+		for _, c := range a.Citations {
+			if c.CheckedAt != nil && c.DriftAt == nil {
+				line.Chip = &tmpl.CitationChip{SourceID: c.SourceID, URL: c.URL, Label: c.Publisher, SourceKind: c.Kind}
+				break
+			}
+		}
+		switch a.Kind {
+		case "page_note":
+			if a.Backed() || a.Warns != "" {
+				notes = append(notes, line)
+			}
+		case "tip":
+			if a.Backed() {
+				tips[a.StatementKey] = append(tips[a.StatementKey], line)
+			}
+		}
+	}
+	return notes, tips
 }
 
 // stageGroups splits a playbook's statements under their stage headings

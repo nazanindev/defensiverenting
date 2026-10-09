@@ -46,6 +46,10 @@ type Result struct {
 	Stale        int // statements whose dated claim is about to pass; a note was filed (ADR-024)
 	Unused       int // unused-source deletion proposals filed for the review queue
 	Errored      int // sources whose check hit an error other than fetching; logged and skipped
+	// Advice quotes (ADR-016 A1): confirmed at their source, or missing from
+	// it. A missing one hides the entry's tip until it is fixed.
+	AdviceConfirmed int
+	AdviceDrifted   int
 }
 
 // StaleWindow is how far ahead of its date a dated claim is raised. Long
@@ -153,6 +157,9 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 		}(id, bySrc[id])
 	}
 	wg.Wait()
+	if err := RunAdvice(ctx, db, fetch, logf, &res); err != nil {
+		logf("advice: %v", err)
+	}
 	// A claim that depends on a date goes stale with no source change at
 	// all, so it is checked here rather than per source (ADR-024). The
 	// window is ahead of the date: the fix belongs in the queue while the
@@ -172,6 +179,54 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 	return res, nil
 }
 
+// RunAdvice confirms every quote backing a registry entry (ADR-016 A1). A
+// quote found stamps its checked time; a quote missing from a readable live
+// page records drift on the entry once, for every page that references it.
+// A failed fetch or a thin page concludes nothing, as for statements.
+func RunAdvice(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string, ...any), res *Result) error {
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+	rows, err := db.ListAdviceCitationsForCheck(ctx)
+	if err != nil {
+		return err
+	}
+	fetched := map[string]drafting.Receipt{}
+	failed := map[string]bool{}
+	for _, r := range rows {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		rc, ok := fetched[r.URL]
+		if !ok && !failed[r.URL] {
+			got, err := fetch(r.URL)
+			if err != nil || !got.Live() {
+				failed[r.URL] = true
+				logf("✗ advice source %s could not be read live; nothing concluded", r.URL)
+				continue
+			}
+			fetched[r.URL], rc = got, got
+		}
+		if failed[r.URL] || rc.Thin {
+			continue
+		}
+		if drafting.QuoteAppearsIn(rc.Text, r.Quote) {
+			if err := db.MarkAdviceCitation(ctx, r.ID, true, ""); err != nil {
+				return err
+			}
+			res.AdviceConfirmed++
+			continue
+		}
+		note := fmt.Sprintf("quote no longer found at %s", r.URL)
+		if err := db.MarkAdviceCitation(ctx, r.ID, false, note); err != nil {
+			return err
+		}
+		res.AdviceDrifted++
+		logf("  ✗ advice %q: %s: %q", r.Slug, note, clip(r.Quote, 80))
+	}
+	return nil
+}
+
 // Concurrency is how many sources a run fetches at once.
 var Concurrency = 4
 
@@ -189,6 +244,8 @@ func (r *Result) add(o Result) {
 	r.Stale += o.Stale
 	r.Unused += o.Unused
 	r.Errored += o.Errored
+	r.AdviceConfirmed += o.AdviceConfirmed
+	r.AdviceDrifted += o.AdviceDrifted
 }
 
 // agg is one source's cited quotes, gathered for a single fetch.

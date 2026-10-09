@@ -6,6 +6,11 @@
 // The optional second file is the work-items input the agent was given
 // (statement_key + body_md per item). With it, a replacement is also held to
 // voice.HarderThan against the body it replaces, as triage check does.
+//
+// LINTPROPS_WARNED lists page ids (comma separated) whose page says the risk
+// once at the top (ADR-016 A3): their entries are linted as triage check
+// lints them, without a warning of their own. Without a database this tool
+// cannot look that up.
 package main
 
 import (
@@ -13,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/nazanindev/defensiverenting/internal/voice"
@@ -30,6 +36,7 @@ type proposed struct {
 
 type entry struct {
 	StatementKey string    `json:"statement_key"`
+	PlaybookID   int64     `json:"playbook_id"`
 	Proposed     *proposed `json:"proposed"`
 }
 
@@ -59,6 +66,12 @@ func main() {
 		}
 	}
 	const lang = "en"
+	warned := map[int64]bool{}
+	for _, f := range strings.Split(os.Getenv("LINTPROPS_WARNED"), ",") {
+		if id, err := strconv.ParseInt(strings.TrimSpace(f), 10, 64); err == nil {
+			warned[id] = true
+		}
+	}
 	problems := 0
 	report := func(where string, msgs ...string) {
 		problems += len(msgs)
@@ -70,9 +83,13 @@ func main() {
 			continue
 		}
 		where := fmt.Sprintf("entry %d", i+1)
+		page := voice.Page{}
+		if warned[e.PlaybookID] {
+			page.Warns = map[string]bool{"owe": true}
+		}
 		old, known := current[strings.ToLower(e.StatementKey)]
 		if !known || p.BodyMD != old {
-			if v := voice.LintAll(lang, map[string]string{"body_md": p.BodyMD}); len(v) > 0 {
+			if v := voice.LintOn(lang, map[string]string{"body_md": p.BodyMD}, page); len(v) > 0 {
 				report(where+": voice lint", v...)
 			}
 			if known {
@@ -82,7 +99,7 @@ func main() {
 			}
 		}
 		for fi, f := range p.Followers {
-			if v := voice.LintAll(lang, map[string]string{"body_md": f.BodyMD}); len(v) > 0 {
+			if v := voice.LintOn(lang, map[string]string{"body_md": f.BodyMD}, page); len(v) > 0 {
 				report(fmt.Sprintf("%s follower %d: voice lint", where, fi+1), v...)
 			}
 		}

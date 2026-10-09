@@ -129,3 +129,7 @@ func TestSaveDraft_RulesPage(t *testing.T) {
 		t.Fatalf("a national-only topic saved on a city: %v", err)
 	}
 }
+
+func (s *rulesStore) SlotPageWarns(context.Context, string, string, string) (map[string]bool, error) {
+	return nil, nil
+}

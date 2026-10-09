@@ -127,6 +127,8 @@ func main() {
 		nolaw(ctx, pg, os.Args[2:])
 	case "retag":
 		retag(ctx, pg, arg(2))
+	case "advice":
+		advice(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
@@ -140,7 +142,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-remove] [-apply] | retag <tags.json>")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-remove] [-apply] | retag <tags.json> | advice [<refs.json> [-remove] [-apply]]")
 	os.Exit(2)
 }
 
@@ -396,8 +398,13 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 			fatal(err)
 		}
 		lang := "en"
+		warns, err := pg.KeyPageWarns(ctx, key, e.PlaybookID)
+		if err != nil {
+			fatal(err)
+		}
+		page := voice.Page{Warns: warns}
 		if e.Proposed.BodyMD != current.BodyMD {
-			if v := voice.LintAll(lang, map[string]string{"body_md": e.Proposed.BodyMD}); len(v) > 0 {
+			if v := voice.LintOn(lang, map[string]string{"body_md": e.Proposed.BodyMD}, page); len(v) > 0 {
 				bad(i, "voice lint:\n  - %s", strings.Join(v, "\n  - "))
 			}
 			if why := voice.HarderThan(lang, current.BodyMD, e.Proposed.BodyMD); why != "" {
@@ -408,7 +415,7 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 			bad(i, "no citations")
 		}
 		for fi, f := range e.Proposed.Followers {
-			if v := voice.LintAll(lang, map[string]string{"body_md": f.BodyMD}); len(v) > 0 {
+			if v := voice.LintOn(lang, map[string]string{"body_md": f.BodyMD}, page); len(v) > 0 {
 				bad(i, "follower %d voice lint:\n  - %s", fi+1, strings.Join(v, "\n  - "))
 			}
 			if len(f.Citations) == 0 {

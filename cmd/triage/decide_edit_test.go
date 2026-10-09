@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/nazanindev/defensiverenting/internal/voice"
 	"strings"
 	"testing"
 
@@ -29,7 +30,7 @@ func editFixture() (store.ProposalRow, drafting.QuoteCheck) {
 
 func TestEditVerdict_appliesABackedEdit(t *testing.T) {
 	p, check := editFixture()
-	if why := editVerdict(context.Background(), editDecision{Verdict: "apply", Reason: "matches the note"}, p, check); why != "" {
+	if why := editVerdict(context.Background(), editDecision{Verdict: "apply", Reason: "matches the note"}, p, voice.Page{}, check); why != "" {
 		t.Fatalf("backed edit refused: %s", why)
 	}
 }
@@ -57,7 +58,7 @@ func TestEditVerdict_holdsTheLine(t *testing.T) {
 		p, check := editFixture()
 		d := editDecision{Verdict: "apply", Reason: "r"}
 		mutate(&p, &d)
-		if why := editVerdict(context.Background(), d, p, check); why == "" {
+		if why := editVerdict(context.Background(), d, p, voice.Page{}, check); why == "" {
 			t.Errorf("%s: applied; it must stay for a person", name)
 		}
 	}

@@ -29,7 +29,8 @@ type PageIssue struct {
 	// no-title, no-statements, empty-statement, uncited-statement,
 	// missing-quote, unverified-quote, source-unreachable, statute-locator,
 	// source-no-publisher, language-deferred, unreviewed-statement,
-	// undecided-item, page-flag, local-help-public.
+	// undecided-item, page-flag, local-help-public, advice-unbacked,
+	// advice-retired, tip-orphan.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -419,6 +420,56 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		ORDER BY pb.id, src.url`, args,
 		func(id int64, f []string) {
 			add(id, 0, "source-no-publisher", fmt.Sprintf("the source %s has no publisher name", f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// Advice (ADR-016, amended 2026-10-09). An entry publishes only when the
+	// site speaks for itself or a government or nonprofit quote backs it and
+	// the checker has found that quote at its source and not since lost it.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, a.slug
+		FROM playbook_advice pa
+		JOIN playbooks pb ON pb.id = pa.playbook_id
+		JOIN advice a ON a.id = pa.advice_id
+		WHERE `+cond+` AND NOT a.site_voice AND NOT EXISTS (
+			SELECT 1 FROM advice_citations c JOIN sources s ON s.id = c.source_id
+			WHERE c.advice_id = a.id AND c.checked_at IS NOT NULL AND c.drift_at IS NULL
+			  AND s.kind IN ('gov_guidance', 'nonprofit'))
+		ORDER BY pb.id, a.slug`, args,
+		func(id int64, f []string) {
+			add(id, 0, "advice-unbacked", fmt.Sprintf("the advice %q has no government or nonprofit quote that the source check has confirmed; run check-sources, find a source, or remove it from the page", f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, a.slug
+		FROM playbook_advice pa
+		JOIN playbooks pb ON pb.id = pa.playbook_id
+		JOIN advice a ON a.id = pa.advice_id
+		WHERE `+cond+` AND a.retired_at IS NOT NULL
+		ORDER BY pb.id, a.slug`, args,
+		func(id int64, f []string) {
+			add(id, 0, "advice-retired", fmt.Sprintf("the advice %q is retired; remove it from the page", f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+	// A tip follows its statement by key. If the statement left the page, the
+	// tip has nothing to sit under.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, a.slug
+		FROM playbook_advice pa
+		JOIN playbooks pb ON pb.id = pa.playbook_id
+		JOIN advice a ON a.id = pa.advice_id
+		WHERE `+cond+` AND pa.statement_key IS NOT NULL AND NOT EXISTS (
+			SELECT 1 FROM playbook_statements ps JOIN statements s ON s.id = ps.statement_id
+			WHERE ps.playbook_id = pb.id AND s.key = pa.statement_key)
+		ORDER BY pb.id, a.slug`, args,
+		func(id int64, f []string) {
+			add(id, 0, "tip-orphan", fmt.Sprintf("the tip %q sits under a statement that is no longer on the page; attach it to another statement or remove it", f[0]))
 		},
 	); err != nil {
 		return nil, err

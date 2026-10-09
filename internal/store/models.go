@@ -305,6 +305,9 @@ type PlaybookWithStatements struct {
 	Jurisdiction Jurisdiction
 	Topic        Topic
 	Statements   []CitedStatement
+	// Advice is the page's registry references (ADR-016, amended
+	// 2026-10-09): page notes first, then tips.
+	Advice []Advice
 }
 
 // CitedStatement is an atomic claim paired with its citation chips.
