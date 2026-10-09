@@ -189,8 +189,8 @@ Shared, never forked: the verbatim quote checker, the voice lint, the source mon
 
 **No editorial-only statements.** Every statement has at least one citation that is not editorial; editorial alone never backs a statement. The save path and `triage check` enforce it. The editorial citation survives only beside a real quote, for framing such as a worked example of a quoted rule. The disclaimer is the one piece of pure site voice, and it is an advice entry with a written exemption from A1's backing rule, not a statement. The 350 editorial-only statements are sorted in A4 step 4; until each is sorted, existing ones are not blocked, the same as every new lint (ADR-023 amendment).
 
-### A6. Open questions for Nazanin
+### A6. Decisions (Nazanin, 2026-10-09)
 
-- Does per-stage advice render with a heading ("What to do") or simply lead the section?
-- Pilot topic: breaking-lease first, on one state, before the registry is built out?
-- Lawyer review: does a reviewed entry show the lawyer's name to readers, or only "Reviewed by a lawyer"?
+- **Lawyer stamp: deferred.** The columns stay in the schema, but no chip or UI is built. If the project gets a lawyer, the chip links to a page written then about how lawyer review works. It does not name the lawyer on each entry.
+- **Pilot on one state's breaking-lease page** before the registry is filled out or any other page is migrated.
+- **Headings per group, not per entry.** Each stage's advice group gets one heading, written once per topic stage in the migration (for example "What to do first", "Protect yourself"). Entries under it are plain sentences with no heading of their own.
