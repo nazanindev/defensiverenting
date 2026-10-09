@@ -441,6 +441,17 @@ func resolveConceptPlace(r *http.Request, db browseStore, page *tmpl.ConceptPage
 	page.States = tmpl.StateOptions(stateSlug)
 }
 
+// carriedWarning is the home page's risk note a statement relies on, for a
+// page that shows the statement away from home (ADR-016 A3).
+func carriedWarning(lang string, s store.CitedStatement) template.HTML {
+	if w := voice.NeedsWarning(lang, s.BodyMD); w != "" {
+		if body, ok := s.PageWarnings[w]; ok {
+			return content.RenderMarkdown(body)
+		}
+	}
+	return ""
+}
+
 // buildConceptEntry renders one place's statement for a concept page: body,
 // chips, and the same fully-earned-or-absent trust line playbook pages carry.
 func buildConceptEntry(inst store.ConceptInstance) *tmpl.ConceptEntry {
@@ -455,6 +466,7 @@ func buildConceptEntry(inst store.ConceptInstance) *tmpl.ConceptEntry {
 		BodyHTML:  content.RenderMarkdown(s.BodyMD),
 		Citations: chips,
 		CheckedOn: checkedOn,
+		Warning:   carriedWarning("en", s),
 	}
 }
 
@@ -1100,6 +1112,7 @@ func BuildRulesEntries(lang string, j store.Jurisdiction, answers []store.RulesA
 				CheckedAt: checkedAt,
 				CheckedOn: checkedOn,
 				Citations: citationChips(a.Statement.Citations),
+				Warning:   carriedWarning(lang, *a.Statement),
 			}
 			if a.PageKind != "rules" {
 				e.FromTitle = a.PageTitle

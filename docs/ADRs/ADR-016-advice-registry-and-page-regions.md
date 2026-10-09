@@ -209,7 +209,9 @@ Built:
 - Source check: `sourcecheck.RunAdvice` stamps or drifts each advice quote; run by `check-sources` (or `-advice-only`) and `triage advice check`. Sources that back advice are never listed as unused.
 - `triage advice` lists the registry; `triage advice <refs.json> [-remove] [-apply]` attaches references to drafts.
 
-Not built yet, and needed before the pilot page publishes:
+- Away from home: concept pages and rules pages load the home page's warning notes with each statement (`pageWarningsSQL`), and `voice.NeedsWarning` says which one the statement relies on; it renders under the statement.
 
-- A statement shown away from its page (concept pages, search) does not yet bring the page warning with it (A3).
+Not built yet:
+
+- Search results show a statement's text without its page warning. They are snippets that link to the guide, where the note is at the top.
 - The authoring portal shows advice in the preview but has no picker to add or remove references; agents use `triage advice`.

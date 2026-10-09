@@ -339,6 +339,10 @@ type CitedStatement struct {
 	// statement cannot be stamped reviewed, and its page cannot publish,
 	// until the queue item is decided.
 	Undecided bool
+	// PageWarnings are the risks the statement's home page says once at the
+	// top (warns -> text), loaded where the statement is shown away from
+	// that page: concept and rules pages (ADR-016 A3).
+	PageWarnings map[string]string
 	// Notes are the pending reviewer notes on this statement (ADR-018 D1),
 	// oldest first. Loaded by the authoring getter only.
 	Notes []StatementNote

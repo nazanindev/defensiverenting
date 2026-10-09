@@ -304,6 +304,9 @@ type ConceptEntry struct {
 	// NoLaw is the dated "we did not find a law" line (ADR-028 D5), set
 	// instead of a statement when the law was searched and not found.
 	NoLaw string
+	// Warning is the home page's risk note this statement relies on
+	// (ADR-016 A3), shown with it here.
+	Warning template.HTML
 }
 
 // ScopeSearch is the model for the shared search-with-location control.
@@ -543,6 +546,10 @@ type RenderedStatement struct {
 	// Tips are registry advice lines that sit under this statement
 	// (ADR-016 A2), each once per page.
 	Tips []AdviceLine
+	// Warning is the home page's risk note, shown with the statement where
+	// it appears away from that page (a rules page), because the statement
+	// no longer says the risk itself (ADR-016 A3).
+	Warning template.HTML
 }
 
 // AdviceLine is one registry entry as a guide shows it (ADR-016, amended

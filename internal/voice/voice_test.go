@@ -10,7 +10,7 @@ func TestLint_cleanTextPasses(t *testing.T) {
 		"Your landlord must return your deposit within 14 days. If they do not, you can sue.",
 		"The late fee is capped at 5% of your rent. If your rent is $1,000, that is $50 at most.",
 		"A notice to quit (a letter saying you must move out) starts the clock.",
-		"Avoid paying cash without a receipt.", // "avoid" must not trip the \bvoid\b rule
+		"Avoid paying cash without a receipt.",               // "avoid" must not trip the \bvoid\b rule
 		"Your landlord cannot enter except in an emergency.", // plain "except" stays
 	}
 	for _, s := range clean {
@@ -558,5 +558,20 @@ func TestPageWarningCoversRiskyStatements(t *testing.T) {
 	}
 	if v := warnedTwice("en", leave+" If a court later disagrees, you can still owe the rent.", Page{}); v != "" {
 		t.Error("with no page warning the statement keeps its own")
+	}
+}
+
+func TestNeedsWarning(t *testing.T) {
+	cases := map[string]string{
+		"You can end your lease if the home is not usable.":                               "owe",
+		"You can withhold rent until the repair is made.":                                 "evict",
+		"You owe no rent after you move out.":                                             "owe",
+		"Your landlord must return your deposit within 30 days.":                          "",
+		"You can end your lease. If a court later disagrees, you can still owe the rent.": "",
+	}
+	for s, want := range cases {
+		if got := NeedsWarning("en", s); got != want {
+			t.Errorf("%q: got %q, want %q", s, got, want)
+		}
 	}
 }

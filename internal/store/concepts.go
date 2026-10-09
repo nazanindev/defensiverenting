@@ -290,7 +290,7 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 		SELECT j.id, j.parent_id, j.kind, j.name, j.slug, COALESCE(pj.slug, ''), COALESCE(pj.name, ''),
 		       t.slug, s.id, s.body_md,
 		       c.source_id, c.locator, c.quote, c.manually_verified, c.checked_at,
-		       src.url, src.publisher, src.kind
+		       src.url, src.publisher, src.kind, `+pageWarningsSQL+`
 		FROM statements s
 		JOIN playbook_statements ps ON ps.statement_id = s.id
 		JOIN playbooks pb ON pb.id = ps.playbook_id
@@ -316,19 +316,19 @@ func (pg *PG) GetConceptPage(ctx context.Context, slug, language string) (Concep
 		var inst ConceptInstance
 		var cit CitationWithSource
 		var stmtID int64
-		var bodyMD string
+		var bodyMD, warnings string
 		if err := rows.Scan(
 			&inst.Jurisdiction.ID, &inst.Jurisdiction.ParentID, &inst.Jurisdiction.Kind,
 			&inst.Jurisdiction.Name, &inst.Jurisdiction.Slug, &inst.Jurisdiction.ParentSlug, &inst.Jurisdiction.ParentName,
 			&inst.TopicSlug, &stmtID, &bodyMD,
 			&cit.SourceID, &cit.Locator, &cit.Quote, &cit.ManuallyVerified, &cit.CheckedAt,
-			&cit.SourceURL, &cit.Publisher, &cit.SourceKind,
+			&cit.SourceURL, &cit.Publisher, &cit.SourceKind, &warnings,
 		); err != nil {
 			return d, err
 		}
 		i, ok := byStmt[stmtID]
 		if !ok {
-			inst.Statement = CitedStatement{ID: stmtID, BodyMD: bodyMD, ConceptSlug: d.Concept.Slug}
+			inst.Statement = CitedStatement{ID: stmtID, BodyMD: bodyMD, ConceptSlug: d.Concept.Slug, PageWarnings: parsePageWarnings(warnings)}
 			i = len(instances)
 			byStmt[stmtID] = i
 			instances = append(instances, inst)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -353,4 +354,26 @@ func (pg *PG) SlotPageWarns(ctx context.Context, jurisdictionSlug, topicSlug, la
 		return nil, err
 	}
 	return pg.PageWarns(ctx, id)
+}
+
+// pageWarningsSQL is the warning notes on the page aliased pb, one
+// "warns<TAB>body" line each, for a statement shown away from its page
+// (ADR-016 A3): a concept page or a rules page brings the warning along.
+const pageWarningsSQL = `COALESCE((
+	SELECT string_agg(a.warns || E'\t' || a.body_md, E'\n' ORDER BY a.warns)
+	FROM playbook_advice pa JOIN advice a ON a.id = pa.advice_id
+	WHERE pa.playbook_id = pb.id AND a.warns IS NOT NULL AND a.retired_at IS NULL), '')`
+
+// parsePageWarnings turns pageWarningsSQL's text into warns -> body.
+func parsePageWarnings(s string) map[string]string {
+	if s == "" {
+		return nil
+	}
+	out := map[string]string{}
+	for _, line := range strings.Split(s, "\n") {
+		if k, v, ok := strings.Cut(line, "\t"); ok {
+			out[k] = v
+		}
+	}
+	return out
 }

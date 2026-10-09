@@ -226,7 +226,7 @@ func (pg *PG) RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopic
 		statuses = append(statuses, "draft")
 	}
 	srow, err := pg.pool.Query(ctx, `
-		SELECT DISTINCT ON (s.concept_id) s.concept_id, s.id, pb.title, t.slug, pb.page_kind, pb.status
+		SELECT DISTINCT ON (s.concept_id) s.concept_id, s.id, pb.title, t.slug, pb.page_kind, pb.status, `+pageWarningsSQL+`
 		FROM statements s
 		JOIN playbook_statements ps ON ps.statement_id = s.id
 		JOIN playbooks pb ON pb.id = ps.playbook_id
@@ -245,11 +245,12 @@ func (pg *PG) RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopic
 		return nil, err
 	}
 	stmtOf := map[int64]int{} // statement id -> answer index
+	warningsOf := map[int64]map[string]string{}
 	var ids []int64
 	for srow.Next() {
 		var conceptID, stmtID int64
-		var title, topicSlug, pageKind, status string
-		if err := srow.Scan(&conceptID, &stmtID, &title, &topicSlug, &pageKind, &status); err != nil {
+		var title, topicSlug, pageKind, status, warnings string
+		if err := srow.Scan(&conceptID, &stmtID, &title, &topicSlug, &pageKind, &status, &warnings); err != nil {
 			srow.Close()
 			return nil, err
 		}
@@ -259,6 +260,7 @@ func (pg *PG) RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopic
 		}
 		answers[i].PageTitle, answers[i].TopicSlug, answers[i].PageKind, answers[i].Status = title, topicSlug, pageKind, status
 		stmtOf[stmtID] = i
+		warningsOf[stmtID] = parsePageWarnings(warnings)
 		ids = append(ids, stmtID)
 	}
 	srow.Close()
@@ -288,6 +290,7 @@ func (pg *PG) RulesAnswers(ctx context.Context, jurisdictionID int64, rulesTopic
 		rows.Close()
 		for k := range stmts {
 			st := stmts[k]
+			st.PageWarnings = warningsOf[st.ID]
 			answers[stmtOf[st.ID]].Statement = &st
 		}
 	}

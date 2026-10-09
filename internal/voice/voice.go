@@ -596,6 +596,28 @@ func warnedTwice(lang, text string, page Page) string {
 	return ""
 }
 
+// NeedsWarning reports the risk a statement relies on its page to say
+// ("owe" or "evict"), or "" when it names no risky step and promises nothing,
+// or says the risk itself. A page that shows the statement away from its home
+// (a concept page, a rules page) brings that warning along (ADR-016 A3).
+func NeedsWarning(lang, text string) string {
+	rs, ok := rulesets[lang]
+	if !ok || rs.riskyStep == nil {
+		return ""
+	}
+	named := rentWithholdingAct.ReplaceAllString(text, " ")
+	if rs.riskyStep.FindString(named) != "" && !rs.riskWarning.MatchString(text) {
+		if lang == "en" && stayStep.MatchString(movesOut.ReplaceAllString(named, " ")) {
+			return "evict"
+		}
+		return "owe"
+	}
+	if rs.noOwe != nil && rs.noOwe.FindString(ifOweNothing.ReplaceAllString(text, " ")) != "" && !rs.noOweWarning.MatchString(text) {
+		return "owe"
+	}
+	return ""
+}
+
 // LintAll lints statement text as if its page carried no advice.
 func LintAll(lang string, labeled map[string]string) []string {
 	return LintOn(lang, labeled, Page{})

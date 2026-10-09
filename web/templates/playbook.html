@@ -162,6 +162,7 @@
               {{with .Statement}}
               <div class="statement-item" id="s-{{.Key}}">
                 <div class="statement-body">{{.BodyHTML}}</div>
+                {{with .Warning}}<div class="statement-warning">{{.}}</div>{{end}}
                 <div class="citation-chips" aria-label="{{ui $l "sources"}}">
                   {{range .Citations}}
                   <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"

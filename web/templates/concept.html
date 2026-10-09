@@ -148,6 +148,7 @@
   <p class="rules-nolaw">{{.NoLaw}}</p>
   {{else}}
   <div class="statement-body">{{.BodyHTML}}</div>
+  {{with .Warning}}<div class="statement-warning">{{.}}</div>{{end}}
   <div class="citation-chips" aria-label="Sources">
     {{range .Citations}}
     <a class="{{chipClass .SourceKind}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer"
