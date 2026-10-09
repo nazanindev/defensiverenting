@@ -144,29 +144,31 @@ advice  (+ columns)
   lawyer_reviewed_at  TIMESTAMPTZ NULL
 ```
 
-### A2. Advice can lead, per stage (amends D4)
+### A2. Tips sit under the law they help with (amends D4)
 
-D4 put advice in one block after the law. For a page whose reader is in a crisis (breaking a lease, locked out, eviction), the advice is the first answer and the law is how it holds up. So advice attaches to a stage, not only to the page:
+D4 put advice in one block after the law. A per-stage "What to do" group was drafted next and rejected on 2026-10-09: two layers of headings confused, and leading with advice made site guidance the first thing every reader sees, when cited law is what the site is for. What was tried on a mock of Pennsylvania's breaking-lease page and kept:
 
-- A page's advice references carry an optional stage. An entry with a stage renders at the top of that stage's section, before its statements. An entry with no stage renders in the page-level block as D4 describes.
-- The topic decides the default: a topic lists its advice entries per stage, and a new draft inherits them. A page may add or drop references; the reviewer sees the change.
-- Rendering stays plain: the body, then one chip naming the source ("From the CFPB") or the lawyer stamp. No trust line, no anchor, no onward link.
-- D5's table gains the per-stage advice as part of the statement list region, not a new region.
+- **Tips attach to a statement.** A page's advice reference names the statement it supports and renders as one quiet line under that statement: the label "Tip", the sentence, and its source chip. No box, no heading, no anchor, no onward link. The law stays the headline; the tip is how to act on it.
+- **Once per page.** A tip referenced by several statements renders under the first one only.
+- **No advice headings.** The label is always "Tip". Nothing per stage or per entry is hand-written.
+- Agents choose which statement a tip attaches to, by slug, the same way they reference entries (D2).
 
-### A3. Warnings move to advice, and the lints check the page (amends the risky-step and owe-nothing rules)
+### A3. The risk is said once, at the top of the page (amends the risky-step and owe-nothing rules)
 
-The risk warning, the lawsuit reminder, the win-and-pays line, and "don't ignore court papers" become advice entries. A statement no longer carries them. The guarantee moves up one level and stays in code:
+The warnings repeated on every statement ("If a court later disagrees, you can still owe the rent. Get legal help first.", "If your landlord sues and wins, you can still owe the money.") are not tips. They become one page warning, rendered at the top of the page with the topic disclaimer, in the disclaimer region of D5. On the breaking-lease mock it reads: "Even with a good reason to leave, your landlord can sue you for the rent. If a court disagrees with you, you can still owe it." A statement no longer carries the warning.
 
-- A statement that names a risky step (riskyStep) or tells the renter they owe nothing (noOwe) passes the lint when its stage, or the page, references the matching warning entry. Without the reference it fails exactly as today.
-- The warning fits the step, as the 2026-10-06 rule does: the move-out entry says you can still owe the rent; the stay-and-withhold entry names eviction.
-- The page-level disclaimer for breaking-lease ("Breaking a lease early is legally complicated...") becomes the topic's first entry, rendered at the top of the page, and leaves the intro statement.
+- **Lints check the page.** A statement that names a risky step (riskyStep) or says the renter owes nothing (noOwe) passes when its page references the matching page warning. Without the reference it fails, as today. The guarantee stays in code, one level up.
+- **The warning fits the page.** A page about leaving (breaking-lease) carries the "still owe the rent" warning; a page whose risky step is withholding while staying carries the eviction warning. The 2026-10-06 rule on which warning fits which step still applies, now per page.
+- **A statement shown away from its page** (concept pages, search results) brings the page warning with it whenever it needs one, so a reader who never sees the guide's header still sees the risk.
+- The disclaimer and the page warnings are registry entries of their own kind (page notes), one per topic or per risky step, rendered only in the disclaimer region.
 
 ### A4. Migration
 
 1. Seed the registry with the repeated sentences above plus the breaking-lease set, each with a backing quote found on gov or nonprofit pages. An entry for which no source says it waits, unpublished, for the lawyer. Expected breaking-lease set: the disclaimer; get safe first; tell your landlord in writing; take dated photos; call the inspector; keep copies; your landlord might sue if they want the money, make sure they know you have proof; do not ignore court papers.
 2. Draft pages: the loop removes the warning sentences from statements and adds the references, through ordinary proposals. Statements get shorter; nothing else in them changes.
 3. Live pages: the same proposals go to the queue for a person, as all live edits do.
-4. The 350 editorial-only statements are sorted three ways: a registry entry (replaced by a reference), page-specific guidance (stays), or a claim with no law behind it (cut).
+4. The repeated warning sentences are removed from statements once their page references the page warning.
+5. The 350 editorial-only statements are sorted three ways: a registry entry (replaced by a reference), page-specific guidance (stays), or a claim with no law behind it (cut).
 
 ### A5. Two kinds of content, one set of checks
 
@@ -193,4 +195,4 @@ Shared, never forked: the verbatim quote checker, the voice lint, the source mon
 
 - **Lawyer stamp: deferred.** The columns stay in the schema, but no chip or UI is built. If the project gets a lawyer, the chip links to a page written then about how lawyer review works. It does not name the lawyer on each entry.
 - **Pilot on one state's breaking-lease page** before the registry is filled out or any other page is migrated.
-- **Headings per group, not per entry.** Each stage's advice group gets one heading, written once per topic stage in the migration (for example "What to do first", "Protect yourself"). Entries under it are plain sentences with no heading of their own.
+- **No advice headings.** Tips attach to statements with the label "Tip" (A2); the risk is said once at the top of the page (A3). Both chosen on the Pennsylvania mock, 2026-10-09.
