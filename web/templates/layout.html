@@ -13,6 +13,25 @@
   (ADR-017), which wins. A reader picks a place with the homepage select, or by
   clicking a place in a list that asks where they rent (data-set-location).
 */}}
+{{/*
+  source-list — a statement's citations written out (ADR-032 D2). Takes the
+  SourceList from sourceList: "Source:" or "Sources:", then each citation
+  numbered, the locator and publisher as one link, the kind of document in
+  plain words after it. Words, not color or glyph, say what backs a statement.
+*/}}
+{{define "source-list"}}
+{{if .Lines}}<div class="sources"><span class="sources-lead">{{.Lead}}:</span>
+<ol class="sources-list">
+{{range .Lines}}<li><a href="{{.URL}}" data-out="{{.SourceID}}"{{if .External}} target="_blank" rel="noopener noreferrer"{{end}}>{{.Text}}</a>{{if .Kind}}. {{.Kind}}{{end}}.</li>
+{{end}}</ol></div>{{end}}
+{{end}}
+
+{{/*
+  source-from — one citation at the end of a tip or page note: "From our
+  editorial rules." Takes a SourceLine from sourceLine.
+*/}}
+{{define "source-from"}}<span class="source-from">{{.From}} <a href="{{.Line.URL}}" data-out="{{.Line.SourceID}}"{{if .Line.External}} target="_blank" rel="noopener noreferrer"{{end}}>{{.Line.Text}}</a>.</span>{{end}}
+
 {{define "site-header"}}
 {{- $h := headerFor . -}}
 {{- $l := $h.Lang -}}

@@ -1,18 +1,29 @@
-/* Tenant Rights — shared stylesheet */
+/* RenterLaw — shared stylesheet */
 
+/* ADR-032 D1: one serif, flat color, plain shapes. One flat off-white page,
+   no gradient, no shadows, no load animation. Two accents: the brand oxblood
+   and a deep teal for the second stage. Warnings amber, tips green. */
 :root {
-  --ink:        #1e1215;
-  --paper:      #fdf8f8;
-  --accent:     #9b2335;
+  --ink:        #1a1a1a;
+  --paper:      #fffdf9;
+  --accent:     #8a1c2e;
   --accent-dark:#4a1223;
-  --mint:       #fce8eb;
-  --sun:        #f5d0d6;
+  --teal:       #1f5f6b;
+  --line:       #e3dad6;
+  --amber-bg:   #fbf0d6;
+  --amber-ink:  #4a3608;
+  --amber-line: #8a6410;
+  --green-bg:   #e6efdf;
+  --green-ink:  #24401c;
+  --green-line: #3a6b2a;
+  --mint:       #f7e3e7;
+  --sun:        #f3d6db;
   /* Secondary text. Was 0.60, which landed at ~4.7:1 on the paper background —
      technically AA but thin at the small sizes it was used for. 0.72 gives
      ~7:1, so muted text clears AAA and stays legible in bright light. */
-  --ink-soft:   rgba(30,18,21,0.72);
-  --shadow:     0 14px 40px rgba(74,18,35,0.12);
-  --radius:     20px;
+  --ink-soft:   #5c5450;
+  --shadow:     none;
+  --radius:     8px;
 }
 
 *,*::before,*::after { box-sizing: border-box; }
@@ -27,11 +38,11 @@ html {
 
 body {
   margin: 0;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Source Serif 4", Georgia, "Iowan Old Style", serif;
   font-size: 1rem;
   line-height: 1.6;
   color: var(--ink);
-  background: linear-gradient(135deg, var(--paper), #fdf0f2 55%, #faf5f6);
+  background: var(--paper);
   min-height: 100vh;
 }
 
@@ -58,6 +69,10 @@ body {
 }
 
 /* ── Decorative blobs ───────────────────────────────────── */
+
+/* Gone (ADR-032 D1). The elements stay in older templates until each is
+   cleaned up; they draw nothing. */
+.halo, .pulse { display: none; }
 
 .halo {
   position: absolute;
@@ -100,11 +115,13 @@ body {
   padding-bottom: 14px;
 }
 
+.site-header .wrap { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+
 .site-logo {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: "Fraunces", serif;
+  font-family: "Source Serif 4", Georgia, serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: #fff;
@@ -139,16 +156,18 @@ body {
 }
 .header-place:hover { opacity: 1; text-decoration: underline; }
 
+/* A soft translucent block, not a pill (ADR-032 D3). */
 .header-place {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  border: 1.5px solid rgba(255,255,255,0.3);
-  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 6px;
   max-width: 16rem;
+  opacity: 1;
 }
-.header-place:hover { border-color: rgba(255,255,255,0.6); text-decoration: none; }
+.header-place:hover { background: rgba(255,255,255,0.2); text-decoration: none; }
 .header-place span { overflow: hidden; text-overflow: ellipsis; }
 .header-place-pin { flex-shrink: 0; }
 
@@ -200,10 +219,21 @@ body {
 .hero-search button:hover { background: var(--accent-dark); }
 
 h1 {
-  font-family: "Fraunces", serif;
-  font-size: clamp(2.2rem, 3vw + 1.4rem, 3.8rem);
+  font-size: clamp(2rem, 2.2vw + 1.2rem, 2.8rem);
   margin: 0 0 16px;
-  line-height: 1.1;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+
+/* ADR-032 D3: the place and the topic, one small sans line above the title. */
+.eyebrow {
+  margin: 0 0 10px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: .85rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 .lede {
@@ -222,10 +252,8 @@ h1 {
   color: var(--accent-dark);
   font-weight: 600;
   font-size: .92rem;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  padding: 5px 12px;
-  border-radius: 999px;
+  padding: 4px 10px;
+  border-radius: 4px;
   margin-bottom: 14px;
 }
 
@@ -235,7 +263,6 @@ h1 {
    rely on and is measurably slower to read, which is the wrong trade on a site
    people reach mid-crisis. Weight and colour carry the hierarchy instead. */
 .section-title {
-  font-family: "Fraunces", serif;
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -332,12 +359,9 @@ a.top-row:hover span:first-child { text-decoration: underline; }
    block at the top of a guide, in the header's color, so it reads as part of
    the site rather than an error, and nothing else up here competes with it. */
 .legal-note {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
   margin: 4px 0 18px;
-  padding: 16px 18px;
-  border-radius: 14px;
+  padding: 16px 20px;
+  border-radius: 8px;
   background: var(--accent-dark);
   color: #fff;
   font-size: 1.02rem;
@@ -346,46 +370,45 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .legal-note p { margin: 0; }
 .legal-note strong { font-weight: 700; }
 .legal-note a { color: #fff; text-decoration: underline; font-weight: 600; }
-.legal-note-icon { flex-shrink: 0; margin-top: 1px; }
+
 
 /* ADR-016 A3: the notes said once for the whole page, under the legal note.
    Quieter than the legal note, louder than a statement's fine print. */
 .page-notes {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
   margin: 0 0 18px;
   padding: 14px 18px;
-  border-left: 4px solid var(--accent);
-  border-radius: 0 14px 14px 0;
-  background: white;
-  font-size: 1.02rem;
-  line-height: 1.55;
+  border-radius: 8px;
+  background: var(--amber-bg);
+  color: var(--amber-ink);
+  font-size: 1rem;
+  line-height: 1.5;
 }
+.page-notes-icon { flex-shrink: 0; margin-top: 3px; color: var(--amber-line); }
+.page-notes-body { display: grid; gap: 8px; }
 .page-note p { display: inline; margin: 0; }
-.page-note .chip { margin-left: 6px; vertical-align: 1px; }
+.page-notes a { color: inherit; }
 
 /* ADR-016 A2: a tip is one quiet line under the law it helps with: a thin
    rule, a small label, smaller text. The law stays the headline. */
 .statement-tip {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 4px 10px;
-  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
   margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid #efe3e5;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--green-bg);
+  color: var(--green-ink);
   max-width: 70ch;
 }
-.tip-label {
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: #0a5432;
-}
-.tip-body { font-size: .95rem; line-height: 1.55; color: var(--ink-soft); }
+.tip-icon { flex-shrink: 0; margin-top: 3px; color: var(--green-line); }
+.tip-label { font-weight: 700; }
+.tip-body { font-size: .98rem; line-height: 1.5; }
 .tip-body p { display: inline; margin: 0; }
-.chip--small { padding: 2px 9px; font-size: .76rem; }
+.statement-tip a { color: inherit; }
 
 /* ADR-016 A3: a statement shown away from its guide brings the guide's risk
    note with it, since the statement no longer says the risk itself. */
@@ -419,30 +442,54 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 
 /* ── Statement list ─────────────────────────────────────── */
 
+/* ADR-032 D1: a numbered list divided by thin lines, not a wall of cards.
+   The number is a filled circle in the stage's color; stages alternate
+   between the two accents (data-stage on the stage heading). The number is
+   drawn by the template so it runs on across stage headings. */
 .statement-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 20px;
 }
 
-.statement-item {
-  background: white;
-  border-radius: var(--radius);
-  padding: 24px;
-  box-shadow: var(--shadow);
-  animation: fadeUp 600ms ease-out;
+ol.statement-list > .statement-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 0 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
 }
+.statement-num {
+  grid-column: 1;
+  grid-row: 1 / span 20;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: .95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+.stage-heading[data-stage="1"] + .statement-list .statement-num { background: var(--teal); }
+ol.statement-list > .statement-item > :not(.statement-num) { grid-column: 2; }
+
+/* Statements shown outside a numbered list (concept pages, rules answers)
+   keep a plain block, divided by the same thin line. */
+.statement-item { padding: 0; }
+div.statement-list > .statement-item { padding: 18px 0; border-bottom: 1px solid var(--line); }
 
 /* The legal guidance itself — the most-read text on the site, so it gets the
    most generous setting. The measure cap keeps lines near 70 characters; past
    that the eye loses its place returning to the next line. */
 .statement-body {
-  font-size: 1.15rem;
-  line-height: 1.75;
+  font-size: 1.1rem;
+  line-height: 1.6;
   max-width: 70ch;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .statement-body p { margin: 0; }
@@ -450,9 +497,21 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 /* ADR-028 D10: a stage heading says where the renter is in the process. It
    sits between runs of statement cards, quieter than the page title. */
 .stage-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 1.35rem;
-  margin: 36px 0 14px;
+  margin: 36px 0 6px;
 }
+.stage-heading::before {
+  content: "";
+  flex-shrink: 0;
+  width: 12px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.stage-heading[data-stage="1"]::before { background: var(--teal); }
 .stage-heading:first-child { margin-top: 0; }
 .statement-list + .stage-heading { margin-top: 40px; }
 
@@ -491,7 +550,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .term-all { margin-top: 12px; }
 .term-all a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .term-all a:hover { text-decoration: underline; }
-.concept-place { font-family: 'Fraunces', serif; font-size: 1.1rem; margin-bottom: 8px; }
+.concept-place { font-size: 1.1rem; margin-bottom: 8px; }
 
 /* The per-statement trust line: quiet, factual, and only present when every
    quoted source was confirmed live. It reads as provenance, not decoration —
@@ -506,7 +565,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 }
 
 /* ADR-011 D4: the links a national statement offers in place of "check your
-   state". A quiet single line under the chips, not a second content block. */
+   state". A quiet single line under the sources, not a second content block. */
 .statement-specifics {
   margin-top: 12px;
   font-size: .9rem;
@@ -527,62 +586,33 @@ a.top-row:hover span:first-child { text-decoration: underline; }
   outline-offset: 2px;
 }
 
-.citation-chips {
+/* ── Source lines (ADR-032 D2) ───────────────────────────── */
+
+/* A citation written out, not a label: the locator and publisher are one
+   link, the kind of document follows in plain words. Numbered, one per line
+   when there are several. No color, glyph or box carries meaning. */
+.sources {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-}
-
-/* ── Citation chips ─────────────────────────────────────── */
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 11px;
-  border-radius: 999px;
   font-size: .88rem;
-  font-weight: 600;
-  letter-spacing: .03em;
-  text-decoration: none;
-  transition: box-shadow .15s, transform .15s;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 70ch;
 }
-
-/* A chip is a door to the source, and it has to read that way at rest, not
-   only under the cursor: the trailing arrow says "this opens somewhere" the
-   way a bare pill never did. Hover lifts instead of fading — dimming a link
-   on hover reads as disabling it. */
-.chip::after { content: "↗"; font-size: .82em; opacity: .55; }
-.chip:hover {
-  text-decoration: underline;
-  box-shadow: 0 1px 4px rgba(20, 10, 12, .22);
-  transform: translateY(-1px);
+.sources-lead { flex-shrink: 0; }
+.sources-list {
+  margin: 0;
+  padding: 0 0 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.chip:hover::after { opacity: 1; }
-.chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-
-/* One variant per sources.kind value. A kind without its own variant would
-   inherit another kind's colour and glyph and so misstate what backs a claim;
-   templates.TestChipClass_everyKindHasItsOwnClass guards that. Ratios are
-   computed against each chip's own background, AAA per ADR-006 D6. */
-.chip--statute       { background: #fce8eb; color: #4a1223; }
-.chip--regulation    { background: #f5e8f0; color: #5a1240; }
-.chip--gov           { background: #e8f5ee; color: #0a5432; }
-.chip--nonprofit     { background: #f7efe3; color: #5a3a0a; }
-.chip--editorial     { background: #f5f0f0; color: #5a4040; }
-.chip--court-ruling  { background: #e8eef5; color: #1a3a5a; }
-.chip--other         { background: #eeeaea; color: #3a3030; }
-
-/* Text/glyph prefixes, not colour alone (ADR-006 D7). "Org." marks a source
-   that is an organisation describing its own services, which is the
-   distinction a reader needs and the one the green 🏛 chip used to erase. */
-.chip--statute::before       { content: "§"; }
-.chip--regulation::before    { content: "§"; }
-.chip--gov::before           { content: "🏛 "; }
-.chip--nonprofit::before     { content: "Org. "; }
-.chip--editorial::before     { content: "Ed. "; }
-.chip--court-ruling::before  { content: "⚖ "; }
-.chip--other::before         { content: "Source "; }
+/* One source needs no number. */
+.sources-list > li:only-child { list-style: none; margin-left: -22px; }
+.sources a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.sources a:hover { color: var(--accent-dark); }
+.source-from { font-size: .9em; opacity: .9; }
+.source-from a { color: inherit; }
 
 /* ── Prose (about, support, editorial) ─────────────────── */
 
@@ -595,7 +625,6 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 }
 
 .prose h1 {
-  font-family: "Fraunces", serif;
   font-size: clamp(2rem, 3vw + 1rem, 3rem);
   margin: 0 0 24px;
   line-height: 1.1;
@@ -730,7 +759,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
   gap: 6px;
   min-height: 44px;
   padding: 0 18px;
-  border-radius: 999px;
+  border-radius: 6px;
   border: 1.5px solid var(--accent);
   color: var(--accent);
   font-weight: 600;
@@ -748,6 +777,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .faq-item {
   background: white;
   border-radius: var(--radius);
+  border: 1px solid var(--line);
   padding: 22px 24px;
   box-shadow: var(--shadow);
 }
@@ -775,6 +805,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .checklist-item {
   background: white;
   border-radius: var(--radius);
+  border: 1px solid var(--line);
   padding: 20px 22px;
   box-shadow: var(--shadow);
   transition: opacity .2s;
@@ -806,7 +837,6 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 /* ── Search ─────────────────────────────────────────────── */
 
 .search-heading {
-  font-family: "Fraunces", serif;
   font-size: 2rem;
   margin: 40px 0 24px;
 }
@@ -824,6 +854,7 @@ a.top-row:hover span:first-child { text-decoration: underline; }
 .search-result {
   background: white;
   border-radius: var(--radius);
+  border: 1px solid var(--line);
   padding: 20px 24px;
   box-shadow: var(--shadow);
 }
@@ -861,6 +892,7 @@ a.result-title:hover { text-decoration: underline; }
 .site-footer {
   margin-top: 64px;
   padding: 40px 0 32px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--accent-dark);
   color: rgba(255,255,255,0.86);
 }
@@ -873,7 +905,7 @@ a.result-title:hover { text-decoration: underline; }
   gap: 6px 16px;
 }
 .footer-name {
-  font-family: "Fraunces", serif;
+  font-family: "Source Serif 4", Georgia, serif;
   font-size: 1.4rem;
   font-weight: 700;
   color: #fff;
@@ -921,10 +953,6 @@ a.result-title:hover { text-decoration: underline; }
 
 .city-section { margin-bottom: 48px; }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
 /* ── Scoped search (query + location) ───────────────────── */
 
@@ -1034,22 +1062,26 @@ a.result-title:hover { text-decoration: underline; }
   column-gap: 48px;
 }
 
-.situation-list li { border-bottom: 1px solid #f0dde0; }
+.situation-list li { margin: 0 0 8px; }
 
+/* ADR-032 D3: each topic is a bordered row with a chevron, so it reads as
+   tappable on a phone. */
 .situation-list a {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 15px 4px;
+  padding: 14px 16px;
   text-decoration: none;
   color: var(--ink);
-  transition: color .15s ease, padding-left .15s ease;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
 
 .situation-list a:hover {
   color: var(--accent);
-  padding-left: 10px;
+  border-color: var(--accent);
 }
 
 .situation-name {
@@ -1072,13 +1104,7 @@ a.result-title:hover { text-decoration: underline; }
 .situation-arrow {
   color: var(--accent);
   font-size: 1.1rem;
-  opacity: 0;
-  transition: opacity .15s ease, transform .15s ease;
-}
-
-.situation-list a:hover .situation-arrow {
-  opacity: 1;
-  transform: translateX(3px);
+  flex-shrink: 0;
 }
 
 /* The arrow is decorative on hover only, so keyboard users still get a clear
@@ -1089,7 +1115,6 @@ a.result-title:hover { text-decoration: underline; }
   border-radius: 6px;
 }
 
-.situation-list a:focus-visible .situation-arrow { opacity: 1; }
 
 .count-note {
   font-weight: 400;
@@ -1114,7 +1139,6 @@ a.result-title:hover { text-decoration: underline; }
 }
 
 .state-name {
-  font-family: "Fraunces", serif;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--accent-dark);
@@ -1272,7 +1296,6 @@ input:focus-visible,
   margin: 24px 0 28px;
 }
 .place-picker-heading {
-  font-family: "Fraunces", serif;
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--accent-dark);
@@ -1449,17 +1472,36 @@ input:focus-visible,
   color: var(--ink-soft);
 }
 
-.report-link a { color: var(--accent); }
+.report-link a, a.report-link { color: var(--accent); }
 
-/* "Did this page help?" sits under the report line, as quiet as it. */
-.helpful p { margin: .75rem 0 0; font-size: .92rem; color: var(--ink-soft); }
-.helpful-ask:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* ADR-032 D3: published-by, sources-checked, Tell us and "Did this page
+   help?" share one bordered box at the foot of a guide. */
+.page-foot {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 32px 0 36px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.page-foot-icon { flex-shrink: 0; margin-top: 2px; color: var(--teal); }
+.page-foot-body { flex: 1; min-width: 0; }
+.page-foot .byline.byline--foot { margin: 0; font-size: .9rem; line-height: 1.5; }
+.page-foot .byline a { text-decoration: underline; text-underline-offset: 3px; }
+.page-foot a.report-link { margin: 0; font-size: inherit; }
+
+.helpful { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.helpful p { margin: 0; font-size: 1rem; color: var(--ink); }
+.helpful-ask:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .helpful-ask span { margin-right: 4px; }
 .helpful-ask button {
-  font: inherit; color: var(--accent); background: none; cursor: pointer;
-  border: 1px solid currentColor; border-radius: 8px; padding: 4px 14px;
+  font: inherit; color: var(--accent); background: #fff; cursor: pointer;
+  border: 1px solid var(--accent); border-radius: 6px; padding: 8px 20px; min-height: 44px;
 }
-.helpful-ask button:hover { background: var(--accent); color: white; }
+.helpful-ask button[value="yes"] { background: var(--accent); color: #fff; }
+.helpful-ask button:hover { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
 
 
 /* Concept-page place filter (progressive enhancement; hidden until JS runs) */

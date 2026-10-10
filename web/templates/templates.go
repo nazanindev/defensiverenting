@@ -52,13 +52,11 @@ func init() {
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
-		"chipClass": ChipClass,
-		"chipLabel": func(label, locator string) string {
-			if locator != "" {
-				return label + " " + locator
-			}
-			return label
-		},
+		"sourceList": SourceListFor,
+		"sourceLine": SourceLineFor,
+		"sourceFrom": SourceFromFor,
+		"mod":        func(a, b int) int { return a % b },
+		"add":        func(a, b int) int { return a + b },
 		"absURL": func(path string) string {
 			return baseURL + path
 		},
@@ -76,40 +74,103 @@ func funcMap() template.FuncMap {
 }
 
 // SourceKinds is every value the sources.kind column permits, mirroring the
-// CHECK constraint in migration 000006. ChipClass must return a distinct class
-// for each one: the chip is the only thing telling a reader what kind of
-// authority backs a statement (ADR-003, render layer), so a kind that falls
-// through to another kind's styling misrepresents that authority. A test in
-// this package fails if any kind here loses its own class.
+// CHECK constraint in migration 000006. SourceKindWords must say something
+// distinct for each one: the words after a citation are the only thing
+// telling a reader what kind of authority backs a statement (ADR-003, render
+// layer; ADR-032 D2), so a kind that falls through to another kind's words
+// misrepresents that authority. A test in this package fails if any kind here
+// loses its own words.
 var SourceKinds = []string{
 	"statute", "regulation", "gov_guidance", "nonprofit", "editorial", "court_ruling",
 }
 
-// ChipClass maps a source kind to its citation-chip classes.
+// SourceKindWords says, in the page's language, what kind of document a
+// source is: "Law", "A government guide", "A court decision". Plain words
+// after the citation, not a colored label with a glyph (ADR-032 D2).
 //
 // Every kind is listed explicitly and the default is deliberately its own
-// neutral class rather than an alias for a real one. Until 2026-08-09 the
-// default returned chip--gov, so nonprofit and gov_guidance rendered
-// identically: every legal-aid organisation on the site displayed with the
-// green government chip and its 🏛 glyph. A source we have not styled must
-// claim no authority it does not have.
-func ChipClass(kind string) string {
+// neutral wording rather than an alias for a real one. Until 2026-08-09 the
+// default rendered as the government kind, so every legal-aid organisation
+// on the site claimed an authority it did not have.
+func SourceKindWords(lang, kind string) string {
 	switch kind {
 	case "statute":
-		return "chip chip--statute"
+		return UIString(lang, "kind-statute")
 	case "regulation":
-		return "chip chip--regulation"
+		return UIString(lang, "kind-regulation")
 	case "gov_guidance":
-		return "chip chip--gov"
+		return UIString(lang, "kind-gov")
 	case "nonprofit":
-		return "chip chip--nonprofit"
-	case "editorial":
-		return "chip chip--editorial"
+		return UIString(lang, "kind-nonprofit")
 	case "court_ruling":
-		return "chip chip--court-ruling"
+		return UIString(lang, "kind-court")
+	case "editorial":
+		return UIString(lang, "editorial-rules")
 	default:
-		return "chip chip--other"
+		return UIString(lang, "kind-other")
 	}
+}
+
+// SourceLine is one citation written out under a statement (ADR-032 D2):
+// the locator and publisher as one link, then what kind of document it is.
+type SourceLine struct {
+	SourceID int64
+	URL      string
+	// Text is the link: "68 P.S. § 250.512(a), Pennsylvania General
+	// Assembly", or the publisher alone, or "Our editorial rules".
+	Text string
+	// Kind is the plain-words kind after the link. Empty for the editorial
+	// source, whose link text already says what it is.
+	Kind string
+	// External is false for the editorial page, which opens in the same tab.
+	External bool
+}
+
+// SourceList is the "Source:" or "Sources:" block under a statement.
+type SourceList struct {
+	Lead  string
+	Lines []SourceLine
+}
+
+// SourceLineFor writes one citation as a source line.
+func SourceLineFor(lang string, c CitationChip) SourceLine {
+	if c.SourceKind == "editorial" {
+		return SourceLine{SourceID: c.SourceID, URL: c.URL, Text: UIString(lang, "editorial-rules")}
+	}
+	text := c.Label
+	if c.Locator != "" {
+		text = c.Locator + ", " + c.Label
+	}
+	return SourceLine{
+		SourceID: c.SourceID,
+		URL:      c.URL,
+		Text:     text,
+		Kind:     SourceKindWords(lang, c.SourceKind),
+		External: true,
+	}
+}
+
+// SourceFrom is the "From our editorial rules." tail on a tip or page note.
+type SourceFrom struct {
+	From string
+	Line SourceLine
+}
+
+// SourceFromFor writes the citation at the end of a tip or page note.
+func SourceFromFor(lang string, c CitationChip) SourceFrom {
+	return SourceFrom{From: UIString(lang, "from"), Line: SourceLineFor(lang, c)}
+}
+
+// SourceListFor writes a statement's citations as its numbered source list.
+func SourceListFor(lang string, cits []CitationChip) SourceList {
+	out := SourceList{Lead: UIString(lang, "source")}
+	if len(cits) > 1 {
+		out.Lead = UIString(lang, "sources")
+	}
+	for _, c := range cits {
+		out.Lines = append(out.Lines, SourceLineFor(lang, c))
+	}
+	return out
 }
 
 // Page types ----------------------------------------------------------------
@@ -588,7 +649,7 @@ type RulesEntry struct {
 
 // CitationChip is a rendered citation link shown inline after each statement.
 type CitationChip struct {
-	// SourceID lets the page script report a click on the chip (ADR-029 D6).
+	// SourceID lets the page script report a click on the citation (ADR-029 D6).
 	SourceID   int64
 	URL        string
 	Label      string

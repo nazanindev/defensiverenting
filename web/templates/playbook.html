@@ -26,7 +26,7 @@
   {{if .StructuredData}}<script type="application/ld+json">{{.StructuredData}}</script>{{end}}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 <body>
@@ -47,14 +47,15 @@
              these are and offers one way to switch, keeping the topic. The
              breadcrumb trail stays in the JSON-LD, not on the screen. */}}
         <header class="playbook-header">
-          {{if eq .Jurisdiction.Kind "country"}}<span class="city-badge">{{ui $l "nationwide"}}</span>{{end}}
+          {{/* ADR-032 D3: one small line above the title says the place and
+               the topic. The place word is the same one the place line uses. */}}
+          <p class="eyebrow">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide"}}{{else}}{{placeName .Jurisdiction}}{{end}} · {{.Topic.Name}}</p>
           <h1>{{.Playbook.Title}}</h1>
           {{/* ADR-031 D3: directly under the title, before the place, the
                intro and any rule. Renters are an at-risk group; they should
                know what this page is, what it is not, and where to go
                instead, before they read anything they might act on. */}}
           <div class="legal-note" role="note">
-            <svg class="legal-note-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10.5v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.3" r="1.3" fill="currentColor"/></svg>
             <p><strong>{{ui $l "legal-note-lead"}}</strong> {{ui $l "legal-note-general"}} {{if .LocalHelpPath}}<a href="{{.LocalHelpPath}}">{{uif $l "legal-note-help" .Jurisdiction.Name}}</a>.{{else if .IsLocalHelp}}{{ui $l "legal-note-groups"}}{{else}}{{ui $l "page-disclaimer-help"}}{{end}}</p>
           </div>
           {{/* ADR-016 A3: what every renter on this page should hear once,
@@ -62,9 +63,12 @@
                statements below no longer repeat. */}}
           {{if .PageNotes}}
           <div class="page-notes" role="note">
+            <svg class="page-notes-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3 22 20H2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1.2" fill="currentColor"/></svg>
+            <div class="page-notes-body">
             {{range .PageNotes}}
-            <div class="page-note">{{.BodyHTML}}{{with .Chip}}<a class="{{chipClass .SourceKind}} chip--small" data-out="{{.SourceID}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer" title="{{.Label}}">{{chipLabel .Label .Locator}}</a>{{end}}</div>
+            <div class="page-note">{{.BodyHTML}}{{with .Chip}} {{template "source-from" (sourceFrom $l .)}}{{end}}</div>
             {{end}}
+            </div>
           </div>
           {{end}}
           {{if ne .Jurisdiction.Kind "country"}}
@@ -163,17 +167,7 @@
               <div class="statement-item" id="s-{{.Key}}">
                 <div class="statement-body">{{.BodyHTML}}</div>
                 {{with .Warning}}<div class="statement-warning">{{.}}</div>{{end}}
-                <div class="citation-chips" aria-label="{{ui $l "sources"}}">
-                  {{range .Citations}}
-                  <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
-                     href="{{.URL}}"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
-                    {{chipLabel .Label .Locator}}
-                  </a>
-                  {{end}}
-                </div>
+                {{template "source-list" (sourceList $l .Citations)}}
                 {{if .CheckedOn}}
                 <p class="statement-checked">✓ {{ui $l "sources-checked"}} {{.CheckedOn}}</p>
                 {{end}}
@@ -225,17 +219,7 @@
             {{range .Statements}}
             <div class="faq-item"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
               <div class="faq-body">{{.BodyHTML}}</div>
-              <div class="citation-chips" aria-label="{{ui $l "sources"}}">
-                {{range .Citations}}
-                <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
-                   href="{{.URL}}"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
-                  {{chipLabel .Label .Locator}}
-                </a>
-                {{end}}
-              </div>
+              {{template "source-list" (sourceList $l .Citations)}}
             </div>
             {{end}}
           </dl>
@@ -248,17 +232,7 @@
                 <input type="checkbox" class="checklist-check">
                 <div class="checklist-body">
                   <div class="statement-body">{{.BodyHTML}}</div>
-                  <div class="citation-chips" aria-label="{{ui $l "sources"}}">
-                    {{range .Citations}}
-                    <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
-                       href="{{.URL}}"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
-                      {{chipLabel .Label .Locator}}
-                    </a>
-                    {{end}}
-                  </div>
+                  {{template "source-list" (sourceList $l .Citations)}}
                   {{/* ADR-028 D1: a national checklist sends the reader to
                        the concept page for the number where they live. */}}
                   {{if .SpecificsPath}}
@@ -273,27 +247,26 @@
           {{else}}
           {{/* ADR-028 D10: stage headings say where the renter is in the
                process. The numbering runs on across headings. */}}
-          {{range .StageGroups}}
-          {{if .Heading}}<h2 class="stage-heading">{{.Heading}}</h2>{{end}}
+          {{/* ADR-032 D1: stages alternate between the two accent colors, on
+               the heading bar and the number circles, so a reader sees where
+               one stage ends. */}}
+          {{range $i, $g := .StageGroups}}
+          {{with $g}}
+          {{if .Heading}}<h2 class="stage-heading" data-stage="{{mod $i 2}}">{{.Heading}}</h2>{{end}}
           <ol class="statement-list"{{if gt .Start 1}} start="{{.Start}}"{{end}}>
-            {{range .Statements}}
+            {{$start := .Start}}
+            {{range $j, $st := .Statements}}
+            {{with $st}}
             {{/* id is the statement's durable key (ADR-028 D11), so a link
                  to one claim survives edits. The concept anchor stays for
-                 the deep links concept pages already make. */}}
+                 the deep links concept pages already make. The visible
+                 number is drawn here (a filled circle, ADR-032 D1); the list
+                 itself still numbers for screen readers. */}}
             <li class="statement-item"{{if .Key}} id="s-{{.Key}}"{{end}}>
+              <span class="statement-num" aria-hidden="true">{{add $start $j}}</span>
               {{if .Anchor}}<span class="anchor" id="{{.Anchor}}"></span>{{end}}
               <div class="statement-body">{{.BodyHTML}}</div>
-              <div class="citation-chips" aria-label="{{ui $l "sources"}}">
-                {{range .Citations}}
-                <a class="{{chipClass .SourceKind}}" data-out="{{.SourceID}}"
-                   href="{{.URL}}"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   title="{{.Label}}{{if .Locator}} · {{.Locator}}{{end}}">
-                  {{chipLabel .Label .Locator}}
-                </a>
-                {{end}}
-              </div>
+              {{template "source-list" (sourceList $l .Citations)}}
               {{/* No per-statement date (ADR-031 D3): the byline carries one
                    "sources checked" date for the page, shown only when every
                    statement has earned it. */}}
@@ -314,13 +287,15 @@
                    quiet line, after the law it helps with. */}}
               {{range .Tips}}
               <div class="statement-tip">
-                <span class="tip-label">{{ui $l "tip"}}</span>
-                <div class="tip-body">{{.BodyHTML}}{{with .Chip}} <a class="{{chipClass .SourceKind}} chip--small" data-out="{{.SourceID}}" href="{{.URL}}" target="_blank" rel="noopener noreferrer" title="{{.Label}}">{{chipLabel .Label .Locator}}</a>{{end}}</div>
+                <svg class="tip-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.7.5 1 1.3 1 2.1h5c0-.8.3-1.6 1-2.1A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+                <div class="tip-body"><strong class="tip-label">{{ui $l "tip"}}.</strong> {{.BodyHTML}}{{with .Chip}} {{template "source-from" (sourceFrom $l .)}}{{end}}</div>
               </div>
               {{end}}
             </li>
             {{end}}
+            {{end}}
           </ol>
+          {{end}}
           {{end}}
           {{end}}
 
@@ -330,11 +305,12 @@
 
           {{/* Who published it and when sources were checked: fine print,
                after the guide (ADR-031 D3). */}}
-          <p class="byline byline--foot">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}} · {{.ReviewedOn}}{{end}}{{with .SourcesCheckedOn}} · {{ui $l "sources-checked-lower"}} {{.}}{{end}}</p>
-
-          <p class="report-link">
+          <div class="page-foot">
+          <svg class="page-foot-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="m8 12 3 3 5-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="page-foot-body">
+          <p class="byline byline--foot">{{ui $l "reviewed-by"}} <a href="/authors">{{.ReviewedByName}}</a>{{if .ReviewedOn}}, {{.ReviewedOn}}{{end}}.{{with .SourcesCheckedOn}} {{ui $l "sources-checked"}} {{.}}.{{end}}
             {{ui $l "report-question"}}
-            <a href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">{{ui $l "report-tell-us"}}</a>.
+            <a class="report-link" href="/report?url={{.Jurisdiction.TopicPathIn .Playbook.Language .Topic.Slug}}">{{ui $l "report-tell-us"}}</a>.
           </p>
 
           {{/* "Did this page help?" Counts only, one per reader per page per
@@ -350,6 +326,10 @@
             </p>
             <p class="helpful-thanks" hidden>{{ui $l "helpful-thanks"}}</p>
           </div>
+          {{end}}
+          </div>
+          </div>
+          {{if not .Preview}}
           <script>
           (function () {
             var box = document.querySelector('[data-helpful]');
@@ -390,7 +370,7 @@
             <li>
               <a href="{{$j.TopicPathIn $.Playbook.Language .Slug}}">
                 <span class="situation-name">{{.Name}}</span>
-                <span class="situation-arrow" aria-hidden="true">→</span>
+                <svg class="situation-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </a>
             </li>
             {{end}}

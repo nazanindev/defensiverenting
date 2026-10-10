@@ -559,7 +559,7 @@ func TestPlaybookHandler_statementTrustLine(t *testing.T) {
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/j/massachusetts/boston/security-deposits", nil))
 	body = rec.Body.String()
-	if !strings.Contains(body, "sources checked August 1, 2026") {
+	if !strings.Contains(body, "Sources checked August 1, 2026") {
 		t.Error("a fully confirmed page must show one date, its stalest confirmation")
 	}
 	if got := strings.Count(strings.ToLower(body), "sources checked"); got != 1 {
