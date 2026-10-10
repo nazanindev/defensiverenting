@@ -49,6 +49,16 @@ func TestAdvice_registryIsSeededAndBacked(t *testing.T) {
 	if !bySlug["breaking-lease-disclaimer"].Backed() {
 		t.Error("the disclaimer is the site's own voice and needs no quote")
 	}
+	for _, s := range []string{"read-your-lease", "write-down-the-problem", "photos-when-you-leave"} {
+		if !bySlug[s].SiteVoice {
+			t.Errorf("%s is a plain habit and needs no source", s)
+		}
+	}
+	for _, s := range []string{"leave-risk-owe", "answer-court-papers", "show-your-proof"} {
+		if bySlug[s].SiteVoice {
+			t.Errorf("%s states a consequence and must be backed", s)
+		}
+	}
 	if len(bySlug["show-your-proof"].Citations) != 0 {
 		t.Error("show-your-proof has no source yet and must not pretend to")
 	}
@@ -122,8 +132,8 @@ func TestAdvice_gateHoldsUnconfirmedAdvice(t *testing.T) {
 			unbacked++
 		}
 	}
-	if unbacked != 2 {
-		t.Fatalf("issues = %v, want two advice-unbacked (the disclaimer needs no quote)", codes)
+	if unbacked != 1 {
+		t.Fatalf("issues = %v, want one advice-unbacked: the risk note (the disclaimer and the read-your-lease habit need no quote)", codes)
 	}
 	confirmAdvice(t, pg, "leave-risk-owe", "read-your-lease")
 	if codes := pageIssueCodes(t, pg, draft); len(codes) != 0 {
