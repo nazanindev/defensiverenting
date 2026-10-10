@@ -33,16 +33,15 @@ type Advice struct {
 }
 
 // adviceAppliesSQL says whether the source aliased s may back advice on the
-// page aliased pb: a national source anywhere, a state source on that
+// page aliased pb: a national source (placed in the United States) anywhere, a state source on that
 // state's pages and its cities', a city source on that city's page. A source
 // from another place never backs advice here (ADR-016 A1, 2026-10-09).
-const adviceAppliesSQL = `(s.jurisdiction_id IS NULL
-	OR EXISTS (SELECT 1 FROM jurisdictions sj WHERE sj.id = s.jurisdiction_id AND sj.kind = 'country')
+const adviceAppliesSQL = `(EXISTS (SELECT 1 FROM jurisdictions sj WHERE sj.id = s.jurisdiction_id AND sj.kind = 'country')
 	OR s.jurisdiction_id = pb.jurisdiction_id
 	OR s.jurisdiction_id = (SELECT parent_id FROM jurisdictions WHERE id = pb.jurisdiction_id))`
 
 // adviceLocalSQL ranks a place's own source ahead of a national one.
-const adviceLocalSQL = `(s.jurisdiction_id IS NOT NULL AND NOT EXISTS (
+const adviceLocalSQL = `(NOT EXISTS (
 	SELECT 1 FROM jurisdictions sj WHERE sj.id = s.jurisdiction_id AND sj.kind = 'country'))`
 
 // AdviceCitation is the quote that backs an entry.

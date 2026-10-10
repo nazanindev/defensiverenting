@@ -238,7 +238,22 @@ func TestAdvice_backingFallsBackToNationalNeverAnotherState(t *testing.T) {
 	}
 	otherSrc := src("https://other.gov/guide-"+n, &other.ID)
 	homeSrc := src("https://home.gov/guide-"+n, &home.ID)
-	natSrc := src("https://national.gov/guide-"+n, nil)
+	var us int64
+	if err := pg.Pool().QueryRow(ctx, `SELECT id FROM jurisdictions WHERE kind = 'country' LIMIT 1`).Scan(&us); err != nil {
+		u, err := pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{Kind: "country", Name: "United States", Slug: "united-states"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		us = u.ID
+	}
+	natSrc := src("https://national.gov/guide-"+n, &us)
+	if _, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: "https://noplace.gov/guide-" + n, Publisher: "x", Kind: "gov_guidance"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.Pool().Exec(ctx, `INSERT INTO advice_citations (advice_id, source_id, quote)
+		SELECT a.id, s.id, 'q' FROM advice a, sources s WHERE a.slug = 'show-your-proof' AND s.url = $1`, "https://noplace.gov/guide-"+n); err == nil {
+		t.Fatal("an advice source with no place was accepted")
+	}
 
 	if _, err := pg.Pool().Exec(ctx, `
 		WITH a AS (SELECT id FROM advice WHERE slug = $1),
