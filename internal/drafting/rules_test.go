@@ -130,6 +130,6 @@ func TestSaveDraft_RulesPage(t *testing.T) {
 	}
 }
 
-func (s *rulesStore) SlotPageWarns(context.Context, string, string, string) (map[string]bool, error) {
+func (f *rulesStore) SlotPageWarns(context.Context, string, string, string) (map[string]bool, error) {
 	return nil, nil
 }

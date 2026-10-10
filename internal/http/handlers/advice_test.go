@@ -60,7 +60,7 @@ func TestAdvice_rendersNotesOnceAndTipsUnderTheirStatement(t *testing.T) {
 	first := strings.Index(body, `id="s-k1"`)
 	second := strings.Index(body, `id="s-k2"`)
 	tip := strings.Index(body, "Write down each problem.")
-	if !(first < tip && tip < second) {
+	if first >= tip || tip >= second {
 		t.Fatalf("the tip should sit under its own statement: s1=%d tip=%d s2=%d", first, tip, second)
 	}
 	if strings.Count(body, `class="statement-tip"`) != 1 {
