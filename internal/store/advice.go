@@ -32,6 +32,19 @@ type Advice struct {
 	Citations    []AdviceCitation
 }
 
+// adviceAppliesSQL says whether the source aliased s may back advice on the
+// page aliased pb: a national source anywhere, a state source on that
+// state's pages and its cities', a city source on that city's page. A source
+// from another place never backs advice here (ADR-016 A1, 2026-10-09).
+const adviceAppliesSQL = `(s.jurisdiction_id IS NULL
+	OR EXISTS (SELECT 1 FROM jurisdictions sj WHERE sj.id = s.jurisdiction_id AND sj.kind = 'country')
+	OR s.jurisdiction_id = pb.jurisdiction_id
+	OR s.jurisdiction_id = (SELECT parent_id FROM jurisdictions WHERE id = pb.jurisdiction_id))`
+
+// adviceLocalSQL ranks a place's own source ahead of a national one.
+const adviceLocalSQL = `(s.jurisdiction_id IS NOT NULL AND NOT EXISTS (
+	SELECT 1 FROM jurisdictions sj WHERE sj.id = s.jurisdiction_id AND sj.kind = 'country'))`
+
 // AdviceCitation is the quote that backs an entry.
 type AdviceCitation struct {
 	SourceID  int64
@@ -41,6 +54,8 @@ type AdviceCitation struct {
 	Quote     string
 	CheckedAt *time.Time
 	DriftAt   *time.Time
+	// Place names the source's place, "" for a national source.
+	Place string
 }
 
 // Backed reports whether an entry may publish: the site's own voice, or at
@@ -96,7 +111,7 @@ func pageAdvice(ctx context.Context, q rowQuerier, playbookID int64) ([]Advice, 
 		return nil, err
 	}
 	for i := range out {
-		cs, err := adviceCitations(ctx, q, out[i].ID)
+		cs, err := pageAdviceCitations(ctx, q, out[i].ID, playbookID)
 		if err != nil {
 			return nil, err
 		}
@@ -105,21 +120,44 @@ func pageAdvice(ctx context.Context, q rowQuerier, playbookID int64) ([]Advice, 
 	return out, nil
 }
 
-func adviceCitations(ctx context.Context, q rowQuerier, adviceID int64) ([]AdviceCitation, error) {
+// pageAdviceCitations is an entry's backing as one page may use it: the
+// page's own place first, then national; another place's never.
+func pageAdviceCitations(ctx context.Context, q rowQuerier, adviceID, playbookID int64) ([]AdviceCitation, error) {
 	rows, err := q.Query(ctx, `
-		SELECT s.id, s.url, s.publisher, s.kind, c.quote, c.checked_at, c.drift_at
+		SELECT s.id, s.url, s.publisher, s.kind, c.quote, c.checked_at, c.drift_at, COALESCE(sjn.name, '')
 		FROM advice_citations c
 		JOIN sources s ON s.id = c.source_id
+		JOIN playbooks pb ON pb.id = $2
+		LEFT JOIN jurisdictions sjn ON sjn.id = s.jurisdiction_id AND sjn.kind <> 'country'
+		WHERE c.advice_id = $1 AND `+adviceAppliesSQL+`
+		ORDER BY `+adviceLocalSQL+` DESC, c.position, c.id`, adviceID, playbookID)
+	if err != nil {
+		return nil, err
+	}
+	return scanAdviceCitations(rows)
+}
+
+// adviceCitations is every quote behind an entry, wherever it applies.
+func adviceCitations(ctx context.Context, q rowQuerier, adviceID int64) ([]AdviceCitation, error) {
+	rows, err := q.Query(ctx, `
+		SELECT s.id, s.url, s.publisher, s.kind, c.quote, c.checked_at, c.drift_at, COALESCE(sjn.name, '')
+		FROM advice_citations c
+		JOIN sources s ON s.id = c.source_id
+		LEFT JOIN jurisdictions sjn ON sjn.id = s.jurisdiction_id AND sjn.kind <> 'country'
 		WHERE c.advice_id = $1
 		ORDER BY c.position, c.id`, adviceID)
 	if err != nil {
 		return nil, err
 	}
+	return scanAdviceCitations(rows)
+}
+
+func scanAdviceCitations(rows pgx.Rows) ([]AdviceCitation, error) {
 	defer rows.Close()
 	var out []AdviceCitation
 	for rows.Next() {
 		var c AdviceCitation
-		if err := rows.Scan(&c.SourceID, &c.URL, &c.Publisher, &c.Kind, &c.Quote, &c.CheckedAt, &c.DriftAt); err != nil {
+		if err := rows.Scan(&c.SourceID, &c.URL, &c.Publisher, &c.Kind, &c.Quote, &c.CheckedAt, &c.DriftAt, &c.Place); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

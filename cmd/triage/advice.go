@@ -39,7 +39,11 @@ func advice(ctx context.Context, pg *store.PG, args []string) {
 		for _, a := range list {
 			r := row{Slug: a.Slug, Kind: a.Kind, Warns: a.Warns, Body: a.BodyMD, Backed: a.Backed()}
 			for _, c := range a.Citations {
-				r.From = append(r.From, c.Publisher)
+				place := c.Place
+				if place == "" {
+					place = "national"
+				}
+				r.From = append(r.From, c.Publisher+" ("+place+")")
 			}
 			out = append(out, r)
 		}

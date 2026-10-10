@@ -436,10 +436,10 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		WHERE `+cond+` AND NOT a.site_voice AND NOT EXISTS (
 			SELECT 1 FROM advice_citations c JOIN sources s ON s.id = c.source_id
 			WHERE c.advice_id = a.id AND c.checked_at IS NOT NULL AND c.drift_at IS NULL
-			  AND s.kind IN ('gov_guidance', 'nonprofit'))
+			  AND s.kind IN ('gov_guidance', 'nonprofit') AND `+adviceAppliesSQL+`)
 		ORDER BY pb.id, a.slug`, args,
 		func(id int64, f []string) {
-			add(id, 0, "advice-unbacked", fmt.Sprintf("the advice %q has no government or nonprofit quote that the source check has confirmed; run check-sources, find a source, or remove it from the page", f[0]))
+			add(id, 0, "advice-unbacked", fmt.Sprintf("the advice %q has no confirmed government or nonprofit quote from this place or national; add one, run check-sources, or remove it from the page", f[0]))
 		},
 	); err != nil {
 		return nil, err

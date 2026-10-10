@@ -197,3 +197,78 @@ func TestAdvice_entriesPassTheVoiceLint(t *testing.T) {
 		}
 	}
 }
+
+// A page uses its own place's source first, falls back to a national one,
+// and never leans on another place's guide.
+func TestAdvice_backingFallsBackToNationalNeverAnotherState(t *testing.T) {
+	pg := testDB(t)
+	ctx := context.Background()
+	n := t.Name()
+	freshSlugs(t, pg, "home-state-"+n, "adv-topic-"+n)
+	freshSlugs(t, pg, "other-state-"+n, "adv-topic2-"+n)
+	home, err := pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{Kind: "state", Name: "Home State", Slug: "home-state-" + n})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := pg.UpsertJurisdiction(ctx, store.UpsertJurisdictionParams{Kind: "state", Name: "Other State", Slug: "other-state-" + n})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tp, err := pg.UpsertTopic(ctx, store.UpsertTopicParams{Slug: "adv-topic-" + n, Name: "Adv Topic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := seedPlaybook(t, pg, home.ID, tp.ID, "draft", "Fallback page")
+	src := func(url string, j *int64) int64 {
+		s, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: url, Publisher: url, Kind: "gov_guidance", JurisdictionID: j})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.ID
+	}
+	otherSrc := src("https://other.gov/guide-"+n, &other.ID)
+	homeSrc := src("https://home.gov/guide-"+n, &home.ID)
+	natSrc := src("https://national.gov/guide-"+n, nil)
+
+	if _, err := pg.Pool().Exec(ctx, `
+		WITH a AS (SELECT id FROM advice WHERE slug = $1),
+		     r AS (DELETE FROM playbook_advice WHERE advice_id IN (SELECT id FROM a))
+		DELETE FROM advice WHERE id IN (SELECT id FROM a)`, "tip-"+n); err != nil {
+		t.Fatal(err)
+	}
+	var adviceID int64
+	if err := pg.Pool().QueryRow(ctx, `
+		INSERT INTO advice (slug, kind, body_md) VALUES ($1, 'tip', 'Keep a copy.') RETURNING id`, "tip-"+n).Scan(&adviceID); err != nil {
+		t.Fatal(err)
+	}
+	cite := func(source int64, pos int) {
+		if _, err := pg.Pool().Exec(ctx, `
+			INSERT INTO advice_citations (advice_id, source_id, quote, position, checked_at) VALUES ($1, $2, 'keep a copy', $3, now())`,
+			adviceID, source, pos); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cite(otherSrc, 0)
+	key := adviceFirstKey(t, pg, page)
+	if err := pg.SetPageAdvice(ctx, []store.AdviceRef{{PlaybookID: page, Slug: "tip-" + n, StatementKey: key}}, store.ActorReviewAgent); err != nil {
+		t.Fatal(err)
+	}
+	if codes := pageIssueCodes(t, pg, page); len(codes) != 1 || codes[0] != "advice-unbacked" {
+		t.Fatalf("another state's guide backed the tip: %v", codes)
+	}
+
+	cite(natSrc, 1)
+	if codes := pageIssueCodes(t, pg, page); len(codes) != 0 {
+		t.Fatalf("a national source should back the tip: %v", codes)
+	}
+	got, err := pg.PageAdvice(ctx, page)
+	if err != nil || len(got) != 1 || len(got[0].Citations) != 1 || got[0].Citations[0].SourceID != natSrc {
+		t.Fatalf("want only the national source, got %+v %v", got, err)
+	}
+
+	cite(homeSrc, 2)
+	got, err = pg.PageAdvice(ctx, page)
+	if err != nil || len(got[0].Citations) != 2 || got[0].Citations[0].SourceID != homeSrc {
+		t.Fatalf("the page's own state should come first, then national: %+v %v", got, err)
+	}
+}
