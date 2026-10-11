@@ -4789,4 +4789,4 @@ SELECT count(*) AS pages_out_of_order FROM (
     WHERE prev IS NULL OR prev <> stage)
 ) z;
 
-ROLLBACK;
+COMMIT;
