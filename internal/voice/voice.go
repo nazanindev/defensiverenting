@@ -586,6 +586,9 @@ type Page struct {
 	// Warns holds the risks the page says once at the top ("owe", "evict"),
 	// from its advice page notes (ADR-016 A3).
 	Warns map[string]bool
+	// Plain says the page's topic uses the plain layout (the Arizona
+	// pattern), switched on per topic.
+	Plain bool
 }
 
 // repeatedWarning is a warning sentence a statement carried before the page
@@ -625,10 +628,11 @@ func NeedsWarning(lang, text string) string {
 	return ""
 }
 
-// PlainMaxWords caps a statement on a page in the plain layout (ADR-016:
-// the page says the risk once at the top, and statements say only the
-// rule, the way a renter acts on it). The Arizona rewrite, 2026-10-11.
-const PlainMaxWords = 60
+// PlainMaxWords caps a statement on a plain-layout topic (the Arizona
+// pattern, 2026-10-11): enough for a rule, its deadline and its main
+// exception. The page caps in the publish gate keep agents from meeting it
+// by splitting.
+const PlainMaxWords = 75
 
 // sectionRef is a code section named in statement text. The source chip
 // names the section; the sentence says what it does.
@@ -644,12 +648,12 @@ var (
 // pattern: short, no section numbers, and every deadline says when it
 // starts. Pages not yet moved to the layout are not held to it.
 func plainViolations(lang, text string, page Page) []string {
-	if lang != "en" || len(page.Warns) == 0 {
+	if lang != "en" || !page.Plain {
 		return nil
 	}
 	var out []string
 	if n := len(wordRe.FindAllString(text, -1)); n > PlainMaxWords {
-		out = append(out, fmt.Sprintf("statement runs %d words (max %d on a plain-layout page): keep only the rule the renter acts on, split it, or move a habit to a tip", n, PlainMaxWords))
+		out = append(out, fmt.Sprintf("statement runs %d words (max %d on a plain-layout page): keep only the rule the renter acts on, or move a habit to a tip; merge or cut before you split, the page holds at most 12 statements", n, PlainMaxWords))
 	}
 	if m := sectionRef.FindString(text); m != "" {
 		out = append(out, fmt.Sprintf("%q names a code section: the source chip names it; say what the rule does, like \"the repair law\"", m))

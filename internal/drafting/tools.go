@@ -242,11 +242,11 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	}
 	// A draft that already references a page warning (ADR-016 A3) keeps it
 	// on re-save, so its statements are linted against it.
-	warns, err := tb.db.SlotPageWarns(ctx, in.JurisdictionSlug, in.TopicSlug, lang)
+	pl, err := tb.db.SlotPageLint(ctx, in.JurisdictionSlug, in.TopicSlug, lang)
 	if err != nil {
 		return SaveDraftOutput{}, err
 	}
-	violations := voice.LintOn(lang, texts, voice.Page{Warns: warns})
+	violations := voice.LintOn(lang, texts, voice.Page{Warns: pl.Warns, Plain: pl.Plain})
 	if len(violations) > 0 {
 		return SaveDraftOutput{}, reject("draft rejected by the editorial-voice lint. Rewrite the flagged text in plain language and save again (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 	}
@@ -694,11 +694,11 @@ func (tb *Toolbelt) ProposeStatement(ctx context.Context, in ProposeStatementInp
 		if err != nil {
 			return ProposeStatementOutput{}, err
 		}
-		warns, err := tb.db.KeyPageWarns(ctx, in.StatementKey, 0)
+		pl, err := tb.db.KeyPageLint(ctx, in.StatementKey, 0)
 		if err != nil {
 			return ProposeStatementOutput{}, err
 		}
-		if violations := voice.LintOn(lang, map[string]string{"body_md": st.BodyMD}, voice.Page{Warns: warns}); len(violations) > 0 {
+		if violations := voice.LintOn(lang, map[string]string{"body_md": st.BodyMD}, voice.Page{Warns: pl.Warns, Plain: pl.Plain}); len(violations) > 0 {
 			return ProposeStatementOutput{}, reject("rejected by the editorial-voice lint. Rewrite in plain language (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 		}
 		proposed = &store.ProposedStatement{BodyMD: st.BodyMD, Concept: strings.TrimSpace(st.Concept), TopicRef: strings.TrimSpace(st.TopicRef)}

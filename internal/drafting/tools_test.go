@@ -906,10 +906,10 @@ func TestFetchSource_PagesLongSources(t *testing.T) {
 	}
 }
 
-func (f *fakeStore) SlotPageWarns(context.Context, string, string, string) (map[string]bool, error) {
-	return nil, nil
+func (f *fakeStore) SlotPageLint(context.Context, string, string, string) (store.PageLint, error) {
+	return store.PageLint{}, nil
 }
 
-func (f *fakeStore) KeyPageWarns(context.Context, string, int64) (map[string]bool, error) {
-	return nil, nil
+func (f *fakeStore) KeyPageLint(context.Context, string, int64) (store.PageLint, error) {
+	return store.PageLint{}, nil
 }

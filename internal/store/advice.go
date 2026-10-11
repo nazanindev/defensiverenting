@@ -164,25 +164,36 @@ func scanAdviceCitations(rows pgx.Rows) ([]AdviceCitation, error) {
 	return out, rows.Err()
 }
 
-// PageWarns returns the risks the page states once at the top ("owe",
-// "evict"), so the lint can accept a risky statement without its own
-// warning. A retired note warns nothing.
-func (pg *PG) PageWarns(ctx context.Context, playbookID int64) (map[string]bool, error) {
+// PageLint is what the voice lint needs to know about a page: the risks it
+// says once at the top ("owe", "evict"; a retired note warns nothing), and
+// whether its topic uses the plain layout.
+type PageLint struct {
+	Warns map[string]bool
+	Plain bool
+}
+
+// PageLintOf returns the lint context of a page.
+func (pg *PG) PageLintOf(ctx context.Context, playbookID int64) (PageLint, error) {
+	out := PageLint{Warns: map[string]bool{}}
+	if err := pg.pool.QueryRow(ctx, `
+		SELECT COALESCE(t.plain_layout, false) FROM playbooks pb JOIN topics t ON t.id = pb.topic_id WHERE pb.id = $1`,
+		playbookID).Scan(&out.Plain); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out, err
+	}
 	rows, err := pg.pool.Query(ctx, `
 		SELECT a.warns FROM playbook_advice pa
 		JOIN advice a ON a.id = pa.advice_id
 		WHERE pa.playbook_id = $1 AND a.warns IS NOT NULL AND a.retired_at IS NULL`, playbookID)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	defer rows.Close()
-	out := map[string]bool{}
 	for rows.Next() {
 		var w string
 		if err := rows.Scan(&w); err != nil {
-			return nil, err
+			return out, err
 		}
-		out[w] = true
+		out.Warns[w] = true
 	}
 	return out, rows.Err()
 }
@@ -323,10 +334,10 @@ func (pg *PG) MarkAdviceCitation(ctx context.Context, id int64, found bool, note
 	return err
 }
 
-// KeyPageWarns returns the risks stated at the top of the page a proposal
-// for this statement would land on: playbookID when given, otherwise the
-// page carrying the key, a draft before a live page, as proposals resolve.
-func (pg *PG) KeyPageWarns(ctx context.Context, key string, playbookID int64) (map[string]bool, error) {
+// KeyPageLint is the lint context of the page a proposal for this statement
+// would land on: playbookID when given, otherwise the page carrying the key,
+// a draft before a live page, as proposals resolve.
+func (pg *PG) KeyPageLint(ctx context.Context, key string, playbookID int64) (PageLint, error) {
 	if playbookID == 0 {
 		err := pg.pool.QueryRow(ctx, `
 			SELECT pb.id FROM playbook_statements ps
@@ -335,13 +346,13 @@ func (pg *PG) KeyPageWarns(ctx context.Context, key string, playbookID int64) (m
 			WHERE s.key::text = lower(btrim($1)) AND pb.status IN ('draft', 'published')
 			ORDER BY (pb.status = 'draft') DESC LIMIT 1`, key).Scan(&playbookID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return map[string]bool{}, nil
+			return PageLint{Warns: map[string]bool{}}, nil
 		}
 		if err != nil {
-			return nil, err
+			return PageLint{}, err
 		}
 	}
-	return pg.PageWarns(ctx, playbookID)
+	return pg.PageLintOf(ctx, playbookID)
 }
 
 // ListAdvice returns every live registry entry with its backing quotes, for
@@ -374,9 +385,10 @@ func (pg *PG) ListAdvice(ctx context.Context) ([]Advice, error) {
 	return out, nil
 }
 
-// SlotPageWarns returns the risks stated at the top of the draft in this
-// slot, if one exists, so re-saving a draft lints it against its own page.
-func (pg *PG) SlotPageWarns(ctx context.Context, jurisdictionSlug, topicSlug, language string) (map[string]bool, error) {
+// SlotPageLint is the lint context of the draft in this slot, so re-saving a
+// draft lints it against its own page. With no draft yet, the topic still
+// says whether the plain layout applies.
+func (pg *PG) SlotPageLint(ctx context.Context, jurisdictionSlug, topicSlug, language string) (PageLint, error) {
 	var id int64
 	err := pg.pool.QueryRow(ctx, `
 		SELECT pb.id FROM playbooks pb
@@ -385,12 +397,17 @@ func (pg *PG) SlotPageWarns(ctx context.Context, jurisdictionSlug, topicSlug, la
 		WHERE j.slug = $1 AND t.slug = $2 AND pb.language = $3 AND pb.status = 'draft'`,
 		jurisdictionSlug, topicSlug, language).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return map[string]bool{}, nil
+		out := PageLint{Warns: map[string]bool{}}
+		err := pg.pool.QueryRow(ctx, `SELECT plain_layout FROM topics WHERE slug = $1`, topicSlug).Scan(&out.Plain)
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = nil
+		}
+		return out, err
 	}
 	if err != nil {
-		return nil, err
+		return PageLint{}, err
 	}
-	return pg.PageWarns(ctx, id)
+	return pg.PageLintOf(ctx, id)
 }
 
 // pageWarningsSQL is the warning notes on the page aliased pb, one

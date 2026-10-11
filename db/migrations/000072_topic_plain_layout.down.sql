@@ -1,0 +1,1 @@
+ALTER TABLE topics DROP COLUMN IF EXISTS plain_layout;

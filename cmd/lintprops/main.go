@@ -8,9 +8,9 @@
 // voice.HarderThan against the body it replaces, as triage check does.
 //
 // LINTPROPS_WARNED lists page ids (comma separated) whose page says the risk
-// once at the top (ADR-016 A3): their entries are linted as triage check
-// lints them, without a warning of their own. Without a database this tool
-// cannot look that up.
+// once at the top (ADR-016 A3); LINTPROPS_PLAIN lists page ids on a
+// plain-layout topic. Their entries are linted as triage check lints them.
+// Without a database this tool cannot look either up.
 package main
 
 import (
@@ -66,12 +66,16 @@ func main() {
 		}
 	}
 	const lang = "en"
-	warned := map[int64]bool{}
-	for _, f := range strings.Split(os.Getenv("LINTPROPS_WARNED"), ",") {
-		if id, err := strconv.ParseInt(strings.TrimSpace(f), 10, 64); err == nil {
-			warned[id] = true
+	ids := func(env string) map[int64]bool {
+		out := map[int64]bool{}
+		for _, f := range strings.Split(os.Getenv(env), ",") {
+			if id, err := strconv.ParseInt(strings.TrimSpace(f), 10, 64); err == nil {
+				out[id] = true
+			}
 		}
+		return out
 	}
+	warned, plain := ids("LINTPROPS_WARNED"), ids("LINTPROPS_PLAIN")
 	problems := 0
 	report := func(where string, msgs ...string) {
 		problems += len(msgs)
@@ -83,7 +87,7 @@ func main() {
 			continue
 		}
 		where := fmt.Sprintf("entry %d", i+1)
-		page := voice.Page{}
+		page := voice.Page{Plain: plain[e.PlaybookID]}
 		if warned[e.PlaybookID] {
 			page.Warns = map[string]bool{"owe": true}
 		}

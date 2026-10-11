@@ -115,13 +115,12 @@ type Store interface {
 	DecideProposal(ctx context.Context, id int64, status, by, note string, snoozedUntil *time.Time) error
 	ApproveProposal(ctx context.Context, p ApproveProposalParams) error
 	LanguageOfStatementKey(ctx context.Context, key string) (string, error)
-	// KeyPageWarns returns the risks the page a statement sits on says once at
-	// the top (ADR-016 A3), for the voice lint.
-	KeyPageWarns(ctx context.Context, key string, playbookID int64) (map[string]bool, error)
-	// PageWarns is KeyPageWarns for a page already known.
-	PageWarns(ctx context.Context, playbookID int64) (map[string]bool, error)
-	// SlotPageWarns is PageWarns for the draft in a slot, if any.
-	SlotPageWarns(ctx context.Context, jurisdictionSlug, topicSlug, language string) (map[string]bool, error)
+	// KeyPageLint, PageLintOf and SlotPageLint give the voice lint what it
+	// needs to know about a statement's page (ADR-016): the risks the page
+	// says once at the top, and whether its topic uses the plain layout.
+	KeyPageLint(ctx context.Context, key string, playbookID int64) (PageLint, error)
+	PageLintOf(ctx context.Context, playbookID int64) (PageLint, error)
+	SlotPageLint(ctx context.Context, jurisdictionSlug, topicSlug, language string) (PageLint, error)
 	// ListAdviceCitationsForCheck and MarkAdviceCitation let the source
 	// checker confirm the quotes behind registry advice (ADR-016 A1).
 	ListAdviceCitationsForCheck(ctx context.Context) ([]AdviceCheckRow, error)

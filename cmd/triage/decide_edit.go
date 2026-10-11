@@ -116,11 +116,11 @@ func decideEditFile(ctx context.Context, pg *store.PG, path string, args []strin
 		}
 		seen++
 		fmt.Printf("#%d %s · statement %d (%s)\n", p.ID, p.JurisdictionName+" · "+p.TopicName, p.Position, p.Reason)
-		warns, err := pg.PageWarns(ctx, p.TargetPlaybookID)
+		pl, err := pg.PageLintOf(ctx, p.TargetPlaybookID)
 		if err != nil {
 			fatal(err)
 		}
-		why := editVerdict(ctx, d, p, voice.Page{Warns: warns}, check)
+		why := editVerdict(ctx, d, p, voice.Page{Warns: pl.Warns, Plain: pl.Plain}, check)
 		if why != "" {
 			left++
 			fmt.Printf("    left pending: %s\n", why)

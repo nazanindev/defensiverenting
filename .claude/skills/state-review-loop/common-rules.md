@@ -31,8 +31,9 @@ Intro opening (2026-10-07): a breaking-lease intro opens with the common case ("
 
 Breaking-lease disclaimer (2026-10-07): every breaking-lease intro starts with "Breaking a lease early is legally complicated. If you are in danger, leave and get safe first. Otherwise, talk to legal aid as soon as you can, before you move out or stop paying rent." Then the common case and the real path.
 
-Plain layout (Arizona pattern, Nazanin 2026-10-11). A page in the plain layout carries the disclaimer and the risk note at the top (ADR-016), so its statements say only the rule, the way a renter acts on it. Enforced by the lint on such pages:
-- At most 60 words per statement. Split it, or move a habit to a tip.
+Plain layout (Arizona pattern, Nazanin 2026-10-11). Switched on per topic (topics.plain_layout; today breaking-lease only). The page carries the disclaimer and the risk note at the top (ADR-016), so its statements say only the rule, the way a renter acts on it. Enforced in code:
+- At most 75 words per statement (lint).
+- At most 12 statements and 650 words per page (publish gate), not counting the shared CFPB collector and pay statements. Meet a cap by merging or cutting, never by splitting.
 - No code section numbers in the text ("A.R.S. 33-1324", "section 504B.161"). The source chip names the section; the sentence says what the rule does ("the repair law").
 - Every deadline says who gets the days, from when, and what happens: "The law gives your landlord 10 days after they get your notice to fix it. If they do not fix it, your lease ends." Never a bare number of days.
 - No "as the law sets out", no "the law lets you" framing, no repeated warnings (the page says them once).

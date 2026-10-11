@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"fmt"
 	"errors"
 	"testing"
 
@@ -140,9 +141,9 @@ func TestAdvice_gateHoldsUnconfirmedAdvice(t *testing.T) {
 		t.Fatalf("confirmed advice still blocks publish: %v", codes)
 	}
 
-	warns, err := pg.PageWarns(ctx, draft)
-	if err != nil || !warns["owe"] {
-		t.Fatalf("PageWarns = %v, %v; want owe", warns, err)
+	pl, err := pg.PageLintOf(ctx, draft)
+	if err != nil || !pl.Warns["owe"] {
+		t.Fatalf("PageLintOf = %v, %v; want owe", pl, err)
 	}
 	pw, err := pg.AuthorGetPlaybook(ctx, draft)
 	if err != nil {
@@ -175,9 +176,9 @@ func TestAdvice_newDraftKeepsTheLivePagesAdvice(t *testing.T) {
 	if next == draft {
 		t.Fatal("the revision replaced the live page")
 	}
-	warns, err := pg.PageWarns(ctx, next)
-	if err != nil || !warns["owe"] {
-		t.Fatalf("the new draft lost the live page's warning: %v %v", warns, err)
+	pl, err := pg.PageLintOf(ctx, next)
+	if err != nil || !pl.Warns["owe"] {
+		t.Fatalf("the new draft lost the live page's warning: %v %v", pl, err)
 	}
 }
 
@@ -295,5 +296,49 @@ func TestAdvice_backingFallsBackToNationalNeverAnotherState(t *testing.T) {
 	got, err = pg.PageAdvice(ctx, page)
 	if err != nil || len(got[0].Citations) != 2 || got[0].Citations[0].SourceID != homeSrc {
 		t.Fatalf("the page's own state should come first, then national: %+v %v", got, err)
+	}
+}
+
+// A plain-layout topic caps the page; the shared CFPB statements do not count.
+func TestPlainLayout_pageCaps(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	if _, err := pg.Pool().Exec(ctx, `UPDATE topics SET plain_layout = true WHERE id = $1`, tID); err != nil {
+		t.Fatal(err)
+	}
+	src, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: "https://example.gov/caps-" + t.Name(), Publisher: "Example", Kind: "statute"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfpb, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: "https://www.consumerfinance.gov/caps-" + t.Name(), Publisher: "CFPB", Kind: "gov_guidance"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stmts []store.IngestStatementParams
+	for i := 0; i < store.PlainMaxStatements; i++ {
+		stmts = append(stmts, store.IngestStatementParams{BodyMD: fmt.Sprintf("Rule %d says a short thing.", i), Language: "en",
+			Sources: []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1", Quote: "verbatim", CheckedNow: true, CheckedBy: "test"}}})
+	}
+	shared := store.IngestStatementParams{BodyMD: "A debt collector must tell you how much.", Language: "en",
+		Sources: []store.IngestCitationParams{{SourceID: cfpb.ID, Quote: "verbatim", CheckedNow: true, CheckedBy: "test"}}}
+	ingest := func(list []store.IngestStatementParams) int64 {
+		if err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{JurisdictionID: jID, TopicID: tID, Language: "en", Slug: "caps-" + t.Name(),
+			Title: "Caps", IntroMD: "intro", Status: "draft", UpdatedBy: "test", Statements: list}); err != nil {
+			t.Fatal(err)
+		}
+		var id int64
+		if err := pg.Pool().QueryRow(ctx, `SELECT id FROM playbooks WHERE jurisdiction_id=$1 AND topic_id=$2 AND status='draft'`, jID, tID).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	id := ingest(append(append([]store.IngestStatementParams{}, stmts...), shared))
+	if codes := pageIssueCodes(t, pg, id); len(codes) != 0 {
+		t.Fatalf("12 statements plus a shared one should pass: %v", codes)
+	}
+	id = ingest(append(append([]store.IngestStatementParams{}, stmts...), stmts[0], shared))
+	codes := pageIssueCodes(t, pg, id)
+	if len(codes) != 1 || codes[0] != "page-too-many-statements" {
+		t.Fatalf("13 counted statements: issues = %v", codes)
 	}
 }

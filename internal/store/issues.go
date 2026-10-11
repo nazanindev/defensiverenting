@@ -23,6 +23,12 @@ import (
 // badges, the view page's issue list, and the publish gate all read the same
 // checks, so what the author is shown is exactly what publishing will refuse.
 
+// Page caps on a plain-layout topic (ADR-016 as amended; Nazanin 2026-10-11).
+const (
+	PlainMaxStatements = 12
+	PlainMaxPageWords  = 650
+)
+
 // PageIssue is one violation of the publish invariants on one page.
 type PageIssue struct {
 	// Code names the invariant, stable across wording changes:
@@ -30,7 +36,7 @@ type PageIssue struct {
 	// missing-quote, unverified-quote, source-unreachable, statute-locator,
 	// source-no-publisher, language-deferred, unreviewed-statement,
 	// undecided-item, page-flag, local-help-public, advice-unbacked,
-	// advice-retired, tip-orphan.
+	// advice-retired, tip-orphan, page-too-many-statements, page-too-long.
 	Code string
 	// Detail is the reviewer-facing sentence, naming the statement or source.
 	Detail string
@@ -470,6 +476,35 @@ func collectIssues(ctx context.Context, q rowQuerier, cond string, args ...any) 
 		ORDER BY pb.id, a.slug`, args,
 		func(id int64, f []string) {
 			add(id, 0, "tip-orphan", fmt.Sprintf("the tip %q sits under a statement that is no longer on the page; attach it to another statement or remove it", f[0]))
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	// A plain-layout topic holds a page to PlainMaxStatements statements and
+	// PlainMaxPageWords words (the Arizona pattern, 2026-10-11), so a
+	// statement cap is met by merging or cutting, never by splitting. The
+	// statements every state page shares, which cite only the CFPB (debt
+	// collectors, pay garnishment), are not counted.
+	if err := scanIssueRows(ctx, q, `
+		SELECT pb.id, count(*)::text, COALESCE(sum(array_length(regexp_split_to_array(btrim(s.body_md), '\s+'), 1)), 0)::text
+		FROM playbooks pb
+		JOIN topics t ON t.id = pb.topic_id
+		JOIN playbook_statements ps ON ps.playbook_id = pb.id
+		JOIN statements s ON s.id = ps.statement_id
+		WHERE `+cond+` AND t.plain_layout
+		  AND EXISTS (SELECT 1 FROM citations c JOIN sources src ON src.id = c.source_id
+		              WHERE c.statement_id = s.id AND src.kind <> 'editorial'
+		                AND src.url NOT LIKE 'https://www.consumerfinance.gov/%')
+		GROUP BY pb.id
+		ORDER BY pb.id`, args,
+		func(id int64, f []string) {
+			if n := pos(f[0]); n > PlainMaxStatements {
+				add(id, 0, "page-too-many-statements", fmt.Sprintf("the page has %d statements (max %d on a plain-layout page, not counting the shared collector and pay statements): merge statements that repeat a rule, or cut what a renter cannot act on", n, PlainMaxStatements))
+			}
+			if w := pos(f[1]); w > PlainMaxPageWords {
+				add(id, 0, "page-too-long", fmt.Sprintf("the page runs %d words (max %d on a plain-layout page, not counting the shared collector and pay statements): cut or merge", w, PlainMaxPageWords))
+			}
 		},
 	); err != nil {
 		return nil, err

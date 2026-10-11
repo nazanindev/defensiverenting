@@ -398,11 +398,11 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 			fatal(err)
 		}
 		lang := "en"
-		warns, err := pg.KeyPageWarns(ctx, key, e.PlaybookID)
+		pl, err := pg.KeyPageLint(ctx, key, e.PlaybookID)
 		if err != nil {
 			fatal(err)
 		}
-		page := voice.Page{Warns: warns}
+		page := voice.Page{Warns: pl.Warns, Plain: pl.Plain}
 		if e.Proposed.BodyMD != current.BodyMD {
 			if v := voice.LintOn(lang, map[string]string{"body_md": e.Proposed.BodyMD}, page); len(v) > 0 {
 				bad(i, "voice lint:\n  - %s", strings.Join(v, "\n  - "))

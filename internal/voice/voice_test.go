@@ -589,13 +589,13 @@ func TestMateriallyIsGlossedAsSeriously(t *testing.T) {
 }
 
 func TestPlainLayoutRules(t *testing.T) {
-	plain := Page{Warns: map[string]bool{"owe": true}}
-	long := strings.Repeat("Your landlord must fix the heat. ", 12)
+	plain := Page{Plain: true}
+	long := strings.Repeat("Your landlord must fix the heat. ", 14)
 	if len(plainViolations("en", long, plain)) == 0 {
 		t.Error("a long statement on a plain page should fail")
 	}
-	if len(plainViolations("en", long, Page{})) != 0 {
-		t.Error("pages not moved to the plain layout are not held to it")
+	if len(plainViolations("en", long, Page{Warns: map[string]bool{"owe": true}})) != 0 {
+		t.Error("a topic not switched to the plain layout is not held to it")
 	}
 	if len(plainViolations("en", "Your landlord may fail A.R.S. 33-1324.", plain)) == 0 {
 		t.Error("a code section in the text should fail")

@@ -216,3 +216,12 @@ Not built yet:
 
 - Search results show a statement's text without its page warning. They are snippets that link to the guide, where the note is at the top.
 - The authoring portal shows advice in the preview but has no picker to add or remove references; agents use `triage advice`.
+
+### A8. The plain layout (2026-10-11)
+
+The pilot pages were still statutes walked through clause by clause. Arizona was rewritten for a renter (1,071 words to about 520): one statement per step, no code section numbers in the text, and every deadline in one form, "The law gives your landlord 10 days after they get your notice to fix it. If they do not fix it, your lease ends." Nazanin approved the page and the rules that hold it:
+
+- A topic switches on the plain layout on purpose (`topics.plain_layout`, migration 000072), after its own pilot. Breaking-lease is the only one today. Rules pages never use it.
+- On a plain-layout topic the lint holds a statement to 75 words, no code section numbers, and a deadline that names its start. A cap of 60 was tried and dropped: it pushed agents to split, and pages grew.
+- The publish gate holds a plain-layout page to 12 statements and 650 words (`page-too-many-statements`, `page-too-long`), not counting the statements that cite only the CFPB, which every state page shares. The page cap is what keeps the statement cap from being met by splitting.
+- The risk note follows option B: the full note where a state's source says both that a renter who leaves can owe or be sued and that a reason to leave can fail in court; otherwise a short note backed by an "owe" quote plus the site-voice line "Even with a good reason to leave, a court might disagree." A state with neither keeps its warnings on its statements.
