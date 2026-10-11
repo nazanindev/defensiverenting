@@ -348,6 +348,12 @@ type dashboardView struct {
 	// Q is free text matched against the title, place name and topic slug,
 	// case-insensitively. It is the "find the deposit pages" filter.
 	Q string
+	// Topic narrows to one topic slug; By to the person or agent who last
+	// touched the page; Helpful to pages with ("answered") or without
+	// ("unanswered") reader answers. Each is one column's filter.
+	Topic   string
+	By      string
+	Helpful string
 }
 
 // pageKinds is the allowlist for Kind. It mirrors Playbook.PageKind; a value
@@ -382,6 +388,11 @@ func (v dashboardView) normalize() dashboardView {
 	if !pageKinds[v.Kind] {
 		v.Kind = ""
 	}
+	if v.Helpful != "answered" && v.Helpful != "unanswered" {
+		v.Helpful = ""
+	}
+	v.Topic = strings.TrimSpace(v.Topic)
+	v.By = strings.TrimSpace(v.By)
 	v.Q = strings.TrimSpace(v.Q)
 	if len(v.Q) > maxQueryLen {
 		v.Q = v.Q[:maxQueryLen]
@@ -411,35 +422,72 @@ func (v dashboardView) query() string {
 	if v.Q != "" {
 		q.Set("q", v.Q)
 	}
+	if v.Topic != "" {
+		q.Set("topic", v.Topic)
+	}
+	if v.By != "" {
+		q.Set("by", v.By)
+	}
+	if v.Helpful != "" {
+		q.Set("helpful", v.Helpful)
+	}
 	return q.Encode()
+}
+
+// Link returns the href for the view with one filter field set to value,
+// keeping everything else. An empty value clears that field. Field names are
+// the query parameter names; an unknown field returns the view unchanged.
+func (v dashboardView) Link(field, value string) template.URL {
+	next := v
+	switch field {
+	case "place":
+		next.Place = value
+	case "lang":
+		next.Lang = value
+	case "kind":
+		next.Kind = value
+	case "q":
+		next.Q = value
+	case "topic":
+		next.Topic = value
+	case "by":
+		next.By = value
+	case "helpful":
+		next.Helpful = value
+	case "status":
+		next.Status = value
+	}
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
 }
 
 // Filtered says whether anything beyond the status tab narrows the list, so
 // the publish-ready button can say it follows the filter.
 func (v dashboardView) Filtered() bool {
-	return v.Place != "" || v.Lang != "" || v.Kind != "" || v.Q != ""
+	return v.Place != "" || v.Lang != "" || v.Kind != "" || v.Q != "" || v.Topic != "" || v.By != "" || v.Helpful != ""
 }
 
 // KindLink returns the href for narrowing to one page kind, keeping every
 // other part of the view. An empty kind clears the filter.
-func (v dashboardView) KindLink(kind string) template.URL {
-	next := v
-	next.Kind = kind
-	return template.URL("/?" + next.normalize().query()) // #nosec G203
-}
+func (v dashboardView) KindLink(kind string) template.URL { return v.Link("kind", kind) }
 
 // QLink returns the href for the text filter set to q, keeping the rest of the
 // view. An empty q clears it.
-func (v dashboardView) QLink(q string) template.URL {
-	next := v
-	next.Q = q
-	return template.URL("/?" + next.normalize().query()) // #nosec G203
-}
+func (v dashboardView) QLink(q string) template.URL { return v.Link("q", q) }
 
 // matches reports whether a row passes the kind and text filters. Place and
 // language need lookups the view does not hold, so they live in filterRows.
 func (v dashboardView) matches(p store.AuthorPlaybookRow) bool {
 	if v.Kind != "" && p.PageKind != v.Kind {
+		return false
+	}
+	if v.Topic != "" && p.TopicSlug != v.Topic {
+		return false
+	}
+	if v.By != "" && p.UpdatedBy != v.By {
+		return false
+	}
+	answered := p.HelpfulYes+p.HelpfulNo > 0
+	if (v.Helpful == "answered" && !answered) || (v.Helpful == "unanswered" && answered) {
 		return false
 	}
 	if v.Q == "" {
@@ -453,27 +501,15 @@ func (v dashboardView) matches(p store.AuthorPlaybookRow) bool {
 
 // PlaceLink returns the href for filtering to one location, keeping the current
 // status and sort. An empty slug clears the filter.
-func (v dashboardView) PlaceLink(slug string) template.URL {
-	next := v
-	next.Place = slug
-	return template.URL("/?" + next.normalize().query()) // #nosec G203
-}
+func (v dashboardView) PlaceLink(slug string) template.URL { return v.Link("place", slug) }
 
 // LangLink returns the href for narrowing to one language, keeping the current
 // status, sort and place. An empty code clears the filter.
-func (v dashboardView) LangLink(lang string) template.URL {
-	next := v
-	next.Lang = lang
-	return template.URL("/?" + next.normalize().query()) // #nosec G203
-}
+func (v dashboardView) LangLink(lang string) template.URL { return v.Link("lang", lang) }
 
 // StatusLink returns the href for one status tab, carrying sort, place and
 // language along: switching to Drafts must not silently widen the list.
-func (v dashboardView) StatusLink(status string) template.URL {
-	next := v
-	next.Status = status
-	return template.URL("/?" + next.normalize().query()) // #nosec G203
-}
+func (v dashboardView) StatusLink(status string) template.URL { return v.Link("status", status) }
 
 // SortLink returns the full href for sorting by col: the same column reversed,
 // or a fresh column at its natural direction.
@@ -489,7 +525,8 @@ func (v dashboardView) StatusLink(status string) template.URL {
 // Place is carried through: sorting a filtered list must not silently widen it
 // back to every city.
 func (v dashboardView) SortLink(col string) template.URL {
-	next := dashboardView{Status: v.Status, Sort: col, Place: v.Place, Lang: v.Lang, Kind: v.Kind, Q: v.Q}
+	next := v
+	next.Sort, next.Dir = col, ""
 	if v.Sort == col {
 		next.Dir = "asc"
 		if v.Dir == "asc" {
@@ -527,6 +564,7 @@ func viewFromValues(q url.Values) dashboardView {
 	return dashboardView{
 		Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir"),
 		Place: q.Get("place"), Lang: q.Get("lang"), Kind: q.Get("kind"), Q: q.Get("q"),
+		Topic: q.Get("topic"), By: q.Get("by"), Helpful: q.Get("helpful"),
 	}
 }
 
@@ -567,6 +605,17 @@ func (s *srv) filterRows(ctx context.Context, view dashboardView, playbooks []st
 
 	if view.Lang != "" && !langs[view.Lang] {
 		view.Lang = ""
+	}
+	topics, bys := map[string]bool{}, map[string]bool{}
+	for _, p := range playbooks {
+		topics[p.TopicSlug] = true
+		bys[p.UpdatedBy] = true
+	}
+	if !topics[view.Topic] {
+		view.Topic = ""
+	}
+	if !bys[view.By] {
+		view.By = ""
 	}
 	// Content in a deferred language (ADR-015 D3) is out of the working set:
 	// it shows only when the filter names that language, so the list and the
@@ -684,6 +733,8 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		ps.Aggregate(row.Stmt.Standing())
 	}
 	kinds := kindOptions(playbooks)
+	topics := countBy(playbooks, func(p store.AuthorPlaybookRow) string { return p.TopicSlug })
+	bys := countBy(playbooks, func(p store.AuthorPlaybookRow) string { return p.UpdatedBy })
 	view := readView(r)
 	playbooks, view, places, showLanguage := s.filterRows(ctx, view, playbooks)
 
@@ -749,6 +800,8 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Status":          view.Status,
 		"ShowLanguage":    showLanguage,
 		"Kinds":           kinds,
+		"Topics":          topics,
+		"Bys":             bys,
 		"DraftCount":      draftCount,
 		"PublishedCount":  publishedCount,
 		"TotalCount":      draftCount + publishedCount + supersededCount,
@@ -1606,6 +1659,30 @@ func kindOptions(rows []store.AuthorPlaybookRow) []kindOption {
 			out = append(out, kindOption{Kind: k, Count: count[k]})
 		}
 	}
+	return out
+}
+
+// valueCount is one option in a column filter: the value and how many pages
+// carry it in total.
+type valueCount struct {
+	Value string
+	Count int
+}
+
+// countBy lists the distinct values of key across rows, A to Z, with counts.
+// Empty values are left out: a column filter offers what is there to pick.
+func countBy(rows []store.AuthorPlaybookRow, key func(store.AuthorPlaybookRow) string) []valueCount {
+	count := map[string]int{}
+	for _, r := range rows {
+		if k := key(r); k != "" {
+			count[k]++
+		}
+	}
+	out := make([]valueCount, 0, len(count))
+	for k, n := range count {
+		out = append(out, valueCount{Value: k, Count: n})
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Value) < strings.ToLower(out[j].Value) })
 	return out
 }
 

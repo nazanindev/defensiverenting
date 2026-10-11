@@ -73,6 +73,9 @@
   .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
   .place-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: .8rem; color: #7a5c5c; }
   .row-num { color: #b0a0a0; font-variant-numeric: tabular-nums; text-align: right; width: 2.5em; font-size: .8rem; }
+  tr.filters th { padding: 3px 6px 6px; text-transform: none; letter-spacing: 0; font-size: .74rem; top: 29px; }
+  tr.filters select, tr.filters input { font-size: .74rem; padding: .2rem .3rem; border-radius: 5px; border: 1px solid #e8dede; background: #fff; font-family: inherit; max-width: 11em; color: #4a1223; }
+  tr.filters input[type=search] { width: 100%; max-width: none; }
   .place-filter input[type=search] { font-size: .8rem; padding: .28rem .5rem; border-radius: 6px; border: 1px solid #e8dede; background: #fff; width: 14em; font-family: inherit; }
   .place-filter a { color: #9a7878; text-decoration: none; font-size: 1rem; }
   .place-filter select { font-size: .8rem; padding: .28rem .5rem; border-radius: 6px; border: 1px solid #e8dede; background: #fff; }
@@ -123,6 +126,9 @@
         <input type="hidden" name="lang" value="{{.View.Lang}}">
         <input type="hidden" name="kind" value="{{.View.Kind}}">
         <input type="hidden" name="q" value="{{.View.Q}}">
+        <input type="hidden" name="topic" value="{{.View.Topic}}">
+        <input type="hidden" name="by" value="{{.View.By}}">
+        <input type="hidden" name="helpful" value="{{.View.Helpful}}">
         <button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0" title="{{if .View.Filtered}}Only drafts in the current filter{{else}}Every draft with nothing left to do{{end}}">Publish {{.ReadyCount}} ready{{if .View.Filtered}} here{{end}}</button>
       </form>{{end}}
       <a href="/new" class="btn btn-primary">+ New Page</a>
@@ -157,19 +163,8 @@
     <a class="tab {{if eq .Status "published"}}active{{end}}" href="{{$v.StatusLink "published"}}">Published <b>{{.PublishedCount}}</b></a>
     {{if .SupersededCount}}<a class="tab {{if eq .Status "superseded"}}active{{end}}" href="{{$v.StatusLink "superseded"}}" title="Earlier versions of pages that were replaced">Replaced <b>{{.SupersededCount}}</b></a>{{end}}
 
-    {{if .Places}}
-    <span class="place-filter">
-      <label for="place-sel">Location</label>
-      <select id="place-sel" onchange="location.href = this.value">
-        <option value="{{$v.PlaceLink ""}}"{{if not $v.Place}} selected{{end}}>Everywhere</option>
-        {{range .Places}}
-        <option value="{{$v.PlaceLink .Slug}}"{{if eq $v.Place .Slug}} selected{{end}}>{{if eq .Kind "city"}}&nbsp;&nbsp;&nbsp;{{else if eq .Kind "state"}}&nbsp;{{end}}{{.Name}} ({{.Count}})</option>
-        {{end}}
-      </select>
-    </span>
-    {{end}}
     {{if .Kinds}}
-    <span class="place-filter" style="margin-left:0">
+    <span class="place-filter">
       <label for="kind-sel">Type</label>
       <select id="kind-sel" onchange="location.href = this.value">
         <option value="{{$v.KindLink ""}}"{{if not $v.Kind}} selected{{end}}>All types</option>
@@ -179,19 +174,6 @@
       </select>
     </span>
     {{end}}
-    {{/* Text filter: a GET form that carries the rest of the view as hidden
-         fields, so typing a title keeps the place, kind, tab and sort. */}}
-    <form method="get" action="/" class="place-filter" style="margin-left:0">
-      <input type="hidden" name="status" value="{{$v.Status}}">
-      <input type="hidden" name="sort" value="{{$v.Sort}}">
-      <input type="hidden" name="dir" value="{{$v.Dir}}">
-      <input type="hidden" name="place" value="{{$v.Place}}">
-      <input type="hidden" name="lang" value="{{$v.Lang}}">
-      <input type="hidden" name="kind" value="{{$v.Kind}}">
-      <label for="q-in">Title</label>
-      <input id="q-in" type="search" name="q" value="{{$v.Q}}" placeholder="title, place or topic" maxlength="100">
-      {{if $v.Q}}<a href="{{$v.QLink ""}}" title="Clear the text filter">×</a>{{end}}
-    </form>
     {{if .ShowLanguage}}
     <span class="place-filter" style="margin-left:0">
       <label for="lang-sel">Language</label>
@@ -204,8 +186,23 @@
     {{end}}
   </div>
 
+  {{/* The title box submits this form (HTML form= attribute), so Enter in
+       the column keeps every other part of the view. The selects navigate on
+       change; a filter that makes the list empty still shows the row so it
+       can be cleared. */}}
+  <form id="q-form" method="get" action="/" style="display:none">
+    <input type="hidden" name="status" value="{{$v.Status}}">
+    <input type="hidden" name="sort" value="{{$v.Sort}}">
+    <input type="hidden" name="dir" value="{{$v.Dir}}">
+    <input type="hidden" name="place" value="{{$v.Place}}">
+    <input type="hidden" name="lang" value="{{$v.Lang}}">
+    <input type="hidden" name="kind" value="{{$v.Kind}}">
+    <input type="hidden" name="topic" value="{{$v.Topic}}">
+    <input type="hidden" name="by" value="{{$v.By}}">
+    <input type="hidden" name="helpful" value="{{$v.Helpful}}">
+  </form>
+
 <div class="card">
-    {{if .Playbooks}}
     <table>
       <thead>
         <tr>
@@ -219,7 +216,37 @@
           <th class="{{if eq $v.Sort "helpful"}}is-sorted{{end}}"><a href="{{$v.SortLink "helpful"}}" title="Did this page help? Answers from readers of the live page. Ascending puts the least helpful pages first.">Helpful<span class="arrow">{{$v.Arrow "helpful"}}</span></a></th>
           <th>Actions</th>
         </tr>
+        <tr class="filters">
+          <th></th>
+          <th><select onchange="location.href = this.value" aria-label="Filter by city">
+            <option value="{{$v.Link "place" ""}}"{{if not $v.Place}} selected{{end}}>Everywhere</option>
+            {{range .Places}}<option value="{{$v.Link "place" .Slug}}"{{if eq $v.Place .Slug}} selected{{end}}>{{if eq .Kind "city"}}&nbsp;&nbsp;&nbsp;{{else if eq .Kind "state"}}&nbsp;{{end}}{{.Name}} ({{.Count}})</option>{{end}}
+          </select></th>
+          <th><select onchange="location.href = this.value" aria-label="Filter by topic">
+            <option value="{{$v.Link "topic" ""}}"{{if not $v.Topic}} selected{{end}}>All topics</option>
+            {{range .Topics}}<option value="{{$v.Link "topic" .Value}}"{{if eq $v.Topic .Value}} selected{{end}}>{{.Value}} ({{.Count}})</option>{{end}}
+          </select></th>
+          <th><input form="q-form" id="q-in" type="search" name="q" value="{{$v.Q}}" placeholder="Title contains…" maxlength="100" aria-label="Filter by title"></th>
+          {{if .ShowLanguage}}<th></th>{{end}}
+          <th><select onchange="location.href = this.value" aria-label="Filter by status">
+            <option value="{{$v.Link "status" "all"}}"{{if eq $v.Status "all"}} selected{{end}}>Any status</option>
+            <option value="{{$v.Link "status" "draft"}}"{{if eq $v.Status "draft"}} selected{{end}}>draft</option>
+            <option value="{{$v.Link "status" "published"}}"{{if eq $v.Status "published"}} selected{{end}}>published</option>
+            {{if .SupersededCount}}<option value="{{$v.Link "status" "superseded"}}"{{if eq $v.Status "superseded"}} selected{{end}}>superseded</option>{{end}}
+          </select></th>
+          <th><select onchange="location.href = this.value" aria-label="Filter by who last updated">
+            <option value="{{$v.Link "by" ""}}"{{if not $v.By}} selected{{end}}>Anyone</option>
+            {{range .Bys}}<option value="{{$v.Link "by" .Value}}"{{if eq $v.By .Value}} selected{{end}}>{{.Value}} ({{.Count}})</option>{{end}}
+          </select></th>
+          <th><select onchange="location.href = this.value" aria-label="Filter by reader answers">
+            <option value="{{$v.Link "helpful" ""}}"{{if not $v.Helpful}} selected{{end}}>Any</option>
+            <option value="{{$v.Link "helpful" "answered"}}"{{if eq $v.Helpful "answered"}} selected{{end}}>Has answers</option>
+            <option value="{{$v.Link "helpful" "unanswered"}}"{{if eq $v.Helpful "unanswered"}} selected{{end}}>No answers</option>
+          </select></th>
+          <th>{{if $v.Filtered}}<a href="/?status={{$v.Status}}&amp;sort={{$v.Sort}}&amp;dir={{$v.Dir}}" class="btn btn-view btn-xs" title="Clear every filter">Clear filters</a>{{end}}</th>
+        </tr>
       </thead>
+    {{if .Playbooks}}
       <tbody>
         {{range $i, $p := .Playbooks}}{{with $p}}
         <tr>
@@ -266,15 +293,16 @@
         </tr>
         {{end}}{{end}}
       </tbody>
-    </table>
     {{else}}
-    <div class="empty">
+      <tbody><tr><td colspan="{{if .ShowLanguage}}10{{else}}9{{end}}"><div class="empty">
       {{if eq .Status "draft"}}No drafts waiting for review.
       {{else if eq .Status "published"}}Nothing published yet.
       {{else if eq .Status "superseded"}}No pages have been replaced yet.
       {{else}}No playbooks yet. <a href="/new">Create the first one.</a>{{end}}
-    </div>
+      {{if $v.Filtered}} Nothing matches the filters.{{end}}
+    </div></td></tr></tbody>
     {{end}}
+    </table>
   </div>
 </div>
 </body>

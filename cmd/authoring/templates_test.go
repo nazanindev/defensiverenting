@@ -658,6 +658,9 @@ func TestDashboardTemplate_publishReadyCarriesTheFilter(t *testing.T) {
 	data["ReadyCount"] = 1
 	data["View"] = dashboardView{Status: "draft", Place: "texas", Kind: "rules", Q: "dep"}.normalize()
 	data["Kinds"] = []kindOption{{Kind: "rules", Count: 1}}
+	data["Topics"] = []valueCount{{Value: "security-deposits", Count: 1}}
+	data["Bys"] = []valueCount{{Value: "Nazanin", Count: 1}}
+	data["View"] = dashboardView{Status: "draft", Place: "texas", Kind: "rules", Q: "dep", Topic: "security-deposits", By: "Nazanin", Helpful: "unanswered"}.normalize()
 	var buf bytes.Buffer
 	if err := parseTemplates(t).ExecuteTemplate(&buf, "dashboard.html", data); err != nil {
 		t.Fatal(err)
@@ -666,6 +669,8 @@ func TestDashboardTemplate_publishReadyCarriesTheFilter(t *testing.T) {
 	for _, want := range []string{
 		`name="place" value="texas"`, `name="kind" value="rules"`, `name="q" value="dep"`,
 		`Publish 1 ready here`, `<option value="/?dir=`, `id="q-in" type="search" name="q" value="dep"`,
+		`name="topic" value="security-deposits"`, `name="by" value="Nazanin"`, `name="helpful" value="unanswered"`,
+		`<tr class="filters">`, `Clear filters`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered dashboard is missing %q", want)

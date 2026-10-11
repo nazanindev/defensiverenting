@@ -203,3 +203,42 @@ func TestKindLink_keepsTheRestOfTheView(t *testing.T) {
 		t.Errorf("SortLink = %q dropped the text filter", sl)
 	}
 }
+
+// Each column filter narrows on its own field and composes with the others.
+func TestDashboardView_columnFilters(t *testing.T) {
+	row := store.AuthorPlaybookRow{Title: "Deposit", JurisdictionName: "Ohio", TopicSlug: "security-deposits", PageKind: "playbook", UpdatedBy: "Nazanin", HelpfulYes: 2}
+	cases := []struct {
+		v    dashboardView
+		want bool
+	}{
+		{dashboardView{Topic: "security-deposits"}, true},
+		{dashboardView{Topic: "eviction"}, false},
+		{dashboardView{By: "Nazanin"}, true},
+		{dashboardView{By: "agent"}, false},
+		{dashboardView{Helpful: "answered"}, true},
+		{dashboardView{Helpful: "unanswered"}, false},
+		{dashboardView{Helpful: "maybe"}, true}, // unknown value is cleared, not a filter
+		{dashboardView{Topic: "security-deposits", By: "Nazanin", Helpful: "answered", Q: "dep"}, true},
+	}
+	for _, c := range cases {
+		if got := c.v.normalize().matches(row); got != c.want {
+			t.Errorf("%+v matches = %v, want %v", c.v, got, c.want)
+		}
+	}
+}
+
+func TestLink_setsOneFieldAndKeepsTheRest(t *testing.T) {
+	v := dashboardView{Status: "draft", Sort: "city", Dir: "asc", Place: "texas", Topic: "eviction", By: "Nazanin"}.normalize()
+	got := string(v.Link("helpful", "answered"))
+	for _, want := range []string{"helpful=answered", "place=texas", "topic=eviction", "by=Nazanin", "status=draft", "sort=city"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Link = %q, missing %s", got, want)
+		}
+	}
+	if cleared := string(v.Link("topic", "")); strings.Contains(cleared, "topic=") {
+		t.Errorf("Link(topic, \"\") = %q, want topic cleared", cleared)
+	}
+	if !v.Filtered() || (dashboardView{Status: "draft"}).normalize().Filtered() {
+		t.Error("Filtered does not reflect the column filters")
+	}
+}
