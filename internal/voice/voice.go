@@ -187,6 +187,7 @@ var enRuleset = ruleset{
 		{regexp.MustCompile(`(?i)\b(cops?|stuff|gonna|a bunch of|tons of|pricey)\b`), `slang; use the plain standard word`},
 		{regexp.MustCompile(`(?i)\bbug problems?\b`), `slang; say "insects" or "pests"`},
 		{regexp.MustCompile(`(?i)\bkeep in mind\b`), `drop it; state the fact directly`},
+		{regexp.MustCompile(`(?i)\bas the law sets out\b`), `drop it; say the rule itself`},
 		{regexp.MustCompile(`(?i)(^|[^.\w])net\b`), `banned word "net": say what is left, like "the rent the landlord gets, minus the costs of renting it again"`},
 	},
 	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
@@ -624,6 +625,41 @@ func NeedsWarning(lang, text string) string {
 	return ""
 }
 
+// PlainMaxWords caps a statement on a page in the plain layout (ADR-016:
+// the page says the risk once at the top, and statements say only the
+// rule, the way a renter acts on it). The Arizona rewrite, 2026-10-11.
+const PlainMaxWords = 60
+
+// sectionRef is a code section named in statement text. The source chip
+// names the section; the sentence says what it does.
+var sectionRef = regexp.MustCompile(`(?i)\b(?:A\.R\.S\.|MCL|RCW|W\.S\.|G\.S\.|O\.C\.G\.A\.|N\.J\.S\.A\.|ORS|KRS|ILCS|Utah Code|U\.S\.C\.|C\.F\.R\.|section|sections|subsection|§)\s*\d[\w.\-()]*`)
+
+// dayCount is a number of days; dayStart is what a deadline counts from.
+var (
+	dayCount = regexp.MustCompile(`(?i)\b\d+\s+(?:business |calendar |working )?days?\b`)
+	dayStart = regexp.MustCompile(`(?i)\b(after|before|from|since|start|starts|starting|begin|begins|counting|count back|of the|in a row)\b`)
+)
+
+// plainViolations holds a statement on a plain-layout page to the Arizona
+// pattern: short, no section numbers, and every deadline says when it
+// starts. Pages not yet moved to the layout are not held to it.
+func plainViolations(lang, text string, page Page) []string {
+	if lang != "en" || len(page.Warns) == 0 {
+		return nil
+	}
+	var out []string
+	if n := len(wordRe.FindAllString(text, -1)); n > PlainMaxWords {
+		out = append(out, fmt.Sprintf("statement runs %d words (max %d on a plain-layout page): keep only the rule the renter acts on, split it, or move a habit to a tip", n, PlainMaxWords))
+	}
+	if m := sectionRef.FindString(text); m != "" {
+		out = append(out, fmt.Sprintf("%q names a code section: the source chip names it; say what the rule does, like \"the repair law\"", m))
+	}
+	if dayCount.MatchString(text) && !dayStart.MatchString(text) {
+		out = append(out, `a deadline must say who gets the days, from when, and what happens, like "The law gives your landlord 10 days after they get your notice to fix it. If they do not fix it, your lease ends."`)
+	}
+	return out
+}
+
 // LintAll lints statement text as if its page carried no advice.
 func LintAll(lang string, labeled map[string]string) []string {
 	return LintOn(lang, labeled, Page{})
@@ -645,6 +681,9 @@ func LintOn(lang string, labeled map[string]string, page Page) []string {
 				out = append(out, label+": "+v)
 			}
 			if v := warnedTwice(lang, labeled[label], page); v != "" {
+				out = append(out, label+": "+v)
+			}
+			for _, v := range plainViolations(lang, labeled[label], page) {
 				out = append(out, label+": "+v)
 			}
 			if v := inspectViolation(lang, labeled[label]); v != "" {

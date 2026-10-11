@@ -30,3 +30,11 @@ Owing nothing (2026-10-06 lint): a statement that says you owe no rent, money or
 Intro opening (2026-10-07): a breaking-lease intro opens with the common case ("If you leave early without a legal reason, you can owe rent"), then gives the real path in one or two sentences, like "If your home is unsafe, the law has steps that can end your lease. They start with telling the owner in writing what is wrong." Never tell a renter in an unsafe home not to move out. Never open with "You owe no more rent only in a few cases." The steps of that path come right after the intro, in the order the renter takes them.
 
 Breaking-lease disclaimer (2026-10-07): every breaking-lease intro starts with "Breaking a lease early is legally complicated. If you are in danger, leave and get safe first. Otherwise, talk to legal aid as soon as you can, before you move out or stop paying rent." Then the common case and the real path.
+
+Plain layout (Arizona pattern, Nazanin 2026-10-11). A page in the plain layout carries the disclaimer and the risk note at the top (ADR-016), so its statements say only the rule, the way a renter acts on it. Enforced by the lint on such pages:
+- At most 60 words per statement. Split it, or move a habit to a tip.
+- No code section numbers in the text ("A.R.S. 33-1324", "section 504B.161"). The source chip names the section; the sentence says what the rule does ("the repair law").
+- Every deadline says who gets the days, from when, and what happens: "The law gives your landlord 10 days after they get your notice to fix it. If they do not fix it, your lease ends." Never a bare number of days.
+- No "as the law sets out", no "the law lets you" framing, no repeated warnings (the page says them once).
+- One statement per step, in the order the renter takes them: what you may still owe, how to leave, after you move out, special protections. Merge statements that repeat a rule; keep every right and every condition when merging.
+- Read each sentence against the full stored quote before filing. A plainer word must not change the rule ("a date you and your landlord agree on", not "a move-out date").

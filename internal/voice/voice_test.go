@@ -587,3 +587,26 @@ func TestMateriallyIsGlossedAsSeriously(t *testing.T) {
 		t.Errorf("materially (seriously) flagged: %v", v)
 	}
 }
+
+func TestPlainLayoutRules(t *testing.T) {
+	plain := Page{Warns: map[string]bool{"owe": true}}
+	long := strings.Repeat("Your landlord must fix the heat. ", 12)
+	if len(plainViolations("en", long, plain)) == 0 {
+		t.Error("a long statement on a plain page should fail")
+	}
+	if len(plainViolations("en", long, Page{})) != 0 {
+		t.Error("pages not moved to the plain layout are not held to it")
+	}
+	if len(plainViolations("en", "Your landlord may fail A.R.S. 33-1324.", plain)) == 0 {
+		t.Error("a code section in the text should fail")
+	}
+	if len(plainViolations("en", "Your landlord has 10 days to fix it.", plain)) == 0 {
+		t.Error("a deadline with no start should fail")
+	}
+	if v := plainViolations("en", "The law gives your landlord 10 days after they get your notice to fix it. If they do not fix it, your lease ends.", plain); len(v) != 0 {
+		t.Errorf("the Arizona deadline form should pass: %v", v)
+	}
+	if len(Lint("en", "You owe no more rent only in a few cases, as the law sets out.")) == 0 {
+		t.Error(`"as the law sets out" should be banned`)
+	}
+}
