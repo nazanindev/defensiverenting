@@ -49,7 +49,7 @@
         <header class="playbook-header">
           {{/* ADR-032 D3: one small line above the title says the place and
                the topic. The place word is the same one the place line uses. */}}
-          <p class="eyebrow">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide"}}{{else}}{{placeName .Jurisdiction}}{{end}} · {{.Topic.Name}}</p>
+          <p class="eyebrow">{{if eq .Jurisdiction.Kind "country"}}{{ui $l "nationwide"}}{{else}}{{placeName .Jurisdiction}}{{end}} · {{.Topic.Name}}{{if .OtherLangPath}} · <a href="{{.OtherLangPath}}">{{.OtherLangLabel}}</a>{{end}}</p>
           <h1>{{.Playbook.Title}}</h1>
           {{/* ADR-031 D3: directly under the title, before the place, the
                intro and any rule. Renters are an at-risk group; they should
@@ -71,83 +71,18 @@
             </div>
           </div>
           {{end}}
-          {{if ne .Jurisdiction.Kind "country"}}
-          <div class="top-rows">
-            {{if .OtherCities}}
-            <details class="top-row place-switch">
-              <summary><span><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span>{{template "place-suggest" .}} <span class="place-change">{{ui $l "change-place"}}</span></span></summary>
-              <ul class="city-list city-list--wide">
-                {{$t := .Topic}}
-                {{range .OtherCities}}
-                <li><a href="{{.TopicPathIn $.Playbook.Language $t.Slug}}" data-set-location="{{.Slug}}">{{.Name}}</a></li>
-                {{end}}
-              </ul>
-              <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
-            </details>
-            {{else}}
-            <p class="top-row"><span><span class="place-for">{{uif $l "guide-for" (placeName .Jurisdiction)}}</span>{{template "place-suggest" .}}</span></p>
-            {{end}}
-            {{if .OtherLangPath}}<a class="top-row" href="{{.OtherLangPath}}"><span>{{.OtherLangLabel}}</span> <span aria-hidden="true">→</span></a>{{end}}
-          </div>
-          {{end}}
           {{if .IntroHTML}}<div class="lede">{{.IntroHTML}}</div>{{end}}
         </header>
-        {{if ne .Jurisdiction.Kind "country"}}
-        {{/* ADR-031 D2: when the reader's place is known (saved on this
-             device or in their account) or can be guessed from their
-             connection, offer this same topic there. Client-side because the
-             page is shared-cached. A guess is never stored: tapping the link
-             saves it like any other place pick (data-set-location). A guess
-             of this page's own state is not offered, since the reader may
-             well be in this city. */}}
-        <script>
-        (function () {
-          var box = document.querySelector('.place-suggest');
-          if (!box || !window.fetch || document.documentElement.lang !== 'en') return;
-          var topic = box.getAttribute('data-topic');
-          var state = box.getAttribute('data-state');
-          function offer(slug) {
-            fetch('/api/coverage?j=' + encodeURIComponent(slug))
-              .then(function (r) { return r.ok ? r.json() : null; })
-              .then(function (d) {
-                if (!d || !d.guides) return;
-                var g = d.guides.filter(function (x) { return x.topic === topic; })[0];
-                if (!g || g.path === location.pathname) return;
-                box.textContent = box.getAttribute('data-see').replace('%s', d.name);
-                box.setAttribute('href', g.path);
-                box.setAttribute('data-set-location', d.j);
-                box.hidden = false;
-                var sep = document.querySelector('.place-sep');
-                if (sep) sep.hidden = false;
-              })
-              .catch(function () {});
-          }
-          var saved = '';
-          try { saved = localStorage.getItem('renterlaw.location') || ''; } catch (e) {}
-          if (saved) { offer(saved); return; }
-          fetch('/api/where')
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (w) { if (w && w.j && w.j !== state) offer(w.j); })
-            .catch(function () {});
-        })();
-        </script>
-        {{end}}
-
-        {{if and (eq .Jurisdiction.Kind "country") .OtherCities}}
+        {{if eq .Jurisdiction.Kind "country"}}
         {{/* The searcher who lands here typed a problem, not a place, and
              usually does not know tenant law is set by their state. This page
              is the router: ask where they rent before they read a rule that
-             may not be theirs. Replaces the foot-of-page list on this kind. */}}
+             may not be theirs. The same picker as the header, in front of
+             the reader (ADR-031 as amended 2026-10-11). */}}
         <nav class="place-picker" aria-labelledby="place-picker-heading">
           <h2 id="place-picker-heading" class="place-picker-heading">{{ui $l "where-do-you-rent"}}</h2>
           <p class="place-picker-lede">{{ui $l "law-is-local"}}</p>
-          <ul class="city-list city-list--wide">
-            {{$t := .Topic}}
-            {{range .OtherCities}}
-            <li><a href="{{.TopicPathIn $.Playbook.Language $t.Slug}}">{{.Name}}</a></li>
-            {{end}}
-          </ul>
-          <p class="related-more"><a href="{{langPrefix .Playbook.Language}}/t/{{.Topic.Slug}}">{{ui $l "all-cities-topic"}}</a></p>
+          {{template "place-select" ((headerFor .).Asking "place-j")}}
         </nav>
         {{end}}
 

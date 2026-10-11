@@ -144,32 +144,48 @@ body {
   margin-left: auto;
 }
 
-/* The reader's place (ADR-031 D5). Static text in the cached HTML; the
-   header script fills in the reader's place. */
-.header-place {
-  color: #fff;
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-  opacity: .9;
-  padding: 8px 0;
-}
-.header-place:hover { opacity: 1; text-decoration: underline; }
-
-/* A soft translucent block, not a pill (ADR-032 D3). */
-.header-place {
-  display: inline-flex;
+/* The site-wide place picker (ADR-031 as amended 2026-10-11): a native
+   select in the header, in a soft translucent block. Options keep the
+   browser's own list, which is what a phone reader knows how to use. */
+.place-form {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 6px;
-  max-width: 16rem;
-  opacity: 1;
+  gap: 8px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.header-place:hover { background: rgba(255,255,255,0.2); text-decoration: none; }
-.header-place span { overflow: hidden; text-overflow: ellipsis; }
-.header-place-pin { flex-shrink: 0; }
+.place-label { color: #fff; opacity: .85; font-size: .95rem; white-space: nowrap; }
+.place-label--blank { display: none; }
+.place-select {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: .95rem;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(255,255,255,0.12) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 12px center;
+  background-size: 11px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 34px 8px 14px;
+  min-height: 40px;
+  max-width: 16rem;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.place-select:hover { background-color: rgba(255,255,255,0.2); }
+.place-select option { color: var(--ink); background: #fff; }
+.place-go {
+  font: inherit;
+  font-size: .95rem;
+  color: #fff;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 6px;
+  padding: 7px 12px;
+  min-height: 40px;
+  cursor: pointer;
+}
+.place-form.js .place-go { display: none; }
 
 /* ── Hero ───────────────────────────────────────────────── */
 
@@ -317,43 +333,6 @@ h1 {
   max-width: 820px;
 }
 
-/* The top of a guide is a short stack of rows divided by thin lines
-   (ADR-031): whose rules these are, the reader's own place when we know it,
-   the disclaimer, and later local help. One look for all of them. */
-.top-rows { margin: 0 0 22px; border-top: 1px solid rgba(0,0,0,.1); }
-.top-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin: 0;
-  padding: 12px 0;
-  min-height: 44px;
-  border-bottom: 1px solid rgba(0,0,0,.1);
-  color: var(--ink);
-  text-decoration: none;
-  line-height: 1.45;
-}
-a.top-row { color: var(--accent); }
-a.top-row:hover span:first-child { text-decoration: underline; }
-.top-row[hidden] { display: none; }
-.lede + .top-rows { margin-top: 20px; }
-
-.place-for { font-weight: 600; color: var(--ink); }
-.place-change { color: var(--accent); font-weight: 600; text-decoration: underline; margin-left: 6px; }
-.place-suggest { color: var(--accent); font-weight: 600; text-decoration: underline; margin-left: 6px; }
-.place-suggest[hidden], .place-sep[hidden] { display: none; }
-.place-sep { color: var(--ink-soft); }
-.place-switch { display: block; }
-.place-switch summary {
-  list-style: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  min-height: 20px;
-}
-.place-switch summary::-webkit-details-marker { display: none; }
-.place-switch[open] .city-list { margin: 12px 0 8px; }
 
 /* Not legal advice, directly under the title (ADR-031 D3). The one solid
    block at the top of a guide, in the header's color, so it reads as part of
@@ -1262,7 +1241,8 @@ input:focus-visible,
   .wrap, .layout-wrap { padding-left: 16px; padding-right: 16px; }
   h1 { font-size: 2rem; }
   .header-nav { gap: 14px; }
-  .header-place { max-width: 8rem; padding: 6px 10px; }
+  .place-label { display: none; }
+  .place-select { max-width: 10rem; font-size: .9rem; }
   .site-header .wrap { gap: 12px; }
 
   /* Query takes its own row; location and Search share the next one, so the
@@ -1286,13 +1266,12 @@ input:focus-visible,
 .byline a:hover { text-decoration: underline; }
 .related-section { margin-top: 2.5rem; }
 
-/* Nationwide pages only: the state and city picker between the intro and the
-   statements. A box, not a card grid: it is one list of places under one
-   question. */
+/* Nationwide pages only: the same picker as the header, in a tinted box
+   between the intro and the statements, in front of the reader. */
 .place-picker {
   background: var(--mint);
-  border-radius: 14px;
-  padding: 18px 20px 14px;
+  border-radius: 8px;
+  padding: 18px 20px;
   margin: 24px 0 28px;
 }
 .place-picker-heading {
@@ -1303,7 +1282,20 @@ input:focus-visible,
   line-height: 1.3;
 }
 .place-picker-lede { margin: 0 0 12px; font-size: .95rem; color: var(--ink-soft); max-width: 62ch; }
-.place-picker .city-list a { color: var(--accent-dark); }
+.place-picker .place-form { font-family: inherit; }
+.place-picker .place-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.place-picker .place-select {
+  color: var(--ink);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%238a1c2e' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 14px center;
+  background-size: 11px;
+  border: 1px solid var(--accent);
+  min-height: 48px;
+  font-size: 1.05rem;
+  padding: 10px 40px 10px 16px;
+  max-width: 320px;
+  width: 100%;
+}
+.place-picker .place-go { color: var(--accent); border-color: var(--accent); min-height: 48px; }
 .related-more { margin-top: .9rem; font-size: .95rem; }
 .related-more a { color: var(--accent); text-decoration: none; }
 .related-more a:hover { text-decoration: underline; }

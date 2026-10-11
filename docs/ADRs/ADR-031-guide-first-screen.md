@@ -89,3 +89,14 @@ Amended 2026-10-05: no call buttons. A button could show only the number, so an 
 - **A real-borders US map for picking a place.** Small states are hard to tap on a phone, and a list does the job.
 - **Showing the guess as a statement ("You are in Ohio").** IP location is often wrong. A question lets the reader ignore it.
 - **Removing every search box now.** The homepage and hub boxes are the only search until vector search ships.
+
+## Amended 2026-10-11: one place picker in the header, site-wide
+
+Nazanin, 2026-10-11: instead of "For Pennsylvania. Change" on every guide, put the picker at the top, site-wide, so picking another state reroutes the page. Mocked on the redesign canvas, approved, built.
+
+- **D1 replaced.** The place line and its list of other places are gone from guides. The eyebrow line above the title (ADR-032 D3) names the place. The language link, on bilingual pages, moves into that line.
+- **D5 amended.** The header's place link becomes a native select: states A to Z, each city under its state, United States last. On a guide it shows the page's place. Elsewhere it shows the reader's saved place, or asks "Where do you rent?".
+- **A pick reroutes.** On a guide the form submits to the topic hub, which already resolves `?j=` to the nearest guide for that topic, so the reader lands on the same topic in the new place. On any other page it submits to `/go`, which redirects to the place's hub. The pick is saved as the reader's place, as before. Without JavaScript a Go button submits the same form.
+- **D2 dropped.** The "See Ohio instead" offer and the connection guess are removed. The header picker already shows that the saved place is not this page's, and one pick fixes it. `/api/where` stays but nothing calls it.
+- **Nationwide guides** keep their "Where do you rent?" box under the title, now holding the same select instead of a list of links.
+- The list of places is read once and cached for 5 minutes in the handlers, so the header ships it on every page without a query per render.

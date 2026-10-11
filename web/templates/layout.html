@@ -32,79 +32,104 @@
 */}}
 {{define "source-from"}}<span class="source-from">{{.From}} <a href="{{.Line.URL}}" data-out="{{.Line.SourceID}}"{{if .Line.External}} target="_blank" rel="noopener noreferrer"{{end}}>{{.Line.Text}}</a>.</span>{{end}}
 
+{{/*
+  place-select — the site-wide place picker (ADR-031 as amended 2026-10-11).
+  One native select: states A to Z, each city under its state, the
+  nationwide hub last. On a guide it shows the page's place and submits to
+  the topic hub, which resolves ?j= to the same topic in the new place.
+  Elsewhere it shows the reader's saved place and submits to /go, the place
+  hub. The Go button is for readers without JavaScript; the script hides it
+  and submits on change. Takes a Header.
+*/}}
+{{define "place-select"}}
+<form class="place-form" action="{{.Action}}" method="get" data-place-form>
+  <label class="place-label{{if not .Place}} place-label--blank{{end}}" for="{{.ID}}">{{ui .Lang "you-rent-in"}}</label>
+  <select class="place-select" id="{{.ID}}" name="j" aria-label="{{ui .Lang "where-do-you-rent"}}" data-place-select{{if .Place}} data-page-place="{{.Place}}"{{end}}>
+    <option value=""{{if not .Place}} selected{{end}}>{{ui .Lang "where-do-you-rent"}}</option>
+    {{- $cur := .Place}}
+    {{- if and .Place (not .Places)}}<option value="{{.Place}}" selected>{{.PlaceName}}</option>{{end}}
+    {{- range .Places}}{{if .Name}}
+    <option value="{{.Slug}}"{{if eq .Slug $cur}} selected{{end}}>{{.Name}}</option>
+    {{- range .Cities}}
+    <option value="{{.Slug}}"{{if eq .Slug $cur}} selected{{end}}>&nbsp;&nbsp;{{.Name}}</option>
+    {{- end}}{{end}}{{end}}
+    {{- range .National}}
+    <option value="{{.Slug}}"{{if eq .Slug $cur}} selected{{end}}>{{.Name}}</option>
+    {{- end}}
+  </select>
+  <button class="place-go" type="submit">{{ui .Lang "go"}}</button>
+</form>
+{{end}}
+
 {{define "site-header"}}
 {{- $h := headerFor . -}}
-{{- $l := $h.Lang -}}
 <header class="site-header">
   <div class="wrap">
     <a class="site-logo" href="/"><img src="/static/favicon.png" alt="" class="site-logo-img" /><span>RenterLaw</span></a>
     <nav class="header-nav" aria-label="Site">
-      <a class="header-place" href="/locations" data-place-link data-label="{{ui $l "your-location"}}">
-        <svg class="header-place-pin" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
-        <span data-place-name>{{ui $l "choose-location"}}</span>
-      </a>
+      {{template "place-select" $h}}
     </nav>
   </div>
 </header>
 <script>
-(function () {
+// Runs once the page is parsed: a nationwide guide renders a second picker
+// below this script, and it must be wired too.
+document.addEventListener('DOMContentLoaded', function () {
   var KEY = 'renterlaw.location';
   var signedIn = /(^|; )rl_in=1(;|$)/.test(document.cookie);
-  var link = document.querySelector('[data-place-link]');
-  if (!link || !window.fetch) return;
-  var nameEl = link.querySelector('[data-place-name]');
-  var blank = { href: link.getAttribute('href'), text: nameEl.textContent };
+  var forms = document.querySelectorAll('[data-place-form]');
+  if (!forms.length) return;
 
   function saved() {
     try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; }
   }
-
-  // The place's name and hub come from the same coverage endpoint the
-  // homepage list uses, so the header ships no place table of its own.
-  var req = 0;
+  // keepalive lets the account write finish after the page navigates.
+  function remember(slug) {
+    try { localStorage.setItem(KEY, slug); } catch (err) {}
+    if (!signedIn || !window.fetch) return;
+    fetch('/api/me/location', {
+      method: 'PUT', credentials: 'same-origin', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location: slug })
+    }).catch(function () {});
+  }
+  function hasOption(sel, slug) {
+    for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === slug) return true;
+    return false;
+  }
+  // A guide's picker shows the page's own place; any other shows the
+  // reader's saved one.
   function show(slug) {
-    var id = ++req;
-    function reset() {
-      if (id !== req) return;
-      link.setAttribute('href', blank.href);
-      link.removeAttribute('aria-label');
-      nameEl.textContent = blank.text;
+    for (var i = 0; i < forms.length; i++) {
+      var sel = forms[i].querySelector('[data-place-select]');
+      if (sel.hasAttribute('data-page-place')) continue;
+      sel.value = slug && hasOption(sel, slug) ? slug : '';
+      var label = forms[i].querySelector('.place-label');
+      if (label) label.classList.toggle('place-label--blank', !sel.value);
     }
-    if (!slug) { reset(); return; }
-    fetch('/api/coverage?j=' + encodeURIComponent(slug))
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (id !== req) return;
-        if (!d || !d.name || !d.path) { reset(); return; }
-        link.setAttribute('href', d.path);
-        link.setAttribute('aria-label', link.getAttribute('data-label') + ': ' + d.name);
-        nameEl.textContent = d.name;
-      })
-      .catch(reset);
+  }
+  for (var i = 0; i < forms.length; i++) {
+    forms[i].classList.add('js');
+    forms[i].querySelector('[data-place-select]').addEventListener('change', function (e) {
+      var slug = e.target.value;
+      if (!slug) return;
+      remember(slug);
+      e.target.form.submit();
+    });
   }
 
   show(saved());
   // The homepage select announces a change here.
   document.addEventListener('renterlaw:location', function (e) { show(e.detail || ''); });
 
-  // Clicking a place in a list that asks where the reader rents is picking
-  // it. keepalive lets the account write finish after the page navigates.
+  // Clicking a place in a list that asks where the reader rents is picking it.
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('[data-set-location]');
-    if (!a) return;
-    var slug = a.getAttribute('data-set-location');
-    try { localStorage.setItem(KEY, slug); } catch (err) {}
-    if (signedIn) {
-      fetch('/api/me/location', {
-        method: 'PUT', credentials: 'same-origin', keepalive: true,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: slug })
-      }).catch(function () {});
-    }
+    if (a) remember(a.getAttribute('data-set-location'));
   });
 
   // A signed-in reader's account place wins over this device's.
-  if (!signedIn) return;
+  if (!signedIn || !window.fetch) return;
   fetch('/api/me', { credentials: 'same-origin' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (me) {
@@ -113,20 +138,10 @@
       show(me.location);
     })
     .catch(function () {});
-})();
+});
 </script>
 {{end}}
 
-{{/*
-  place-suggest — on a guide's place row, the link to this same topic where
-  the reader rents, when that is known or guessed (ADR-031 D2). Hidden until
-  the guide's script fills it in; it lives on the place row, not a row of
-  its own, so the top of the page says "where" once.
-*/}}
-{{define "place-suggest"}}{{$l := pageLang .}} <a class="place-suggest" href="#" hidden
-   data-topic="{{.Topic.Slug}}"
-   data-state="{{if eq .Jurisdiction.Kind "city"}}{{.Jurisdiction.ParentSlug}}{{else}}{{.Jurisdiction.Slug}}{{end}}"
-   data-see="{{ui $l "see-instead"}}"></a><span class="place-sep" hidden aria-hidden="true"> ·</span>{{end}}
 
 {{/*
   scope-search — the search box with a location scope attached.

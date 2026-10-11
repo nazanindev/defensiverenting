@@ -3,6 +3,8 @@ package templates
 import (
 	"fmt"
 	"time"
+
+	"github.com/nazanindev/defensiverenting/internal/store"
 )
 
 // UI chrome strings for the language-routed pages (ADR-007 D2's content
@@ -22,6 +24,8 @@ var uiStrings = map[string]map[string]string{
 	"search":             {"en": "Search", "es": "Buscar"},
 	"choose-location":    {"en": "Choose your location", "es": "Elija su lugar"},
 	"your-location":      {"en": "Your location", "es": "Su lugar"},
+	"you-rent-in":        {"en": "You rent in", "es": "Usted renta en"},
+	"go":                 {"en": "Go", "es": "Ir"},
 	"header-terms":       {"en": "Legal terms", "es": "Términos legales"},
 	"footer-promise":     {"en": "Each answer links to where it comes from. We check those sources every week.", "es": "Cada respuesta enlaza a su origen. Revisamos esas fuentes cada semana."},
 	"footer-guides":      {"en": "Guides", "es": "Guías"},
@@ -199,15 +203,63 @@ type Header struct {
 	// SignedIn is known server-side only on the uncached account page. On
 	// every other page the footer script flips "Sign in" from the cookie.
 	SignedIn bool
+
+	// The site-wide place picker (ADR-031 as amended 2026-10-11): one
+	// select in the header on every page, states A to Z with their cities
+	// under them, the nationwide hub last. Places and National come from
+	// PlaceList; a nil PlaceList (template tests) leaves them empty.
+	Places   []StateGroup
+	National []store.Jurisdiction
+	// Place is the page's own place on a guide or hub, shown selected, and
+	// Topic is a guide's topic. A pick on a guide goes to the same topic in
+	// the new place: the form submits to the topic hub, which resolves ?j=
+	// to the nearest guide server-side. Elsewhere it goes to the place hub.
+	Place     string
+	PlaceName string
+	Topic     string
+	// ID is the select's element id; a page that renders the picker twice
+	// (a nationwide guide) gives the second one its own with WithID.
+	ID string
+}
+
+// PlaceList supplies the picker's places. The handlers set it at startup
+// to a cached read of the published hubs, so the header ships the list on
+// every page without a query per render.
+var PlaceList func() (groups []StateGroup, national []store.Jurisdiction)
+
+// Action is the picker form's target: the topic hub on a guide, else the
+// /go redirect to the place's hub.
+func (h Header) Action() string {
+	if h.Topic != "" {
+		return store.LangPrefix(h.Lang) + "/t/" + h.Topic
+	}
+	return "/go"
+}
+
+// Asking returns the picker data for a second picker on the page that asks
+// the question instead of showing the page's place: the nationwide guide's
+// box under the title, with its own select id.
+func (h Header) Asking(id string) Header {
+	h.ID = id
+	h.Place, h.PlaceName = "", ""
+	return h
 }
 
 // headerFor derives the header's inputs from a page, the way pageLang derives
 // its language, so each template calls one line instead of repeating the
 // header's markup.
 func headerFor(v any) Header {
-	h := Header{Lang: pageLang(v)}
-	if p, ok := v.(AccountPage); ok {
+	h := Header{Lang: pageLang(v), ID: "header-j"}
+	if PlaceList != nil {
+		h.Places, h.National = PlaceList()
+	}
+	switch p := v.(type) {
+	case AccountPage:
 		h.SignedIn = p.SignedIn
+	case PlaybookPage:
+		h.Place, h.PlaceName, h.Topic = p.Jurisdiction.Slug, p.Jurisdiction.Name, p.Topic.Slug
+	case JurisdictionPage:
+		h.Place, h.PlaceName = p.Jurisdiction.Slug, p.Jurisdiction.Name
 	}
 	return h
 }

@@ -35,7 +35,7 @@ func TestDirectoryEntryHierarchy(t *testing.T) {
 		`<p>Call <a href="tel:+13127443653" data-out="7">312-744-3653</a>. The city office works to protect the right to quality homes.</p>`,
 		`href="https://chicago.gov/housing" target="_blank"`,
 		"Some of the groups below can help.",
-		"For Chicago, Illinois.",
+		"Chicago, Illinois",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)

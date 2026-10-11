@@ -89,8 +89,11 @@ func reviewerDisplay(stamp string) string {
 // (/, /search, /locations, the static pages) stays English-only: ADR-007 D2
 // explains why that is the right scope, not a shortcut.
 func Browse(r chi.Router, db browseStore, logger *slog.Logger) {
+	places := &placeCache{db: db, logger: logger}
+	tmpl.PlaceList = places.get
 	r.Get("/", index(db, logger))
 	r.Get("/locations", locations(db, logger))
+	r.Get("/go", goPlace(db, logger))
 	// The reference layer (ADR-012): English-only like the rest of the site
 	// chrome (ADR-007 D2); Spanish pages assemble themselves the same way
 	// once Spanish statements carry tags.
