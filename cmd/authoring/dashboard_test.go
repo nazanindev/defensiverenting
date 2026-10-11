@@ -152,3 +152,54 @@ func TestSortPlaybooks(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalize_boundsKindAndTrimsTheTextFilter(t *testing.T) {
+	v := dashboardView{Kind: "poem", Q: "  deposit  "}.normalize()
+	if v.Kind != "" {
+		t.Errorf("Kind = %q, want an unknown kind cleared", v.Kind)
+	}
+	if v.Q != "deposit" {
+		t.Errorf("Q = %q, want trimmed", v.Q)
+	}
+	if got := (dashboardView{Kind: "rules"}).normalize().Kind; got != "rules" {
+		t.Errorf("Kind = %q, want rules kept", got)
+	}
+	long := strings.Repeat("x", maxQueryLen+20)
+	if got := (dashboardView{Q: long}).normalize().Q; len(got) != maxQueryLen {
+		t.Errorf("len(Q) = %d, want capped at %d", len(got), maxQueryLen)
+	}
+}
+
+// The text filter reads the title, the place and the topic, case-insensitively:
+// "deposit" finds "Can my landlord keep my deposit?" and the
+// security-deposits topic alike.
+func TestDashboardView_matchesTitlePlaceAndTopic(t *testing.T) {
+	row := store.AuthorPlaybookRow{Title: "Can my landlord keep my Deposit?", JurisdictionName: "Ohio", TopicSlug: "security-deposits", PageKind: "playbook"}
+	for _, q := range []string{"deposit", "OHIO", "security-dep"} {
+		if !(dashboardView{Q: q}).normalize().matches(row) {
+			t.Errorf("q=%q did not match", q)
+		}
+	}
+	if (dashboardView{Q: "eviction"}).normalize().matches(row) {
+		t.Error("q=eviction matched a deposit page")
+	}
+	if (dashboardView{Kind: "rules"}).normalize().matches(row) {
+		t.Error("kind=rules matched a playbook")
+	}
+	if !(dashboardView{Kind: "playbook", Q: "ohio"}).normalize().matches(row) {
+		t.Error("kind and text together did not match")
+	}
+}
+
+func TestKindLink_keepsTheRestOfTheView(t *testing.T) {
+	v := dashboardView{Status: "draft", Sort: "city", Dir: "asc", Place: "texas", Q: "deposit"}.normalize()
+	got := string(v.KindLink("rules"))
+	for _, want := range []string{"kind=rules", "place=texas", "status=draft", "sort=city", "q=deposit"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("KindLink = %q, missing %s", got, want)
+		}
+	}
+	if sl := string(v.SortLink("title")); !strings.Contains(sl, "q=deposit") {
+		t.Errorf("SortLink = %q dropped the text filter", sl)
+	}
+}

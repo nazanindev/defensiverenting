@@ -647,3 +647,38 @@ func TestCiteGroupsJoinLineByLineQuotes(t *testing.T) {
 		t.Error("an unconfirmed quote lost its warning")
 	}
 }
+
+// The publish-ready button posts the dashboard's filter, so the drafts it
+// publishes are the drafts on screen. A filter that is set must reach the
+// form as hidden fields, and the button must say it is scoped.
+func TestDashboardTemplate_publishReadyCarriesTheFilter(t *testing.T) {
+	data := dashboardData("draft", []store.AuthorPlaybookRow{
+		{ID: 1, Title: "Ready", JurisdictionName: "Texas", Status: "draft", PageKind: "rules"},
+	})
+	data["ReadyCount"] = 1
+	data["View"] = dashboardView{Status: "draft", Place: "texas", Kind: "rules", Q: "dep"}.normalize()
+	data["Kinds"] = []kindOption{{Kind: "rules", Count: 1}}
+	var buf bytes.Buffer
+	if err := parseTemplates(t).ExecuteTemplate(&buf, "dashboard.html", data); err != nil {
+		t.Fatal(err)
+	}
+	html := buf.String()
+	for _, want := range []string{
+		`name="place" value="texas"`, `name="kind" value="rules"`, `name="q" value="dep"`,
+		`Publish 1 ready here`, `<option value="/?dir=`, `id="q-in" type="search" name="q" value="dep"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered dashboard is missing %q", want)
+		}
+	}
+
+	// With no filter the button is the plain one.
+	data["View"] = dashboardView{Status: "draft"}.normalize()
+	buf.Reset()
+	if err := parseTemplates(t).ExecuteTemplate(&buf, "dashboard.html", data); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "ready here") {
+		t.Error("unfiltered view says the button is scoped")
+	}
+}

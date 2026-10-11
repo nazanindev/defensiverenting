@@ -499,8 +499,30 @@ func (s *srv) sourceRecheck(w http.ResponseWriter, r *http.Request) {
 
 // publishReady publishes every draft with nothing left to do, through the
 // ordinary gate, and reports each outcome on the dashboard.
+//
+// The button posts the dashboard's filter (place, language, kind, text), and
+// only drafts in that view are sent to the gate: the count on the button is
+// the count that goes live, never a draft the filter hid.
 func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
-	out, err := s.pg.PublishReadyDrafts(r.Context(), actor(r))
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	view := viewFromValues(r.PostForm).normalize()
+	all, err := s.pg.AuthorListPlaybooks(ctx)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	rows, view, _, _ := s.filterRows(ctx, view, all)
+	var ids []int64
+	for _, p := range rows {
+		if p.Status == "draft" {
+			ids = append(ids, p.ID)
+		}
+	}
+	out, err := s.pg.PublishReadyDraftsByID(ctx, actor(r), ids)
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -525,7 +547,8 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 	if len(held) > 0 {
 		msg += fmt.Sprintf(" %d draft(s) still held: %s.", len(held), strings.Join(held, "; "))
 	}
-	http.Redirect(w, r, "/?status=draft&msg="+url.QueryEscape(msg), http.StatusSeeOther)
+	view.Status = "draft"
+	http.Redirect(w, r, "/?"+view.query()+"&msg="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
 // rulesQuestions maps concept slug to its question and name when any row is

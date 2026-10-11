@@ -296,6 +296,26 @@ type PublishOutcome struct {
 // jurisdictionIDs narrows the run to drafts in those places; none means every
 // draft.
 func (pg *PG) PublishReadyDrafts(ctx context.Context, by string, jurisdictionIDs ...int64) ([]PublishOutcome, error) {
+	var scope any
+	if len(jurisdictionIDs) > 0 {
+		scope = jurisdictionIDs
+	}
+	return pg.publishReady(ctx, by, `pb.jurisdiction_id`, scope)
+}
+
+// PublishReadyDraftsByID is PublishReadyDrafts narrowed to the named pages:
+// the dashboard's filtered view, so "Publish N ready" means the N pages on
+// screen and nothing hidden by the filter. A nil list publishes nothing.
+func (pg *PG) PublishReadyDraftsByID(ctx context.Context, by string, playbookIDs []int64) ([]PublishOutcome, error) {
+	if len(playbookIDs) == 0 {
+		return nil, nil
+	}
+	return pg.publishReady(ctx, by, `pb.id`, playbookIDs)
+}
+
+// publishReady runs the gate over every draft whose column is in scope (any
+// scope at all when scope is nil).
+func (pg *PG) publishReady(ctx context.Context, by, column string, scope any) ([]PublishOutcome, error) {
 	if !isReviewer(by) {
 		return nil, fmt.Errorf("%q cannot publish", by)
 	}
@@ -303,15 +323,12 @@ func (pg *PG) PublishReadyDrafts(ctx context.Context, by string, jurisdictionIDs
 	if err != nil {
 		return nil, err
 	}
-	var scope any
-	if len(jurisdictionIDs) > 0 {
-		scope = jurisdictionIDs
-	}
+	// column is one of two literals chosen above, never client input.
 	rows, err := pg.pool.Query(ctx, `
 		SELECT pb.id, pb.title, j.name, t.name
 		FROM playbooks pb JOIN jurisdictions j ON j.id = pb.jurisdiction_id JOIN topics t ON t.id = pb.topic_id
 		WHERE pb.status = 'draft' AND pb.language = ANY($1)
-		  AND ($2::bigint[] IS NULL OR pb.jurisdiction_id = ANY($2::bigint[]))
+		  AND ($2::bigint[] IS NULL OR `+column+` = ANY($2::bigint[]))
 		ORDER BY j.name, t.name`, ContentLanguages, scope)
 	if err != nil {
 		return nil, err

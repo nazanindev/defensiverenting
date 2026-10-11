@@ -73,6 +73,8 @@
   .tab.active { background: #4a1223; color: #fff; border-color: #4a1223; }
   .place-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: .8rem; color: #7a5c5c; }
   .row-num { color: #b0a0a0; font-variant-numeric: tabular-nums; text-align: right; width: 2.5em; font-size: .8rem; }
+  .place-filter input[type=search] { font-size: .8rem; padding: .28rem .5rem; border-radius: 6px; border: 1px solid #e8dede; background: #fff; width: 14em; font-family: inherit; }
+  .place-filter a { color: #9a7878; text-decoration: none; font-size: 1rem; }
   .place-filter select { font-size: .8rem; padding: .28rem .5rem; border-radius: 6px; border: 1px solid #e8dede; background: #fff; }
   .tab b { font-weight: 600; }
   .badge-cost { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 700; vertical-align: middle; margin-left: 8px; }
@@ -113,7 +115,16 @@
       <a href="/coverage" class="btn btn-view">Coverage</a>
       <a href="/orgs" class="btn btn-view">Orgs</a>
       <a href="/guidelines" class="btn btn-view">Guidelines</a>
-      {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft with nothing left to do ({{.ReadyCount}})? Each goes live under your name.')"><button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0">Publish {{.ReadyCount}} ready</button></form>{{end}}
+      {{/* The button carries the current filter, so the drafts it publishes
+           are the drafts the list shows. The status tab is not part of it:
+           "ready" always means drafts. */}}
+      {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft {{if .View.Filtered}}in this filtered view {{end}}with nothing left to do ({{.ReadyCount}})? Each goes live under your name.')">
+        <input type="hidden" name="place" value="{{.View.Place}}">
+        <input type="hidden" name="lang" value="{{.View.Lang}}">
+        <input type="hidden" name="kind" value="{{.View.Kind}}">
+        <input type="hidden" name="q" value="{{.View.Q}}">
+        <button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0" title="{{if .View.Filtered}}Only drafts in the current filter{{else}}Every draft with nothing left to do{{end}}">Publish {{.ReadyCount}} ready{{if .View.Filtered}} here{{end}}</button>
+      </form>{{end}}
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
   </div>
@@ -157,6 +168,30 @@
       </select>
     </span>
     {{end}}
+    {{if .Kinds}}
+    <span class="place-filter" style="margin-left:0">
+      <label for="kind-sel">Type</label>
+      <select id="kind-sel" onchange="location.href = this.value">
+        <option value="{{$v.KindLink ""}}"{{if not $v.Kind}} selected{{end}}>All types</option>
+        {{range .Kinds}}
+        <option value="{{$v.KindLink .Kind}}"{{if eq $v.Kind .Kind}} selected{{end}}>{{.Kind}} ({{.Count}})</option>
+        {{end}}
+      </select>
+    </span>
+    {{end}}
+    {{/* Text filter: a GET form that carries the rest of the view as hidden
+         fields, so typing a title keeps the place, kind, tab and sort. */}}
+    <form method="get" action="/" class="place-filter" style="margin-left:0">
+      <input type="hidden" name="status" value="{{$v.Status}}">
+      <input type="hidden" name="sort" value="{{$v.Sort}}">
+      <input type="hidden" name="dir" value="{{$v.Dir}}">
+      <input type="hidden" name="place" value="{{$v.Place}}">
+      <input type="hidden" name="lang" value="{{$v.Lang}}">
+      <input type="hidden" name="kind" value="{{$v.Kind}}">
+      <label for="q-in">Title</label>
+      <input id="q-in" type="search" name="q" value="{{$v.Q}}" placeholder="title, place or topic" maxlength="100">
+      {{if $v.Q}}<a href="{{$v.QLink ""}}" title="Clear the text filter">×</a>{{end}}
+    </form>
     {{if .ShowLanguage}}
     <span class="place-filter" style="margin-left:0">
       <label for="lang-sel">Language</label>

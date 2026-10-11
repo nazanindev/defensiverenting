@@ -342,7 +342,21 @@ type dashboardView struct {
 	// review pass can ignore the Spanish translations until an editor who
 	// reads Spanish is doing that pass, without hiding them from the counts.
 	Lang string
+	// Kind narrows to one page kind ("" means every kind), so a pass over the
+	// rules pages or the directories does not scroll past the playbooks.
+	Kind string
+	// Q is free text matched against the title, place name and topic slug,
+	// case-insensitively. It is the "find the deposit pages" filter.
+	Q string
 }
+
+// pageKinds is the allowlist for Kind. It mirrors Playbook.PageKind; a value
+// off the list is cleared rather than trusted, like the sort key.
+var pageKinds = map[string]bool{"playbook": true, "directory": true, "faq": true, "checklist": true, "rules": true}
+
+// maxQueryLen bounds the remembered text filter so a cookie cannot carry an
+// arbitrarily long value.
+const maxQueryLen = 100
 
 const viewCookie = "authoring_view"
 
@@ -365,6 +379,13 @@ func (v dashboardView) normalize() dashboardView {
 	if v.Lang != "en" && v.Lang != "es" {
 		v.Lang = ""
 	}
+	if !pageKinds[v.Kind] {
+		v.Kind = ""
+	}
+	v.Q = strings.TrimSpace(v.Q)
+	if len(v.Q) > maxQueryLen {
+		v.Q = v.Q[:maxQueryLen]
+	}
 	if v.Dir != "asc" && v.Dir != "desc" {
 		// Dates default newest-first, which is what "what moved lately" means.
 		// Everything else defaults A to Z.
@@ -384,7 +405,50 @@ func (v dashboardView) query() string {
 	if v.Lang != "" {
 		q.Set("lang", v.Lang)
 	}
+	if v.Kind != "" {
+		q.Set("kind", v.Kind)
+	}
+	if v.Q != "" {
+		q.Set("q", v.Q)
+	}
 	return q.Encode()
+}
+
+// Filtered says whether anything beyond the status tab narrows the list, so
+// the publish-ready button can say it follows the filter.
+func (v dashboardView) Filtered() bool {
+	return v.Place != "" || v.Lang != "" || v.Kind != "" || v.Q != ""
+}
+
+// KindLink returns the href for narrowing to one page kind, keeping every
+// other part of the view. An empty kind clears the filter.
+func (v dashboardView) KindLink(kind string) template.URL {
+	next := v
+	next.Kind = kind
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
+}
+
+// QLink returns the href for the text filter set to q, keeping the rest of the
+// view. An empty q clears it.
+func (v dashboardView) QLink(q string) template.URL {
+	next := v
+	next.Q = q
+	return template.URL("/?" + next.normalize().query()) // #nosec G203
+}
+
+// matches reports whether a row passes the kind and text filters. Place and
+// language need lookups the view does not hold, so they live in filterRows.
+func (v dashboardView) matches(p store.AuthorPlaybookRow) bool {
+	if v.Kind != "" && p.PageKind != v.Kind {
+		return false
+	}
+	if v.Q == "" {
+		return true
+	}
+	q := strings.ToLower(v.Q)
+	return strings.Contains(strings.ToLower(p.Title), q) ||
+		strings.Contains(strings.ToLower(p.JurisdictionName), q) ||
+		strings.Contains(p.TopicSlug, q)
 }
 
 // PlaceLink returns the href for filtering to one location, keeping the current
@@ -425,7 +489,7 @@ func (v dashboardView) StatusLink(status string) template.URL {
 // Place is carried through: sorting a filtered list must not silently widen it
 // back to every city.
 func (v dashboardView) SortLink(col string) template.URL {
-	next := dashboardView{Status: v.Status, Sort: col, Place: v.Place, Lang: v.Lang}
+	next := dashboardView{Status: v.Status, Sort: col, Place: v.Place, Lang: v.Lang, Kind: v.Kind, Q: v.Q}
 	if v.Sort == col {
 		next.Dir = "asc"
 		if v.Dir == "asc" {
@@ -448,21 +512,76 @@ func (v dashboardView) Arrow(col string) string {
 
 func readView(r *http.Request) dashboardView {
 	q := r.URL.Query()
-	v := dashboardView{Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir"), Place: q.Get("place"), Lang: q.Get("lang")}
-	if v.Status == "" && v.Sort == "" && v.Dir == "" && q.Get("place") == "" && q.Get("lang") == "" {
+	v := viewFromValues(q)
+	if v == (dashboardView{}) {
 		if c, err := r.Cookie(viewCookie); err == nil {
 			if remembered, err := url.ParseQuery(c.Value); err == nil {
-				v = dashboardView{
-					Status: remembered.Get("status"),
-					Sort:   remembered.Get("sort"),
-					Dir:    remembered.Get("dir"),
-					Place:  remembered.Get("place"),
-					Lang:   remembered.Get("lang"),
-				}
+				v = viewFromValues(remembered)
 			}
 		}
 	}
 	return v.normalize()
+}
+
+func viewFromValues(q url.Values) dashboardView {
+	return dashboardView{
+		Status: q.Get("status"), Sort: q.Get("sort"), Dir: q.Get("dir"),
+		Place: q.Get("place"), Lang: q.Get("lang"), Kind: q.Get("kind"), Q: q.Get("q"),
+	}
+}
+
+// filterRows applies every narrowing part of the view except the status tab:
+// place, language, kind and text. It returns the view with any filter value
+// that matches no page cleared, so a stale cookie or hand-edited URL never
+// hides everything.
+//
+// The dashboard and the publish-ready handler both call it, so the button
+// publishes exactly the drafts the list shows.
+func (s *srv) filterRows(ctx context.Context, view dashboardView, playbooks []store.AuthorPlaybookRow) ([]store.AuthorPlaybookRow, dashboardView, placeList, bool) {
+	langs := map[string]bool{}
+	for _, p := range playbooks {
+		langs[p.Language] = true
+	}
+
+	// Location filter. A page belongs to a place if that place is anywhere in
+	// its jurisdiction's ancestry, so Massachusetts shows Boston's pages and
+	// the United States shows everything under it. Filtering on the slug alone
+	// would make a state select only pages scoped to the state itself, which is
+	// almost never what someone means by "show me Massachusetts".
+	places, parentOf := s.placeOptions(ctx, playbooks)
+	if view.Place != "" && !places.known[view.Place] {
+		view.Place = ""
+	}
+	if view.Place != "" {
+		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
+		for _, p := range playbooks {
+			for slug := p.JurisdictionSlug; slug != ""; slug = parentOf[slug] {
+				if slug == view.Place {
+					kept = append(kept, p)
+					break
+				}
+			}
+		}
+		playbooks = kept
+	}
+
+	if view.Lang != "" && !langs[view.Lang] {
+		view.Lang = ""
+	}
+	// Content in a deferred language (ADR-015 D3) is out of the working set:
+	// it shows only when the filter names that language, so the list and the
+	// draft count describe what an editor can act on.
+	kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
+	for _, p := range playbooks {
+		switch {
+		case view.Lang != "" && p.Language != view.Lang:
+		case view.Lang == "" && !store.LanguageActive(p.Language):
+		case !view.matches(p):
+		default:
+			kept = append(kept, p)
+		}
+	}
+	return kept, view, places, len(langs) > 1
 }
 
 // sortPlaybooks orders rows in place. SliceStable so that re-sorting on a
@@ -564,59 +683,20 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		}
 		ps.Aggregate(row.Stmt.Standing())
 	}
+	kinds := kindOptions(playbooks)
+	view := readView(r)
+	playbooks, view, places, showLanguage := s.filterRows(ctx, view, playbooks)
+
 	// Drafts the gate would pass right now, for the publish-ready button.
+	// Counted after the filters so that the button offers what the list
+	// shows: narrowing to one state and pressing Publish must not publish
+	// every other state's drafts too.
 	readyCount := 0
 	for _, pb := range playbooks {
 		if pb.Status == "draft" && len(draftIssues[pb.ID]) == 0 {
 			readyCount++
 		}
 	}
-
-	langs := map[string]bool{}
-	for _, p := range playbooks {
-		langs[p.Language] = true
-	}
-
-	view := readView(r)
-
-	// Location filter. A page belongs to a place if that place is anywhere in
-	// its jurisdiction's ancestry, so Massachusetts shows Boston's pages and
-	// the United States shows everything under it. Filtering on the slug alone
-	// would make a state select only pages scoped to the state itself, which is
-	// almost never what someone means by "show me Massachusetts".
-	places, parentOf := s.placeOptions(ctx, playbooks)
-	if view.Place != "" && !places.known[view.Place] {
-		view.Place = "" // a stale cookie or a hand-edited URL must not hide everything
-	}
-	if view.Place != "" {
-		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
-		for _, p := range playbooks {
-			for slug := p.JurisdictionSlug; slug != ""; slug = parentOf[slug] {
-				if slug == view.Place {
-					kept = append(kept, p)
-					break
-				}
-			}
-		}
-		playbooks = kept
-	}
-
-	if view.Lang != "" && !langs[view.Lang] {
-		view.Lang = "" // a remembered language with no pages must not hide everything
-	}
-	// Content in a deferred language (ADR-015 D3) is out of the working set:
-	// it shows only when the filter names that language, so the list and the
-	// draft count describe what an editor can act on.
-	kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
-	for _, p := range playbooks {
-		switch {
-		case view.Lang != "" && p.Language != view.Lang:
-		case view.Lang == "" && !store.LanguageActive(p.Language):
-		default:
-			kept = append(kept, p)
-		}
-	}
-	playbooks = kept
 
 	// Drafts and published pages share one table, so a review pass through a
 	// batch of drafts otherwise means scrolling past every live page. The tab
@@ -667,7 +747,8 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"View":            view,
 		"Places":          places.Opts(),
 		"Status":          view.Status,
-		"ShowLanguage":    len(langs) > 1,
+		"ShowLanguage":    showLanguage,
+		"Kinds":           kinds,
 		"DraftCount":      draftCount,
 		"PublishedCount":  publishedCount,
 		"TotalCount":      draftCount + publishedCount + supersededCount,
@@ -1505,6 +1586,29 @@ func (p placeList) Opts() []placeOption { return p.Options }
 // Only places with pages are offered. The jurisdictions table carries rows
 // created for hierarchy repair and for cities seeded but never written, and a
 // filter listing options that select nothing is worse than no filter.
+// kindOption is one page kind in the dashboard's kind filter, with how many
+// pages of that kind exist in total.
+type kindOption struct {
+	Kind  string
+	Count int
+}
+
+// kindOptions lists the page kinds that have pages, in a fixed order, so the
+// filter never offers a kind that would empty the list.
+func kindOptions(rows []store.AuthorPlaybookRow) []kindOption {
+	count := map[string]int{}
+	for _, r := range rows {
+		count[r.PageKind]++
+	}
+	var out []kindOption
+	for _, k := range []string{"playbook", "rules", "directory", "faq", "checklist"} {
+		if count[k] > 0 {
+			out = append(out, kindOption{Kind: k, Count: count[k]})
+		}
+	}
+	return out
+}
+
 func (s *srv) placeOptions(ctx context.Context, rows []store.AuthorPlaybookRow) (placeList, map[string]string) {
 	all, err := s.pg.ListAuthorableJurisdictions(ctx)
 	if err != nil {
