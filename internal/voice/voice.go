@@ -218,6 +218,12 @@ var enRuleset = ruleset{
 		mustExplain(`(money |eviction )?judge?ments?`, enMarkers, `"a judgment (the court's final decision in your case)"`),
 		mustExplain(`mediations?`, enMarkers, `"mediation (a meeting with a neutral person who helps you and your landlord reach an agreement)"`),
 		mustExplain(`rental assistance`, enMarkers, `"rental assistance (money to help pay rent)"`),
+		// One gloss everywhere (Nazanin, 2026-10-06): "materially (seriously)".
+		{
+			term:      regexp.MustCompile(`(?i)\bmaterially\b`),
+			explained: regexp.MustCompile(`(?i)\bmaterially\s*\(seriously\)`),
+			hint:      `"materially (seriously)"`,
+		},
 		// Common in general English, opaque in its housing sense.
 		mustExplain(`utilit(?:y|ies)`, enMarkers, `"utilities (water, electric, gas)"`),
 		// No examples in the hint: faded paint and nail holes are not in the

@@ -575,3 +575,15 @@ func TestNeedsWarning(t *testing.T) {
 		}
 	}
 }
+
+func TestMateriallyIsGlossedAsSeriously(t *testing.T) {
+	if len(Lint("en", "The landlord materially breaks the lease.")) == 0 {
+		t.Error("bare materially not flagged")
+	}
+	if len(Lint("en", "The landlord materially (in a big way) breaks the lease.")) == 0 {
+		t.Error("materially with another gloss not flagged")
+	}
+	if v := Lint("en", "The landlord materially (seriously) breaks the lease."); len(v) != 0 {
+		t.Errorf("materially (seriously) flagged: %v", v)
+	}
+}
