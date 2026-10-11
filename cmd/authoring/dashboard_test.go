@@ -242,3 +242,37 @@ func TestLink_setsOneFieldAndKeepsTheRest(t *testing.T) {
 		t.Error("Filtered does not reflect the column filters")
 	}
 }
+
+// Picker counts follow every other filter on the page. On the Drafts tab in
+// Texas, the Topic picker counts Texas drafts per topic, and the City picker
+// (its own field cleared) still offers Ohio for the drafts there.
+func TestApply_pickerCountsFollowTheOtherFilters(t *testing.T) {
+	parentOf := map[string]string{"austin": "texas", "texas": "us", "ohio": "us"}
+	rows := []store.AuthorPlaybookRow{
+		{ID: 1, JurisdictionSlug: "austin", TopicSlug: "deposits", Status: "draft", Language: "en", PageKind: "playbook"},
+		{ID: 2, JurisdictionSlug: "texas", TopicSlug: "eviction", Status: "draft", Language: "en", PageKind: "playbook"},
+		{ID: 3, JurisdictionSlug: "texas", TopicSlug: "deposits", Status: "published", Language: "en", PageKind: "playbook"},
+		{ID: 4, JurisdictionSlug: "ohio", TopicSlug: "deposits", Status: "draft", Language: "en", PageKind: "rules"},
+	}
+	v := dashboardView{Status: "draft", Place: "texas"}.normalize()
+
+	topics := countBy(v.without("topic").apply(rows, parentOf, true), func(p store.AuthorPlaybookRow) string { return p.TopicSlug })
+	want := []valueCount{{"deposits", 1}, {"eviction", 1}}
+	if len(topics) != 2 || topics[0] != want[0] || topics[1] != want[1] {
+		t.Errorf("topic counts = %+v, want %+v", topics, want)
+	}
+
+	cities := v.without("place").apply(rows, parentOf, true)
+	if len(cities) != 3 {
+		t.Errorf("city facet kept %d rows, want the 3 drafts everywhere", len(cities))
+	}
+	kinds := kindOptions(v.without("kind").apply(rows, parentOf, true))
+	if len(kinds) != 1 || kinds[0] != (kindOption{"playbook", 2}) {
+		t.Errorf("kind counts = %+v, want playbook 2", kinds)
+	}
+
+	// The list itself ignores the status tab here; the tabs count it.
+	if got := v.apply(rows, parentOf, false); len(got) != 3 {
+		t.Errorf("filterRows list = %d rows, want 3 Texas pages across statuses", len(got))
+	}
+}

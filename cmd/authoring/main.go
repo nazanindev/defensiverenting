@@ -568,48 +568,33 @@ func viewFromValues(q url.Values) dashboardView {
 	}
 }
 
-// filterRows applies every narrowing part of the view except the status tab:
-// place, language, kind and text. It returns the view with any filter value
-// that matches no page cleared, so a stale cookie or hand-edited URL never
-// hides everything.
-//
-// The dashboard and the publish-ready handler both call it, so the button
-// publishes exactly the drafts the list shows.
-func (s *srv) filterRows(ctx context.Context, view dashboardView, playbooks []store.AuthorPlaybookRow) ([]store.AuthorPlaybookRow, dashboardView, placeList, bool) {
-	langs := map[string]bool{}
-	for _, p := range playbooks {
+// filterState is what the dashboard needs to show and re-run the filters:
+// the view with unknown values cleared, the jurisdiction tree, and whether
+// more than one language has pages.
+type filterState struct {
+	view         dashboardView
+	parentOf     map[string]string
+	meta         map[string]store.Jurisdiction
+	showLanguage bool
+}
+
+// prepareFilters validates the view against the pages that exist: any filter
+// value that matches no page at all is cleared, so a stale cookie or a
+// hand-edited URL never hides everything. Validation looks at every page,
+// not the filtered list, so one filter never clears another.
+func (s *srv) prepareFilters(ctx context.Context, view dashboardView, all []store.AuthorPlaybookRow) filterState {
+	parentOf, meta := s.jurisdictionTree(ctx)
+	langs, topics, bys := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	for _, p := range all {
 		langs[p.Language] = true
-	}
-
-	// Location filter. A page belongs to a place if that place is anywhere in
-	// its jurisdiction's ancestry, so Massachusetts shows Boston's pages and
-	// the United States shows everything under it. Filtering on the slug alone
-	// would make a state select only pages scoped to the state itself, which is
-	// almost never what someone means by "show me Massachusetts".
-	places, parentOf := s.placeOptions(ctx, playbooks)
-	if view.Place != "" && !places.known[view.Place] {
-		view.Place = ""
-	}
-	if view.Place != "" {
-		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
-		for _, p := range playbooks {
-			for slug := p.JurisdictionSlug; slug != ""; slug = parentOf[slug] {
-				if slug == view.Place {
-					kept = append(kept, p)
-					break
-				}
-			}
-		}
-		playbooks = kept
-	}
-
-	if view.Lang != "" && !langs[view.Lang] {
-		view.Lang = ""
-	}
-	topics, bys := map[string]bool{}, map[string]bool{}
-	for _, p := range playbooks {
 		topics[p.TopicSlug] = true
 		bys[p.UpdatedBy] = true
+	}
+	if _, ok := meta[view.Place]; !ok {
+		view.Place = ""
+	}
+	if !langs[view.Lang] {
+		view.Lang = ""
 	}
 	if !topics[view.Topic] {
 		view.Topic = ""
@@ -617,20 +602,62 @@ func (s *srv) filterRows(ctx context.Context, view dashboardView, playbooks []st
 	if !bys[view.By] {
 		view.By = ""
 	}
-	// Content in a deferred language (ADR-015 D3) is out of the working set:
-	// it shows only when the filter names that language, so the list and the
-	// draft count describe what an editor can act on.
-	kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
-	for _, p := range playbooks {
+	return filterState{view: view, parentOf: parentOf, meta: meta, showLanguage: len(langs) > 1}
+}
+
+// apply returns the rows that pass every filter in the view except the
+// status tab when withStatus is false. It is pure so the dashboard can run it
+// once per picker with that picker's own field cleared.
+func (v dashboardView) apply(rows []store.AuthorPlaybookRow, parentOf map[string]string, withStatus bool) []store.AuthorPlaybookRow {
+	kept := make([]store.AuthorPlaybookRow, 0, len(rows))
+	for _, p := range rows {
 		switch {
-		case view.Lang != "" && p.Language != view.Lang:
-		case view.Lang == "" && !store.LanguageActive(p.Language):
-		case !view.matches(p):
+		// Location: a page belongs to a place if that place is anywhere in
+		// its jurisdiction's ancestry, so Massachusetts shows Boston's pages.
+		case v.Place != "" && !underPlace(p.JurisdictionSlug, v.Place, parentOf):
+		// Content in a deferred language (ADR-015 D3) is out of the working
+		// set: it shows only when the filter names that language.
+		case v.Lang != "" && p.Language != v.Lang:
+		case v.Lang == "" && !store.LanguageActive(p.Language):
+		case !v.matches(p):
+		case withStatus && v.Status != "all" && p.Status != v.Status:
 		default:
 			kept = append(kept, p)
 		}
 	}
-	return kept, view, places, len(langs) > 1
+	return kept
+}
+
+func underPlace(slug, place string, parentOf map[string]string) bool {
+	for ; slug != ""; slug = parentOf[slug] {
+		if slug == place {
+			return true
+		}
+	}
+	return false
+}
+
+// without returns the view with one filter field cleared, for a picker's
+// counts: the City picker counts pages that pass every filter but City.
+func (v dashboardView) without(field string) dashboardView {
+	switch field {
+	case "place":
+		v.Place = ""
+	case "kind":
+		v.Kind = ""
+	case "topic":
+		v.Topic = ""
+	case "by":
+		v.By = ""
+	}
+	return v
+}
+
+// filterRows is prepareFilters followed by apply without the status tab: the
+// list the tabs count, and the drafts the publish-ready button scopes to.
+func (s *srv) filterRows(ctx context.Context, view dashboardView, all []store.AuthorPlaybookRow) ([]store.AuthorPlaybookRow, filterState) {
+	st := s.prepareFilters(ctx, view, all)
+	return st.view.apply(all, st.parentOf, false), st
 }
 
 // sortPlaybooks orders rows in place. SliceStable so that re-sorting on a
@@ -732,11 +759,21 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		}
 		ps.Aggregate(row.Stmt.Standing())
 	}
-	kinds := kindOptions(playbooks)
-	topics := countBy(playbooks, func(p store.AuthorPlaybookRow) string { return p.TopicSlug })
-	bys := countBy(playbooks, func(p store.AuthorPlaybookRow) string { return p.UpdatedBy })
-	view := readView(r)
-	playbooks, view, places, showLanguage := s.filterRows(ctx, view, playbooks)
+	all := playbooks
+	playbooks, st := s.filterRows(ctx, readView(r), all)
+	view := st.view
+
+	// Picker counts follow every other filter on the page, status tab
+	// included: on Drafts in Texas, the Topic picker counts Texas drafts per
+	// topic. Each picker's own field is left out so it still offers every
+	// value the other filters allow, including the one selected.
+	facet := func(field string) []store.AuthorPlaybookRow {
+		return view.without(field).apply(all, st.parentOf, true)
+	}
+	places := placeOptionsFrom(facet("place"), st.parentOf, st.meta)
+	kinds := kindOptions(facet("kind"))
+	topics := countBy(facet("topic"), func(p store.AuthorPlaybookRow) string { return p.TopicSlug })
+	bys := countBy(facet("by"), func(p store.AuthorPlaybookRow) string { return p.UpdatedBy })
 
 	// Drafts the gate would pass right now, for the publish-ready button.
 	// Counted after the filters so that the button offers what the list
@@ -798,7 +835,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		"View":            view,
 		"Places":          places.Opts(),
 		"Status":          view.Status,
-		"ShowLanguage":    showLanguage,
+		"ShowLanguage":    st.showLanguage,
 		"Kinds":           kinds,
 		"Topics":          topics,
 		"Bys":             bys,
@@ -1633,12 +1670,6 @@ type placeList struct {
 // Opts exposes the options to the template; known is for validation only.
 func (p placeList) Opts() []placeOption { return p.Options }
 
-// placeOptions builds the location filter from the jurisdictions that actually
-// have pages, plus their ancestors, ordered country → state → city.
-//
-// Only places with pages are offered. The jurisdictions table carries rows
-// created for hierarchy repair and for cities seeded but never written, and a
-// filter listing options that select nothing is worse than no filter.
 // kindOption is one page kind in the dashboard's kind filter, with how many
 // pages of that kind exist in total.
 type kindOption struct {
@@ -1686,18 +1717,28 @@ func countBy(rows []store.AuthorPlaybookRow, key func(store.AuthorPlaybookRow) s
 	return out
 }
 
-func (s *srv) placeOptions(ctx context.Context, rows []store.AuthorPlaybookRow) (placeList, map[string]string) {
+// jurisdictionTree loads every authorable jurisdiction as parent links and
+// metadata. On a store error it returns empty maps, which makes the location
+// picker empty rather than the page fail.
+func (s *srv) jurisdictionTree(ctx context.Context) (parentOf map[string]string, meta map[string]store.Jurisdiction) {
+	parentOf, meta = map[string]string{}, map[string]store.Jurisdiction{}
 	all, err := s.pg.ListAuthorableJurisdictions(ctx)
 	if err != nil {
-		return placeList{known: map[string]bool{}}, map[string]string{}
+		return parentOf, meta
 	}
-	parentOf := make(map[string]string, len(all))
-	meta := make(map[string]store.Jurisdiction, len(all))
 	for _, j := range all {
 		parentOf[j.Slug] = j.ParentSlug
 		meta[j.Slug] = j
 	}
+	return parentOf, meta
+}
 
+// placeOptionsFrom counts rows into the location picker, ordered
+// country → state → city. Only places with pages are offered: the
+// jurisdictions table carries rows created for hierarchy repair and for
+// cities seeded but never written, and a filter listing options that select
+// nothing is worse than no filter.
+func placeOptionsFrom(rows []store.AuthorPlaybookRow, parentOf map[string]string, meta map[string]store.Jurisdiction) placeList {
 	// Count each page against its own jurisdiction and every ancestor, so a
 	// state's number is the work in that state rather than the handful of pages
 	// scoped to the state itself.
@@ -1726,7 +1767,7 @@ func (s *srv) placeOptions(ctx context.Context, rows []store.AuthorPlaybookRow) 
 		}
 		return out.Options[i].Name < out.Options[j].Name
 	})
-	return out, parentOf
+	return out
 }
 
 // importPage is one option in the "copy sources from" picker.

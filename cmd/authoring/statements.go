@@ -515,7 +515,8 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	rows, view, _, _ := s.filterRows(ctx, view, all)
+	rows, st := s.filterRows(ctx, view, all)
+	view = st.view
 	var ids []int64
 	for _, p := range rows {
 		if p.Status == "draft" {
