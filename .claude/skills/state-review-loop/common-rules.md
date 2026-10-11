@@ -37,5 +37,5 @@ Plain layout (Arizona pattern, Nazanin 2026-10-11). Switched on per topic (topic
 - No code section numbers in the text ("A.R.S. 33-1324", "section 504B.161"). The source chip names the section; the sentence says what the rule does ("the repair law").
 - Every deadline says who gets the days, from when, and what happens: "The law gives your landlord 10 days after they get your notice to fix it. If they do not fix it, your lease ends." Never a bare number of days.
 - No "as the law sets out", no "the law lets you" framing, no repeated warnings (the page says them once).
-- One statement per step, in the order the renter takes them: what you may still owe, how to leave, after you move out, special protections. Merge statements that repeat a rule; keep every right and every condition when merging.
+- One statement per step, in the order the renter takes them: if you leave without a legal reason, when you can leave early, how to leave, after you move out, special protections. Merge statements that repeat a rule; keep every right and every condition when merging.
 - Read each sentence against the full stored quote before filing. A plainer word must not change the rule ("a date you and your landlord agree on", not "a move-out date").
