@@ -40,4 +40,4 @@ Up to 102 pages: 51 places (50 states and DC) times 2 topics. The thin-page rule
 
 - The voice rules restructure and the CI copy check (see `project-site-copy-voice` memory).
 - Listing coverage records in the weekly check.
-- Stages on existing drafts and live pages.
+- Stages on existing drafts and live pages. Done 2026-10-11 by `scripts/2026-10-11-backfill-stages.sql` (4,748 statements on 9 topics, classified in the local session, stages re-numbered in topic order).
