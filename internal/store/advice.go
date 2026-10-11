@@ -259,7 +259,7 @@ func (pg *PG) SetPageAdvice(ctx context.Context, refs []AdviceRef, by string) er
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO playbook_advice (playbook_id, advice_id, statement_key, position, created_by)
 				VALUES ($1, $2, $3, (SELECT COALESCE(max(position), -1) + 1 FROM playbook_advice WHERE playbook_id = $1), $4)
-				ON CONFLICT (playbook_id, advice_id) DO UPDATE SET statement_key = EXCLUDED.statement_key`,
+				ON CONFLICT (playbook_id, advice_id, (COALESCE(statement_key, '00000000-0000-0000-0000-000000000000'::uuid))) DO NOTHING`,
 				r.PlaybookID, adviceID, key, by); err != nil {
 				return err
 			}
@@ -268,14 +268,16 @@ func (pg *PG) SetPageAdvice(ctx context.Context, refs []AdviceRef, by string) er
 	})
 }
 
-// RemovePageAdvice detaches entries from draft pages.
+// RemovePageAdvice detaches entries from draft pages. A ref with a
+// statement key detaches that one tip; without one, every use of the slug.
 func (pg *PG) RemovePageAdvice(ctx context.Context, refs []AdviceRef) error {
 	return pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for i, r := range refs {
 			tag, err := tx.Exec(ctx, `
 				DELETE FROM playbook_advice pa USING advice a, playbooks pb
 				WHERE pa.advice_id = a.id AND pb.id = pa.playbook_id
-				  AND pa.playbook_id = $1 AND a.slug = $2 AND pb.status = 'draft'`, r.PlaybookID, r.Slug)
+				  AND pa.playbook_id = $1 AND a.slug = $2 AND pb.status = 'draft'
+				  AND ($3 = '' OR pa.statement_key::text = $3)`, r.PlaybookID, r.Slug, r.StatementKey)
 			if err != nil {
 				return err
 			}

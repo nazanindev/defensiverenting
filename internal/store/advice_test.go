@@ -342,3 +342,71 @@ func TestPlainLayout_pageCaps(t *testing.T) {
 		t.Fatalf("13 counted statements: issues = %v", codes)
 	}
 }
+
+// A tip can sit under several statements on one page (a money example
+// under each worked example); attaching it twice to the same statement
+// keeps one row, and removing by key detaches only that one.
+func TestAdvice_tipUnderManyStatements(t *testing.T) {
+	pg, jID, tID := revisionFixture(t)
+	ctx := context.Background()
+	src, err := pg.UpsertSource(ctx, store.UpsertSourceParams{URL: "https://example.gov/many-" + t.Name(), Publisher: "Example", Kind: "statute"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cite := []store.IngestCitationParams{{SourceID: src.ID, Locator: "§ 1", Quote: "verbatim", CheckedNow: true, CheckedBy: "test"}}
+	if err := pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
+		JurisdictionID: jID, TopicID: tID, Language: "en", Slug: "slug-" + t.Name(),
+		Title: "Many tips draft", IntroMD: "intro", Status: "draft", UpdatedBy: "test",
+		Statements: []store.IngestStatementParams{
+			{BodyMD: "First claim.", Language: "en", Sources: cite},
+			{BodyMD: "Second claim.", Language: "en", Sources: cite},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var draft int64
+	if err := pg.Pool().QueryRow(ctx, `SELECT id FROM playbooks WHERE jurisdiction_id=$1 AND topic_id=$2 AND status='draft'`, jID, tID).Scan(&draft); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pg.Pool().Query(ctx, `
+		SELECT s.key::text FROM playbook_statements ps JOIN statements s ON s.id = ps.statement_id
+		WHERE ps.playbook_id = $1 ORDER BY ps.position`, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, k)
+	}
+	if len(keys) < 2 {
+		t.Fatalf("fixture page has %d statements, want 2 or more", len(keys))
+	}
+	refs := []store.AdviceRef{
+		{PlaybookID: draft, Slug: "read-your-lease", StatementKey: keys[0]},
+		{PlaybookID: draft, Slug: "read-your-lease", StatementKey: keys[1]},
+		{PlaybookID: draft, Slug: "read-your-lease", StatementKey: keys[1]},
+	}
+	if err := pg.SetPageAdvice(ctx, refs, store.ActorReviewAgent); err != nil {
+		t.Fatal(err)
+	}
+	count := func() int {
+		var n int
+		if err := pg.Pool().QueryRow(ctx, `SELECT count(*) FROM playbook_advice WHERE playbook_id = $1`, draft).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := count(); n != 2 {
+		t.Fatalf("rows = %d, want 2 (one per statement)", n)
+	}
+	if err := pg.RemovePageAdvice(ctx, []store.AdviceRef{{PlaybookID: draft, Slug: "read-your-lease", StatementKey: keys[0]}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 1 {
+		t.Fatalf("rows after removing one = %d, want 1", n)
+	}
+}
