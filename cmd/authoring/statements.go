@@ -548,7 +548,9 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 		msg += fmt.Sprintf(" %d draft(s) still held: %s.", len(held), strings.Join(held, "; "))
 	}
 	view.Status = "draft"
-	http.Redirect(w, r, "/?"+view.query()+"&msg="+url.QueryEscape(msg), http.StatusSeeOther)
+	// The path is always "/"; the query is the normalized view (allowlisted
+	// values, free text percent-encoded by url.Values), never a client path.
+	http.Redirect(w, r, "/?"+view.query()+"&msg="+url.QueryEscape(msg), http.StatusSeeOther) //nolint:gosec // see above
 }
 
 // rulesQuestions maps concept slug to its question and name when any row is
