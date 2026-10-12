@@ -60,6 +60,14 @@ var noteFor = map[string][]string{
 	"owe": {"leave-risk-owe", "leave-owe-short"},
 }
 
+// topicWarns are the site-voice warnings every page of a topic carries,
+// whether or not a statement names the step (ADR-016 A10): on a repairs
+// page the renter can always call an inspector, so the condemnation
+// caution leads the page. A warning that varies by state is never here.
+var topicWarns = map[string]map[string]bool{
+	"condemn": {"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true},
+}
+
 // tipAnchors is where each tip sits: the first statement whose text matches.
 var tipAnchors = []struct {
 	slug   string
@@ -111,6 +119,11 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 	// with every such line taken out.
 	every := voice.Page{Warns: map[string]bool{"owe": true, "evict": true, "award": true, "condemn": true}, Tips: map[string]bool{"keep-a-record": true}}
 	needs := map[string]bool{}
+	for kind, topics := range topicWarns {
+		if topics[pb.Topic.Slug] {
+			needs[kind] = true
+		}
+	}
 	for _, s := range pb.Statements {
 		bare, _ := voice.StripSaidOnce(pb.Language, s.BodyMD, every)
 		if k := voice.NeedsWarning(pb.Language, bare); k != "" {
