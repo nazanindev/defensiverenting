@@ -77,7 +77,17 @@ type backfillReview struct {
 	Key  string `json:"statement_key"`
 	Body string `json:"body_md"`
 	Tip  string `json:"tip,omitempty"`
+	// Stub marks a statement that would be left as a fragment once the
+	// repeated line comes out ("You can then move out."): it pointed at the
+	// statement before it and needs a merge, not a strip.
+	Stub string `json:"stub,omitempty"`
 }
+
+// stubWords is the fewest words a statement may keep after a strip before
+// it reads as a fragment and goes to a person instead.
+const stubWords = 10
+
+var pointerOpener = regexp.MustCompile(`(?i)^(you can then|then|this|these|also)\b`)
 
 func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 	pb, err := pg.AuthorGetPlaybook(ctx, id)
@@ -174,6 +184,10 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 	review := []backfillReview{}
 	for _, s := range pb.Statements {
 		text, removed := voice.StripSaidOnce(pb.Language, s.BodyMD, page)
+		if len(removed) > 0 && (len(regexp.MustCompile(`\S+`).FindAllString(text, -1)) < stubWords || pointerOpener.MatchString(text)) {
+			review = append(review, backfillReview{Key: s.Key, Body: s.BodyMD, Stub: text})
+			continue
+		}
 		if len(removed) > 0 && text != "" {
 			ps := store.ProposedStatement{BodyMD: text, Concept: s.ConceptSlug, TopicRef: s.TopicRefSlug}
 			for _, c := range s.Citations {
