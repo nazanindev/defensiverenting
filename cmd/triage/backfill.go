@@ -137,12 +137,22 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 			unbacked = append(unbacked, kind)
 		}
 	}
+	// An editorial-only statement is one a tip may replace (A4 step 5), so
+	// a tip never anchors on it.
+	editorialOnly := func(s store.CitedStatement) bool {
+		for _, c := range s.Citations {
+			if c.SourceKind != "editorial" {
+				return false
+			}
+		}
+		return true
+	}
 	for _, t := range tipAnchors {
 		if have[t.slug] || (t.topics != nil && !t.topics[pb.Topic.Slug]) {
 			continue
 		}
 		for _, s := range pb.Statements {
-			if t.match.MatchString(s.BodyMD) {
+			if !editorialOnly(s) && t.match.MatchString(s.BodyMD) {
 				refs = append(refs, store.AdviceRef{PlaybookID: id, Slug: t.slug, StatementKey: s.Key})
 				page.Tips[t.slug] = true
 				break
@@ -173,13 +183,7 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 			props = append(props, proposal{StatementKey: s.Key, PlaybookID: id, Reason: "agent-pass:triage", Proposed: ps,
 				Evidence: map[string]any{"note": "Advice backfill (ADR-016 A9): the page now says this once at the top or as a tip; removed: " + fmt.Sprint(removed)}})
 		}
-		editorialOnly := true
-		for _, c := range s.Citations {
-			if c.SourceKind != "editorial" {
-				editorialOnly = false
-			}
-		}
-		if editorialOnly {
+		if editorialOnly(s) {
 			r := backfillReview{Key: s.Key, Body: s.BodyMD}
 			for _, t := range tipAnchors {
 				if t.match.MatchString(s.BodyMD) && (t.topics == nil || t.topics[pb.Topic.Slug]) {

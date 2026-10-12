@@ -604,6 +604,28 @@ type Page struct {
 // said it once at the top.
 var repeatedWarning = regexp.MustCompile(`(?i)[^.]*\b(if a court later disagrees|if your landlord sues and wins|ending a lease early is risky)\b[^.]*\.(\s*Get legal help first\.)?`)
 
+// warningKind says which risk a repeated warning names: a renter who stays
+// and pays less can be evicted ("evict"); otherwise the risk is still owing
+// the rent ("owe"). Each is repeated only when its own note is on the page.
+func warningKind(sentence string) string {
+	if evictionRisk.MatchString(sentence) {
+		return "evict"
+	}
+	return "owe"
+}
+
+// repeatedWarnings lists the warning sentences in text whose risk the page
+// says once at the top.
+func repeatedWarnings(text string, page Page) []string {
+	var out []string
+	for _, m := range repeatedWarning.FindAllString(text, -1) {
+		if page.Warns[warningKind(m)] {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 // Sentences a page note or tip says once, which a statement on that page
 // must not repeat: keyed by the note's warns kind or the tip's slug.
 var repeatedOnce = map[string]*regexp.Regexp{
@@ -634,9 +656,9 @@ func StripSaidOnce(lang, text string, page Page) (string, []string) {
 			text = strings.Replace(text, m, " ", 1)
 		}
 	}
-	if page.Warns["owe"] || page.Warns["evict"] {
-		cut(repeatedWarning)
-		cut(legalHelpLine)
+	for _, m := range repeatedWarnings(text, page) {
+		removed = append(removed, strings.TrimSpace(m))
+		text = strings.Replace(text, m, " ", 1)
 	}
 	for k, re := range repeatedOnce {
 		if page.Warns[k] || page.Tips[k] {
@@ -652,10 +674,8 @@ func warnedTwice(lang, text string, page Page) string {
 	if lang != "en" {
 		return ""
 	}
-	if page.Warns["owe"] || page.Warns["evict"] {
-		if m := repeatedWarning.FindString(text); m != "" {
-			return fmt.Sprintf(`%q: the page says this once at the top; drop it from the statement`, strings.TrimSpace(m))
-		}
+	if ms := repeatedWarnings(text, page); len(ms) > 0 {
+		return fmt.Sprintf(`%q: the page says this once at the top; drop it from the statement`, strings.TrimSpace(ms[0]))
 	}
 	for k, re := range repeatedOnce {
 		if page.Warns[k] || page.Tips[k] {

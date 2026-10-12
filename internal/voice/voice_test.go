@@ -664,4 +664,17 @@ func TestStripSaidOnce(t *testing.T) {
 	if got, _ := StripSaidOnce("en", in, Page{}); got != in {
 		t.Error("with nothing on the page the text stays")
 	}
+	// Only the warning the page's note names comes out: an owe note leaves
+	// the eviction warning on a withholding statement.
+	stay := "You can withhold rent until it is fixed. If a court later disagrees, you can owe the rent and face eviction. Get legal help first."
+	if got, _ := StripSaidOnce("en", stay, Page{Warns: map[string]bool{"owe": true}}); got != stay {
+		t.Errorf("an owe note must not strip the eviction warning: %q", got)
+	}
+	if v := warnedTwice("en", stay, Page{Warns: map[string]bool{"owe": true}}); v != "" {
+		t.Errorf("an owe note does not make the eviction warning a repeat: %s", v)
+	}
+	left := "You can end your lease. If a court later disagrees, you can still owe the rent. Get legal help first."
+	if got, _ := StripSaidOnce("en", left, Page{Warns: map[string]bool{"owe": true}}); got != "You can end your lease." {
+		t.Errorf("the owe warning should come out: %q", got)
+	}
 }
