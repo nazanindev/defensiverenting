@@ -55,10 +55,15 @@ func TestAdvice_registryIsSeededAndBacked(t *testing.T) {
 			t.Errorf("%s is a plain habit and needs no source", s)
 		}
 	}
-	for _, s := range []string{"leave-risk-owe", "answer-court-papers", "show-your-proof"} {
+	for _, s := range []string{"leave-risk-owe", "answer-court-papers", "show-your-proof", "withhold-risk-evict", "award-win-and-pays"} {
 		if bySlug[s].SiteVoice {
-			t.Errorf("%s states a consequence and must be backed", s)
+			t.Errorf("%s states a consequence that varies by state and must be backed", s)
 		}
+	}
+	// A10: the condemnation risk is the same in every state, so the warning
+	// shows everywhere and a state's quote is only the chip.
+	if a := bySlug["inspector-may-condemn"]; !a.SiteVoice || a.Warns != "condemn" {
+		t.Error("inspector-may-condemn is a site-voice warning")
 	}
 	if len(bySlug["show-your-proof"].Citations) != 0 {
 		t.Error("show-your-proof has no source yet and must not pretend to")
