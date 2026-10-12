@@ -705,3 +705,13 @@ func TestRemovalOnlySkipsHarderThan(t *testing.T) {
 		t.Errorf("a removal-only edit is never harder: %s", v)
 	}
 }
+
+func TestLintEditRemovalOnlyIgnoresTheScoreCap(t *testing.T) {
+	old := "Your landlord must remedy a substantial noncompliance affecting habitability within fourteen days of written notification. Get legal help first."
+	cut := "Your landlord must remedy a substantial noncompliance affecting habitability within fourteen days of written notification."
+	for _, v := range LintEdit("en", old, cut, Page{}) {
+		if strings.Contains(v, "reads too hard") {
+			t.Errorf("a removal-only edit is not held to the score cap: %s", v)
+		}
+	}
+}

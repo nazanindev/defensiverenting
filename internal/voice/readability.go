@@ -263,3 +263,22 @@ func RemovalOnly(oldBody, newBody string) bool {
 	}
 	return strings.TrimSpace(newBody) != strings.TrimSpace(oldBody)
 }
+
+// LintEdit lints a replacement body against its page. When the replacement
+// only takes whole sentences out of the current text (RemovalOnly), the
+// reading-score cap is not held against it: the score of what is left can
+// rise when an easy sentence goes, but nothing got harder, and the existing
+// text is not blocked by a cap it already missed (ADR-023 amendment).
+func LintEdit(lang, current, proposed string, page Page) []string {
+	v := LintOn(lang, map[string]string{"body_md": proposed}, page)
+	if !RemovalOnly(current, proposed) {
+		return v
+	}
+	var out []string
+	for _, x := range v {
+		if !strings.Contains(x, "reads too hard") {
+			out = append(out, x)
+		}
+	}
+	return out
+}

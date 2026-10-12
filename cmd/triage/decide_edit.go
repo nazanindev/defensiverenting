@@ -174,7 +174,7 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, page 
 	if a := p.Proposed.Action; a == store.ActionRemove || a == store.ActionReorder {
 		return ""
 	}
-	if why := statementVerdict(ctx, *p.Proposed, p.Language, page, p.Position, check); why != "" {
+	if why := statementVerdict(ctx, *p.Proposed, p.CurrentBody, p.Language, page, p.Position, check); why != "" {
 		return why
 	}
 	if p.Proposed.BodyMD != p.CurrentBody {
@@ -183,7 +183,7 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, page 
 		}
 	}
 	for i, f := range p.Proposed.Followers {
-		if why := statementVerdict(ctx, f, p.Language, page, p.Position, check); why != "" {
+		if why := statementVerdict(ctx, f, "", p.Language, page, p.Position, check); why != "" {
 			return fmt.Sprintf("follower %d: %s", i+1, why)
 		}
 	}
@@ -193,11 +193,11 @@ func editVerdict(ctx context.Context, d editDecision, p store.ProposalRow, page 
 // statementVerdict holds one proposed statement (the replacement or a
 // follower of a split) to the rule: text, voice lint, a quote on every
 // citation, every quote confirmed live.
-func statementVerdict(ctx context.Context, ps store.ProposedStatement, lang string, page voice.Page, position int, check drafting.QuoteCheck) string {
+func statementVerdict(ctx context.Context, ps store.ProposedStatement, current, lang string, page voice.Page, position int, check drafting.QuoteCheck) string {
 	if strings.TrimSpace(ps.BodyMD) == "" {
 		return "the replacement has no text; left"
 	}
-	if v := voice.LintOn(lang, map[string]string{"body_md": ps.BodyMD}, page); len(v) > 0 {
+	if v := voice.LintEdit(lang, current, ps.BodyMD, page); len(v) > 0 {
 		return "the replacement fails the voice lint: " + strings.Join(v, "; ")
 	}
 	cited := false
