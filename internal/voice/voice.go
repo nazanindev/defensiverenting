@@ -520,10 +520,12 @@ var (
 	caseWord          = regexp.MustCompile(`(?i)\b(court|judge|sue|lawsuit|small claims|hearing)\b`)
 )
 
-// awardViolation is the statement-only rule for award money.
-func awardViolation(lang, text string) string {
+// awardViolation is the statement-only rule for award money. A page that
+// says once at the top that awarded money comes only if you win and the
+// landlord pays (the "award" note, ADR-016 A3) covers every statement on it.
+func awardViolation(lang, text string, page Page) string {
 	rs, ok := rulesets[lang]
-	if !ok || rs.award == nil {
+	if !ok || rs.award == nil || page.Warns["award"] {
 		return ""
 	}
 	// Assistance programs pay out without a case, and a suit against the
@@ -542,10 +544,12 @@ func awardViolation(lang, text string) string {
 	return ""
 }
 
-// inspectViolation is the statement-only rule for inspectStep.
-func inspectViolation(lang, text string) string {
+// inspectViolation is the statement-only rule for inspectStep. A page that
+// carries the condemnation caution once at the top (the "condemn" note)
+// covers every statement on it.
+func inspectViolation(lang, text string, page Page) string {
 	rs, ok := rulesets[lang]
-	if !ok || rs.inspectStep == nil {
+	if !ok || rs.inspectStep == nil || page.Warns["condemn"] {
 		return ""
 	}
 	// A landlord's move-in or move-out deposit inspection is not a code
@@ -568,9 +572,11 @@ var (
 	digitalRecord = regexp.MustCompile(`(?i)\b(texts?|text messages?|e-?mails?)\b`)
 )
 
-// mailRecordViolation is the statement-only rule for postal mail advice.
-func mailRecordViolation(lang, text string) string {
-	if lang != "en" || digitalRecord.MatchString(text) {
+// mailRecordViolation is the statement-only rule for postal mail advice. A
+// page that shows the keep-a-record tip already tells the renter that texts
+// and emails are a record.
+func mailRecordViolation(lang, text string, page Page) string {
+	if lang != "en" || digitalRecord.MatchString(text) || page.Tips["keep-a-record"] {
 		return ""
 	}
 	for _, sent := range sentenceEnd.Split(text, -1) {
@@ -586,6 +592,9 @@ type Page struct {
 	// Warns holds the risks the page says once at the top ("owe", "evict"),
 	// from its advice page notes (ADR-016 A3).
 	Warns map[string]bool
+	// Tips holds the slugs of the tips the page shows under its statements
+	// (ADR-016 A2): a habit the page says once need not be repeated.
+	Tips map[string]bool
 	// Plain says the page's topic uses the plain layout (the Arizona
 	// pattern), switched on per topic.
 	Plain bool
@@ -595,19 +604,37 @@ type Page struct {
 // said it once at the top.
 var repeatedWarning = regexp.MustCompile(`(?i)[^.]*\b(if a court later disagrees|if your landlord sues and wins|ending a lease early is risky)\b[^.]*\.(\s*Get legal help first\.)?`)
 
-// warnedTwice flags a statement that repeats the page's own warning.
+// Sentences a page note or tip says once, which a statement on that page
+// must not repeat: keyed by the note's warns kind or the tip's slug.
+var repeatedOnce = map[string]*regexp.Regexp{
+	"award":         regexp.MustCompile(`(?i)[^.]*\byou get this money only if you win\b[^.]*\.`),
+	"condemn":       regexp.MustCompile(`(?i)[^.]*\b(an )?inspector can condemn the home\b[^.]*\.`),
+	"keep-a-record": regexp.MustCompile(`(?i)[^.]*\bsave texts and emails\b[^.]*\.`),
+}
+
+// warnedTwice flags a statement that repeats the page's own warning, or a
+// sentence the page's note or tip already says.
 func warnedTwice(lang, text string, page Page) string {
-	if lang != "en" || len(page.Warns) == 0 {
+	if lang != "en" {
 		return ""
 	}
-	if m := repeatedWarning.FindString(text); m != "" {
-		return fmt.Sprintf(`%q: the page says this once at the top; drop it from the statement`, strings.TrimSpace(m))
+	if page.Warns["owe"] || page.Warns["evict"] {
+		if m := repeatedWarning.FindString(text); m != "" {
+			return fmt.Sprintf(`%q: the page says this once at the top; drop it from the statement`, strings.TrimSpace(m))
+		}
+	}
+	for k, re := range repeatedOnce {
+		if page.Warns[k] || page.Tips[k] {
+			if m := re.FindString(text); m != "" {
+				return fmt.Sprintf(`%q: the page says this once; drop it from the statement`, strings.TrimSpace(m))
+			}
+		}
 	}
 	return ""
 }
 
 // NeedsWarning reports the risk a statement relies on its page to say
-// ("owe" or "evict"), or "" when it names no risky step and promises nothing,
+// ("owe", "evict", "award" or "condemn"), or "" when it names no risky step and promises nothing,
 // or says the risk itself. A page that shows the statement away from its home
 // (a concept page, a rules page) brings that warning along (ADR-016 A3).
 func NeedsWarning(lang, text string) string {
@@ -624,6 +651,12 @@ func NeedsWarning(lang, text string) string {
 	}
 	if rs.noOwe != nil && rs.noOwe.FindString(ifOweNothing.ReplaceAllString(text, " ")) != "" && !rs.noOweWarning.MatchString(text) {
 		return "owe"
+	}
+	if awardViolation(lang, text, Page{}) != "" {
+		return "award"
+	}
+	if inspectViolation(lang, text, Page{}) != "" {
+		return "condemn"
 	}
 	return ""
 }
@@ -690,16 +723,16 @@ func LintOn(lang string, labeled map[string]string, page Page) []string {
 			for _, v := range plainViolations(lang, labeled[label], page) {
 				out = append(out, label+": "+v)
 			}
-			if v := inspectViolation(lang, labeled[label]); v != "" {
+			if v := inspectViolation(lang, labeled[label], page); v != "" {
 				out = append(out, label+": "+v)
 			}
 			if v := policeViolation(lang, labeled[label]); v != "" {
 				out = append(out, label+": "+v)
 			}
-			if v := awardViolation(lang, labeled[label]); v != "" {
+			if v := awardViolation(lang, labeled[label], page); v != "" {
 				out = append(out, label+": "+v)
 			}
-			if v := mailRecordViolation(lang, labeled[label]); v != "" {
+			if v := mailRecordViolation(lang, labeled[label], page); v != "" {
 				out = append(out, label+": "+v)
 			}
 			for _, v := range readabilityViolations(lang, labeled[label]) {

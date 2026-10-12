@@ -120,7 +120,7 @@ func decideEditFile(ctx context.Context, pg *store.PG, path string, args []strin
 		if err != nil {
 			fatal(err)
 		}
-		why := editVerdict(ctx, d, p, voice.Page{Warns: pl.Warns, Plain: pl.Plain}, check)
+		why := editVerdict(ctx, d, p, voice.Page{Warns: pl.Warns, Tips: pl.Tips, Plain: pl.Plain}, check)
 		if why != "" {
 			left++
 			fmt.Printf("    left pending: %s\n", why)

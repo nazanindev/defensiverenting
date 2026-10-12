@@ -225,3 +225,15 @@ The pilot pages were still statutes walked through clause by clause. Arizona was
 - On a plain-layout topic the lint holds a statement to 75 words, no code section numbers, and a deadline that names its start. A cap of 60 was tried and dropped: it pushed agents to split, and pages grew.
 - The publish gate holds a plain-layout page to 12 statements and 650 words (`page-too-many-statements`, `page-too-long`), not counting the statements that cite only the CFPB, which every state page shares. The page cap is what keeps the statement cap from being met by splitting.
 - The risk note follows option B: the full note where a state's source says both that a renter who leaves can owe or be sued and that a reason to leave can fail in court; otherwise a short note backed by an "owe" quote plus the site-voice line "Even with a good reason to leave, a court might disagree." A state with neither keeps its warnings on its statements.
+
+### A9. Backfill entries for the older topics (2026-10-11)
+
+Nazanin approved the registry entries the backfill needs, read off what the old live pages repeat (counts outside breaking-lease): the win-and-pays line 274 times on 6 topics, the withholding warning 89 times, the legal-aid condemnation caution 21 times, "Save texts and emails" 16 times, and about 300 editorial-only statements that say to ask in writing, keep a copy, take photos, get a receipt, or get a plan in writing. Migration 000078 adds:
+
+- Page notes, each needing a government or nonprofit quote per state before a page can publish with it (A1, option B): `award-win-and-pays` (new warns kind `award`), `withhold-risk-evict` (`evict`), `inspector-may-condemn` (new warns kind `condemn`).
+- Site-voice tips: `photos-of-the-problem`, `private-inspector`, `ask-for-a-receipt`, `plan-in-writing`. `keep-a-record` (000073) covers the texts-and-emails line.
+- Not added: a disclaimer for any topic but breaking-lease (the risk note carries the warning), and a forwarding-address tip (that is a legal rule and stays a cited statement).
+
+The lint learns the page's tips as well as its notes (`voice.Page.Tips`): the award rule, the inspector rule and the certified-mail rule pass when the page carries the matching note or the keep-a-record tip, and a statement that repeats the line the page says once is flagged. `NeedsWarning` reports `award` and `condemn` so concept and rules pages bring those notes along. `lintprops` takes `LINTPROPS_WARNS` and `LINTPROPS_TIPS`.
+
+Order of the backfill: quotes for the notes by state, then topic by topic a revision draft beside each live page, the repeated sentences come out of statements, tips attach, editorial-only statements are sorted (A4 step 5), the gate goes clean, and Nazanin bulk-publishes the topic. Repairs first.

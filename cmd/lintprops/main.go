@@ -7,8 +7,10 @@
 // (statement_key + body_md per item). With it, a replacement is also held to
 // voice.HarderThan against the body it replaces, as triage check does.
 //
-// LINTPROPS_WARNED lists page ids (comma separated) whose page says the risk
-// once at the top (ADR-016 A3); LINTPROPS_PLAIN lists page ids on a
+// LINTPROPS_WARNED lists page ids (comma separated) whose page says the owe
+// risk once at the top (ADR-016 A3); LINTPROPS_WARNS names other page notes
+// every page in the file carries ("evict,award,condemn") and LINTPROPS_TIPS
+// the tips ("keep-a-record"); LINTPROPS_PLAIN lists page ids on a
 // plain-layout topic. Their entries are linted as triage check lints them.
 // Without a database this tool cannot look either up.
 package main
@@ -87,9 +89,21 @@ func main() {
 			continue
 		}
 		where := fmt.Sprintf("entry %d", i+1)
-		page := voice.Page{Plain: plain[e.PlaybookID]}
+		page := voice.Page{Plain: plain[e.PlaybookID], Warns: map[string]bool{}, Tips: map[string]bool{}}
 		if warned[e.PlaybookID] {
-			page.Warns = map[string]bool{"owe": true}
+			page.Warns["owe"] = true
+		}
+		// LINTPROPS_WARNS and LINTPROPS_TIPS name what every page in the file
+		// carries: "evict,award,condemn" and "keep-a-record,photos-of-the-problem".
+		for _, k := range strings.Split(os.Getenv("LINTPROPS_WARNS"), ",") {
+			if k = strings.TrimSpace(k); k != "" {
+				page.Warns[k] = true
+			}
+		}
+		for _, k := range strings.Split(os.Getenv("LINTPROPS_TIPS"), ",") {
+			if k = strings.TrimSpace(k); k != "" {
+				page.Tips[k] = true
+			}
 		}
 		old, known := current[strings.ToLower(e.StatementKey)]
 		if !known || p.BodyMD != old {

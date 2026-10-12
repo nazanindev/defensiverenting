@@ -246,7 +246,7 @@ func (tb *Toolbelt) SaveDraft(ctx context.Context, in SaveDraftInput) (SaveDraft
 	if err != nil {
 		return SaveDraftOutput{}, err
 	}
-	violations := voice.LintOn(lang, texts, voice.Page{Warns: pl.Warns, Plain: pl.Plain})
+	violations := voice.LintOn(lang, texts, voice.Page{Warns: pl.Warns, Tips: pl.Tips, Plain: pl.Plain})
 	if len(violations) > 0 {
 		return SaveDraftOutput{}, reject("draft rejected by the editorial-voice lint. Rewrite the flagged text in plain language and save again (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 	}
@@ -698,7 +698,7 @@ func (tb *Toolbelt) ProposeStatement(ctx context.Context, in ProposeStatementInp
 		if err != nil {
 			return ProposeStatementOutput{}, err
 		}
-		if violations := voice.LintOn(lang, map[string]string{"body_md": st.BodyMD}, voice.Page{Warns: pl.Warns, Plain: pl.Plain}); len(violations) > 0 {
+		if violations := voice.LintOn(lang, map[string]string{"body_md": st.BodyMD}, voice.Page{Warns: pl.Warns, Tips: pl.Tips, Plain: pl.Plain}); len(violations) > 0 {
 			return ProposeStatementOutput{}, reject("rejected by the editorial-voice lint. Rewrite in plain language (do NOT change citation quotes):\n- %s", strings.Join(violations, "\n- "))
 		}
 		proposed = &store.ProposedStatement{BodyMD: st.BodyMD, Concept: strings.TrimSpace(st.Concept), TopicRef: strings.TrimSpace(st.TopicRef)}

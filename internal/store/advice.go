@@ -22,7 +22,7 @@ type Advice struct {
 	ID        int64
 	Slug      string
 	Kind      string // "tip" or "page_note"
-	Warns     string // a page note's risk: "owe", "evict", or ""
+	Warns     string // a page note's risk: "owe", "evict", "award", "condemn", or ""
 	BodyMD    string
 	SiteVoice bool
 	Retired   bool
@@ -169,31 +169,40 @@ func scanAdviceCitations(rows pgx.Rows) ([]AdviceCitation, error) {
 // whether its topic uses the plain layout.
 type PageLint struct {
 	Warns map[string]bool
+	// Tips is the slugs of the tips the page shows (ADR-016 A2).
+	Tips  map[string]bool
 	Plain bool
 }
 
+// emptyPageLint is the lint context of a page with no advice at all.
+func emptyPageLint() PageLint { return PageLint{Warns: map[string]bool{}, Tips: map[string]bool{}} }
+
 // PageLintOf returns the lint context of a page.
 func (pg *PG) PageLintOf(ctx context.Context, playbookID int64) (PageLint, error) {
-	out := PageLint{Warns: map[string]bool{}}
+	out := emptyPageLint()
 	if err := pg.pool.QueryRow(ctx, `
 		SELECT COALESCE(t.plain_layout, false) FROM playbooks pb JOIN topics t ON t.id = pb.topic_id WHERE pb.id = $1`,
 		playbookID).Scan(&out.Plain); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return out, err
 	}
 	rows, err := pg.pool.Query(ctx, `
-		SELECT a.warns FROM playbook_advice pa
+		SELECT a.kind, COALESCE(a.warns, ''), a.slug FROM playbook_advice pa
 		JOIN advice a ON a.id = pa.advice_id
-		WHERE pa.playbook_id = $1 AND a.warns IS NOT NULL AND a.retired_at IS NULL`, playbookID)
+		WHERE pa.playbook_id = $1 AND a.retired_at IS NULL`, playbookID)
 	if err != nil {
 		return out, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var w string
-		if err := rows.Scan(&w); err != nil {
+		var kind, w, slug string
+		if err := rows.Scan(&kind, &w, &slug); err != nil {
 			return out, err
 		}
-		out.Warns[w] = true
+		if kind == "tip" {
+			out.Tips[slug] = true
+		} else if w != "" {
+			out.Warns[w] = true
+		}
 	}
 	return out, rows.Err()
 }
@@ -348,7 +357,7 @@ func (pg *PG) KeyPageLint(ctx context.Context, key string, playbookID int64) (Pa
 			WHERE s.key::text = lower(btrim($1)) AND pb.status IN ('draft', 'published')
 			ORDER BY (pb.status = 'draft') DESC LIMIT 1`, key).Scan(&playbookID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return PageLint{Warns: map[string]bool{}}, nil
+			return emptyPageLint(), nil
 		}
 		if err != nil {
 			return PageLint{}, err
@@ -399,7 +408,7 @@ func (pg *PG) SlotPageLint(ctx context.Context, jurisdictionSlug, topicSlug, lan
 		WHERE j.slug = $1 AND t.slug = $2 AND pb.language = $3 AND pb.status = 'draft'`,
 		jurisdictionSlug, topicSlug, language).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		out := PageLint{Warns: map[string]bool{}}
+		out := emptyPageLint()
 		err := pg.pool.QueryRow(ctx, `SELECT plain_layout FROM topics WHERE slug = $1`, topicSlug).Scan(&out.Plain)
 		if errors.Is(err, pgx.ErrNoRows) {
 			err = nil

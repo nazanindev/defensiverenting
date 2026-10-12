@@ -436,12 +436,12 @@ func TestMailRecordViolation(t *testing.T) {
 		{"no mail", "Write down the date and keep a copy.", false},
 	}
 	for _, c := range cases {
-		got := mailRecordViolation("en", c.text) != ""
+		got := mailRecordViolation("en", c.text, Page{}) != ""
 		if got != c.flag {
 			t.Errorf("%s: flagged=%v, want %v", c.name, got, c.flag)
 		}
 	}
-	if mailRecordViolation("es", "Envíe la carta por certified mail.") != "" {
+	if mailRecordViolation("es", "Envíe la carta por certified mail.", Page{}) != "" {
 		t.Error("rule should run on English only")
 	}
 }
@@ -561,8 +561,47 @@ func TestPageWarningCoversRiskyStatements(t *testing.T) {
 	}
 }
 
+func TestPageNotesAndTipsCoverTheirSentences(t *testing.T) {
+	award := "If your landlord keeps your deposit without a legal right to it, you can sue and get double the deposit. Twice a $1,000 deposit is $2,000."
+	if v := awardViolation("en", award, Page{}); v == "" {
+		t.Fatal("award money with no win-and-pays line should fail")
+	}
+	if v := awardViolation("en", award, Page{Warns: map[string]bool{"award": true}}); v != "" {
+		t.Errorf("the award note on the page should cover it: %s", v)
+	}
+	inspect := "You can ask the city to send a code inspector."
+	if v := inspectViolation("en", inspect, Page{}); v == "" {
+		t.Fatal("an inspector step with no caution should fail")
+	}
+	if v := inspectViolation("en", inspect, Page{Warns: map[string]bool{"condemn": true}}); v != "" {
+		t.Errorf("the condemn note on the page should cover it: %s", v)
+	}
+	mail := "Send the notice by certified mail."
+	if v := mailRecordViolation("en", mail, Page{}); v == "" {
+		t.Fatal("certified mail with no record line should fail")
+	}
+	if v := mailRecordViolation("en", mail, Page{Tips: map[string]bool{"keep-a-record": true}}); v != "" {
+		t.Errorf("the keep-a-record tip on the page should cover it: %s", v)
+	}
+	both := Page{Warns: map[string]bool{"award": true, "condemn": true}, Tips: map[string]bool{"keep-a-record": true}}
+	for _, text := range []string{
+		award + " You get this money only if you win your case and your landlord pays.",
+		inspect + " For very bad conditions, an inspector can condemn the home and make everyone leave.",
+		mail + " Save texts and emails as well; they are also a record of what you sent.",
+	} {
+		if v := warnedTwice("en", text, both); v == "" {
+			t.Errorf("a statement repeating what the page says once should be flagged: %q", text)
+		}
+		if v := warnedTwice("en", text, Page{}); v != "" {
+			t.Errorf("with nothing on the page the statement keeps its line: %s", v)
+		}
+	}
+}
+
 func TestNeedsWarning(t *testing.T) {
 	cases := map[string]string{
+		"If your landlord keeps your deposit without a legal right to it, you can sue and get double the deposit. Twice a $1,000 deposit is $2,000.": "award",
+		"You can ask the city to send a code inspector.":                                  "condemn",
 		"You can end your lease if the home is not usable.":                               "owe",
 		"You can withhold rent until the repair is made.":                                 "evict",
 		"You owe no rent after you move out.":                                             "owe",

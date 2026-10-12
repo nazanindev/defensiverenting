@@ -402,7 +402,7 @@ func check(ctx context.Context, pg *store.PG, tb *drafting.Toolbelt, path string
 		if err != nil {
 			fatal(err)
 		}
-		page := voice.Page{Warns: pl.Warns, Plain: pl.Plain}
+		page := voice.Page{Warns: pl.Warns, Tips: pl.Tips, Plain: pl.Plain}
 		if e.Proposed.BodyMD != current.BodyMD {
 			if v := voice.LintOn(lang, map[string]string{"body_md": e.Proposed.BodyMD}, page); len(v) > 0 {
 				bad(i, "voice lint:\n  - %s", strings.Join(v, "\n  - "))
