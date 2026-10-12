@@ -518,8 +518,10 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 	rows, st := s.filterRows(ctx, view, all)
 	view = st.view
 	var ids []int64
+	// The status picker narrows too: on "revision" only drafts of live
+	// pages go; on a non-draft status nothing does.
 	for _, p := range rows {
-		if p.Status == "draft" {
+		if p.Status == "draft" && statusMatches(view.Status, p) {
 			ids = append(ids, p.ID)
 		}
 	}
@@ -548,7 +550,9 @@ func (s *srv) publishReady(w http.ResponseWriter, r *http.Request) {
 	if len(held) > 0 {
 		msg += fmt.Sprintf(" %d draft(s) still held: %s.", len(held), strings.Join(held, "; "))
 	}
-	view.Status = "draft"
+	if view.Status != "revision" {
+		view.Status = "draft"
+	}
 	// The path is always "/"; the query is the normalized view (allowlisted
 	// values, free text percent-encoded by url.Values), never a client path.
 	http.Redirect(w, r, "/?"+view.query()+"&msg="+url.QueryEscape(msg), http.StatusSeeOther) //nolint:gosec // see above

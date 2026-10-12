@@ -467,6 +467,13 @@ func (v dashboardView) Filtered() bool {
 	return v.Place != "" || v.Lang != "" || v.Kind != "" || v.Q != "" || v.Topic != "" || v.By != "" || v.Helpful != ""
 }
 
+// PublishScoped says whether the publish-ready button covers fewer drafts
+// than every ready one: a filter, or the revision status. Draft and All are
+// not a narrowing, since "ready" already means drafts.
+func (v dashboardView) PublishScoped() bool {
+	return v.Filtered() || v.Status == "revision"
+}
+
 // KindLink returns the href for narrowing to one page kind, keeping every
 // other part of the view. An empty kind clears the filter.
 func (v dashboardView) KindLink(kind string) template.URL { return v.Link("kind", kind) }
@@ -794,17 +801,6 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	topics := countBy(facet("topic"), func(p store.AuthorPlaybookRow) string { return p.TopicSlug })
 	bys := countBy(facet("by"), func(p store.AuthorPlaybookRow) string { return p.UpdatedBy })
 
-	// Drafts the gate would pass right now, for the publish-ready button.
-	// Counted after the filters so that the button offers what the list
-	// shows: narrowing to one state and pressing Publish must not publish
-	// every other state's drafts too.
-	readyCount := 0
-	for _, pb := range playbooks {
-		if pb.Status == "draft" && len(draftIssues[pb.ID]) == 0 {
-			readyCount++
-		}
-	}
-
 	// Drafts and published pages share one table, so a review pass through a
 	// batch of drafts otherwise means scrolling past every live page. The tab
 	// counts are taken after the place and language filters so that they
@@ -830,6 +826,17 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 		playbooks = kept
 	}
 	sortPlaybooks(playbooks, view.Sort, view.Dir)
+
+	// Drafts the gate would pass right now, for the publish-ready button.
+	// Counted after every filter, the status picker included, so that the
+	// button offers what the list shows: narrowing to one state, or to
+	// revisions, and pressing Publish must not publish the rest too.
+	readyCount := 0
+	for _, pb := range playbooks {
+		if pb.Status == "draft" && len(draftIssues[pb.ID]) == 0 {
+			readyCount++
+		}
+	}
 
 	// Secure is set unconditionally rather than sniffed from the request: Fly
 	// terminates TLS upstream, so r.TLS is nil in production and any check

@@ -721,7 +721,7 @@ func TestDashboardTemplate_publishReadyCarriesTheFilter(t *testing.T) {
 	}
 	html := buf.String()
 	for _, want := range []string{
-		`name="place" value="texas"`, `name="kind" value="rules"`, `name="q" value="dep"`,
+		`name="status" value="draft"`, `name="place" value="texas"`, `name="kind" value="rules"`, `name="q" value="dep"`,
 		`Publish 1 ready here`, `<option value="/?dir=`, `id="q-in" type="search" name="q" value="dep"`,
 		`name="topic" value="security-deposits"`, `name="by" value="Nazanin"`, `name="helpful" value="unanswered"`,
 		`<tr class="filters">`, `Clear filters`,
@@ -739,5 +739,17 @@ func TestDashboardTemplate_publishReadyCarriesTheFilter(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "ready here") {
 		t.Error("unfiltered view says the button is scoped")
+	}
+
+	// The revision status alone is a scope: the button says so and posts it.
+	data["View"] = dashboardView{Status: "revision"}.normalize()
+	buf.Reset()
+	if err := parseTemplates(t).ExecuteTemplate(&buf, "dashboard.html", data); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`name="status" value="revision"`, `ready here`} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("revision view is missing %q", want)
+		}
 	}
 }

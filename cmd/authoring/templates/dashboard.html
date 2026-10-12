@@ -119,10 +119,11 @@
       <a href="/quality" class="btn btn-view">Quality</a>
       <a href="/orgs" class="btn btn-view">Orgs</a>
       <a href="/guidelines" class="btn btn-view">Guidelines</a>
-      {{/* The button carries the current filter, so the drafts it publishes
-           are the drafts the list shows. The status tab is not part of it:
-           "ready" always means drafts. */}}
-      {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft {{if .View.Filtered}}in this filtered view {{end}}with nothing left to do ({{.ReadyCount}})? Each goes live under your name.')">
+      {{/* The button carries the current filter, status picker included, so
+           the drafts it publishes are the drafts the list shows. "Ready"
+           always means drafts; on "revision" it means drafts of live pages. */}}
+      {{if .ReadyCount}}<form method="post" action="/publish-ready" style="margin:0" onsubmit="return confirm('Publish every draft {{if .View.PublishScoped}}in this filtered view {{end}}with nothing left to do ({{.ReadyCount}})? Each goes live under your name.')">
+        <input type="hidden" name="status" value="{{.View.Status}}">
         <input type="hidden" name="place" value="{{.View.Place}}">
         <input type="hidden" name="lang" value="{{.View.Lang}}">
         <input type="hidden" name="kind" value="{{.View.Kind}}">
@@ -130,7 +131,7 @@
         <input type="hidden" name="topic" value="{{.View.Topic}}">
         <input type="hidden" name="by" value="{{.View.By}}">
         <input type="hidden" name="helpful" value="{{.View.Helpful}}">
-        <button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0" title="{{if .View.Filtered}}Only drafts in the current filter{{else}}Every draft with nothing left to do{{end}}">Publish {{.ReadyCount}} ready{{if .View.Filtered}} here{{end}}</button>
+        <button type="submit" class="btn btn-view" style="background:#d1fae5;color:#065f46;border-color:#a7f3d0" title="{{if .View.PublishScoped}}Only drafts in the current filter{{else}}Every draft with nothing left to do{{end}}">Publish {{.ReadyCount}} ready{{if .View.PublishScoped}} here{{end}}</button>
       </form>{{end}}
       <a href="/new" class="btn btn-primary">+ New Page</a>
     </div>
