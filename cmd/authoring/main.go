@@ -1206,6 +1206,7 @@ var templateFuncs = template.FuncMap{
 	"date":      fmtDate,
 	"datetime":  fmtDateTime,
 	"inc":       func(i int) int { return i + 1 }, // 1-based row numbers
+	"dec":       func(i int) int { return i - 1 }, // back to a 0-based card id
 	"highlight": highlight,
 	"wordDiff":  wordDiff,
 	// dict builds the argument of a nested template from key/value pairs,

@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 )
@@ -81,9 +83,88 @@ type qualityCheckCount struct {
 	Pages int
 }
 
-// The quality page. Without a filter it is the map; with ?place, ?topic or
-// ?check it is the list of pages behind one cell, row, column or check,
-// each with its failing checks in plain words.
+// checkColumn is one column of the drill-down grids. The columns are the
+// same in every view, in one order, so the eye never relearns them: red
+// checks first, then orange, then yellow. Short is the column header.
+type checkColumn struct {
+	Code  string
+	Short string
+	Name  string
+}
+
+var checkColumns = []checkColumn{
+	{"nonprofit-alone", "nonprofit only", store.CheckNames["nonprofit-alone"]},
+	{"below-tier", "weak source", store.CheckNames["below-tier"]},
+	{"first-step", "first step", store.CheckNames["first-step"]},
+	{"somewhere-to-go", "where to go", store.CheckNames["somewhere-to-go"]},
+	{"deadline-number", "deadline", store.CheckNames["deadline-number"]},
+	{"risks-paired", "risk warning", store.CheckNames["risks-paired"]},
+	{"unchecked", "unchecked", store.CheckNames["unchecked"]},
+	{"no-locator", "no section", store.CheckNames["no-locator"]},
+	{"archive-url", "archive", store.CheckNames["archive-url"]},
+	{"browser-tier-only", "browser only", store.CheckNames["browser-tier-only"]},
+	{"plainness", "hard words", store.CheckNames["plainness"]},
+}
+
+// gridCell is one cell of a drill-down grid: the worst severity of that
+// check on that row (0 when it passes) and every detail behind it.
+type gridCell struct {
+	Severity int
+	Details  []string
+}
+
+// Detail is the cell's details as one tooltip.
+func (c gridCell) Detail() string { return strings.Join(c.Details, "\n") }
+
+// pageRow is one page on the page-by-check grid.
+type pageRow struct {
+	Page  store.QualityPage
+	Cells map[string]gridCell
+}
+
+// stmtRow is one statement on the statement-by-check grid; N is 0 for the
+// row of checks that belong to the page as a whole.
+type stmtRow struct {
+	N     int
+	Cells map[string]gridCell
+}
+
+// pageGrid folds a page's checks into one row, worst severity per check.
+func pageGrid(p store.QualityPage) pageRow {
+	row := pageRow{Page: p, Cells: map[string]gridCell{}}
+	for _, c := range p.Checks {
+		cell := row.Cells[c.Code]
+		cell.Severity = max(cell.Severity, c.Severity)
+		cell.Details = append(cell.Details, c.Detail)
+		row.Cells[c.Code] = cell
+	}
+	return row
+}
+
+// stmtGrid lays a page's checks out by statement, the page row first.
+func stmtGrid(p store.QualityPage) []stmtRow {
+	rows := make([]stmtRow, p.Statements+1)
+	for i := range rows {
+		rows[i] = stmtRow{N: i, Cells: map[string]gridCell{}}
+	}
+	for _, c := range p.Checks {
+		if c.Stmt > p.Statements {
+			continue
+		}
+		cell := rows[c.Stmt].Cells[c.Code]
+		cell.Severity = max(cell.Severity, c.Severity)
+		cell.Details = append(cell.Details, c.Detail)
+		rows[c.Stmt].Cells[c.Code] = cell
+	}
+	return rows
+}
+
+// The quality page, three levels of one shape (Nazanin, 2026-10-11).
+// Without a filter it is the map, places by topics. With ?place, ?topic or
+// ?check it is the pages behind that cell, row, column or check, by check.
+// With ?page it is one page's statements by check, the page's own checks
+// on a first row. Every grid cell is colored by the worst check in it and
+// says the check in plain words.
 func (s *srv) quality(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pages, err := s.pg.AuthorQuality(ctx)
@@ -102,6 +183,7 @@ func (s *srv) quality(w http.ResponseWriter, r *http.Request) {
 	}
 
 	place, topic, check := r.FormValue("place"), r.FormValue("topic"), r.FormValue("check")
+	pageID, _ := strconv.ParseInt(r.FormValue("page"), 10, 64)
 	if _, ok := store.CheckNames[check]; !ok {
 		check = ""
 	}
@@ -115,7 +197,11 @@ func (s *srv) quality(w http.ResponseWriter, r *http.Request) {
 	byCheck := map[string]int{}
 	placeName := ""
 	var listed []store.QualityPage
+	var one *store.QualityPage
 	for _, p := range pages {
+		if p.ID == pageID {
+			one = &p
+		}
 		if p.Worst() > 0 {
 			failing++
 		}
@@ -156,14 +242,22 @@ func (s *srv) quality(w http.ResponseWriter, r *http.Request) {
 		place = ""
 	}
 	filtered := place != "" || topic != "" || check != ""
+	var pageRows []pageRow
 	if filtered {
-		// Worst pages first, so the top of the list is the next fix.
+		// Worst pages first, so the top of the grid is the next fix.
 		sort.SliceStable(listed, func(i, j int) bool {
 			if listed[i].Worst() != listed[j].Worst() {
 				return listed[i].Worst() > listed[j].Worst()
 			}
 			return len(listed[i].Checks) > len(listed[j].Checks)
 		})
+		for _, p := range listed {
+			pageRows = append(pageRows, pageGrid(p))
+		}
+	}
+	var stmtRows []stmtRow
+	if one != nil {
+		stmtRows = stmtGrid(*one)
 	}
 
 	var checks []qualityCheckCount
@@ -201,13 +295,16 @@ func (s *srv) quality(w http.ResponseWriter, r *http.Request) {
 		"Failing":    failing,
 		"Judged":     len(pages),
 		"Checks":     checks,
+		"Columns":    checkColumns,
 		"Filtered":   filtered,
+		"PageRows":   pageRows,
+		"One":        one,
+		"StmtRows":   stmtRows,
 		"Place":      place,
 		"PlaceName":  placeName,
 		"Topic":      topic,
 		"Check":      check,
 		"CheckName":  store.CheckNames[check],
-		"Listed":     listed,
 	})
 }
 

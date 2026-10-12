@@ -523,6 +523,24 @@ func TestCoverageTemplateRenders(t *testing.T) {
 	}
 }
 
+// The drill-down grids put every check on one row: the worst severity per
+// check, every detail kept, and the page's own checks on row 0.
+func TestQualityGrids(t *testing.T) {
+	p := store.QualityPage{ID: 1, Statements: 2, Checks: []store.QualityCheck{
+		{Code: "below-tier", Severity: store.SeverityRed, Stmt: 1, Detail: "one"},
+		{Code: "below-tier", Severity: store.SeverityYellow, Stmt: 2, Detail: "two"},
+		{Code: "first-step", Severity: store.SeverityOrange, Stmt: 0, Detail: "page"},
+	}}
+	row := pageGrid(p)
+	if c := row.Cells["below-tier"]; c.Severity != store.SeverityRed || len(c.Details) != 2 {
+		t.Errorf("page row below-tier: %+v", c)
+	}
+	rows := stmtGrid(p)
+	if len(rows) != 3 || rows[0].Cells["first-step"].Severity != store.SeverityOrange || rows[2].Cells["below-tier"].Severity != store.SeverityYellow {
+		t.Errorf("statement rows: %+v", rows)
+	}
+}
+
 func TestQualityTemplateRenders(t *testing.T) {
 	tmpl := parseTemplates(t)
 	topics := []store.Topic{{Slug: "security-deposits", Name: "Security Deposits", IsCore: true}}
@@ -540,6 +558,7 @@ func TestQualityTemplateRenders(t *testing.T) {
 		"TopicName":  map[string]string{"security-deposits": "Security Deposits"},
 		"Failing":    1, "Judged": 1,
 		"Checks":   []qualityCheckCount{{Code: "nonprofit-alone", Name: store.CheckNames["nonprofit-alone"], Pages: 1}},
+		"Columns":  checkColumns,
 		"Filtered": false,
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "quality.html", data); err != nil {
@@ -547,9 +566,15 @@ func TestQualityTemplateRenders(t *testing.T) {
 	}
 	data["Filtered"] = true
 	data["Place"], data["PlaceName"], data["Topic"] = "ohio", "Ohio", "security-deposits"
-	data["Listed"] = []store.QualityPage{page}
+	data["PageRows"] = []pageRow{pageGrid(page)}
 	if err := tmpl.ExecuteTemplate(io.Discard, "quality.html", data); err != nil {
-		t.Fatalf("execute quality.html (list): %v", err)
+		t.Fatalf("execute quality.html (pages by check): %v", err)
+	}
+	page.Statements = 3
+	data["One"] = &page
+	data["StmtRows"] = stmtGrid(page)
+	if err := tmpl.ExecuteTemplate(io.Discard, "quality.html", data); err != nil {
+		t.Fatalf("execute quality.html (statements by check): %v", err)
 	}
 }
 

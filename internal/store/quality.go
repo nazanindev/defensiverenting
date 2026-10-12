@@ -18,7 +18,10 @@ type QualityPage struct {
 	// TopicSlug is the core topic the page sits under on the map. A rules
 	// page sits under the situation topic it answers (ADR-028 D4).
 	TopicSlug string
-	Checks    []QualityCheck
+	// Statements is how many statements the page has, so a statement-by-
+	// check grid has a row for every one, passing or not.
+	Statements int
+	Checks     []QualityCheck
 }
 
 // Worst is the severity of the page's worst failing check, 0 when it passes.
@@ -143,6 +146,7 @@ func (pg *PG) AuthorQuality(ctx context.Context) ([]QualityPage, error) {
 	}
 
 	for id, in := range inputs {
+		pages[index[id]].Statements = len(in.Statements)
 		pages[index[id]].Checks = PageQualityChecks(*in)
 	}
 	return pages, nil
