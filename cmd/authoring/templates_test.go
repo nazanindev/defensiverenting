@@ -721,7 +721,7 @@ func TestDashboardTemplate_publishReadyCarriesTheFilter(t *testing.T) {
 	}
 	html := buf.String()
 	for _, want := range []string{
-		`name="status" value="draft"`, `name="place" value="texas"`, `name="kind" value="rules"`, `name="q" value="dep"`,
+		`href="/preview/1"`, `name="status" value="draft"`, `name="place" value="texas"`, `name="kind" value="rules"`, `name="q" value="dep"`,
 		`Publish 1 ready here`, `<option value="/?dir=`, `id="q-in" type="search" name="q" value="dep"`,
 		`name="topic" value="security-deposits"`, `name="by" value="Nazanin"`, `name="helpful" value="unanswered"`,
 		`<tr class="filters">`, `Clear filters`,

@@ -264,6 +264,7 @@
           <td>
             <div class="actions">
               <a href="/statements?page={{.ID}}" class="btn btn-view btn-xs">Open</a>
+              <a href="/preview/{{.ID}}" class="btn btn-view btn-xs" target="_blank" rel="noopener" title="See the page as a renter would, in a new tab">Preview ↗</a>
               {{/* Publish shows only when the page would pass the publish
                    gate; otherwise the same reasons sit behind a grey label. */}}
               {{if eq .Status "draft"}}
