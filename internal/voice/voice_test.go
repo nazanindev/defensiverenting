@@ -688,3 +688,20 @@ func TestSaidOnceKinds(t *testing.T) {
 		t.Errorf("a plain rule names no risk: %v", got)
 	}
 }
+
+func TestRemovalOnlySkipsHarderThan(t *testing.T) {
+	old := "You can sue for twice the deposit. You get this money only if you win your case and your landlord pays. Get legal help first."
+	cut := "You can sue for twice the deposit."
+	if !RemovalOnly(old, cut) {
+		t.Fatal("taking whole sentences out is removal only")
+	}
+	if RemovalOnly(old, "You can sue for triple the deposit.") {
+		t.Error("a changed sentence is not removal only")
+	}
+	if RemovalOnly(old, old) {
+		t.Error("the same text is no removal")
+	}
+	if v := HarderThan("en", old, cut); v != "" {
+		t.Errorf("a removal-only edit is never harder: %s", v)
+	}
+}

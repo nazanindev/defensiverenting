@@ -91,9 +91,9 @@ func init() {
 }
 
 var (
-	wordTok      = regexp.MustCompile(`[A-Za-z][A-Za-z'’-]*`)
-	sentenceTok  = regexp.MustCompile(`[.!?:;]+(\s|$)|\n+`)
-	webAddress   = regexp.MustCompile(`(?i)https?://\S+|\S+\.(org|gov|com|net|us|info)(/\S*)?`)
+	wordTok     = regexp.MustCompile(`[A-Za-z][A-Za-z'’-]*`)
+	sentenceTok = regexp.MustCompile(`[.!?:;]+(\s|$)|\n+`)
+	webAddress  = regexp.MustCompile(`(?i)https?://\S+|\S+\.(org|gov|com|net|us|info)(/\S*)?`)
 	// A gloss may follow the flagged word or the short phrase it opens:
 	// "escrow (...)", "writ of possession (...)".
 	glossFollows = regexp.MustCompile(`^["”’]?(\s+[A-Za-z'’-]+["”’]?){0,3}\s*\(`)
@@ -213,7 +213,7 @@ func readabilityViolations(lang, text string) []string {
 // replaces, or "" when it does not. An edit may fix a fact, but it may not
 // make the statement harder to read.
 func HarderThan(lang, oldBody, newBody string) string {
-	if lang != "en" || strings.TrimSpace(oldBody) == "" {
+	if lang != "en" || strings.TrimSpace(oldBody) == "" || RemovalOnly(oldBody, newBody) {
 		return ""
 	}
 	if os, ns := ReadingScore(oldBody), ReadingScore(newBody); ns >= targetScore && ns > os+maxScoreRise {
@@ -233,4 +233,32 @@ func HarderThan(lang, oldBody, newBody string) string {
 		return fmt.Sprintf("the replacement adds words a renter may not know %q that the current text does not have", added)
 	}
 	return ""
+}
+
+// RemovalOnly reports whether newBody is oldBody with whole sentences taken
+// out and nothing changed or added: every sentence of the new text is a
+// sentence of the old one, in order. Taking an easy sentence out can raise
+// the score of what is left, but no word got harder, so the harder-than
+// rule does not apply (the advice backfill, ADR-016 A9).
+func RemovalOnly(oldBody, newBody string) bool {
+	old := sentenceEnd.Split(strings.TrimSpace(oldBody), -1)
+	i := 0
+	for _, s := range sentenceEnd.Split(strings.TrimSpace(newBody), -1) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		found := false
+		for ; i < len(old); i++ {
+			if strings.TrimSpace(old[i]) == s {
+				found = true
+				i++
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return strings.TrimSpace(newBody) != strings.TrimSpace(oldBody)
 }
