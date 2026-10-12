@@ -637,6 +637,32 @@ var repeatedOnce = map[string]*regexp.Regexp{
 // legalHelpLine is the "Get legal help first." tail of a warning sentence.
 var legalHelpLine = regexp.MustCompile(`(?i)\s*Get legal help first\.`)
 
+// SaidOnceKinds reports the risks a statement already warns of in the
+// repeated words a page note replaces ("owe", "evict", "award", "condemn"):
+// a statement carrying the line is one the page's note is for.
+func SaidOnceKinds(lang, text string) []string {
+	if lang != "en" {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(k string) {
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	for _, m := range repeatedWarning.FindAllString(text, -1) {
+		add(warningKind(m))
+	}
+	for _, k := range []string{"award", "condemn"} {
+		if repeatedOnce[k].MatchString(text) {
+			add(k)
+		}
+	}
+	return out
+}
+
 // StripSaidOnce removes from a statement the sentences its page now says
 // once: the owe or evict warning (with its "Get legal help first" tail) when
 // the page carries that note, and the lines behind the page's other notes

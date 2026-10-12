@@ -106,6 +106,9 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 		if k := voice.NeedsWarning(pb.Language, bare); k != "" {
 			needs[k] = true
 		}
+		for _, k := range voice.SaidOnceKinds(pb.Language, s.BodyMD) {
+			needs[k] = true
+		}
 	}
 	refs := []store.AdviceRef{}
 	page := voice.Page{Warns: map[string]bool{}, Tips: map[string]bool{}}

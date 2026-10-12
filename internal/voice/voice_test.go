@@ -678,3 +678,13 @@ func TestStripSaidOnce(t *testing.T) {
 		t.Errorf("the owe warning should come out: %q", got)
 	}
 }
+
+func TestSaidOnceKinds(t *testing.T) {
+	got := SaidOnceKinds("en", "You can sue. You get this money only if you win your case and your landlord pays. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.")
+	if len(got) != 2 || got[0] != "award" && got[1] != "award" {
+		t.Errorf("got %v, want award and evict", got)
+	}
+	if got := SaidOnceKinds("en", "Your landlord must fix the heat."); len(got) != 0 {
+		t.Errorf("a plain rule names no risk: %v", got)
+	}
+}
