@@ -79,9 +79,6 @@ type Store interface {
 
 	// Concepts (ADR-011) and the reference layer built on them (ADR-012)
 	ListConcepts(ctx context.Context) ([]Concept, error)
-	// ConceptCoverage also returns the ordered place names that form the
-	// matrix's columns, so the template never derives them from row maps.
-	ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, []string, error)
 	ConceptHubTopics(ctx context.Context, language string) (map[string]string, error)
 	ListTerms(ctx context.Context, language string) ([]Term, error)
 	GetConceptPage(ctx context.Context, slug, language string) (ConceptPageData, error)
@@ -96,6 +93,7 @@ type Store interface {
 	// Authoring
 	AuthorListPlaybooks(ctx context.Context) ([]AuthorPlaybookRow, error)
 	AuthorCoverage(ctx context.Context) ([]CoverageRow, error)
+	AuthorQuality(ctx context.Context) ([]QualityPage, error)
 	AuthorGetPlaybook(ctx context.Context, id int64) (PlaybookWithStatements, error)
 	AuthorFindDraft(ctx context.Context, jurisdictionID, topicID int64, language string) (int64, error)
 	AuthorUpdatePlaybook(ctx context.Context, p AuthorUpdatePlaybookParams) error

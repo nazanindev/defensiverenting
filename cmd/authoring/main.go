@@ -258,6 +258,7 @@ func main() {
 	mux.HandleFunc("POST /queue/sources/{id}/reject", s.rejectSourceProposal)
 	mux.HandleFunc("POST /queue/sources/{id}/snooze", s.snoozeSourceProposal)
 	mux.HandleFunc("GET /coverage", s.coverage)
+	mux.HandleFunc("GET /quality", s.quality)
 	mux.HandleFunc("GET /orgs", s.orgs)
 	mux.HandleFunc("POST /orgs/contact", s.orgContact)
 	mux.HandleFunc("POST /orgs/type", s.orgType)
@@ -1207,6 +1208,17 @@ var templateFuncs = template.FuncMap{
 	"inc":       func(i int) int { return i + 1 }, // 1-based row numbers
 	"highlight": highlight,
 	"wordDiff":  wordDiff,
+	// dict builds the argument of a nested template from key/value pairs,
+	// so a cell template can take its row and its column.
+	"dict": func(kv ...any) map[string]any {
+		m := map[string]any{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			if k, ok := kv[i].(string); ok {
+				m[k] = kv[i+1]
+			}
+		}
+		return m
+	},
 }
 
 // highlight renders a passage with one quote marked inside it, both escaped.

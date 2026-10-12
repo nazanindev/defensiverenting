@@ -169,20 +169,6 @@ type Concept struct {
 	Position int
 }
 
-// ConceptCoverageRow is one concept's standing per place (ADR-011 D3),
-// shaped like CoverageRow so the dashboard renders both matrices the same
-// way: a dot per cell, not a wall of place names.
-type ConceptCoverageRow struct {
-	Concept  Concept
-	National bool
-	// Status maps a place's display name to "localized" (its own tagged,
-	// cited statement), "generic" (covered only by the national statement —
-	// the research queue), or "missing" (no statement anywhere up the
-	// chain). A place absent from the map is out of scope: a topic-owned
-	// concept where the place has no page of that topic is not a gap.
-	Status map[string]string
-}
-
 // Term is one row of the reference layer (ADR-012): a concept that has at
 // least one published tagged statement, with a blurb derived from its
 // national definition when one exists.

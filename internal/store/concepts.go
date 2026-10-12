@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -32,118 +31,6 @@ func (pg *PG) ListConcepts(ctx context.Context) ([]Concept, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
-}
-
-// ConceptCoverage computes the resolution-aware matrix (ADR-011 D3): for each
-// concept, which covered places have their own tagged statement (localized),
-// which are covered only because the national page states the claim (generic
-// — the work queue), and which have no statement anywhere up the chain
-// (missing). Drafts count as coverage for the same reason they do in the
-// topic matrix: a statement sitting in review is not a gap to re-research.
-// English only — translations mirror English content (ADR-007), so counting
-// both would double every place.
-func (pg *PG) ConceptCoverage(ctx context.Context) ([]ConceptCoverageRow, []string, error) {
-	concepts, err := pg.ListConcepts(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Every (place, concept) pair with a tagged statement on a live page.
-	tagRows, err := pg.pool.Query(ctx, `
-		SELECT DISTINCT pb.jurisdiction_id, j.kind, s.concept_id
-		FROM playbooks pb
-		JOIN playbook_statements ps ON ps.playbook_id = pb.id
-		JOIN statements s ON s.id = ps.statement_id
-		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
-		WHERE s.concept_id IS NOT NULL
-		  AND pb.status IN ('published', 'draft') AND pb.language = 'en'`)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer tagRows.Close()
-	type jc struct {
-		j int64
-		c int64
-	}
-	tagged := map[jc]bool{}
-	nationalHas := map[int64]bool{}
-	for tagRows.Next() {
-		var jID, cID int64
-		var kind string
-		if err := tagRows.Scan(&jID, &kind, &cID); err != nil {
-			return nil, nil, err
-		}
-		if kind == "country" {
-			nationalHas[cID] = true
-		} else {
-			tagged[jc{jID, cID}] = true
-		}
-	}
-	if err := tagRows.Err(); err != nil {
-		return nil, nil, err
-	}
-
-	// Every non-national place with a live page, and per topic.
-	pageRows, err := pg.pool.Query(ctx, `
-		SELECT DISTINCT pb.jurisdiction_id, j.name, pb.topic_id
-		FROM playbooks pb
-		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
-		WHERE pb.status IN ('published', 'draft') AND pb.language = 'en'
-		  AND j.kind IN ('city', 'state')`)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer pageRows.Close()
-	nameOf := map[int64]string{}
-	byTopic := map[int64]map[int64]bool{} // topic id -> place ids
-	anyPage := map[int64]bool{}
-	for pageRows.Next() {
-		var jID, tID int64
-		var name string
-		if err := pageRows.Scan(&jID, &name, &tID); err != nil {
-			return nil, nil, err
-		}
-		nameOf[jID] = name
-		anyPage[jID] = true
-		if byTopic[tID] == nil {
-			byTopic[tID] = map[int64]bool{}
-		}
-		byTopic[tID][jID] = true
-	}
-	if err := pageRows.Err(); err != nil {
-		return nil, nil, err
-	}
-
-	// The matrix's columns: every covered place, in one stable order.
-	allPlaces := make([]string, 0, len(nameOf))
-	for _, n := range nameOf {
-		allPlaces = append(allPlaces, n)
-	}
-	sort.Strings(allPlaces)
-
-	out := make([]ConceptCoverageRow, 0, len(concepts))
-	for _, c := range concepts {
-		row := ConceptCoverageRow{Concept: c, National: nationalHas[c.ID], Status: map[string]string{}}
-		// Cross-cutting concepts can be localized on any of a place's pages,
-		// so every covered place is in scope; a topic-owned concept is only
-		// expected where its topic's page exists.
-		scope := byTopic[c.TopicID]
-		if c.TopicSlug == "renting-fundamentals" {
-			scope = anyPage
-		}
-		for jID := range scope {
-			switch {
-			case tagged[jc{jID, c.ID}]:
-				row.Status[nameOf[jID]] = "localized"
-			case row.National:
-				row.Status[nameOf[jID]] = "generic"
-			default:
-				row.Status[nameOf[jID]] = "missing"
-			}
-		}
-		out = append(out, row)
-	}
-	return out, allPlaces, nil
 }
 
 // ListSourceUsage returns each source's citation structure across live pages

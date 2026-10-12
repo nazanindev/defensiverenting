@@ -28,10 +28,6 @@ func parseTemplates(t *testing.T) *template.Template {
 // it in one place means a template that starts reading a new field fails here
 // once, with the field named, rather than in each fixture separately.
 func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[string]any {
-	coverage := []store.CoverageRow{{
-		JurisdictionName: "Chicago", JurisdictionSlug: "chicago",
-		Status: map[string]string{"security-deposits": "published", "resource-directory": ""},
-	}}
 	return map[string]any{
 		"Playbooks": playbooks,
 		// Draft 1 carries issues so the ⚠ badge path renders, not just the
@@ -51,7 +47,6 @@ func dashboardData(status string, playbooks []store.AuthorPlaybookRow) map[strin
 			{Slug: "security-deposits", Name: "Security Deposits", IsCore: true},
 			{Slug: "resource-directory", Name: "Local Help", IsCore: true},
 		},
-		"Coverage":       coverage,
 		"ShowLanguage":   false,
 		"TotalCount":     len(playbooks),
 		"DraftCount":     len(playbooks),
@@ -494,33 +489,67 @@ func TestQuoteSurvivesAnUnchangedSave(t *testing.T) {
 	}
 }
 
-// The coverage matrices moved off the dashboard to their own page; both
-// tables and the empty concept case have to render.
+// The coverage map and the quality map share one shape; both have to render
+// with and without cities, and the quality page in both its map and list
+// forms.
 func TestCoverageTemplateRenders(t *testing.T) {
 	tmpl := parseTemplates(t)
+	topics := []store.Topic{
+		{Slug: "security-deposits", Name: "Security Deposits", IsCore: true},
+		{Slug: "resource-directory", Name: "Local Help", IsCore: true},
+	}
 	data := map[string]any{
 		"Actor": "nazanin",
-		"Coverage": []store.CoverageRow{{
-			JurisdictionName: "Chicago", JurisdictionSlug: "chicago",
-			Status: map[string]string{"security-deposits": "published", "resource-directory": "draft"},
+		"Places": []store.CoverageRow{{
+			JurisdictionName: "Ohio", JurisdictionSlug: "ohio", JurisdictionKind: "state",
+			Status: map[string]store.CoverageCell{
+				"security-deposits":  {State: "published", Pages: 1, PageID: 7},
+				"resource-directory": {State: "draft", Pages: 2},
+			},
 		}},
-		"CoreTopics": []store.Topic{
-			{Slug: "security-deposits", Name: "Security Deposits", IsCore: true},
-			{Slug: "resource-directory", Name: "Local Help", IsCore: true},
-		},
-		"ConceptCoverage": []store.ConceptCoverageRow{{
-			Concept: store.Concept{Name: "Deposit cap", TopicSlug: "security-deposits"}, National: true,
-			Status: map[string]string{"Chicago": "localized", "Boston": "generic"},
+		"Cities": []store.CoverageRow{{
+			JurisdictionName: "Chicago", JurisdictionSlug: "chicago", JurisdictionKind: "city",
+			Status: map[string]store.CoverageCell{},
 		}},
-		"ConceptPlaces": []string{"Chicago", "Boston"},
-		"DraftCount":    3, "IssueCount": 1, "Proposals": 2,
+		"CoreTopics": topics,
+		"Missing":    3,
 	}
 	if err := tmpl.ExecuteTemplate(io.Discard, "coverage.html", data); err != nil {
 		t.Fatalf("execute coverage.html: %v", err)
 	}
-	data["ConceptCoverage"] = nil
+	data["Cities"] = nil
 	if err := tmpl.ExecuteTemplate(io.Discard, "coverage.html", data); err != nil {
-		t.Fatalf("execute coverage.html (no concepts): %v", err)
+		t.Fatalf("execute coverage.html (no cities): %v", err)
+	}
+}
+
+func TestQualityTemplateRenders(t *testing.T) {
+	tmpl := parseTemplates(t)
+	topics := []store.Topic{{Slug: "security-deposits", Name: "Security Deposits", IsCore: true}}
+	page := store.QualityPage{
+		ID: 7, Title: "How do I get my deposit back?", Status: "draft", PageKind: "playbook",
+		JurisdictionName: "Ohio", JurisdictionSlug: "ohio", JurisdictionKind: "state", TopicSlug: "security-deposits",
+		Checks: []store.QualityCheck{{Code: "nonprofit-alone", Severity: store.SeverityRed, Stmt: 2, Detail: "statement 2 states a legal rule but cites only a nonprofit page"}},
+	}
+	data := map[string]any{
+		"Actor": "nazanin",
+		"Places": []qualityRow{{Name: "Ohio", Slug: "ohio", Kind: "state",
+			Cells: map[string]qualityCell{"security-deposits": {Worst: 3, Draft: true, Pages: 1}}}},
+		"Cities":     []qualityRow{{Name: "Chicago", Slug: "chicago", Kind: "city", Cells: map[string]qualityCell{"security-deposits": {Worst: -1}}}},
+		"CoreTopics": topics,
+		"TopicName":  map[string]string{"security-deposits": "Security Deposits"},
+		"Failing":    1, "Judged": 1,
+		"Checks":   []qualityCheckCount{{Code: "nonprofit-alone", Name: store.CheckNames["nonprofit-alone"], Pages: 1}},
+		"Filtered": false,
+	}
+	if err := tmpl.ExecuteTemplate(io.Discard, "quality.html", data); err != nil {
+		t.Fatalf("execute quality.html (map): %v", err)
+	}
+	data["Filtered"] = true
+	data["Place"], data["PlaceName"], data["Topic"] = "ohio", "Ohio", "security-deposits"
+	data["Listed"] = []store.QualityPage{page}
+	if err := tmpl.ExecuteTemplate(io.Discard, "quality.html", data); err != nil {
+		t.Fatalf("execute quality.html (list): %v", err)
 	}
 }
 

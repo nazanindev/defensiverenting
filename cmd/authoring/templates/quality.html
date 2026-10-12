@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quality — Defensive Renting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+  .site-logo img { width: 28px; height: 28px; border-radius: 50%; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 1400px; margin: 0 auto; padding: 32px 24px 80px; }
+  .crumb { font-size: .82rem; color: #9a7878; margin-bottom: 6px; }
+  .crumb a { color: #9b2335; text-decoration: none; }
+  .toolbar { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 700; }
+  .tabs a { font-size: .875rem; color: #9b2335; text-decoration: none; margin-left: 14px; }
+  .tabs a.on { color: #1e1215; font-weight: 600; border-bottom: 2px solid #9b2335; padding-bottom: 2px; }
+  .number { font-size: .95rem; color: #7a5c5c; margin-bottom: 18px; }
+  .number b { font-family: 'Fraunces', serif; font-size: 1.3rem; color: #1e1215; }
+
+  /* The map: same shape as the coverage map, color is the worst failing
+     check in the cell (ADR-027 D5). A hatched cell is one whose worst page
+     is a draft, where an agent can still fix it. */
+  .scroll { overflow-x: auto; }
+  .map { border-collapse: separate; border-spacing: 3px; }
+  .map th { font-size: .68rem; font-weight: 500; color: #7a5c5c; padding: 0 2px 6px; vertical-align: bottom; text-align: center; width: 72px; line-height: 1.2; }
+  .map th a { color: inherit; text-decoration: none; }
+  .map th a:hover { color: #9b2335; }
+  .map th.place, .map td.place { text-align: left; white-space: nowrap; font-size: .8rem; padding-right: 10px; width: auto; color: #1e1215; }
+  .map td.place a { color: inherit; text-decoration: none; }
+  .map td.place a:hover { color: #9b2335; }
+  .map td { padding: 0; height: 22px; }
+  .map td.c { background: #ece4e4; border-radius: 3px; }
+  .map td.c a, .map td.c span { display: block; height: 22px; border-radius: 3px; }
+  .map td.c a:hover { outline: 2px solid #1e1215; outline-offset: -2px; }
+  .map td.s0 { background: #2f855a; }
+  .map td.s1 { background: #d69e2e; }
+  .map td.s2 { background: #dd6b20; }
+  .map td.s3 { background: #c53030; }
+  .map td.draft a { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.45) 0 3px, transparent 3px 7px); }
+  .block { font-family: 'Fraunces', serif; font-size: .95rem; margin: 26px 0 8px; }
+  .legend { font-size: .76rem; color: #7a5c5c; margin-top: 14px; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; background: #ece4e4; }
+  .legend i.s0 { background: #2f855a; }
+  .legend i.s1 { background: #d69e2e; }
+  .legend i.s2 { background: #dd6b20; }
+  .legend i.s3 { background: #c53030; }
+  .legend i.draft { background: #c53030; background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.45) 0 2px, transparent 2px 4px); }
+
+  /* The list of checks under the map, and the list of pages behind a click. */
+  h2 { font-family: 'Fraunces', serif; font-size: 1.05rem; margin: 32px 0 10px; }
+  .checks { list-style: none; max-width: 70ch; }
+  .checks li { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid #f0e4e4; font-size: .9rem; }
+  .checks li a { color: inherit; text-decoration: none; }
+  .checks li a:hover { color: #9b2335; }
+  .checks b { font-family: 'Fraunces', serif; font-size: 1rem; white-space: nowrap; }
+  .pages { list-style: none; max-width: 90ch; }
+  .pages > li { padding: 14px 0; border-bottom: 1px solid #f0e4e4; }
+  .pages .head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .pages .head a { color: #1e1215; text-decoration: none; font-weight: 600; }
+  .pages .head a:hover { color: #9b2335; }
+  .pages .meta { font-size: .78rem; color: #7a5c5c; }
+  .pages .ok { font-size: .85rem; color: #2f855a; margin-top: 4px; }
+  .pages ul { list-style: none; margin-top: 6px; }
+  .pages ul li { font-size: .88rem; padding: 3px 0 3px 14px; border-left: 3px solid #ece4e4; margin: 3px 0; }
+  .pages ul li.s3 { border-left-color: #c53030; }
+  .pages ul li.s2 { border-left-color: #dd6b20; }
+  .pages ul li.s1 { border-left-color: #d69e2e; }
+  .pages ul li a { color: #7a5c5c; text-decoration: none; font-size: .78rem; margin-left: 6px; }
+  .empty { color: #7a5c5c; font-size: .9rem; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo"><img src="https://defensiverenting.fly.dev/static/favicon.png" alt="" />Defensive Renting</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      {{if .Actor}}<span style="color:rgba(255,255,255,.85);font-size:.8rem">Signed in as {{.Actor}}</span>{{end}}
+      <span class="header-badge">Authoring</span>
+    </div>
+  </div>
+</header>
+<div class="page">
+  {{if .Filtered}}
+  <div class="crumb"><a href="/quality">← Quality map</a></div>
+  <div class="toolbar">
+    <h1>{{if .PlaceName}}{{.PlaceName}}{{end}}{{if and .PlaceName .Topic}} · {{end}}{{if .Topic}}{{index .TopicName .Topic}}{{end}}{{if .Check}}{{if or .PlaceName .Topic}} · {{end}}{{.CheckName}}{{end}}</h1>
+  </div>
+  <p class="number"><b>{{len .Listed}}</b> pages</p>
+  {{if not .Listed}}<p class="empty">No page here.</p>{{end}}
+  <ul class="pages">
+    {{range .Listed}}
+    <li>
+      <div class="head">
+        <a href="/view/{{.ID}}">{{.Title}}</a>
+        <span class="meta">{{.JurisdictionName}} · {{index $.TopicName .TopicSlug}} · {{.PageKind}} · {{.Status}}</span>
+      </div>
+      {{if .Checks}}
+      <ul>
+        {{range .Checks}}<li class="s{{.Severity}}">{{.Detail}}<a href="/quality?check={{.Code}}">{{.Code}}</a></li>{{end}}
+      </ul>
+      {{else}}<p class="ok">Every check passes.</p>{{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <div class="crumb"><a href="/">← Dashboard</a></div>
+  <div class="toolbar">
+    <h1>Quality</h1>
+    <nav class="tabs"><a href="/coverage">Coverage</a><a class="on" href="/quality">Quality</a></nav>
+  </div>
+  <p class="number"><b>{{.Failing}}</b> of {{.Judged}} pages fail a check</p>
+
+  <div class="scroll">
+  <table class="map">
+    <thead>
+      <tr>
+        <th class="place">Place</th>
+        {{range .CoreTopics}}<th><a href="/quality?topic={{.Slug}}" title="{{.Name}}: every place">{{.Name}}</a></th>{{end}}
+      </tr>
+    </thead>
+    <tbody>
+      {{range $row := .Places}}
+      <tr>
+        <td class="place"><a href="/quality?place={{$row.Slug}}" title="{{$row.Name}}: every topic">{{$row.Name}}</a></td>
+        {{range $t := $.CoreTopics}}{{template "qcell" (dict "Row" $row "Topic" $t)}}{{end}}
+      </tr>
+      {{end}}
+      {{if .Cities}}
+      <tr><td class="place block" colspan="{{len .CoreTopics | inc}}">Cities</td></tr>
+      {{range $row := .Cities}}
+      <tr>
+        <td class="place"><a href="/quality?place={{$row.Slug}}" title="{{$row.Name}}: every topic">{{$row.Name}}</a></td>
+        {{range $t := $.CoreTopics}}{{template "qcell" (dict "Row" $row "Topic" $t)}}{{end}}
+      </tr>
+      {{end}}
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  <p class="legend">
+    <span><i class="s3"></i>a legal rule with no law behind it</span>
+    <span><i class="s2"></i>the page does not tell the renter what to do</span>
+    <span><i class="s1"></i>a weaker source, or hard words</span>
+    <span><i class="s0"></i>every check passes</span>
+    <span><i class="draft"></i>hatched: the worst page is a draft</span>
+    <span><i></i>no page</span>
+  </p>
+
+  <h2>Checks</h2>
+  {{if not .Checks}}<p class="empty">Every page passes every check.</p>{{end}}
+  <ul class="checks">
+    {{range .Checks}}<li><a href="/quality?check={{.Code}}">{{.Name}}</a><b>{{.Pages}}</b></li>{{end}}
+  </ul>
+  {{end}}
+</div>
+</body>
+</html>
+
+{{define "qcell"}}
+{{- $cell := index .Row.Cells .Topic.Slug -}}
+{{- if lt $cell.Worst 0 -}}
+<td class="c"><span title="{{.Row.Name}} · {{.Topic.Name}}: no page"></span></td>
+{{- else -}}
+<td class="c s{{$cell.Worst}}{{if $cell.Draft}} draft{{end}}"><a href="/quality?place={{.Row.Slug}}&topic={{.Topic.Slug}}" title="{{.Row.Name}} · {{.Topic.Name}}: {{if eq $cell.Worst 0}}every check passes{{else if eq $cell.Worst 1}}a weaker source or hard words{{else if eq $cell.Worst 2}}does not tell the renter what to do{{else}}a legal rule with no law behind it{{end}}{{if $cell.Draft}}, on a draft{{end}}"></a></td>
+{{- end -}}
+{{end}}
