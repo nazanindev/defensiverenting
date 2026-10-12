@@ -612,6 +612,40 @@ var repeatedOnce = map[string]*regexp.Regexp{
 	"keep-a-record": regexp.MustCompile(`(?i)[^.]*\bsave texts and emails\b[^.]*\.`),
 }
 
+// legalHelpLine is the "Get legal help first." tail of a warning sentence.
+var legalHelpLine = regexp.MustCompile(`(?i)\s*Get legal help first\.`)
+
+// StripSaidOnce removes from a statement the sentences its page now says
+// once: the owe or evict warning (with its "Get legal help first" tail) when
+// the page carries that note, and the lines behind the page's other notes
+// and tips (ADR-016 A9). It returns the text and the sentences removed.
+func StripSaidOnce(lang, text string, page Page) (string, []string) {
+	if lang != "en" {
+		return text, nil
+	}
+	var removed []string
+	cut := func(re *regexp.Regexp) {
+		for {
+			m := re.FindString(text)
+			if m == "" {
+				return
+			}
+			removed = append(removed, strings.TrimSpace(m))
+			text = strings.Replace(text, m, " ", 1)
+		}
+	}
+	if page.Warns["owe"] || page.Warns["evict"] {
+		cut(repeatedWarning)
+		cut(legalHelpLine)
+	}
+	for k, re := range repeatedOnce {
+		if page.Warns[k] || page.Tips[k] {
+			cut(re)
+		}
+	}
+	return strings.TrimSpace(strings.Join(strings.Fields(text), " ")), removed
+}
+
 // warnedTwice flags a statement that repeats the page's own warning, or a
 // sentence the page's note or tip already says.
 func warnedTwice(lang, text string, page Page) string {

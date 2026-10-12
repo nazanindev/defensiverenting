@@ -649,3 +649,19 @@ func TestPlainLayoutRules(t *testing.T) {
 		t.Error(`"as the law sets out" should be banned`)
 	}
 }
+
+func TestStripSaidOnce(t *testing.T) {
+	page := Page{Warns: map[string]bool{"evict": true, "award": true}, Tips: map[string]bool{"keep-a-record": true}}
+	in := "You can withhold rent until it is fixed. If a court later disagrees, you can owe the rent and face eviction. Get legal help first. Send it by certified mail. Save texts and emails as well; they are also a record of what you sent. You can sue for twice the deposit. You get this money only if you win your case and your landlord pays."
+	got, removed := StripSaidOnce("en", in, page)
+	want := "You can withhold rent until it is fixed. Send it by certified mail. You can sue for twice the deposit."
+	if got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	if len(removed) != 3 {
+		t.Errorf("removed %d sentences, want 3 (the warning carries its legal-help tail): %v", len(removed), removed)
+	}
+	if got, _ := StripSaidOnce("en", in, Page{}); got != in {
+		t.Error("with nothing on the page the text stays")
+	}
+}

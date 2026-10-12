@@ -457,3 +457,28 @@ func (pg *PG) DraftInSlot(ctx context.Context, jurisdictionSlug, topicSlug, lang
 	}
 	return id, err
 }
+
+// BackedAdviceOn returns the slugs of the live entries a page may reference
+// and publish with: site voice, or a confirmed government or nonprofit quote
+// from the page's place or national (the publish gate's rule).
+func (pg *PG) BackedAdviceOn(ctx context.Context, playbookID int64) (map[string]bool, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT a.slug FROM advice a, playbooks pb
+		WHERE pb.id = $1 AND a.retired_at IS NULL AND (a.site_voice OR EXISTS (
+			SELECT 1 FROM advice_citations c JOIN sources s ON s.id = c.source_id
+			WHERE c.advice_id = a.id AND c.checked_at IS NOT NULL AND c.drift_at IS NULL
+			  AND s.kind IN ('gov_guidance', 'nonprofit') AND `+adviceAppliesSQL+`))`, playbookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, err
+		}
+		out[slug] = true
+	}
+	return out, rows.Err()
+}
