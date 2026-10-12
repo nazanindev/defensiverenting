@@ -241,16 +241,17 @@ func HarderThan(lang, oldBody, newBody string) string {
 // the score of what is left, but no word got harder, so the harder-than
 // rule does not apply (the advice backfill, ADR-016 A9).
 func RemovalOnly(oldBody, newBody string) bool {
+	norm := func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".!?") }
 	old := sentenceEnd.Split(strings.TrimSpace(oldBody), -1)
 	i := 0
 	for _, s := range sentenceEnd.Split(strings.TrimSpace(newBody), -1) {
-		s = strings.TrimSpace(s)
+		s = norm(s)
 		if s == "" {
 			continue
 		}
 		found := false
 		for ; i < len(old); i++ {
-			if strings.TrimSpace(old[i]) == s {
+			if norm(old[i]) == s {
 				found = true
 				i++
 				break
