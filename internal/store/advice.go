@@ -442,3 +442,18 @@ func parsePageWarnings(s string) map[string]string {
 	}
 	return out
 }
+
+// DraftInSlot returns the id of the draft in a slot, or 0 when none.
+func (pg *PG) DraftInSlot(ctx context.Context, jurisdictionSlug, topicSlug, language string) (int64, error) {
+	var id int64
+	err := pg.pool.QueryRow(ctx, `
+		SELECT pb.id FROM playbooks pb
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id
+		JOIN topics t ON t.id = pb.topic_id
+		WHERE j.slug = $1 AND t.slug = $2 AND pb.language = $3 AND pb.status = 'draft'`,
+		jurisdictionSlug, topicSlug, language).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return id, err
+}

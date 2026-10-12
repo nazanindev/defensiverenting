@@ -129,6 +129,8 @@ func main() {
 		retag(ctx, pg, arg(2))
 	case "advice":
 		advice(ctx, pg, os.Args[2:])
+	case "revise":
+		revise(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
