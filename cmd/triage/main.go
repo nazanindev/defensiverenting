@@ -133,6 +133,8 @@ func main() {
 		revise(ctx, pg, os.Args[2:])
 	case "backfill":
 		backfill(ctx, pg, os.Args[2:])
+	case "gate":
+		gate(ctx, pg, os.Args[2:])
 	default:
 		usage()
 	}
