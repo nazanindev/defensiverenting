@@ -120,7 +120,9 @@
   </div>
   <p class="detail" id="detail">Hover or click a cell to read the check.</p>
   {{else if .Filtered}}
-  {{/* Level 2: the pages behind a cell, row, column or check, by check. */}}
+  {{/* Level 2: the pages of a place, topic or check, by check. A cell
+       opens its whole place: a place and topic together hold one page,
+       two with the rules page, too few for a grid (Nazanin, 2026-10-12). */}}
   <div class="crumb"><a href="/quality">← Quality map</a></div>
   <div class="toolbar">
     <h1>{{if .PlaceName}}{{.PlaceName}}{{end}}{{if and .PlaceName .Topic}} · {{end}}{{if .Topic}}{{index .TopicName .Topic}}{{end}}{{if .Check}}{{if or .PlaceName .Topic}} · {{end}}{{.CheckName}}{{end}}</h1>
@@ -217,6 +219,6 @@
 {{- if lt $cell.Worst 0 -}}
 <td class="c"><span title="{{.Row.Name}} · {{.Topic.Name}}: no page"></span></td>
 {{- else -}}
-<td class="c s{{$cell.Worst}}{{if $cell.Draft}} draft{{end}}"><a href="/quality?place={{.Row.Slug}}&topic={{.Topic.Slug}}" title="{{.Row.Name}} · {{.Topic.Name}}: {{if eq $cell.Worst 0}}every check passes{{else if eq $cell.Worst 1}}a weaker source or hard words{{else if eq $cell.Worst 2}}does not tell the renter what to do{{else}}a legal rule with no law behind it{{end}}{{if $cell.Draft}}, on a draft{{end}}"></a></td>
+<td class="c s{{$cell.Worst}}{{if $cell.Draft}} draft{{end}}"><a href="/quality?place={{.Row.Slug}}" title="{{.Row.Name}} · {{.Topic.Name}}: {{if eq $cell.Worst 0}}every check passes{{else if eq $cell.Worst 1}}a weaker source or hard words{{else if eq $cell.Worst 2}}does not tell the renter what to do{{else}}a legal rule with no law behind it{{end}}{{if $cell.Draft}}, on a draft{{end}}"></a></td>
 {{- end -}}
 {{end}}

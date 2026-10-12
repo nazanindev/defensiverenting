@@ -161,7 +161,8 @@ func stmtGrid(p store.QualityPage) []stmtRow {
 
 // The quality page, three levels of one shape (Nazanin, 2026-10-11).
 // Without a filter it is the map, places by topics. With ?place, ?topic or
-// ?check it is the pages behind that cell, row, column or check, by check.
+// ?check it is the pages of that place, topic or check, by check; a cell
+// opens its place, since a place and topic hold one page, two at most.
 // With ?page it is one page's statements by check, the page's own checks
 // on a first row. Every grid cell is colored by the worst check in it and
 // says the check in plain words.
