@@ -634,9 +634,6 @@ var repeatedOnce = map[string]*regexp.Regexp{
 	"keep-a-record": regexp.MustCompile(`(?i)[^.]*\bsave texts and emails\b[^.]*\.`),
 }
 
-// legalHelpLine is the "Get legal help first." tail of a warning sentence.
-var legalHelpLine = regexp.MustCompile(`(?i)\s*Get legal help first\.`)
-
 // SaidOnceKinds reports the risks a statement already warns of in the
 // repeated words a page note replaces ("owe", "evict", "award", "condemn"):
 // a statement carrying the line is one the page's note is for.
