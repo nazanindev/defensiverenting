@@ -377,7 +377,7 @@ var sortableColumns = map[string]bool{
 }
 
 func (v dashboardView) normalize() dashboardView {
-	if v.Status != "draft" && v.Status != "published" && v.Status != "superseded" {
+	if !statusFilters[v.Status] {
 		v.Status = "all"
 	}
 	if !sortableColumns[v.Sort] {
@@ -621,12 +621,30 @@ func (v dashboardView) apply(rows []store.AuthorPlaybookRow, parentOf map[string
 		case v.Lang != "" && p.Language != v.Lang:
 		case v.Lang == "" && !store.LanguageActive(p.Language):
 		case !v.matches(p):
-		case withStatus && v.Status != "all" && p.Status != v.Status:
+		case withStatus && !statusMatches(v.Status, p):
 		default:
 			kept = append(kept, p)
 		}
 	}
 	return kept
+}
+
+// statusFilters are the values the status picker accepts. "revision" is not
+// a stored status: it is the drafts that replace a page already live, which
+// the list otherwise only marks with a badge, so a revision pass meant
+// hunting through every draft.
+var statusFilters = map[string]bool{"all": true, "draft": true, "revision": true, "published": true, "superseded": true}
+
+// statusMatches reports whether a row belongs under the status filter.
+func statusMatches(status string, p store.AuthorPlaybookRow) bool {
+	switch status {
+	case "all":
+		return true
+	case "revision":
+		return p.Status == "draft" && p.RevisesPublished
+	default:
+		return p.Status == status
+	}
 }
 
 func underPlace(slug, place string, parentOf map[string]string) bool {
@@ -805,7 +823,7 @@ func (s *srv) dashboard(w http.ResponseWriter, r *http.Request) {
 	if view.Status != "all" {
 		kept := make([]store.AuthorPlaybookRow, 0, len(playbooks))
 		for _, p := range playbooks {
-			if p.Status == view.Status {
+			if statusMatches(view.Status, p) {
 				kept = append(kept, p)
 			}
 		}

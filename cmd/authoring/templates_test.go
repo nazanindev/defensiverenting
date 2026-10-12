@@ -64,7 +64,7 @@ func TestDashboardTemplateRenders(t *testing.T) {
 	}
 
 	// Empty state differs per tab, so each one has to render.
-	for _, status := range []string{"all", "draft", "published"} {
+	for _, status := range []string{"all", "draft", "revision", "published"} {
 		empty := dashboardData(status, []store.AuthorPlaybookRow{})
 		if err := tmpl.ExecuteTemplate(io.Discard, "dashboard.html", empty); err != nil {
 			t.Fatalf("execute dashboard.html (empty, status=%s): %v", status, err)

@@ -232,6 +232,7 @@
           <th><select onchange="location.href = this.value" aria-label="Filter by status">
             <option value="{{$v.Link "status" "all"}}"{{if eq $v.Status "all"}} selected{{end}}>Any status</option>
             <option value="{{$v.Link "status" "draft"}}"{{if eq $v.Status "draft"}} selected{{end}}>draft</option>
+            <option value="{{$v.Link "status" "revision"}}"{{if eq $v.Status "revision"}} selected{{end}}>revision (draft of a live page)</option>
             <option value="{{$v.Link "status" "published"}}"{{if eq $v.Status "published"}} selected{{end}}>published</option>
             {{if .SupersededCount}}<option value="{{$v.Link "status" "superseded"}}"{{if eq $v.Status "superseded"}} selected{{end}}>superseded</option>{{end}}
           </select></th>
@@ -297,6 +298,7 @@
     {{else}}
       <tbody><tr><td colspan="{{if .ShowLanguage}}10{{else}}9{{end}}"><div class="empty">
       {{if eq .Status "draft"}}No drafts waiting for review.
+      {{else if eq .Status "revision"}}No drafts of live pages waiting for review.
       {{else if eq .Status "published"}}Nothing published yet.
       {{else if eq .Status "superseded"}}No pages have been replaced yet.
       {{else}}No playbooks yet. <a href="/new">Create the first one.</a>{{end}}

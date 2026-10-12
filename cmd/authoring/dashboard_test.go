@@ -276,3 +276,26 @@ func TestApply_pickerCountsFollowTheOtherFilters(t *testing.T) {
 		t.Errorf("filterRows list = %d rows, want 3 Texas pages across statuses", len(got))
 	}
 }
+
+// "revision" is a filter, not a stored status: it keeps the drafts that
+// replace a page already live, and nothing else.
+func TestApply_revisionKeepsOnlyDraftsOfLivePages(t *testing.T) {
+	rows := []store.AuthorPlaybookRow{
+		{ID: 1, Title: "fresh draft", Language: "en", Status: "draft"},
+		{ID: 2, Title: "redraft", Language: "en", Status: "draft", RevisesPublished: true},
+		{ID: 3, Title: "live", Language: "en", Status: "published"},
+		{ID: 4, Title: "old", Language: "en", Status: "superseded"},
+	}
+	v := dashboardView{Status: "revision"}.normalize()
+	if v.Status != "revision" {
+		t.Fatalf("normalize dropped revision: got %q", v.Status)
+	}
+	got := v.apply(rows, nil, true)
+	if len(got) != 1 || got[0].ID != 2 {
+		t.Fatalf("revision filter kept %v, want only row 2", got)
+	}
+	// Without the status tab the picker counts still see every row.
+	if n := len(v.apply(rows, nil, false)); n != 4 {
+		t.Fatalf("apply without status kept %d rows, want 4", n)
+	}
+}
