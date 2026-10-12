@@ -192,7 +192,7 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
 	}
 	write := func(name string, v any) {
 		b, _ := json.MarshalIndent(v, "", " ")
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-%d.json", name, id)), b, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-%d.json", name, id)), b, 0o600); err != nil {
 			fatal(err)
 		}
 	}
