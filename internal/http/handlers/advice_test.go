@@ -67,3 +67,48 @@ func TestAdvice_rendersNotesOnceAndTipsUnderTheirStatement(t *testing.T) {
 		t.Fatal("exactly one tip should render")
 	}
 }
+
+// A page note can sit under the one statement it is about, with its lead in
+// bold and its source on a line of its own; placed under a statement the
+// page no longer has, it falls back to the top rather than vanish.
+func TestAdvice_placedNoteSitsUnderItsStatement(t *testing.T) {
+	now := time.Now()
+	confirmed := []store.AdviceCitation{{SourceID: 9, URL: "https://example.gov/guide", Publisher: "Example AG", Kind: "gov_guidance", Quote: "q", CheckedAt: &now}}
+	law := []store.CitationWithSource{{SourceID: 5, SourceURL: "https://example.gov/law", Publisher: "Law", SourceKind: "statute"}}
+	pb := store.PlaybookWithStatements{
+		Playbook:     store.Playbook{ID: 1, Title: "Breaking a Lease Early", Language: "en"},
+		Jurisdiction: store.Jurisdiction{ID: 2, Kind: "state", Name: "Pennsylvania", Slug: "pennsylvania"},
+		Topic:        store.Topic{ID: 3, Slug: "breaking-lease", Name: "Breaking a Lease"},
+		Statements: []store.CitedStatement{
+			{ID: 10, Key: "k1", BodyMD: "You can end your lease if the home is not usable.", Citations: law},
+			{ID: 11, Key: "k2", BodyMD: "Your landlord must return your deposit within 30 days.", Citations: law},
+		},
+		Advice: []store.Advice{
+			{Slug: "risk", Kind: "page_note", Warns: "owe", Lead: "You can still owe rent.", BodyMD: "Your landlord can sue you for the rent.", Citations: confirmed},
+			{Slug: "condemn", Kind: "page_note", Warns: "condemn", SiteVoice: true, StatementKey: "k1", BodyMD: "The inspector can condemn the home."},
+			{Slug: "orphan", Kind: "page_note", Warns: "evict", SiteVoice: true, StatementKey: "gone", BodyMD: "An orphaned warning."},
+		},
+	}
+	page := handlers.BuildPlaybookPage(context.Background(), pb, nil, nil, slog.Default())
+	var sb strings.Builder
+	if err := tmpl.Render(&sb, page); err != nil {
+		t.Fatal(err)
+	}
+	body := sb.String()
+	main := strings.Index(body, `aria-label="Guide content"`)
+	first := strings.Index(body, `id="s-k1"`)
+	second := strings.Index(body, `id="s-k2"`)
+	condemn := strings.Index(body, "can condemn the home")
+	if first >= condemn || condemn >= second {
+		t.Fatalf("the placed note should sit under its statement: s1=%d note=%d s2=%d", first, condemn, second)
+	}
+	if o := strings.Index(body, "An orphaned warning."); o < 0 || o > main {
+		t.Fatalf("a note whose statement is gone should show at the top: note=%d main=%d", o, main)
+	}
+	if !strings.Contains(body, `<strong class="note-lead">You can still owe rent.</strong>`) {
+		t.Error("the note's lead should render in bold")
+	}
+	if !strings.Contains(body, `<div class="note-source">`) {
+		t.Error("the note's source should sit on its own line")
+	}
+}

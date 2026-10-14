@@ -366,9 +366,29 @@ h1 {
   line-height: 1.5;
 }
 .page-notes-icon { flex-shrink: 0; margin-top: 3px; color: var(--amber-line); }
-.page-notes-body { display: grid; gap: 8px; }
+/* Each note is its own item: a bold lead, the note, its source on a line
+   of its own, and space before the next (2026-10-13: several notes in a
+   row read as one block). */
+.page-notes-body { display: grid; gap: 14px; }
 .page-note p { display: inline; margin: 0; }
-.page-notes a { color: inherit; }
+.note-lead { font-weight: 700; }
+.note-source { margin-top: 2px; }
+.page-notes a, .statement-note a { color: inherit; }
+
+/* A page warning said under the step it is about. */
+.statement-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--amber-bg);
+  color: var(--amber-ink);
+  font-size: .98rem;
+  line-height: 1.5;
+  max-width: 70ch;
+}
 
 /* ADR-016 A2: a tip is one quiet line under the law it helps with: a thin
    rule, a small label, smaller text. The law stays the headline. */

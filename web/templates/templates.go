@@ -55,6 +55,7 @@ func funcMap() template.FuncMap {
 		"sourceList": SourceListFor,
 		"sourceLine": SourceLineFor,
 		"sourceFrom": SourceFromFor,
+		"noteIn":     NoteFor,
 		"mod":        func(a, b int) int { return a % b },
 		"add":        func(a, b int) int { return a + b },
 		"absURL": func(path string) string {
@@ -159,6 +160,24 @@ type SourceFrom struct {
 // SourceFromFor writes the citation at the end of a tip or page note.
 func SourceFromFor(lang string, c CitationChip) SourceFrom {
 	return SourceFrom{From: UIString(lang, "from"), Line: SourceLineFor(lang, c)}
+}
+
+// Note is a page note ready to render: its lead and body, and its source
+// line when a quote backs it.
+type Note struct {
+	Lead     string
+	BodyHTML template.HTML
+	Source   *SourceFrom
+}
+
+// NoteFor prepares a page note for the "advice-note" partial.
+func NoteFor(lang string, a AdviceLine) Note {
+	n := Note{Lead: a.Lead, BodyHTML: a.BodyHTML}
+	if a.Chip != nil {
+		f := SourceFromFor(lang, *a.Chip)
+		n.Source = &f
+	}
+	return n
 }
 
 // SourceListFor writes a statement's citations as its numbered source list.
@@ -604,6 +623,9 @@ type RenderedStatement struct {
 	CheckedOn string
 	CheckedAt *time.Time
 	Citations []CitationChip
+	// Notes are page warnings said under this statement instead of at the
+	// top, because they are about this step (ADR-016, 2026-10-13).
+	Notes []AdviceLine
 	// Tips are registry advice lines that sit under this statement
 	// (ADR-016 A2), each once per page.
 	Tips []AdviceLine
@@ -616,6 +638,8 @@ type RenderedStatement struct {
 // AdviceLine is one registry entry as a guide shows it (ADR-016, amended
 // 2026-10-09): the text and the source that backs it, nothing else.
 type AdviceLine struct {
+	// Lead is a note's few bold opening words, "" for none.
+	Lead     string
 	BodyHTML template.HTML
 	// Chip is the backing source; nil for the site's own voice.
 	Chip *CitationChip

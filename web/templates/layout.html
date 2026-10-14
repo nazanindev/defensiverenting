@@ -30,6 +30,8 @@
   source-from — one citation at the end of a tip or page note: "From our
   editorial rules." Takes a SourceLine from sourceLine.
 */}}
+{{define "advice-note"}}<div class="page-note">{{with .Lead}}<strong class="note-lead">{{.}}</strong> {{end}}{{.BodyHTML}}{{with .Source}}<div class="note-source">{{template "source-from" .}}</div>{{end}}</div>{{end}}
+
 {{define "source-from"}}<span class="source-from">{{.From}} <a href="{{.Line.URL}}" data-out="{{.Line.SourceID}}"{{if .Line.External}} target="_blank" rel="noopener noreferrer"{{end}}>{{.Line.Text}}</a>.</span>{{end}}
 
 {{/*

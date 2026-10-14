@@ -31,13 +31,14 @@ func advice(ctx context.Context, pg *store.PG, args []string) {
 			Slug   string   `json:"slug"`
 			Kind   string   `json:"kind"`
 			Warns  string   `json:"warns,omitempty"`
+			Lead   string   `json:"lead,omitempty"`
 			Body   string   `json:"body_md"`
 			Backed bool     `json:"backed"`
 			From   []string `json:"from,omitempty"`
 		}
 		var out []row
 		for _, a := range list {
-			r := row{Slug: a.Slug, Kind: a.Kind, Warns: a.Warns, Body: a.BodyMD, Backed: a.Backed()}
+			r := row{Slug: a.Slug, Kind: a.Kind, Warns: a.Warns, Lead: a.Lead, Body: a.BodyMD, Backed: a.Backed()}
 			for _, c := range a.Citations {
 				place := c.Place
 				if place == "" {

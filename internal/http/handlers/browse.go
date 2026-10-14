@@ -938,7 +938,7 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 	// Render markdown intro to HTML
 	introHTML := content.RenderMarkdown(pb.IntroMD)
 
-	pageNotes, tips := adviceLines(pb.Advice)
+	pageNotes, placedNotes, tips := adviceLines(pb.Advice)
 
 	// Render each statement's body markdown and validate citation invariant
 	statements := make([]tmpl.RenderedStatement, 0, len(pb.Statements))
@@ -1012,8 +1012,15 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 			CheckedAt:     checkedAt,
 			CheckedOn:     checkedOn,
 			Citations:     chips,
+			Notes:         placedNotes[s.Key],
 			Tips:          tips[s.Key],
 		})
+		delete(placedNotes, s.Key)
+	}
+	// A note placed under a statement the page no longer has is a warning
+	// all the same: say it at the top rather than lose it.
+	for _, lines := range placedNotes {
+		pageNotes = append(pageNotes, lines...)
 	}
 
 	canonical := tmpl.BaseURL() + pb.Jurisdiction.TopicPathIn(pb.Playbook.Language, pb.Topic.Slug)
@@ -1043,20 +1050,20 @@ func BuildPlaybookPage(ctx context.Context, pb store.PlaybookWithStatements, hub
 }
 
 // adviceLines splits a page's registry references into the notes said once
-// at the top and the tips keyed by the statement they sit under (ADR-016,
-// amended 2026-10-09). A retired entry stops showing everywhere at once. A
+// at the top, the notes said under one statement, and the tips keyed by the
+// statement they sit under (ADR-016, amended 2026-10-09 and 2026-10-13). A retired entry stops showing everywhere at once. A
 // tip shows only while a confirmed quote backs it; the publish gate keeps an
 // unbacked one off a new page, and one whose quote drifted since is hidden
 // until it is fixed. A note that states a risk keeps showing even then,
 // because the statements under it no longer carry their own warning.
-func adviceLines(advice []store.Advice) ([]tmpl.AdviceLine, map[string][]tmpl.AdviceLine) {
-	var notes []tmpl.AdviceLine
-	tips := map[string][]tmpl.AdviceLine{}
+func adviceLines(advice []store.Advice) (notes []tmpl.AdviceLine, placed, tips map[string][]tmpl.AdviceLine) {
+	placed = map[string][]tmpl.AdviceLine{}
+	tips = map[string][]tmpl.AdviceLine{}
 	for _, a := range advice {
 		if a.Retired {
 			continue
 		}
-		line := tmpl.AdviceLine{BodyHTML: content.RenderMarkdown(a.BodyMD)}
+		line := tmpl.AdviceLine{Lead: a.Lead, BodyHTML: content.RenderMarkdown(a.BodyMD)}
 		for _, c := range a.Citations {
 			if c.CheckedAt != nil && c.DriftAt == nil {
 				line.Chip = &tmpl.CitationChip{SourceID: c.SourceID, URL: c.URL, Label: c.Publisher, SourceKind: c.Kind}
@@ -1065,7 +1072,11 @@ func adviceLines(advice []store.Advice) ([]tmpl.AdviceLine, map[string][]tmpl.Ad
 		}
 		switch a.Kind {
 		case "page_note":
-			if a.Backed() || a.Warns != "" {
+			switch {
+			case !a.Backed() && a.Warns == "":
+			case a.StatementKey != "":
+				placed[a.StatementKey] = append(placed[a.StatementKey], line)
+			default:
 				notes = append(notes, line)
 			}
 		case "tip":
@@ -1074,7 +1085,7 @@ func adviceLines(advice []store.Advice) ([]tmpl.AdviceLine, map[string][]tmpl.Ad
 			}
 		}
 	}
-	return notes, tips
+	return notes, placed, tips
 }
 
 // stageGroups splits a playbook's statements under their stage headings

@@ -19,15 +19,18 @@ import (
 
 // Advice is one registry entry as a page shows it.
 type Advice struct {
-	ID        int64
-	Slug      string
-	Kind      string // "tip" or "page_note"
-	Warns     string // a page note's risk: "owe", "evict", "award", "condemn", or ""
-	BodyMD    string
+	ID     int64
+	Slug   string
+	Kind   string // "tip" or "page_note"
+	Warns  string // a page note's risk: "owe", "evict", "award", "condemn", or ""
+	BodyMD string
+	// Lead is a page note's few bold opening words; "" for none.
+	Lead      string
 	SiteVoice bool
 	Retired   bool
-	// StatementKey is the statement a tip sits under on this page; "" for a
-	// page note. Set only when the entry is loaded as a page reference.
+	// StatementKey is the statement a tip sits under on this page; for a
+	// page note, the one statement it is said under, or "" for the top of
+	// the page. Set only when the entry is loaded as a page reference.
 	StatementKey string
 	Citations    []AdviceCitation
 }
@@ -87,7 +90,7 @@ func (pg *PG) PageAdvice(ctx context.Context, playbookID int64) ([]Advice, error
 
 func pageAdvice(ctx context.Context, q rowQuerier, playbookID int64) ([]Advice, error) {
 	rows, err := q.Query(ctx, `
-		SELECT a.id, a.slug, a.kind, COALESCE(a.warns, ''), a.body_md, a.site_voice,
+		SELECT a.id, a.slug, a.kind, COALESCE(a.warns, ''), a.body_md, COALESCE(a.lead, ''), a.site_voice,
 		       a.retired_at IS NOT NULL, COALESCE(pa.statement_key::text, '')
 		FROM playbook_advice pa
 		JOIN advice a ON a.id = pa.advice_id
@@ -99,7 +102,7 @@ func pageAdvice(ctx context.Context, q rowQuerier, playbookID int64) ([]Advice, 
 	var out []Advice
 	for rows.Next() {
 		var a Advice
-		if err := rows.Scan(&a.ID, &a.Slug, &a.Kind, &a.Warns, &a.BodyMD, &a.SiteVoice, &a.Retired, &a.StatementKey); err != nil {
+		if err := rows.Scan(&a.ID, &a.Slug, &a.Kind, &a.Warns, &a.BodyMD, &a.Lead, &a.SiteVoice, &a.Retired, &a.StatementKey); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -212,7 +215,8 @@ var ErrAdviceRef = errors.New("advice reference refused")
 
 // SetPageAdvice attaches entries to pages. Every reference is checked before
 // any is written: the slug must name a live entry, a tip must name a
-// statement on that page, a page note must name none, and only draft pages
+// statement on that page, a page note may name one (it is then said under
+// that statement, not at the top) and is said once per page, and only draft pages
 // take agent references (live pages stay human). One call, one transaction.
 func (pg *PG) SetPageAdvice(ctx context.Context, refs []AdviceRef, by string) error {
 	if by == "" {
@@ -245,11 +249,10 @@ func (pg *PG) SetPageAdvice(ctx context.Context, refs []AdviceRef, by string) er
 				return fmt.Errorf("%w: entry %d: page %d is %s; agents attach advice to drafts only", ErrAdviceRef, i+1, r.PlaybookID, status)
 			}
 			var key any
-			switch kind {
-			case "tip":
-				if r.StatementKey == "" {
-					return fmt.Errorf("%w: entry %d: tip %q needs the statement_key it sits under", ErrAdviceRef, i+1, r.Slug)
-				}
+			if kind == "tip" && r.StatementKey == "" {
+				return fmt.Errorf("%w: entry %d: tip %q needs the statement_key it sits under", ErrAdviceRef, i+1, r.Slug)
+			}
+			if r.StatementKey != "" {
 				var ok bool
 				if err := tx.QueryRow(ctx, `
 					SELECT EXISTS (SELECT 1 FROM playbook_statements ps JOIN statements s ON s.id = ps.statement_id
@@ -260,9 +263,16 @@ func (pg *PG) SetPageAdvice(ctx context.Context, refs []AdviceRef, by string) er
 					return fmt.Errorf("%w: entry %d: statement %s is not on page %d", ErrAdviceRef, i+1, r.StatementKey, r.PlaybookID)
 				}
 				key = r.StatementKey
-			case "page_note":
-				if r.StatementKey != "" {
-					return fmt.Errorf("%w: entry %d: page note %q belongs to the page, not a statement", ErrAdviceRef, i+1, r.Slug)
+			}
+			if kind == "page_note" {
+				var placed bool
+				if err := tx.QueryRow(ctx, `
+					SELECT EXISTS (SELECT 1 FROM playbook_advice WHERE playbook_id = $1 AND advice_id = $2
+					               AND COALESCE(statement_key::text, '') <> $3)`, r.PlaybookID, adviceID, r.StatementKey).Scan(&placed); err != nil {
+					return err
+				}
+				if placed {
+					return fmt.Errorf("%w: entry %d: page note %q is already on page %d in another place; remove it first", ErrAdviceRef, i+1, r.Slug, r.PlaybookID)
 				}
 			}
 			if _, err := tx.Exec(ctx, `
@@ -370,7 +380,7 @@ func (pg *PG) KeyPageLint(ctx context.Context, key string, playbookID int64) (Pa
 // agents choosing which entry to reference.
 func (pg *PG) ListAdvice(ctx context.Context) ([]Advice, error) {
 	rows, err := pg.pool.Query(ctx, `
-		SELECT id, slug, kind, COALESCE(warns, ''), body_md, site_voice, false, ''
+		SELECT id, slug, kind, COALESCE(warns, ''), body_md, COALESCE(lead, ''), site_voice, false, ''
 		FROM advice WHERE retired_at IS NULL ORDER BY (kind = 'page_note') DESC, slug`)
 	if err != nil {
 		return nil, err
@@ -378,7 +388,7 @@ func (pg *PG) ListAdvice(ctx context.Context) ([]Advice, error) {
 	var out []Advice
 	for rows.Next() {
 		var a Advice
-		if err := rows.Scan(&a.ID, &a.Slug, &a.Kind, &a.Warns, &a.BodyMD, &a.SiteVoice, &a.Retired, &a.StatementKey); err != nil {
+		if err := rows.Scan(&a.ID, &a.Slug, &a.Kind, &a.Warns, &a.BodyMD, &a.Lead, &a.SiteVoice, &a.Retired, &a.StatementKey); err != nil {
 			rows.Close()
 			return nil, err
 		}

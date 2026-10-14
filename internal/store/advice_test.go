@@ -2,8 +2,8 @@ package store_test
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
@@ -101,12 +101,32 @@ func TestAdvice_pageReferencesAreChecked(t *testing.T) {
 		{"unknown slug", store.AdviceRef{PlaybookID: draft, Slug: "no-such-advice"}},
 		{"tip with no statement", store.AdviceRef{PlaybookID: draft, Slug: "read-your-lease"}},
 		{"tip on a statement elsewhere", store.AdviceRef{PlaybookID: draft, Slug: "read-your-lease", StatementKey: "00000000-0000-0000-0000-000000000000"}},
-		{"page note on a statement", store.AdviceRef{PlaybookID: draft, Slug: "leave-risk-owe", StatementKey: key}},
+		{"page note on a statement elsewhere", store.AdviceRef{PlaybookID: draft, Slug: "inspector-may-condemn", StatementKey: "00000000-0000-0000-0000-000000000000"}},
 	}
 	for _, c := range cases {
 		if err := pg.SetPageAdvice(ctx, []store.AdviceRef{c.ref}, store.ActorReviewAgent); !errors.Is(err, store.ErrAdviceRef) {
 			t.Errorf("%s: got %v, want ErrAdviceRef", c.name, err)
 		}
+	}
+
+	// A page note may sit under the one statement it is about, but it is
+	// said once per page: not at the top and under a statement too.
+	if err := pg.SetPageAdvice(ctx, []store.AdviceRef{{PlaybookID: draft, Slug: "inspector-may-condemn", StatementKey: key}}, store.ActorReviewAgent); err != nil {
+		t.Fatalf("page note under a statement: %v", err)
+	}
+	if err := pg.SetPageAdvice(ctx, []store.AdviceRef{{PlaybookID: draft, Slug: "inspector-may-condemn"}}, store.ActorReviewAgent); !errors.Is(err, store.ErrAdviceRef) {
+		t.Errorf("a page note was said twice on one page: %v", err)
+	}
+	if _, err := pg.Pool().Exec(ctx, `
+		INSERT INTO playbook_advice (playbook_id, advice_id) VALUES ($1, (SELECT id FROM advice WHERE slug = 'inspector-may-condemn'))`, draft); err == nil {
+		t.Error("the database let a page note be said twice on one page")
+	}
+	ad, err := pg.PageAdvice(ctx, draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ad) != 1 || ad[0].StatementKey != key {
+		t.Errorf("page note placement not kept: %+v", ad)
 	}
 
 	live := seedPlaybook(t, pg, jID, tID, "published", "Advice live")
