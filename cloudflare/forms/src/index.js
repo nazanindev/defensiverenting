@@ -192,12 +192,8 @@ async function notify(env, s) {
   if (s.problem) lines.push(`Problem: ${PROBLEM_LABELS[s.problem] || s.problem}`);
   if (s.name) lines.push(`Name:    ${s.name}`);
   lines.push(`Reply:   ${s.email || "(no address given)"}`);
-  lines.push(`Country: ${s.country || "unknown"}`);
   lines.push(`ID:      ${s.id}`);
-  lines.push("", s.message, "");
-  lines.push(`Mark handled:
-  wrangler d1 execute renterlaw-forms --remote \\
-    --command "UPDATE submissions SET status='resolved' WHERE id='${s.id}'"`);
+  lines.push("", s.message);
 
   const raw = mime({
     from: `RenterLaw Forms <${env.MAIL_FROM}>`,
