@@ -4,6 +4,12 @@
    no gradient, no shadows, no load animation. Two accents: the brand oxblood
    and a deep teal for the second stage. Warnings amber, tips green. */
 :root {
+  /* One reading measure for guide text and every box beside it. In rem, not
+     ch: a ch is the box's own font size, so a .98rem note box and a 1.1rem
+     statement capped at 70ch ended at different spots (Nazanin,
+     2026-10-28: "make all the warnings the same width"). 42rem is 70
+     characters at the statement size. */
+  --measure:    42rem;
   --ink:        #1a1a1a;
   --paper:      #fffdf9;
   --accent:     #8a1c2e;
@@ -364,6 +370,7 @@ h1 {
   color: var(--amber-ink);
   font-size: 1rem;
   line-height: 1.5;
+  max-width: var(--measure);
 }
 .page-notes-icon { flex-shrink: 0; margin-top: 3px; color: var(--amber-line); }
 /* Each note is its own item: a bold lead, the note, its source on a line
@@ -387,7 +394,7 @@ h1 {
   color: var(--amber-ink);
   font-size: .98rem;
   line-height: 1.5;
-  max-width: 70ch;
+  max-width: var(--measure);
 }
 
 /* ADR-016 A2: a tip is one quiet line under the law it helps with: a thin
@@ -401,7 +408,7 @@ h1 {
   border-radius: 8px;
   background: var(--green-bg);
   color: var(--green-ink);
-  max-width: 70ch;
+  max-width: var(--measure);
 }
 .tip-icon { flex-shrink: 0; margin-top: 3px; color: var(--green-line); }
 .tip-label { font-weight: 700; }
@@ -417,7 +424,7 @@ h1 {
   border-left: 3px solid var(--accent);
   font-size: .95rem;
   line-height: 1.55;
-  max-width: 70ch;
+  max-width: var(--measure);
 }
 .statement-warning p { margin: 0; }
 
@@ -487,7 +494,7 @@ div.statement-list > .statement-item { padding: 18px 0; border-bottom: 1px solid
 .statement-body {
   font-size: 1.1rem;
   line-height: 1.6;
-  max-width: 70ch;
+  max-width: var(--measure);
   margin-bottom: 10px;
 }
 
