@@ -344,6 +344,7 @@ h1 {
    block at the top of a guide, in the header's color, so it reads as part of
    the site rather than an error, and nothing else up here competes with it. */
 .legal-note {
+  max-width: var(--measure);
   margin: 4px 0 18px;
   padding: 16px 20px;
   border-radius: 8px;
