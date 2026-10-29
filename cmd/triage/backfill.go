@@ -82,11 +82,13 @@ var tipAnchors = []struct {
 	{"keep-a-record", nil, regexp.MustCompile(`(?i)\b(written (request|demand|complaint|notice to your landlord)|demand letter|certified mail|keep a copy|(ask|tell|write to|send|give) your landlord[^.]{0,40}\b(writing|written|letter|notice|email|text)|letter to your landlord)\b`)},
 	{"photos-of-the-problem", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(repair|fix|problem|condition)s?\b`)},
 	{"private-inspector", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(inspector|inspection|code enforcement|code office|housing code|health department)\b`)},
-	{"ask-for-a-receipt", map[string]bool{"cant-pay-rent": true}, regexp.MustCompile(`(?i)\b(pay|paid|payment)\b`)},
+	// A receipt matters when the renter pays part, pays late or pays in a
+	// way that is hard to prove, not wherever the word "pay" appears.
+	{"ask-for-a-receipt", map[string]bool{"cant-pay-rent": true}, regexp.MustCompile(`(?i)\b(part of (the|your) rent|partial (rent|payment)s?|pay(ing)? (part|some|what you can|in cash|by (cash|money order|check))|money order|in cash|catch up|accept(s|ed)? (part|late|your late)\b|pay (off|back)\b|late (fee|charge)s?)\b`)},
 	// The tip is for a rent change or payment plan the renter agrees to,
 	// so it sits under the renter agreeing or asking, not under the
 	// landlord's notice or the lease's own terms.
-	{"plan-in-writing", map[string]bool{"cant-pay-rent": true, "rent-increase": true}, regexp.MustCompile(`(?i)\b(you (both )?agree|agreed|agree (on|to|in)|negotiat\w*|payment plan|smaller increase|lower (the )?(rent|increase|amount)|ask (your landlord )?(for|to) )`)},
+	{"plan-in-writing", map[string]bool{"cant-pay-rent": true, "rent-increase": true}, regexp.MustCompile(`(?i)\b(you both agree|agree (to|in writing)|negotiat\w*|payment plan|smaller increase|lower (the )?(rent|increase|amount)|ask (your landlord )?(for|to) )`)},
 }
 
 type backfillReview struct {
