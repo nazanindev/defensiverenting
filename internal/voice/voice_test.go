@@ -530,6 +530,31 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 		"Once the landlord gets notice, you can end your lease and move. Keep paying rent until then. If you fall behind, your landlord can try to evict you.",
 		"You can end your lease after this is known as constructive eviction. If a court later disagrees, you can still owe the rent. Get legal help first.",
 	}
+	// Repair and deduct and partial withholding are steps taken while the
+	// renter stays, so they need the eviction warning (Nazanin 2026-10-29).
+	stays := []string{
+		"If your landlord does not fix it, you can pay a worker to fix it. You can then take the cost off your rent.",
+		"For smaller problems, you can use repair and deduct (fixing it yourself and taking the cost off your rent).",
+		"Repair and deduct (paying for the repair yourself, then taking that amount out of your rent) is allowed under California law.",
+		"You may hold back part or all of your rent if your landlord does not fix a vital facility problem.",
+		"After written notice, you can buy the service yourself and take the cost off your rent using paid receipts.",
+	}
+	for _, s := range stays {
+		v := riskViolation("en", s, Page{})
+		if !strings.Contains(v, "face eviction") {
+			t.Errorf("repair-and-deduct step should need the eviction warning, got %q: %s", v, s)
+		}
+	}
+	for _, s := range []string{
+		"South Carolina law does not let you make general repairs yourself and take the cost off your rent.",
+		"Maine's repair and deduct rule has a licensing step.",
+		"If you are late paying rent, you may not use Delaware's rule that lets you take repair costs off your rent.",
+		"You can withhold rent until repairs are made. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
+	} {
+		if v := riskViolation("en", s, Page{}); v != "" {
+			t.Errorf("flagged %q: %v", s, v)
+		}
+	}
 	for _, s := range good {
 		if v := riskViolation("en", s, Page{}); v != "" {
 			t.Errorf("flagged %q: %v", s, v)

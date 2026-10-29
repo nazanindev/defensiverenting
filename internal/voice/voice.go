@@ -88,7 +88,8 @@ type ruleset struct {
 	moneyMultiplier *regexp.Regexp
 	moneyWord       *regexp.Regexp
 	// riskyStep finds a statement telling the renter they can end the
-	// lease, move out and stop paying, or withhold rent. Each of these is
+	// lease, move out and stop paying, withhold rent, or take a repair's
+	// cost off the rent (repair and deduct). Each of these is
 	// decided by a court only afterwards, so the same statement must carry
 	// the risk (riskWarning): it travels alone onto concept pages.
 	riskyStep, riskWarning *regexp.Regexp
@@ -193,7 +194,7 @@ var enRuleset = ruleset{
 	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
 	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),
 	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
-	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b`),
+	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b|\byou (can|may|could)( also)? (hold back|withhold) (part|some|all|part or all|any) of (your|the) rent|\byou (can|may|could)\b[^.]{0,80}\b(take|subtract|deduct)( the| that| its| their)?( repair)? (cost|amount)s?\b[^.]{0,30}\b(off|out of|from) (your|the)( next| monthly)? rent|\byou (can|may|could)( also)? use repair and deduct|\brepair and deduct\b[^.]{0,80}\bis allowed`),
 	noOwe:           regexp.MustCompile(`(?i)\byou (do not|don't|will not|won't|would not|wouldn't) owe (any|more|the|future|further|that)?\s*(rent|money|fees?|penalt(y|ies))\b|\b(owe|owes) (no|nothing)\b|\bowe little or no\b|\b(released|free|freed) (without penalty )?from (any |all )?(further |future |more )?(rent|payments?)\b`),
 	noOweWarning:    regexp.MustCompile(`(?i)\b(sues?|sued|suing|lawsuit|court|legal help|legal aid|lawyer)\b|\bstill owe\b`),
 	police:          regexp.MustCompile(`(?i)\b(police|911|cops?)\b`),
@@ -408,6 +409,10 @@ func Lint(lang, text string) []string {
 // readable.
 var rentWithholdingAct = regexp.MustCompile(`(?i)\brent withholding act\b`)
 
+// negatedStep is a sentence telling the renter what they may not do, which
+// names a step without telling them to take it.
+var negatedStep = regexp.MustCompile(`(?i)\byou (can|may|could) not\b[^.]*|\byou (cannot|can't)\b[^.]*`)
+
 // riskViolation is the statement-only rule for riskyStep. A page intro may
 // name the step ("when you can end your lease"); a statement that tells the
 // renter they can take it must say the risk too.
@@ -417,7 +422,7 @@ func riskViolation(lang, text string, page Page) string {
 		return ""
 	}
 	// Naming a law is not telling the renter to act under it.
-	named := rentWithholdingAct.ReplaceAllString(text, " ")
+	named := negatedStep.ReplaceAllString(rentWithholdingAct.ReplaceAllString(text, " "), " ")
 	m := rs.riskyStep.FindString(named)
 	if m == "" {
 		// No step named, but the renter has left: an eviction warning
@@ -453,7 +458,7 @@ func riskViolation(lang, text string, page Page) string {
 }
 
 // stayStep is a risky step taken while the renter stays in the home.
-var stayStep = regexp.MustCompile(`(?i)\b(stop paying|withhold|hold back|pay less)\b|\brent withholding\b`)
+var stayStep = regexp.MustCompile(`(?i)\b(stop paying|withhold|hold back|pay less|subtract|deduct)\b|\brent withholding\b|\btake (the |that |its |their )?(repair )?(cost|amount)s?\b`)
 
 // movesOut is the move-out step, whose "stop paying" is not staying.
 var movesOut = regexp.MustCompile(`(?i)\b(move|moving) out and stop (paying|owing)`)
@@ -719,7 +724,7 @@ func NeedsWarning(lang, text string) string {
 	if !ok || rs.riskyStep == nil {
 		return ""
 	}
-	named := rentWithholdingAct.ReplaceAllString(text, " ")
+	named := negatedStep.ReplaceAllString(rentWithholdingAct.ReplaceAllString(text, " "), " ")
 	if rs.riskyStep.FindString(named) != "" && !rs.riskWarning.MatchString(text) {
 		if lang == "en" && stayStep.MatchString(movesOut.ReplaceAllString(named, " ")) {
 			return "evict"
