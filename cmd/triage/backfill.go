@@ -84,6 +84,7 @@ var tipAnchors = []struct {
 	{"private-inspector", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(inspector|inspection|code enforcement|code office|housing code|health department)\b`)},
 	// A receipt matters when the renter pays part, pays late or pays in a
 	// way that is hard to prove, not wherever the word "pay" appears.
+	{"photos-when-you-leave", map[string]bool{"security-deposits": true, "move-out-bill": true}, regexp.MustCompile(`(?i)\b(move[- ]?out|moving out|when you leave|before you leave|vacate)\b`)},
 	{"ask-for-a-receipt", map[string]bool{"cant-pay-rent": true}, regexp.MustCompile(`(?i)\b(part of (the|your) rent|partial (rent|payment)s?|pay(ing)? (part|some|what you can|in cash|by (cash|money order|check))|money order|in cash|catch up|accept(s|ed)? (part|late|your late)\b|pay (off|back)\b|late (fee|charge)s?)\b`)},
 	// The tip is for a rent change or payment plan the renter agrees to,
 	// so it sits under the renter agreeing or asking, not under the
