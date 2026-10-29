@@ -26,9 +26,11 @@ import (
 //	review-<id>.json  editorial-only statements a tip may replace: a person reads these
 //
 //	triage backfill <draft-id>... -dir <folder>
+//	triage backfill <live-id>... -dir <folder> -live   size a topic before revisions are opened
 func backfill(ctx context.Context, pg *store.PG, args []string) {
 	fs := flag.NewFlagSet("backfill", flag.ExitOnError)
 	dir := fs.String("dir", ".", "folder for the output files")
+	live := fs.Bool("live", false, "plan against live pages too, to size a topic before revisions are opened; the files are for reading, not for -apply")
 	var ids []int64
 	rest := args
 	for len(rest) > 0 {
@@ -46,7 +48,7 @@ func backfill(ctx context.Context, pg *store.PG, args []string) {
 		fatal(fmt.Errorf("backfill: name at least one draft page id"))
 	}
 	for _, id := range ids {
-		backfillOne(ctx, pg, id, *dir)
+		backfillOne(ctx, pg, id, *dir, *live)
 	}
 }
 
@@ -74,7 +76,10 @@ var tipAnchors = []struct {
 	topics map[string]bool
 	match  *regexp.Regexp
 }{
-	{"keep-a-record", nil, regexp.MustCompile(`(?i)\b(in writing|written|notice|letter|certified mail|keep a copy)\b`)},
+	// The tip is about what the renter sends the landlord, so it sits under
+	// a statement about the renter writing, never under the landlord's own
+	// notice to enter or to raise the rent.
+	{"keep-a-record", nil, regexp.MustCompile(`(?i)\b(in writing|written (request|demand|complaint|notice to your landlord)|demand letter|certified mail|keep a copy|(ask|tell|write to|send|give) your landlord[^.]{0,40}\b(writing|written|letter|notice|email|text)|letter to your landlord)\b`)},
 	{"photos-of-the-problem", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(repair|fix|problem|condition)s?\b`)},
 	{"private-inspector", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(inspector|inspection|code enforcement|code office|housing code|health department)\b`)},
 	{"ask-for-a-receipt", map[string]bool{"cant-pay-rent": true}, regexp.MustCompile(`(?i)\b(pay|paid|payment)\b`)},
@@ -97,12 +102,13 @@ const stubWords = 10
 
 var pointerOpener = regexp.MustCompile(`(?i)^(you can then|then|this|these|also)\b`)
 
-func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string) {
+func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string, live bool) {
 	pb, err := pg.AuthorGetPlaybook(ctx, id)
 	if err != nil {
 		fatal(fmt.Errorf("page %d: %w", id, err))
 	}
-	if pb.Status != "draft" {
+	sizing := live && pb.Status == "published"
+	if pb.Status != "draft" && !sizing {
 		fmt.Printf("page %d is %s, not a draft; skipped\n", id, pb.Status)
 		return
 	}
