@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/nazanindev/defensiverenting/internal/store"
 	"github.com/nazanindev/defensiverenting/internal/voice"
@@ -209,7 +210,7 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string, live b
 	review := []backfillReview{}
 	for _, s := range pb.Statements {
 		text, removed := voice.StripSaidOnce(pb.Language, s.BodyMD, page)
-		if len(removed) > 0 && (len(regexp.MustCompile(`\S+`).FindAllString(text, -1)) < stubWords || pointerOpener.MatchString(text)) {
+		if len(removed) > 0 && (len(regexp.MustCompile(`\S+`).FindAllString(text, -1)) < stubWords || pointerOpener.MatchString(text) || orphanAfter(s.BodyMD, removed)) {
 			review = append(review, backfillReview{Key: s.Key, Body: s.BodyMD, Stub: text})
 			continue
 		}
@@ -248,6 +249,30 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string, live b
 	fmt.Printf("page %d (%s / %s): %d refs, %d edits, %d editorial-only statements to read; needs %v, no backed note for %v\n",
 		id, pb.Jurisdiction.Slug, pb.Topic.Slug, len(refs), len(props), len(review), keys(needs), unbacked)
 }
+
+// orphanAfter reports whether a sentence that follows a removed line is a
+// short pointer at it ("Then everyone must leave."): the strip would leave
+// it dangling, so the statement goes to a person instead.
+func orphanAfter(body string, removed []string) bool {
+	norm := func(t string) string { return strings.TrimRight(strings.TrimSpace(t), ".!?") }
+	sents := sentenceSplit.Split(strings.TrimSpace(body), -1)
+	for i, sent := range sents {
+		for _, r := range removed {
+			if norm(sent) != norm(r) || i+1 >= len(sents) {
+				continue
+			}
+			next := strings.TrimSpace(sents[i+1])
+			if pointerOpener.MatchString(next) && len(strings.Fields(next)) <= 9 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// sentenceSplit cuts after end punctuation; the punctuation stays on the
+// sentence before, and norm drops it before comparing.
+var sentenceSplit = regexp.MustCompile(`(?:[.!?])\s+`)
 
 func keys(m map[string]bool) []string {
 	var out []string
