@@ -79,11 +79,14 @@ var tipAnchors = []struct {
 	// The tip is about what the renter sends the landlord, so it sits under
 	// a statement about the renter writing, never under the landlord's own
 	// notice to enter or to raise the rent.
-	{"keep-a-record", nil, regexp.MustCompile(`(?i)\b(in writing|written (request|demand|complaint|notice to your landlord)|demand letter|certified mail|keep a copy|(ask|tell|write to|send|give) your landlord[^.]{0,40}\b(writing|written|letter|notice|email|text)|letter to your landlord)\b`)},
+	{"keep-a-record", nil, regexp.MustCompile(`(?i)\b(written (request|demand|complaint|notice to your landlord)|demand letter|certified mail|keep a copy|(ask|tell|write to|send|give) your landlord[^.]{0,40}\b(writing|written|letter|notice|email|text)|letter to your landlord)\b`)},
 	{"photos-of-the-problem", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(repair|fix|problem|condition)s?\b`)},
 	{"private-inspector", map[string]bool{"repairs-and-habitability": true, "heat-not-working": true, "constructive-eviction": true}, regexp.MustCompile(`(?i)\b(inspector|inspection|code enforcement|code office|housing code|health department)\b`)},
 	{"ask-for-a-receipt", map[string]bool{"cant-pay-rent": true}, regexp.MustCompile(`(?i)\b(pay|paid|payment)\b`)},
-	{"plan-in-writing", map[string]bool{"cant-pay-rent": true, "rent-increase": true}, regexp.MustCompile(`(?i)\b(plan|agree|agreement|increase|raise)\b`)},
+	// The tip is for a rent change or payment plan the renter agrees to,
+	// so it sits under the renter agreeing or asking, not under the
+	// landlord's notice or the lease's own terms.
+	{"plan-in-writing", map[string]bool{"cant-pay-rent": true, "rent-increase": true}, regexp.MustCompile(`(?i)\b(you (both )?agree|agreed|agree (on|to|in)|negotiat\w*|payment plan|smaller increase|lower (the )?(rent|increase|amount)|ask (your landlord )?(for|to) )`)},
 }
 
 type backfillReview struct {
