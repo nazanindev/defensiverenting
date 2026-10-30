@@ -88,8 +88,9 @@ type ruleset struct {
 	moneyMultiplier *regexp.Regexp
 	moneyWord       *regexp.Regexp
 	// riskyStep finds a statement telling the renter they can end the
-	// lease, move out and stop paying, withhold rent, or take a repair's
-	// cost off the rent (repair and deduct). Each of these is
+	// lease, move out and stop paying, withhold rent, or take money off
+	// the rent (repair and deduct, even a statement only giving its limits:
+	// Nazanin 2026-10-29, a reader can act on any of them alone). Each of these is
 	// decided by a court only afterwards, so the same statement must carry
 	// the risk (riskWarning): it travels alone onto concept pages.
 	riskyStep, riskWarning *regexp.Regexp
@@ -194,7 +195,7 @@ var enRuleset = ruleset{
 	spelledNum:      regexp.MustCompile(`(?i)\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|sixty|ninety)[- ](day|week|month|year|hour|time)s?\b`),
 	allowedTerms:    regexp.MustCompile(`(?i)\b(fee waivers?|warrant(y|ies)? of habitability)\b`),
 	moneyMultiplier: regexp.MustCompile(`(?i)\b(double|triple|twice|\d+\s*(x|times))\b`),
-	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b|\byou (can|may|could)( also)? (hold back|withhold) (part|some|all|part or all|any) of (your|the) rent|\byou (can|may|could)\b[^.]{0,80}\b(take|subtract|deduct)\b[^.]{0,25}\b(cost|amount|payment)s?\b[^.]{0,30}\b(off|out of|from) (your|the|their)( next| monthly| future)? rent|\b(law|act|\d+),? (that )?(lets?|allows?) (you|many tenants|tenants|renters)\b[^.]{0,60}\b(take|subtract|deduct)\b[^.]{0,40}\b(off|out of|from) (your|their|the)( next| monthly| future)? rent|\byou (can|may|could)( also)? (use )?repair and deduct\b|\boption: fix it yourself and (subtract|take|deduct)\b|\brepair and deduct\b[^.]{0,80}\bis (allowed|one option|an option)`),
+	riskyStep:       regexp.MustCompile(`(?i)\byou (can|may|could)( also)? (end|terminate|break|cancel) (your|the) (lease|tenancy|rental agreement)|\b(move|moving) out and stop (paying|owing)|\byou (can|may|could)( also)? (stop paying|withhold|hold back|pay less)( your| the| full| part of your)? rent|\brent withholding\b|\byou (can|may|could)( also)? (hold back|withhold) (part|some|all|part or all|any) of (your|the) rent|\byou (can|may|could)\b[^.]{0,80}\b(take|subtract|deduct)\b[^.]{0,25}\b(cost|amount|payment)s?\b[^.]{0,30}\b(off|out of|from) (your|the|their)( next| monthly| future)? rent|\b(law|act|\d+),? (that )?(lets?|allows?) (you|many tenants|tenants|renters)\b[^.]{0,60}\b(take|subtract|deduct)\b[^.]{0,40}\b(off|out of|from) (your|their|the)( next| monthly| future)? rent|\byou (can|may|could)( also)? (use )?repair and deduct\b|\boption: fix it yourself and (subtract|take|deduct)\b|\brepair and deduct\b|\b(take|taking|took|subtract|subtracting|deduct|deducting|deducts)\b[^.]{0,40}\b(off|out of|from) (your|the|their)( next| monthly| future)? rent\b`),
 	noOwe:           regexp.MustCompile(`(?i)\byou (do not|don't|will not|won't|would not|wouldn't) owe (any|more|the|future|further|that)?\s*(rent|money|fees?|penalt(y|ies))\b|\b(owe|owes) (no|nothing)\b|\bowe little or no\b|\b(released|free|freed) (without penalty )?from (any |all )?(further |future |more )?(rent|payments?)\b`),
 	noOweWarning:    regexp.MustCompile(`(?i)\b(sues?|sued|suing|lawsuit|court|legal help|legal aid|lawyer)\b|\bstill owe\b`),
 	police:          regexp.MustCompile(`(?i)\b(police|911|cops?)\b`),
@@ -208,7 +209,7 @@ var enRuleset = ruleset{
 	awardPaid:       regexp.MustCompile(`(?i)\b(landlord|they) (actually )?pays?\b|\bcollect(ing)? (the|this|that) money\b|\bget paid\b`),
 	inspectStep:     regexp.MustCompile(`(?i)\b(call|ask|request|report|contact|file a complaint with|complain to)\b[^.]{0,80}\b(inspect(or|ion)s?|code enforcement|code office|code department|building department|health department|housing code)\b`),
 	inspectWarning:  regexp.MustCompile(`(?i)\b(condemn(s|ed)?|order (everyone|you) (to leave|out)|make everyone leave|unfit to live in|have to move out|must move out)`),
-	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid)`),
+	riskWarning:     regexp.MustCompile(`(?i)\b(you (can|could|may|might|would) (still |then )?owe|risks?\b|risky|sue you|evict you|eviction case|legal help|lawyer|legal aid|take (legal action|you to court)|court (later )?(rules|disagrees|decides))`),
 	moneyWord:       regexp.MustCompile(`(?i)\b(deposit|rent|damages|amount|penalty)\b`),
 	timeSpan:        regexp.MustCompile(`(?i)\b\d+\s*(business\s+)?(day|days|hour|hours|week|weeks|month|months)\b`),
 	orderCue:        regexp.MustCompile(`(?i)\b(first|then|next|after|before|step|until|once|start(s|ing)?|count(s|ing)?)\b`),
@@ -409,10 +410,11 @@ func Lint(lang, text string) []string {
 // readable.
 var rentWithholdingAct = regexp.MustCompile(`(?i)\brent withholding act\b`)
 
-// negatedStep is a sentence telling the renter what they may not do, or a
+// negatedStep is a gloss in parentheses, a sentence telling the renter (or
+// landlord) what they may not do, or a
 // step a court approves first ("you can sue ... to take the cost off your
 // rent"): it names the step without telling them to take it alone.
-var negatedStep = regexp.MustCompile(`(?i)\byou (can|may|could) not\b[^.]*|\byou (cannot|can't)\b[^.]*|\b(does|do|did) not (let|allow)\b[^.]*|\bno [^.]{0,40}\blaw (gives|lets|allows)\b[^.]*|\byou (can|may) (then |also )?(sue|ask (a|the) court)\b[^.]*`)
+var negatedStep = regexp.MustCompile(`(?i)\(([^()]*)\)|\byou (can|may|could) not\b[^.]*|\b(you|your landlord|the landlord|landlords?|tenants?|renters?)( also)? (cannot|can't|may not|must not)\b[^.]*|\b(does|do|did) not (let|allow)\b[^.]*|\bno [^.]{0,40}\blaw (gives|lets|allows)\b[^.]*|\byou (can|may) (then |also )?(sue|ask (a|the) court)\b[^.]*|\bcourt\b[^.]{0,40}\border you to\b[^.]*|\b(gets|get|has|have) no\b[^.]*`)
 
 // riskViolation is the statement-only rule for riskyStep. A page intro may
 // name the step ("when you can end your lease"); a statement that tells the
@@ -459,7 +461,7 @@ func riskViolation(lang, text string, page Page) string {
 }
 
 // stayStep is a risky step taken while the renter stays in the home.
-var stayStep = regexp.MustCompile(`(?i)\b(stop paying|withhold|hold back|pay less|subtract|deduct)\b|\brent withholding\b|\btake (the |that |its |their )?(repair )?(cost|amount)s?\b`)
+var stayStep = regexp.MustCompile(`(?i)\b(stop paying|withhold|hold back|pay less|subtract|subtracting|deduct|deducting|deducts)\b|\brent withholding\b|\b(take|taking|took)\b[^.]{0,40}\b(off|out of|from) (your|the|their)( next| monthly| future)? rent\b`)
 
 // movesOut is the move-out step, whose "stop paying" is not staying.
 var movesOut = regexp.MustCompile(`(?i)\b(move|moving) out and stop (paying|owing)`)

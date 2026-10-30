@@ -543,6 +543,11 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 		"You can repair and deduct (paying for a repair and taking the cost off your rent), hold back rent, or ask for a lower rent.",
 		"After that, you can pay for reasonable amounts of those services yourself and subtract the actual, reasonable cost from your rent.",
 		"Where adopted, repair and deduct (fixing the problem yourself and taking the cost off your rent) is one option.",
+		"The most you can take off your rent for a repair is the lower of $500 or half a month's rent.",
+		"Maine's repair and deduct rule has a licensing step.",
+		"A Utah renter who uses repair and deduct must keep all receipts for the money paid.",
+		"Before you fix the problem, tell your landlord in writing that you plan to fix it and take the cost off your rent.",
+		"In Delaware, the rule that lets you take repair costs off your rent starts with a written notice to your landlord.",
 	}
 	for _, s := range stays {
 		v := riskViolation("en", s, Page{})
@@ -552,12 +557,13 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 	}
 	for _, s := range []string{
 		"South Carolina law does not let you make general repairs yourself and take the cost off your rent.",
-		"Maine's repair and deduct rule has a licensing step.",
-		"A Utah renter who uses repair and deduct must keep all receipts for the money paid.",
-		"In Delaware, the rule that lets you take repair costs off your rent starts with a written notice to your landlord.",
 		"If you and your landlord cannot agree about a rent problem, Oklahoma law lets you take the issue to court.",
+		"If the court finds a problem exists, it can order you to fix it and subtract the cost from your rent.",
+		"Your landlord also cannot take a late fee out of your next rent payment.",
+		"It does apply if you used Maine's repair-and-deduct rule (fixing a dangerous condition yourself and taking the cost out of your rent).",
+		"You can subtract what your landlord owes you from the rent you owe them. If the court later rules in your landlord's favor, you will have to pay that rent back.",
+		"A renter who is not in compliance gets no rent abatement or repair and deduct (take the cost off rent) choice in Utah.",
 		"You can then sue in small claims court to make your landlord pay you back, or to take the cost off your future rent.",
-		"Before you fix the problem, tell your landlord in writing that you plan to fix it and take the cost off your rent.",
 		"If you are late paying rent, you may not use Delaware's rule that lets you take repair costs off your rent.",
 		"You can withhold rent until repairs are made. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
 	} {
