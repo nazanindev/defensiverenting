@@ -55,7 +55,7 @@ func TestAdvice_registryIsSeededAndBacked(t *testing.T) {
 			t.Errorf("%s is a plain habit and needs no source", s)
 		}
 	}
-	for _, s := range []string{"leave-risk-owe", "answer-court-papers", "show-your-proof", "withhold-risk-evict", "award-win-and-pays"} {
+	for _, s := range []string{"leave-risk-owe", "answer-court-papers", "show-your-proof", "award-win-and-pays"} {
 		if bySlug[s].SiteVoice {
 			t.Errorf("%s states a consequence that varies by state and must be backed", s)
 		}
@@ -64,6 +64,13 @@ func TestAdvice_registryIsSeededAndBacked(t *testing.T) {
 	// shows everywhere and a state's quote is only the chip.
 	if a := bySlug["inspector-may-condemn"]; !a.SiteVoice || a.Warns != "condemn" {
 		t.Error("inspector-may-condemn is a site-voice warning")
+	}
+	// 000086: holding back rent and leaving carry the same risk in every
+	// state, so those warnings are notes on every page that needs them.
+	for slug, warns := range map[string]string{"withhold-risk-evict": "evict", "leave-owe-short": "owe"} {
+		if a := bySlug[slug]; !a.SiteVoice || a.Warns != warns {
+			t.Errorf("%s is a site-voice %s warning", slug, warns)
+		}
 	}
 	if len(bySlug["show-your-proof"].Citations) != 0 {
 		t.Error("show-your-proof has no source yet and must not pretend to")

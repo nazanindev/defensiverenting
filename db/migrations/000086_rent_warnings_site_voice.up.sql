@@ -1,0 +1,13 @@
+-- The eviction warning for holding back rent and the short owe-rent warning
+-- for leaving become site voice, like the inspector caution (000081).
+-- Nazanin, 2026-10-29: the repairs pages carried "If a court later
+-- disagrees, you can owe the rent and face eviction. Get legal help first."
+-- inside dozens of statements; "these should be advice blocks, not in the
+-- statement itself." The note says it once, under the first statement that
+-- needs it (ADR-016 A11). Which steps are legal varies by state, and the
+-- statements and their citations say that; the risk does not vary: in every
+-- state a court decides afterwards, a renter who held back rent can owe it
+-- and be evicted, and a renter who left can still owe rent. A state's
+-- government or nonprofit quote still shows as the source where one exists.
+-- The award note stays per state.
+UPDATE advice SET site_voice = true WHERE slug IN ('withhold-risk-evict', 'leave-owe-short');
