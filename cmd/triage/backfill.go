@@ -63,6 +63,12 @@ var noteFor = map[string][]string{
 	"owe": {"leave-risk-owe", "leave-owe-short"},
 }
 
+// topicNote replaces a kind's note on one topic: a repairs page says the
+// landlord has to sue and win for the rent, and why the renter left (000087).
+var topicNote = map[string]map[string]string{
+	"owe": {"repairs-and-habitability": "leave-repairs-sue-rent"},
+}
+
 // topicWarns are the site-voice warnings every page of a topic carries,
 // whether or not a statement names the step (ADR-016 A10): on a repairs
 // page the renter can always call an inspector, so the condemnation
@@ -170,7 +176,11 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string, live b
 			continue
 		}
 		attached := false
-		for _, slug := range noteFor[kind] {
+		slugs := noteFor[kind]
+		if t := topicNote[kind][pb.Topic.Slug]; t != "" {
+			slugs = []string{t}
+		}
+		for _, slug := range slugs {
 			if backed[slug] {
 				refs = append(refs, store.AdviceRef{PlaybookID: id, Slug: slug, StatementKey: first[kind]})
 				if slug == "leave-owe-short" {

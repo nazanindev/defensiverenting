@@ -67,7 +67,7 @@ func TestAdvice_registryIsSeededAndBacked(t *testing.T) {
 	}
 	// 000086: holding back rent and leaving carry the same risk in every
 	// state, so those warnings are notes on every page that needs them.
-	for slug, warns := range map[string]string{"withhold-risk-evict": "evict", "leave-owe-short": "owe"} {
+	for slug, warns := range map[string]string{"withhold-risk-evict": "evict", "leave-owe-short": "owe", "leave-repairs-sue-rent": "owe"} {
 		if a := bySlug[slug]; !a.SiteVoice || a.Warns != warns {
 			t.Errorf("%s is a site-voice %s warning", slug, warns)
 		}
