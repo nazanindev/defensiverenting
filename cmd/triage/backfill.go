@@ -137,13 +137,22 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string, live b
 			needs[kind] = true
 		}
 	}
+	// A note sits under the first statement that needs it (ADR-016 A11);
+	// a risk the topic needs with no statement asking for it stays on top.
+	first := map[string]string{}
+	need := func(k, key string) {
+		needs[k] = true
+		if _, ok := first[k]; !ok {
+			first[k] = key
+		}
+	}
 	for _, s := range pb.Statements {
 		bare, _ := voice.StripSaidOnce(pb.Language, s.BodyMD, every)
 		if k := voice.NeedsWarning(pb.Language, bare); k != "" {
-			needs[k] = true
+			need(k, s.Key)
 		}
 		for _, k := range voice.SaidOnceKinds(pb.Language, s.BodyMD) {
-			needs[k] = true
+			need(k, s.Key)
 		}
 	}
 	refs := []store.AdviceRef{}
@@ -163,9 +172,9 @@ func backfillOne(ctx context.Context, pg *store.PG, id int64, dir string, live b
 		attached := false
 		for _, slug := range noteFor[kind] {
 			if backed[slug] {
-				refs = append(refs, store.AdviceRef{PlaybookID: id, Slug: slug})
+				refs = append(refs, store.AdviceRef{PlaybookID: id, Slug: slug, StatementKey: first[kind]})
 				if slug == "leave-owe-short" {
-					refs = append(refs, store.AdviceRef{PlaybookID: id, Slug: "leave-court-may-disagree"})
+					refs = append(refs, store.AdviceRef{PlaybookID: id, Slug: "leave-court-may-disagree", StatementKey: first[kind]})
 				}
 				page.Warns[kind] = true
 				attached = true

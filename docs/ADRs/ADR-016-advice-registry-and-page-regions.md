@@ -248,3 +248,11 @@ On the breaking-lease drafts the top box held the disclaimer, the risk note and 
 
 - A page note may carry a `lead`, a few bold opening words, and its source line sits on a line of its own under it, with space before the next note. Leads are copy she reads before they are set; a note without one renders as before.
 - A page note may name the one statement it is about (`statement_key`), and is then said under that statement in an amber box instead of at the top. It is still said once per page (store check and database trigger). On breaking-lease pages the inspector warning moves under the statement about leaving over repairs, the moment a renter would call an inspector; a page with no such statement keeps it at the top, and so do repairs pages (A10). A note whose statement leaves the page shows at the top again rather than vanish. The page still counts the note's risk as said, so the voice checks are unchanged. Migration 000084.
+
+## A12. Rent warnings are notes, not sentences (2026-10-29)
+
+Nazanin, reviewing the repairs drafts: the court warning had been added inside dozens of statements ("If a court later disagrees, you can owe the rent and face eviction. Get legal help first."), and "these should be advice blocks, not in the statement itself."
+
+- `withhold-risk-evict` and `leave-owe-short` are site voice (migration 000086), like `inspector-may-condemn` (A10). Which steps are legal varies by state, and the cited statements say so. The risk does not vary: a court decides afterwards. A state's government or nonprofit quote still shows as the source where one exists. `award-win-and-pays` stays per state.
+- The backfill planner places each note under the first statement that needs it (A11), and strips the warning sentences from statements. Generic lines in other words ("Holding back rent is risky.", "Ask legal aid first.") come out by hand. A sentence giving a specific, cited consequence stays.
+- An editorial-only statement whose only content is the warning is removed when the page has another statement for the note to sit under. Where it is the only statement about the step, it stays until the page gets a cited one.
