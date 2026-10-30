@@ -538,6 +538,11 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 		"Repair and deduct (paying for the repair yourself, then taking that amount out of your rent) is allowed under California law.",
 		"You may hold back part or all of your rent if your landlord does not fix a vital facility problem.",
 		"After written notice, you can buy the service yourself and take the cost off your rent using paid receipts.",
+		"Missouri has a law that lets you pay for repairs yourself and take the cost off your rent.",
+		"Step 3 option: fix it yourself and subtract the cost from rent.",
+		"You can repair and deduct (paying for a repair and taking the cost off your rent), hold back rent, or ask for a lower rent.",
+		"After that, you can pay for reasonable amounts of those services yourself and subtract the actual, reasonable cost from your rent.",
+		"Where adopted, repair and deduct (fixing the problem yourself and taking the cost off your rent) is one option.",
 	}
 	for _, s := range stays {
 		v := riskViolation("en", s, Page{})
@@ -548,6 +553,11 @@ func TestRiskWarningFitsTheStep(t *testing.T) {
 	for _, s := range []string{
 		"South Carolina law does not let you make general repairs yourself and take the cost off your rent.",
 		"Maine's repair and deduct rule has a licensing step.",
+		"A Utah renter who uses repair and deduct must keep all receipts for the money paid.",
+		"In Delaware, the rule that lets you take repair costs off your rent starts with a written notice to your landlord.",
+		"If you and your landlord cannot agree about a rent problem, Oklahoma law lets you take the issue to court.",
+		"You can then sue in small claims court to make your landlord pay you back, or to take the cost off your future rent.",
+		"Before you fix the problem, tell your landlord in writing that you plan to fix it and take the cost off your rent.",
 		"If you are late paying rent, you may not use Delaware's rule that lets you take repair costs off your rent.",
 		"You can withhold rent until repairs are made. If a court later disagrees, you can owe the rent and face eviction. Get legal help first.",
 	} {
