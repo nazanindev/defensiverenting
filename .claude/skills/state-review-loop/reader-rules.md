@@ -6,3 +6,4 @@ Output: a JSON array file (path in your task): [{"playbook_id":N,"key":"...","ve
 Every entry needs a non-empty "reason", passes included, or the command refuses it.
 An untagged statement is fine when no topic-map concept fits (brief: leave procedure untagged). Never leave a statement only for a missing tag, and never suggest a tag.
 source_url must be copied character for character from the statement's own citation url (including or omitting "www." exactly as stored), or the pass is refused.
+A statement that fails the renter-use rule in common-rules.md is a leave with reason "renter use: <what is missing>", even when the quote backs it.
