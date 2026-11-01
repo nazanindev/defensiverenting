@@ -835,17 +835,16 @@ type SearchPage struct {
 	Results          []store.SearchResult
 }
 
-// EditorialPage is the /editorial explainer page.
-type EditorialPage struct{}
-
-// AboutPage is the /about page.
-type AboutPage struct{}
-
-// SupportPage is the /support page.
-type SupportPage struct{}
-
-// PrivacyPage is the /privacy page.
-type PrivacyPage struct{}
+// SitePage is one prose page edited as site copy: /about, /editorial,
+// /privacy, /support. The text comes from internal/sitecopy (the saved row,
+// or the built-in default), rendered from markdown.
+type SitePage struct {
+	Path        string
+	Crumb       string // breadcrumb and <title> label
+	Title       string // the h1
+	Description string
+	BodyHTML    template.HTML
+}
 
 // ReportPage is the /report form, where a reader tells us something on the
 // site is wrong or an organisation has closed.
@@ -943,14 +942,8 @@ func Render(w io.Writer, page any) error {
 		return tmpl.ExecuteTemplate(w, "terms.html", p)
 	case ConceptPage:
 		return tmpl.ExecuteTemplate(w, "concept.html", p)
-	case EditorialPage:
-		return tmpl.ExecuteTemplate(w, "editorial.html", p)
-	case AboutPage:
-		return tmpl.ExecuteTemplate(w, "about.html", p)
-	case SupportPage:
-		return tmpl.ExecuteTemplate(w, "support.html", p)
-	case PrivacyPage:
-		return tmpl.ExecuteTemplate(w, "privacy.html", p)
+	case SitePage:
+		return tmpl.ExecuteTemplate(w, "page.html", p)
 	case ReportPage:
 		return tmpl.ExecuteTemplate(w, "report.html", p)
 	case ContactPage:

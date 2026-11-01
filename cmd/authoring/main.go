@@ -51,6 +51,8 @@ type srv struct {
 	jobs        *jobSet
 	sourceCache *sourceFetchCache
 	bulk        *bulkRun
+	// siteURL is the public site's origin, for "view live" links.
+	siteURL string
 }
 
 // jobSet tracks in-flight AI draft generations by "city/topic" key, so the
@@ -216,11 +218,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet(), sourceCache: newSourceFetchCache(2 * time.Minute), bulk: &bulkRun{}}
+	siteURL := strings.TrimRight(os.Getenv("SITE_URL"), "/")
+	if siteURL == "" {
+		siteURL = "https://renterlaw.org"
+	}
+	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet(), sourceCache: newSourceFetchCache(2 * time.Minute), bulk: &bulkRun{}, siteURL: siteURL}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
 	mux.HandleFunc("GET /guidelines", s.guidelines)
+	mux.HandleFunc("GET /copy", s.copyList)
+	mux.HandleFunc("GET /copy/{slug}", s.copyEdit)
+	mux.HandleFunc("POST /copy/{slug}", s.copySave)
 	mux.HandleFunc("GET /new", s.showForm)
 	mux.HandleFunc("POST /new", s.submitForm)
 	mux.HandleFunc("GET /edit/{id}", s.showEditForm)

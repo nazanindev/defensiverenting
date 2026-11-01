@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Crumb}} · RenterLaw</title>
+  <meta name="description" content="{{.Description}}" />
+  <link rel="canonical" href="{{absURL .Path}}"/>
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="RenterLaw" />
+  <meta property="og:title" content="{{.Crumb}} · RenterLaw" />
+  <meta property="og:description" content="{{.Description}}" />
+  <meta property="og:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="{{absURL "/static/og.png"}}" />
+  <meta name="twitter:title" content="{{.Crumb}} · RenterLaw" />
+  <meta name="twitter:description" content="{{.Description}}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+<body>
+  {{template "site-header" .}}
+
+  <main class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">›</span> {{.Crumb}}
+    </nav>
+
+    <article class="prose">
+      <h1>{{.Title}}</h1>
+      {{.BodyHTML}}
+    </article>
+  </main>
+
+  {{template "site-footer" .}}
+</body>
+</html>

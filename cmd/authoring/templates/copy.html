@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site copy — Authoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', system-ui, sans-serif; background: #fdf8f8; color: #1e1215; min-height: 100vh; }
+  .site-header { background: #4a1223; padding: 0 24px; }
+  .site-header .wrap { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .site-logo { color: #fff; text-decoration: none; font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.05rem; }
+  .header-badge { font-size: .72rem; font-weight: 600; background: rgba(255,255,255,.15); color: #fff; padding: .15rem .5rem; border-radius: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .page { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+  .back { color: #9b2335; text-decoration: none; font-size: .875rem; display: inline-block; margin-bottom: 24px; }
+  h1 { font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { font-size: .95rem; color: #9a7878; margin-bottom: 28px; line-height: 1.5; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 0; border-top: 1px solid #e8dede; }
+  .row:last-child { border-bottom: 1px solid #e8dede; }
+  .row a.title { color: #1e1215; text-decoration: none; font-weight: 600; font-size: .95rem; }
+  .row a.title:hover { text-decoration: underline; }
+  .row .path { color: #9a7878; font-size: .8rem; margin-left: 8px; }
+  .row .meta { color: #9a7878; font-size: .8rem; white-space: nowrap; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a href="/" class="site-logo">Authoring</a>
+    <span class="header-badge">Site copy</span>
+  </div>
+</header>
+<div class="page">
+  <a href="/" class="back">← Back to dashboard</a>
+  <h1>Site copy</h1>
+  <p class="subtitle">The pages about the site itself. A save goes live within 5 minutes.</p>
+  {{range .Rows}}
+  <div class="row">
+    <div><a class="title" href="/copy/{{.Slug}}">{{.Title}}</a><span class="path">{{.Path}}</span></div>
+    <div class="meta">{{if .Edited}}{{.UpdatedBy}} · {{date .UpdatedAt}}{{else}}built-in text{{end}}</div>
+  </div>
+  {{end}}
+</div>
+</body>
+</html>

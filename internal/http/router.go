@@ -9,6 +9,7 @@ import (
 	"github.com/nazanindev/defensiverenting/internal/http/handlers"
 	"github.com/nazanindev/defensiverenting/internal/http/middleware"
 	"github.com/nazanindev/defensiverenting/internal/mail"
+	"github.com/nazanindev/defensiverenting/internal/sitecopy"
 	"github.com/nazanindev/defensiverenting/internal/store"
 	webstatic "github.com/nazanindev/defensiverenting/web/static"
 )
@@ -56,10 +57,16 @@ func NewRouter(db *store.PG, logger *slog.Logger, cfg RouterConfig) http.Handler
 		r.Use(middleware.StaticCache)
 		handlers.Browse(r, db, logger)
 		r.Get("/search", handlers.Search(db, logger))
-		r.Get("/editorial", handlers.Editorial)
-		r.Get("/about", handlers.About)
-		r.Get("/support", handlers.Support)
-		r.Get("/privacy", handlers.Privacy)
+		// Site copy pages read their text from the store when a row exists.
+		// A nil *store.PG (tests) must stay a nil interface, or the handler
+		// would call through a nil pointer.
+		var copyStore handlers.SitePageStore
+		if db != nil {
+			copyStore = db
+		}
+		for _, p := range sitecopy.Pages() {
+			r.Get(p.Path, handlers.SitePage(copyStore, logger, p.Slug))
+		}
 		r.Get("/report", handlers.Report(cfg.FormsURL, cfg.TurnstileSiteKey))
 		r.Get("/contact", handlers.Contact(cfg.FormsURL, cfg.TurnstileSiteKey))
 		r.Get("/thanks", handlers.Thanks)

@@ -1,0 +1,12 @@
+# Words the site uses that the American English list does not carry: names,
+# brands, products. One per line. Lower-case matching is automatic.
+RenterLaw
+renterlaw
+Anthropic
+Claude
+Nazanin
+Cameron
+Monteith
+Resend
+Cloudflare
+analytics
