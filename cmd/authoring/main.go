@@ -224,6 +224,14 @@ func main() {
 	}
 	s := &srv{pg: pg, log: log, tmpl: tmpl, jobs: newJobSet(), sourceCache: newSourceFetchCache(2 * time.Minute), bulk: &bulkRun{}, siteURL: siteURL}
 
+	// Warm the quality map's per-page memo, so the first click after a
+	// deploy is as quick as the rest.
+	go func() {
+		if _, err := pg.AuthorQuality(context.Background()); err != nil {
+			log.Warn("quality warm-up", "err", err)
+		}
+	}()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.dashboard)
 	mux.HandleFunc("GET /guidelines", s.guidelines)

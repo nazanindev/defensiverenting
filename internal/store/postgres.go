@@ -17,6 +17,9 @@ import (
 // PG is the Postgres implementation of Store.
 type PG struct {
 	pool *pgxpool.Pool
+	// quality remembers each page's checks by content, so the quality map
+	// reruns the checks only on pages that changed since the last request.
+	quality qualityMemo
 }
 
 // New opens a connection pool and returns a ready Store.

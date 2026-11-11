@@ -2,7 +2,11 @@ package store
 
 import (
 	"context"
+	"hash/fnv"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 // QualityPage is one page on the quality map (ADR-027 D5): where it sits,
@@ -147,7 +151,83 @@ func (pg *PG) AuthorQuality(ctx context.Context) ([]QualityPage, error) {
 
 	for id, in := range inputs {
 		pages[index[id]].Statements = len(in.Statements)
-		pages[index[id]].Checks = PageQualityChecks(*in)
+		pages[index[id]].Checks = pg.quality.checks(id, in)
 	}
+	pg.quality.keep(inputs)
 	return pages, nil
+}
+
+// qualityMemo holds the last computed checks per page, keyed by a hash of
+// everything the checks read. Running the checks over every page costs
+// seconds of regex per request (2026-11-11: about 3s for 892 pages), and
+// almost no page changes between two clicks on the map. A page whose hash
+// matches reuses its checks; any other page is checked again. Nothing here
+// can go stale: a changed statement, citation or page warning changes the
+// hash.
+type qualityMemo struct {
+	mu sync.Mutex
+	m  map[int64]qualityMemoEntry
+}
+
+type qualityMemoEntry struct {
+	key    uint64
+	checks []QualityCheck
+}
+
+func (q *qualityMemo) checks(id int64, in *QualityInput) []QualityCheck {
+	key := in.hash()
+	q.mu.Lock()
+	e, ok := q.m[id]
+	q.mu.Unlock()
+	if ok && e.key == key {
+		return e.checks
+	}
+	checks := PageQualityChecks(*in)
+	q.mu.Lock()
+	if q.m == nil {
+		q.m = map[int64]qualityMemoEntry{}
+	}
+	q.m[id] = qualityMemoEntry{key: key, checks: checks}
+	q.mu.Unlock()
+	return checks
+}
+
+// keep drops pages that are no longer on the map (deleted, archived).
+func (q *qualityMemo) keep(inputs map[int64]*QualityInput) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for id := range q.m {
+		if _, ok := inputs[id]; !ok {
+			delete(q.m, id)
+		}
+	}
+}
+
+// hash folds every field the checks read into one number. Field order and
+// a separator between fields keep two different inputs from folding alike.
+func (in *QualityInput) hash() uint64 {
+	h := fnv.New64a()
+	w := func(parts ...string) {
+		for _, p := range parts {
+			h.Write([]byte(p))
+			h.Write([]byte{0})
+		}
+	}
+	w(in.Language, in.PageKind)
+	warns := make([]string, 0, len(in.Warns))
+	for k, v := range in.Warns {
+		if v {
+			warns = append(warns, k)
+		}
+	}
+	sort.Strings(warns)
+	w(warns...)
+	w("|")
+	for _, st := range in.Statements {
+		w(st.Body, strconv.Itoa(len(st.Citations)))
+		for _, c := range st.Citations {
+			w(c.SourceKind, c.URL, c.Locator, c.Quote, strconv.FormatBool(c.Checked), c.CheckedVia)
+		}
+	}
+	return h.Sum64()
 }
