@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed 2026-10-29. Not built. |
+| Status | Accepted 2026-11-11 (Nazanin: "go"). Steps 1 and 2 built (8c2d96d): table, store, checker pass, `triage values`, pilot rows on prod. Steps 3 to 6 below not started. |
 | Date | 2026-10-29 |
 | Amends | ADR-027 (one more quality check), ADR-020 (the concept-page table gets its data source), ADR-028 D5 (coverage records stay separate and are read beside the new rows) |
 
@@ -44,6 +44,8 @@ The number is a claim about the law. Every claim on the site is backed by a verb
 
 The checker treats a rule value's citation like any other: same fetch, same receipt, same drift finding, filed as a proposal. The source-quality checks of ADR-027 D3 apply to it as to a statement.
 
+**Build note (2026-11-11).** The citation lives in columns on the row (`source_id`, `locator`, `quote`), and the weekly check reads them in a pass of its own, `RunRuleValues`, modelled on the advice-quote pass of ADR-016 A1. A shared quotes table that statements, advice and rule values all point at was considered and not built: two holders already follow the per-holder pattern, and moving `citations.quote` would touch every save, proposal and receipt path for no gain the pass does not already give. A found quote stamps `source_checked_at`; a missing one sets `drift_at` and `drift_note` on the row. A drift proposal in the queue (D6) is not filed yet.
+
 ### D3. "No law found" stays in coverage records
 
 ADR-028 drew the line on purpose: a coverage record is a dated, signed fact about our search, with no quote because there is nothing to quote. A rule value of kind "none" would carry an empty citation and weaken D2 silently. The two stay in two tables. A reader of the grid takes the rule value where one exists, else the coverage record, the same lookup `RulesAnswers` already does for rules pages.
@@ -71,6 +73,15 @@ When a source drifts, the checker files one drift finding on the citation. The r
 The pilot is `increase-notice-period` for every state. An agent reads the stamped statements tagged to that concept per place, writes one row per condition it finds, copies the citation, and stamps the row as agent-filed. A person spot-checks, then the D4 check runs and lists every place where prose and row disagree. Those disagreements are the first real finding and decide whether the extraction rules in D4 are good enough.
 
 After the pilot, the numeric concepts in order of how often renters search them: `entry-notice-period`, `deposit-cap`, `deposit-return-deadline`, `grace-period`, `late-fees`, then notice periods for non-renewal and pay-or-quit, deposit interest and the small-claims limit as concepts exist for them. About fifteen concepts in all.
+
+## Build order
+
+1. **Data layer** (done 2026-11-11): migration 000090, `FileRuleValue` / `RemoveRuleValue` / `ListRuleValues` / `StatementsForConcept`, `triage values list | input <concept> | <file.json> [-apply]`.
+2. **Pilot backfill** (done 2026-11-11): 60 rows for `increase-notice-period` across 35 states and DC plus 8 cities, filed by the review agent from stamped statements, each quote re-checked to contain the number. What the pilot found: New York's 30/60/90 tiers are in no stored quote (reviewer note filed on the statement); Minnesota, Missouri, New Jersey and Pittsburgh carry no fixed number; Connecticut, New Mexico and Wisconsin have a sub-month case that is "one rental period", not a number, recorded in the row's note.
+3. **Checker coverage** (code done, first run pending): the next weekly check stamps every row or marks it drifted. Drift proposals for rows (D6) not yet filed.
+4. **Quality check** (D4): not started. Lands on the quality map as a report first, the publish gate later.
+5. **Projections** (D5): not started. Waits on a screen description and the pilot concept being full.
+6. **Coupled changes** (D6): not started.
 
 ## Consequences
 
