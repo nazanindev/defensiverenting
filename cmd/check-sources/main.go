@@ -64,6 +64,9 @@ func main() {
 	if res.AdviceConfirmed+res.AdviceDrifted > 0 {
 		fmt.Printf("advice: %d quote(s) confirmed, %d missing from their source\n", res.AdviceConfirmed, res.AdviceDrifted)
 	}
+	if res.ValuesConfirmed+res.ValuesDrifted > 0 {
+		fmt.Printf("rule values: %d quote(s) confirmed, %d missing from their source\n", res.ValuesConfirmed, res.ValuesDrifted)
+	}
 	if res.Skipped > 0 {
 		// Reported on its own line, and last, because it is the number that
 		// silently made previous runs look clean: these citations were never

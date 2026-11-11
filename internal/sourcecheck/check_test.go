@@ -637,3 +637,9 @@ func TestNearest_keepsTheMatchedSentences(t *testing.T) {
 func (f *fakeStore) ListAdviceCitationsForCheck(context.Context) ([]store.AdviceCheckRow, error) {
 	return nil, nil
 }
+
+func (f *fakeStore) ListRuleValueCitationsForCheck(context.Context) ([]store.RuleValueCheckRow, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) MarkRuleValueCitation(context.Context, int64, bool, string) error { return nil }

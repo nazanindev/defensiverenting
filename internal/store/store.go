@@ -123,6 +123,10 @@ type Store interface {
 	// checker confirm the quotes behind registry advice (ADR-016 A1).
 	ListAdviceCitationsForCheck(ctx context.Context) ([]AdviceCheckRow, error)
 	MarkAdviceCitation(ctx context.Context, id int64, found bool, note string) error
+	// ListRuleValueCitationsForCheck and MarkRuleValueCitation let the
+	// source checker confirm the quote behind each rule value (ADR-034 D2).
+	ListRuleValueCitationsForCheck(ctx context.Context) ([]RuleValueCheckRow, error)
+	MarkRuleValueCitation(ctx context.Context, id int64, found bool, note string) error
 	// StatementByKey reads the statement as it currently stands, in the
 	// shape a proposal carries, so a proposer can file "the same statement
 	// with one thing changed".

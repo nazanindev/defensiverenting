@@ -50,6 +50,10 @@ type Result struct {
 	// it. A missing one hides the entry's tip until it is fixed.
 	AdviceConfirmed int
 	AdviceDrifted   int
+	// Rule value quotes (ADR-034 D2): confirmed at their source, or missing
+	// from it. A missing one marks the row drifted until a person refiles it.
+	ValuesConfirmed int
+	ValuesDrifted   int
 }
 
 // StaleWindow is how far ahead of its date a dated claim is raised. Long
@@ -160,6 +164,9 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 	if err := RunAdvice(ctx, db, fetch, logf, &res); err != nil {
 		logf("advice: %v", err)
 	}
+	if err := RunRuleValues(ctx, db, fetch, logf, &res); err != nil {
+		logf("rule values: %v", err)
+	}
 	// A claim that depends on a date goes stale with no source change at
 	// all, so it is checked here rather than per source (ADR-024). The
 	// window is ahead of the date: the fix belongs in the queue while the
@@ -227,6 +234,54 @@ func RunAdvice(ctx context.Context, db store.Store, fetch FetchFunc, logf func(s
 	return nil
 }
 
+// RunRuleValues confirms the quote behind every rule value (ADR-034 D2),
+// the same way RunAdvice confirms advice quotes: found stamps the row,
+// missing from a readable live page marks it drifted, a failed fetch or a
+// thin page concludes nothing.
+func RunRuleValues(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string, ...any), res *Result) error {
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+	rows, err := db.ListRuleValueCitationsForCheck(ctx)
+	if err != nil {
+		return err
+	}
+	fetched := map[string]drafting.Receipt{}
+	failed := map[string]bool{}
+	for _, r := range rows {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		rc, ok := fetched[r.URL]
+		if !ok && !failed[r.URL] {
+			got, err := fetch(r.URL)
+			if err != nil || !got.Live() {
+				failed[r.URL] = true
+				logf("✗ rule value source %s could not be read live; nothing concluded", r.URL)
+				continue
+			}
+			fetched[r.URL], rc = got, got
+		}
+		if failed[r.URL] || rc.Thin {
+			continue
+		}
+		if drafting.QuoteAppearsIn(rc.Text, r.Quote) {
+			if err := db.MarkRuleValueCitation(ctx, r.ID, true, ""); err != nil {
+				return err
+			}
+			res.ValuesConfirmed++
+			continue
+		}
+		note := fmt.Sprintf("quote no longer found at %s", r.URL)
+		if err := db.MarkRuleValueCitation(ctx, r.ID, false, note); err != nil {
+			return err
+		}
+		res.ValuesDrifted++
+		logf("  ✗ rule value %s %s %q: %s: %q", r.Place, r.Concept, r.Condition, note, clip(r.Quote, 80))
+	}
+	return nil
+}
+
 // Concurrency is how many sources a run fetches at once.
 var Concurrency = 4
 
@@ -246,6 +301,8 @@ func (r *Result) add(o Result) {
 	r.Errored += o.Errored
 	r.AdviceConfirmed += o.AdviceConfirmed
 	r.AdviceDrifted += o.AdviceDrifted
+	r.ValuesConfirmed += o.ValuesConfirmed
+	r.ValuesDrifted += o.ValuesDrifted
 }
 
 // agg is one source's cited quotes, gathered for a single fetch.
