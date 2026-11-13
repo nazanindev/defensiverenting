@@ -44,13 +44,16 @@ type ShapeAdvice struct {
 
 // ShapeSize is part 3: size and order.
 type ShapeSize struct {
-	MaxStatements     int             `json:"max_statements"`
-	MaxWords          int             `json:"max_words"`
-	MaxStatementWords int             `json:"max_statement_words"`
-	MaxExtras         int             `json:"max_extras"`
-	OrderRules        []string        `json:"order_rules"`
-	Example           string          `json:"example_statement"`
-	Extras            []ShapeQuestion `json:"extras"`
+	MaxStatements     int `json:"max_statements"`
+	MaxWords          int `json:"max_words"`
+	MaxStatementWords int `json:"max_statement_words"`
+	MaxExtras         int `json:"max_extras"`
+	// CityMore is how many more statements, and how many more extras, a
+	// city page may hold than a state page.
+	CityMore   int             `json:"city_more,omitempty"`
+	OrderRules []string        `json:"order_rules"`
+	Example    string          `json:"example_statement"`
+	Extras     []ShapeQuestion `json:"extras"`
 }
 
 // ShapeQuestion is one question of a topic: a must-answer question of
@@ -110,7 +113,7 @@ func (pg *PG) TopicShapes(ctx context.Context, slug string) ([]TopicShape, error
 	rows, err := pg.pool.Query(ctx, `
 		SELECT t.id, t.slug, t.name, t.stages,
 		       t.title_pattern, t.reader, t.intro_opens, t.covers, t.not_here,
-		       t.max_statements, t.max_words, t.max_statement_words, t.max_extras,
+		       t.max_statements, t.max_words, t.max_statement_words, t.max_extras, t.city_more,
 		       t.order_rules, t.example_statement
 		FROM topics t
 		WHERE $1 = '' OR t.slug = $1
@@ -125,7 +128,7 @@ func (pg *PG) TopicShapes(ctx context.Context, slug string) ([]TopicShape, error
 		var s TopicShape
 		if err := rows.Scan(&id, &s.Slug, &s.Name, &s.Stages,
 			&s.Scope.TitlePattern, &s.Scope.Reader, &s.Scope.IntroOpens, &s.Scope.Covers, &s.Scope.NotHere,
-			&s.Size.MaxStatements, &s.Size.MaxWords, &s.Size.MaxStatementWords, &s.Size.MaxExtras,
+			&s.Size.MaxStatements, &s.Size.MaxWords, &s.Size.MaxStatementWords, &s.Size.MaxExtras, &s.Size.CityMore,
 			&s.Size.OrderRules, &s.Size.Example); err != nil {
 			rows.Close()
 			return nil, err

@@ -856,3 +856,23 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// SectionRef returns the first code section a statement names in its text
+// ("A.R.S. 33-1324", "section 504B.161"), or "". The source line names the
+// section; the sentence says what the rule does.
+func SectionRef(text string) string {
+	if m := sectionRef.FindString(text); m != "" {
+		return m
+	}
+	return upperSectionRef.FindString(text)
+}
+
+// upperSectionRef is a code named by capitals alone ("AS 34.03.100"), which
+// a case-blind pattern would confuse with the word "as".
+var upperSectionRef = regexp.MustCompile(`\bAS \d+\.\d+[\w.\-()]*`)
+
+// BareDeadline reports a number of days with no word saying what it counts
+// from ("after", "before", "from"): a deadline the renter cannot act on.
+func BareDeadline(text string) bool {
+	return dayCount.MatchString(text) && !dayStart.MatchString(text)
+}
