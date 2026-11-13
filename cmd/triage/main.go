@@ -31,6 +31,10 @@
 //	triage nolaw <records.json> [-by <name>] [-remove] [-apply]
 //	                             file "searched, no law found" coverage records (ADR-028 D5)
 //	triage retag <tags.json>     tag decisions [{key, concept, why}] as a propose file, tag change only (ADR-028 D9)
+//	triage shape [<topic>] [-json]
+//	                             the four parts of a topic's shape, and which are not filled (ADR-036 D4)
+//	triage table <topic> [-gaps] [-json]
+//	                             the topic's must-answer questions across every place: stored numbers, and the holes
 //
 // stands, reject, decide and nolaw are the subcommands that write. stands and
 // reject each record a person's decision over many items in one run
@@ -135,6 +139,10 @@ func main() {
 		backfill(ctx, pg, os.Args[2:])
 	case "gate":
 		gate(ctx, pg, os.Args[2:])
+	case "shape":
+		topicShape(ctx, pg, os.Args[2:])
+	case "table":
+		topicTable(ctx, pg, os.Args[2:])
 	case "values":
 		values(ctx, pg, os.Args[2:])
 	default:
@@ -150,7 +158,7 @@ func arg(i int) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-remove] [-apply] | retag <tags.json> | advice [<refs.json> [-remove] [-apply]] | values list [-place <slug>] [-concept <slug>] | values input <concept> | values <values.json> [-by <name>] [-remove] [-apply]")
+	fmt.Fprintln(os.Stderr, "usage: triage pages | page <id> | narrow | widen <narrow.json> | recite <entries.json> | fetch <url> | find <jurisdiction-slug> | check <file.json> | stands <file.json> -by <name> [-apply] | reject <id>... -by <name> -note <why> [-apply] | withdraw <id>... -note <why> [-apply] | merge [-apply] | decide widen [-apply] [-limit n] | decide flag [<decisions.json> [-apply]] | decide edit [<decisions.json> [-apply]] | decide pass [<decisions.json> [-apply]] | decide work | decide page [<findings.json> [-apply]] | decide page flags | decide page close <closes.json> [-apply] | decide audit | gaps <place> [<rules-topic>] | nolaw <records.json> [-by <name>] [-remove] [-apply] | retag <tags.json> | advice [<refs.json> [-remove] [-apply]] | shape [<topic>] [-json] | table <topic> [-gaps] [-json] | values list [-place <slug>] [-concept <slug>] | values input <concept> | values <values.json> [-by <name>] [-remove] [-apply]")
 	os.Exit(2)
 }
 

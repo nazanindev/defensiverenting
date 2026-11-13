@@ -70,7 +70,9 @@ type FileRuleValueParams struct {
 // FileRuleValue writes one row. Filing again for the same place, concept
 // and condition replaces the value and citation and refreshes the stamp.
 // Invariants: a known kind, a non-negative value, a range that does not run
-// backwards, a verbatim quote, a known non-editorial source, a named filer.
+// backwards, a verbatim quote, a known non-editorial source, a named filer,
+// and a condition from the question's list of situations when it has one
+// (ADR-036 D2).
 func (pg *PG) FileRuleValue(ctx context.Context, p FileRuleValueParams) error {
 	if !validRuleValueKind(p.Kind) {
 		return fmt.Errorf("kind %q is not one of %s", p.Kind, strings.Join(RuleValueKinds, ", "))
@@ -99,6 +101,9 @@ func (pg *PG) FileRuleValue(ctx context.Context, p FileRuleValueParams) error {
 			return fmt.Errorf("no place %q or no concept %q: %w", p.JurisdictionSlug, p.ConceptSlug, ErrNotFound)
 		}
 		if err != nil {
+			return err
+		}
+		if err := situationAllowed(ctx, tx, cID, strings.TrimSpace(p.Condition)); err != nil {
 			return err
 		}
 		var sID int64
