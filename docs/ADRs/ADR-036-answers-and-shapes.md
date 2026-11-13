@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted 2026-11-12. Trimmed the same day after two independent reviews. The eviction table is filed (see Findings). The shape as data is built and not shipped. |
+| Status | Accepted 2026-11-12. Trimmed the same day after two independent reviews. The eviction table is filed (see Findings). The shape as data is shipped for two topics. D8 is decided and not built. |
 | Date | 2026-11-12 |
 | Amends | ADR-035 (the topic spec is a four-part shape; one tip per statement is withdrawn), ADR-034 (a rule value's condition comes from a fixed list), ADR-028 (coverage has three states) |
 
@@ -82,6 +82,21 @@ Some questions are not answered in days in every place. "Can I pay and stop an e
 - **list**: one statement for each protection the place has.
 - No mark: words only.
 
+### D8. A wording is a child of its answer (2026-11-13)
+
+A shape that only instructs and checks is not enough. The answer has to be a stored thing that pages draw from.
+
+- An answer is stored once for a place and a question: its quotes, its number if it has one, and one plain wording of what the law says.
+- Each page that answers the question keeps its own statement, in its own words. That statement is a child of the answer. Pages still share no rows (D5), and a child never points at another page.
+- A child is checked against its answer. The answer is checked against the law. The law is read once.
+- When an answer changes, every child is flagged that day.
+- Two children of one answer cannot disagree without it showing.
+- A new page starts from the answers its shape names. It does not research them again.
+
+This reverses one line of the trim. The reviews objected to one row shown on two pages. A child is its own row that knows its parent, so that objection does not apply.
+
+Not decided: where the first wording of an answer comes from for the pairs that exist today, and what a child stores to show which version of its answer it was read against.
+
 ## Findings from the eviction table
 
 Filed 2026-11-12: 173 numbers for six questions across 61 places, each an exact copy of a quote already stored on a page.
@@ -109,15 +124,15 @@ Nothing moves until Nazanin says go.
 
 1. Done. A 50-state table of eviction's must-answer questions.
 2. Done as a read. One page read against its rows.
-3. The shape as data: the four parts stored per topic, and the table as a command that reads the shape and the stored numbers. Built for eviction and breaking a lease; not shipped.
-4. Fill the gaps the table shows, one question at a time, on draft pages. The appeal deadline is first.
-5. Shapes for the other topics, one at a time.
-6. The agreement check of D5. It comes last: the read of 246 shared answers found no contradiction, and the gaps matter more. Content on the wrong page and loose tags are fixed first, or the check is noise.
+3. The shape as data: the four parts stored per topic, and the table as a command that reads the shape and the stored numbers. Shipped for eviction and breaking a lease.
+4. Answers as stored rows with children (D8), proven first on the questions two topics share.
+5. Fill the gaps the table shows, one question at a time, on draft pages. The appeal deadline is first.
+6. Shapes for the other topics, one at a time.
+7. Content on the wrong page and loose tags are fixed, so the check of a child against its answer is not noise.
 
 ## Deferred
 
 - **City pages reading state answers.** City guides stay whole pages in their own words. When this is taken up: a state can forbid a city rule, so "adds" and "replaces" are not the only cases, and federal law is often an "if" case for some housing, not a parent every state inherits.
-- **Reworded copies that hang off a master answer.**
 - **Shared statements, and publishing an answer instead of a page.**
 
 ## Open questions

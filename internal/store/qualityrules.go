@@ -30,7 +30,8 @@ const (
 type QualityCheck struct {
 	// Code names the check: below-tier, nonprofit-alone, archive-url,
 	// browser-tier-only, no-locator, unchecked, plainness, first-step,
-	// deadline-number, somewhere-to-go, risks-paired, must-answer.
+	// deadline-number, somewhere-to-go, risks-paired, must-answer,
+	// quote-missing, source-changed, open-note.
 	Code     string
 	Severity int
 	// Stmt is the 1-based statement the check failed on; 0 for the page.
@@ -317,4 +318,7 @@ var CheckNames = map[string]string{
 	"somewhere-to-go":   "The page names nowhere to get help",
 	"risks-paired":      "A risky step without its warning",
 	"must-answer":       "A question the topic must answer is missing, or has no number of days",
+	"quote-missing":     "A quote is no longer found at its source",
+	"source-changed":    "The source changed around a quote and nobody has re-read it",
+	"open-note":         "An open note or page flag nobody has answered",
 }

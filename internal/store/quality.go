@@ -171,6 +171,16 @@ func (pg *PG) AuthorQuality(ctx context.Context) ([]QualityPage, error) {
 	if err != nil {
 		return nil, err
 	}
+	// What is waiting on a page and is a finding, not a decision: a quote
+	// gone from its source, a source that changed, an open note or flag.
+	// The monitor shows these so the queue does not have to.
+	waiting, err := pg.waitingChecks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for id, w := range waiting {
+		must[id] = append(must[id], w...)
+	}
 	for id, extra := range must {
 		i, ok := index[id]
 		if !ok {
@@ -182,6 +192,134 @@ func (pg *PG) AuthorQuality(ctx context.Context) ([]QualityPage, error) {
 		pages[i].Checks = all
 	}
 	return pages, nil
+}
+
+// waitingChecks returns, per page, a failing check for each stored finding
+// on it:
+//
+//   - quote-missing: the source check did not find a statement's quote at
+//     the source, or did not find the quote behind a stored number;
+//   - source-changed: the source check saw the text around a quote change,
+//     and nobody has re-read the statement;
+//   - open-note: a note on a statement, or a flag on the page, that nobody
+//     has answered.
+//
+// A waiting proposal that carries a change of its own (an agent's edit, a
+// tag change) is a decision, not a finding, and is left to the queue.
+func (pg *PG) waitingChecks(ctx context.Context) (map[int64][]QualityCheck, error) {
+	out := map[int64][]QualityCheck{}
+	rows, err := pg.pool.Query(ctx, `
+		SELECT pb.id,
+		       (SELECT count(*) FROM playbook_statements p2
+		        WHERE p2.playbook_id = pb.id AND p2.position <= ps.position)::int,
+		       sp.reason, sp.proposed_by,
+		       sp.proposed IS NOT NULL AND sp.proposed::text NOT IN ('null', '{}'),
+		       COALESCE(sp.evidence->>'note', '')
+		FROM statement_proposals sp
+		JOIN statements s ON s.key = sp.statement_key
+		JOIN playbook_statements ps ON ps.statement_id = s.id
+		JOIN playbooks pb ON pb.id = ps.playbook_id
+		WHERE sp.status = 'pending'
+		  AND (sp.reason = $2 OR sp.reason = 'agent-pass:flag')
+		  AND pb.status IN ('draft', 'published') AND pb.language = ANY($1)
+		ORDER BY pb.id, ps.position, sp.id`,
+		ContentLanguages, ReasonSourceDrift)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id int64
+		var stmt int
+		var reason, by, note string
+		var hasFix bool
+		if err := rows.Scan(&id, &stmt, &reason, &by, &hasFix, &note); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		n := strconv.Itoa(stmt)
+		switch {
+		case reason == ReasonSourceDrift && hasFix:
+			out[id] = append(out[id], QualityCheck{Code: "quote-missing", Severity: SeverityOrange, Stmt: stmt,
+				Detail: "statement " + n + ": a quote is no longer found at its source; a replacement quote is waiting in the queue"})
+		case reason == ReasonSourceDrift:
+			out[id] = append(out[id], QualityCheck{Code: "quote-missing", Severity: SeverityOrange, Stmt: stmt,
+				Detail: "statement " + n + ": a quote is no longer found at its source, and nothing close to it was found"})
+		case by == ActorSourceCheck:
+			out[id] = append(out[id], QualityCheck{Code: "source-changed", Severity: SeverityYellow, Stmt: stmt,
+				Detail: "statement " + n + ": the source changed around a quote since it was last checked; read the statement against the section as it reads now"})
+		default:
+			out[id] = append(out[id], QualityCheck{Code: "open-note", Severity: SeverityYellow, Stmt: stmt,
+				Detail: "statement " + n + " has an open note: " + clipNote(note)})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	frows, err := pg.pool.Query(ctx, `
+		SELECT f.playbook_id, f.note FROM page_flags f
+		JOIN playbooks pb ON pb.id = f.playbook_id
+		WHERE f.status = 'open' AND pb.status IN ('draft', 'published') AND pb.language = ANY($1)
+		ORDER BY f.playbook_id, f.id`, ContentLanguages)
+	if err != nil {
+		return nil, err
+	}
+	for frows.Next() {
+		var id int64
+		var note string
+		if err := frows.Scan(&id, &note); err != nil {
+			frows.Close()
+			return nil, err
+		}
+		out[id] = append(out[id], QualityCheck{Code: "open-note", Severity: SeverityOrange,
+			Detail: "the page has an open flag, which blocks publishing: " + clipNote(note)})
+	}
+	frows.Close()
+	if err := frows.Err(); err != nil {
+		return nil, err
+	}
+
+	// A stored number whose quote the source check did not find, on each
+	// page that answers that question for that place.
+	vrows, err := pg.pool.Query(ctx, `
+		SELECT DISTINCT ON (pb.id, rv.id) pb.id,
+		       (SELECT count(*) FROM playbook_statements p2
+		        WHERE p2.playbook_id = pb.id AND p2.position <= ps.position)::int,
+		       c.question
+		FROM rule_values rv
+		JOIN concepts c ON c.id = rv.concept_id
+		JOIN playbooks pb ON pb.jurisdiction_id = rv.jurisdiction_id
+		JOIN playbook_statements ps ON ps.playbook_id = pb.id
+		JOIN statements s ON s.id = ps.statement_id AND s.concept_id = rv.concept_id
+		WHERE rv.drift_at IS NOT NULL
+		  AND pb.status IN ('draft', 'published') AND pb.language = ANY($1)
+		ORDER BY pb.id, rv.id, ps.position`, ContentLanguages)
+	if err != nil {
+		return nil, err
+	}
+	defer vrows.Close()
+	for vrows.Next() {
+		var id int64
+		var stmt int
+		var question string
+		if err := vrows.Scan(&id, &stmt, &question); err != nil {
+			return nil, err
+		}
+		out[id] = append(out[id], QualityCheck{Code: "quote-missing", Severity: SeverityYellow, Stmt: stmt,
+			Detail: "statement " + strconv.Itoa(stmt) + ": the quote behind the stored number for \"" + question + "\" was not found at its source"})
+	}
+	return out, vrows.Err()
+}
+
+// clipNote shortens a note to one readable line for a grid cell.
+func clipNote(s string) string {
+	const limit = 200
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > limit {
+		return string(r[:limit]) + "…"
+	}
+	return s
 }
 
 // mustAnswerChecks returns, per page, one failing check for each

@@ -208,3 +208,61 @@ func TestQualityMustAnswer(t *testing.T) {
 		t.Errorf("after a number is filed: %d missing, %d without a number; want 6 and 0", m, n)
 	}
 }
+
+// The quality map shows what waits on a page and is a finding: a drift
+// item with no fix, a checker's "source changed" flag, and an open note.
+func TestQualityWaitingChecks(t *testing.T) {
+	pg, j, _ := ruleValueFixture(t)
+	ctx := context.Background()
+	id := pageID(t, pg, j.ID, "rent-increase", "published")
+	var key string
+	if err := pg.Pool().QueryRow(ctx, `
+		SELECT s.key::text FROM playbook_statements ps JOIN statements s ON s.id = ps.statement_id
+		WHERE ps.playbook_id = $1 ORDER BY ps.position LIMIT 1`, id).Scan(&key); err != nil {
+		t.Fatal(err)
+	}
+	codes := func() map[string]int {
+		t.Helper()
+		pages, err := pg.AuthorQuality(ctx)
+		if err != nil {
+			t.Fatalf("AuthorQuality: %v", err)
+		}
+		got := map[string]int{}
+		for _, p := range pages {
+			if p.ID != id {
+				continue
+			}
+			for _, c := range p.Checks {
+				if c.Stmt == 1 || c.Code == "open-note" {
+					got[c.Code]++
+				}
+			}
+		}
+		return got
+	}
+	if got := codes(); got["open-note"] != 0 || got["quote-missing"] != 0 || got["source-changed"] != 0 {
+		t.Fatalf("a page with nothing waiting: %v", got)
+	}
+	// Notes and flags pile up beside each other; each shows as its own check.
+	file := func(reason, by string) {
+		t.Helper()
+		if _, err := pg.FileProposal(ctx, store.FileProposalParams{
+			StatementKey: key, PlaybookID: id, Reason: reason, ProposedBy: by,
+			Evidence: []byte(`{"note":"read this again"}`),
+		}); err != nil {
+			t.Fatalf("file %s: %v", reason, err)
+		}
+	}
+	file("agent-pass:flag", "drafting agent")
+	if got := codes(); got["open-note"] != 1 {
+		t.Errorf("an agent's note: %v, want one open-note", got)
+	}
+	file("agent-pass:flag", store.ActorSourceCheck)
+	if got := codes(); got["source-changed"] != 1 || got["open-note"] != 1 {
+		t.Errorf("a checker flag beside the note: %v, want one of each", got)
+	}
+	file(store.ReasonSourceDrift, store.ActorSourceCheck)
+	if got := codes(); got["quote-missing"] != 1 {
+		t.Errorf("a drift item: %v, want one quote-missing", got)
+	}
+}
