@@ -98,6 +98,7 @@ var checkColumns = []checkColumn{
 	{"first-step", "first step", store.CheckNames["first-step"]},
 	{"somewhere-to-go", "where to go", store.CheckNames["somewhere-to-go"]},
 	{"deadline-number", "deadline", store.CheckNames["deadline-number"]},
+	{"must-answer", "must answer", store.CheckNames["must-answer"]},
 	{"risks-paired", "risk warning", store.CheckNames["risks-paired"]},
 	{"unchecked", "unchecked", store.CheckNames["unchecked"]},
 	{"no-locator", "no section", store.CheckNames["no-locator"]},

@@ -156,3 +156,55 @@ func TestTopicTableAndSituations(t *testing.T) {
 		t.Errorf("a listed situation was refused: %v", err)
 	}
 }
+
+// The quality map judges a page against its topic's shape: a must-answer
+// question the page leaves out fails, a days question with no stored
+// number fails, and a stored number clears it.
+func TestQualityMustAnswer(t *testing.T) {
+	pg, j, src := ruleValueFixture(t)
+	ctx := context.Background()
+	if err := ingestTagged(t, pg, j.ID, "eviction-defense", "draft", "playbook",
+		[2]string{"late-rent-notice", "The notice"}, [2]string{"eviction-court-process", "Going to court"}); err != nil {
+		t.Fatal(err)
+	}
+	id := pageID(t, pg, j.ID, "eviction-defense", "draft")
+	holes := func() (missing, noNumber int) {
+		t.Helper()
+		pages, err := pg.AuthorQuality(ctx)
+		if err != nil {
+			t.Fatalf("AuthorQuality: %v", err)
+		}
+		for _, p := range pages {
+			if p.ID != id {
+				continue
+			}
+			for _, c := range p.Checks {
+				if c.Code != "must-answer" {
+					continue
+				}
+				if c.Stmt == 0 {
+					missing++
+				} else {
+					noNumber++
+				}
+			}
+		}
+		return missing, noNumber
+	}
+	// Eight must-answer questions: two are on the page, six are not. Of the
+	// two, late rent is answered in days and has no number; what happens in
+	// court is words only.
+	if m, n := holes(); m != 6 || n != 1 {
+		t.Errorf("before a number is filed: %d missing, %d without a number; want 6 and 1", m, n)
+	}
+	t.Cleanup(func() { _, _ = pg.RemoveRuleValue(ctx, j.Slug, "late-rent-notice", "") })
+	if err := pg.FileRuleValue(ctx, store.FileRuleValueParams{
+		JurisdictionSlug: j.Slug, ConceptSlug: "late-rent-notice", Kind: "days", Value: 3,
+		SourceURL: src.URL, Quote: "three days", By: "test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if m, n := holes(); m != 6 || n != 0 {
+		t.Errorf("after a number is filed: %d missing, %d without a number; want 6 and 0", m, n)
+	}
+}

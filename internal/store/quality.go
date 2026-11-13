@@ -154,7 +154,88 @@ func (pg *PG) AuthorQuality(ctx context.Context) ([]QualityPage, error) {
 		pages[index[id]].Checks = pg.quality.checks(id, in)
 	}
 	pg.quality.keep(inputs)
+
+	// The topic's shape (ADR-036): a page of a topic with a shape answers
+	// each must-answer question. Not memoized: it reads the shape, the
+	// stored numbers and the no-law records, none of which are in a page's
+	// hash, and it is one query.
+	must, err := pg.mustAnswerChecks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for id, extra := range must {
+		i, ok := index[id]
+		if !ok {
+			continue
+		}
+		// A new slice: the memo owns the one it returned.
+		all := append(append([]QualityCheck{}, pages[i].Checks...), extra...)
+		sort.SliceStable(all, func(a, b int) bool { return all[a].Severity > all[b].Severity })
+		pages[i].Checks = all
+	}
 	return pages, nil
+}
+
+// mustAnswerChecks returns, per page, one failing check for each
+// must-answer question of the page's topic that the page leaves open
+// (ADR-036 D3, D7):
+//
+//   - no statement on the page answers it, and the place has no "searched,
+//     no law found" record for it; or
+//   - the question is answered in days, a statement answers it, and no
+//     number is stored for the place.
+//
+// Only state and city pages of a topic with a shape are judged. A
+// nationwide page answers in general words.
+func (pg *PG) mustAnswerChecks(ctx context.Context) (map[int64][]QualityCheck, error) {
+	rows, err := pg.pool.Query(ctx, `
+		SELECT pb.id, c.question, q.answer,
+		       COALESCE(st.rank, 0),
+		       EXISTS (SELECT 1 FROM coverage_records r
+		               WHERE r.jurisdiction_id = pb.jurisdiction_id AND r.concept_id = q.concept_id),
+		       EXISTS (SELECT 1 FROM rule_values rv
+		               WHERE rv.jurisdiction_id = pb.jurisdiction_id AND rv.concept_id = q.concept_id)
+		FROM playbooks pb
+		JOIN jurisdictions j ON j.id = pb.jurisdiction_id AND j.kind IN ('state', 'city')
+		JOIN topic_questions q ON q.topic_id = pb.topic_id AND q.role = 'must'
+		JOIN concepts c ON c.id = q.concept_id
+		LEFT JOIN LATERAL (
+			-- The first statement on the page tagged with the question, as its
+			-- 1-based place among the page's statements.
+			SELECT (SELECT count(*) FROM playbook_statements p2
+			        WHERE p2.playbook_id = pb.id AND p2.position <= ps.position)::int AS rank
+			FROM playbook_statements ps
+			JOIN statements s ON s.id = ps.statement_id
+			WHERE ps.playbook_id = pb.id AND s.concept_id = q.concept_id
+			ORDER BY ps.position
+			LIMIT 1
+		) st ON true
+		WHERE pb.status IN ('draft', 'published') AND pb.language = ANY($1)
+		ORDER BY pb.id, q.position`,
+		ContentLanguages)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]QualityCheck{}
+	for rows.Next() {
+		var id int64
+		var question, answer string
+		var stmt int
+		var noLaw, hasNumber bool
+		if err := rows.Scan(&id, &question, &answer, &stmt, &noLaw, &hasNumber); err != nil {
+			return nil, err
+		}
+		switch {
+		case stmt == 0 && !noLaw:
+			out[id] = append(out[id], QualityCheck{Code: "must-answer", Severity: SeverityOrange,
+				Detail: "the page does not answer: " + question})
+		case stmt > 0 && answer == "days" && !hasNumber:
+			out[id] = append(out[id], QualityCheck{Code: "must-answer", Severity: SeverityOrange, Stmt: stmt,
+				Detail: "statement " + strconv.Itoa(stmt) + " answers \"" + question + "\" and no number of days is stored for this place"})
+		}
+	}
+	return out, rows.Err()
 }
 
 // qualityMemo holds the last computed checks per page, keyed by a hash of
