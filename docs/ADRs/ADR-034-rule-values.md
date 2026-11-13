@@ -78,7 +78,7 @@ After the pilot, the numeric concepts in order of how often renters search them:
 
 1. **Data layer** (done 2026-11-11): migration 000090, `FileRuleValue` / `RemoveRuleValue` / `ListRuleValues` / `StatementsForConcept`, `triage values list | input <concept> | <file.json> [-apply]`.
 2. **Pilot backfill** (done 2026-11-11): 60 rows for `increase-notice-period` across 35 states and DC plus 8 cities, filed by the review agent from stamped statements, each quote re-checked to contain the number. What the pilot found: New York's 30/60/90 tiers are in no stored quote (reviewer note filed on the statement); Minnesota, Missouri, New Jersey and Pittsburgh carry no fixed number; Connecticut, New Mexico and Wisconsin have a sub-month case that is "one rental period", not a number, recorded in the row's note.
-3. **Checker coverage** (code done, first run pending): the next weekly check stamps every row or marks it drifted. Drift proposals for rows (D6) not yet filed.
+3. **Checker coverage** (first run 2026-11-12): the check stamped 43 of the 60 pilot rows confirmed, none drifted; 17 stayed unstamped because their source could not be read (403 from leginfo, capitol.hawaii.gov and amlegal; thin pages at sdlegislature, texaslawhelp and rilegislature). The pass is sequential and runs last, so it lands about six hours after the trigger. Drift proposals for rows (D6) not yet filed.
 4. **Quality check** (D4): not started. Lands on the quality map as a report first, the publish gate later.
 5. **Projections** (D5): not started. Waits on a screen description and the pilot concept being full.
 6. **Coupled changes** (D6): not started.
