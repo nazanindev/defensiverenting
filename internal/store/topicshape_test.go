@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -264,5 +265,72 @@ func TestQualityWaitingChecks(t *testing.T) {
 	file(store.ReasonSourceDrift, store.ActorSourceCheck)
 	if got := codes(); got["quote-missing"] != 1 {
 		t.Errorf("a drift item: %v, want one quote-missing", got)
+	}
+}
+
+// Filling a tag changes no words, keeps a valid stamp valid, and never
+// replaces a tag that is already there.
+func TestFillStatementTag(t *testing.T) {
+	pg, j := rulesFixture(t)
+	ctx := context.Background()
+	if err := ingestTagged(t, pg, j.ID, "cant-pay-rent", "published", "playbook",
+		[2]string{"", "What the law says"}, [2]string{"late-fees", "What the law says"}); err != nil {
+		t.Fatal(err)
+	}
+	id := pageID(t, pg, j.ID, "cant-pay-rent", "published")
+	type row struct {
+		key     string
+		concept string
+		valid   bool
+	}
+	read := func() []row {
+		t.Helper()
+		rows, err := pg.Pool().Query(ctx, `
+			SELECT s.key::text, COALESCE(c.slug, ''), s.last_reviewed_at IS NOT NULL AND s.reviewed_hash = h.hash
+			FROM playbook_statements ps
+			JOIN statements s ON s.id = ps.statement_id
+			JOIN statement_review_hash h ON h.statement_id = s.id
+			LEFT JOIN concepts c ON c.id = s.concept_id
+			WHERE ps.playbook_id = $1 ORDER BY ps.position`, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []row
+		for rows.Next() {
+			var r row
+			if err := rows.Scan(&r.key, &r.concept, &r.valid); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, r)
+		}
+		return out
+	}
+	before := read()
+	if len(before) != 2 || before[0].concept != "" || before[1].concept != "late-fees" {
+		t.Fatalf("fixture: %+v", before)
+	}
+	// Stamp the untagged statement, so the test can see the stamp survive.
+	if _, err := pg.Pool().Exec(ctx, `
+		UPDATE statements s SET last_reviewed_at = NOW(), reviewed_by = 'test', reviewed_hash = h.hash
+		FROM statement_review_hash h WHERE h.statement_id = s.id AND s.key = $1::uuid`, before[0].key); err != nil {
+		t.Fatal(err)
+	}
+	n, err := pg.FillStatementTag(ctx, before[0].key, "grace-period")
+	if err != nil || n != 1 {
+		t.Fatalf("fill: %d rows, %v", n, err)
+	}
+	after := read()
+	if after[0].concept != "grace-period" || !after[0].valid {
+		t.Errorf("after the fill: %+v, want grace-period with a valid stamp", after[0])
+	}
+	if n, err := pg.FillStatementTag(ctx, before[0].key, "grace-period"); err != nil || n != 0 {
+		t.Errorf("filling the same tag again: %d rows, %v", n, err)
+	}
+	if _, err := pg.FillStatementTag(ctx, before[1].key, "grace-period"); !errors.Is(err, store.ErrAlreadyTagged) {
+		t.Errorf("replacing a tag: %v, want ErrAlreadyTagged", err)
+	}
+	if _, err := pg.FillStatementTag(ctx, before[0].key, "no-such-concept"); err == nil {
+		t.Error("an unknown concept was accepted")
 	}
 }

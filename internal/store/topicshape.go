@@ -430,3 +430,85 @@ func situationAllowed(ctx context.Context, tx pgx.Tx, conceptID int64, condition
 	}
 	return fmt.Errorf("condition %q is not one of this question's situations: %s", condition, strings.Join(names, "; "))
 }
+
+// ErrAlreadyTagged reports that a statement already carries another
+// question; filling a tag never overwrites one.
+var ErrAlreadyTagged = errors.New("the statement already carries a different question")
+
+// FillStatementTag gives an untagged statement its question, on every page
+// that holds it (a live page and its draft share the key). The words and
+// the citations do not change, so a review stamp that was valid before the
+// tag stays valid after it: the stamp's hash is rewritten to cover the new
+// tag. It refuses a statement that already carries a different question or
+// that is a whole-topic summary. It returns how many rows changed; 0 when
+// the tag was already there.
+func (pg *PG) FillStatementTag(ctx context.Context, key, conceptSlug string) (int, error) {
+	key = strings.ToLower(strings.TrimSpace(key))
+	if !uuidRE.MatchString(key) {
+		return 0, fmt.Errorf("statement key %q is not a statement key", key)
+	}
+	changed := 0
+	err := pgx.BeginTxFunc(ctx, pg.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var cID int64
+		err := tx.QueryRow(ctx, `SELECT id FROM concepts WHERE slug = $1`, conceptSlug).Scan(&cID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("no concept %q: %w", conceptSlug, ErrNotFound)
+		}
+		if err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `
+			SELECT s.id, s.concept_id, s.topic_ref IS NOT NULL,
+			       s.last_reviewed_at IS NOT NULL AND s.reviewed_hash = h.hash
+			FROM statements s
+			JOIN statement_review_hash h ON h.statement_id = s.id
+			WHERE s.key = $1::uuid
+			FOR UPDATE OF s`, key)
+		if err != nil {
+			return err
+		}
+		var fill, stamped []int64
+		for rows.Next() {
+			var id int64
+			var have *int64
+			var summary, valid bool
+			if err := rows.Scan(&id, &have, &summary, &valid); err != nil {
+				rows.Close()
+				return err
+			}
+			switch {
+			case summary:
+				rows.Close()
+				return errors.New("a whole-topic summary carries no question")
+			case have != nil && *have != cID:
+				rows.Close()
+				return ErrAlreadyTagged
+			case have != nil:
+				continue
+			}
+			fill = append(fill, id)
+			if valid {
+				stamped = append(stamped, id)
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if len(fill) == 0 {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `UPDATE statements SET concept_id = $2 WHERE id = ANY($1)`, fill, cID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE statements s SET reviewed_hash = h.hash
+			FROM statement_review_hash h
+			WHERE h.statement_id = s.id AND s.id = ANY($1)`, stamped); err != nil {
+			return err
+		}
+		changed = len(fill)
+		return nil
+	})
+	return changed, err
+}
