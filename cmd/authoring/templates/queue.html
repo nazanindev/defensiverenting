@@ -41,7 +41,6 @@
   .rank.hot { color: #8a1c2e; background: #fbe6e9; }
   .kind { font-size: .72rem; font-weight: 600; color: #7a1c2a; white-space: nowrap; text-align: right; }
   .kind.drift { color: #92400e; }
-  .kind.unused { color: #5c3a3a; }
   .lead { grid-column: 1 / -1; font-size: .88rem; color: #5c3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .body { padding: 2px 4px 20px; }
   .why { font-size: .92rem; line-height: 1.55; margin-bottom: 12px; }
@@ -124,7 +123,7 @@
 
   {{if .Bulk}}<div class="bulk"><p>Applying: {{.Bulk.Done}} of {{.Bulk.Total}} done. Refresh to see more.</p></div>{{end}}
 
-  {{if or .Items .Sources}}
+  {{if .Items}}
   {{if .Pickable}}<label class="tickall"><input type="checkbox" class="pick" id="pickall"> Tick all {{.Pickable}} that can go together</label>{{end}}
   {{range .Groups}}
   <div class="group">
@@ -198,34 +197,6 @@
   </ol>
   {{end}}
 
-  {{if .Sources}}
-  <h2>Sources no page cites</h2>
-  <ol class="list">
-    {{range .Sources}}
-    <li>
-    <details class="item" id="s{{.ID}}">
-      <summary>
-        <span class="where"><b>{{if .Publisher}}{{.Publisher}}{{else}}{{.URL}}{{end}}</b>{{if .Kind}} · {{.Kind}}{{end}}</span>
-        <span class="kind unused">unused · {{.ProposedBy}} · {{.Age}}</span>
-        <span class="lead">{{.URL}}</span>
-      </summary>
-      <div class="body">
-        <p class="passage"><a class="small" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}} ↗</a>{{if .OrphanCitations}}<br>{{.OrphanCitations}} citation(s) from statements no page carries any more go with it.{{end}}</p>
-        {{if .InUse}}<p class="stmt gone">A page cites this source again. It cannot be deleted: say Keep.</p>{{end}}
-        {{if or (eq .Status "pending") (eq .Status "snoozed")}}
-        <div class="actions">
-          {{if and .SourceID (not .InUse)}}<form method="post" action="/queue/sources/{{.ID}}/approve"><input type="hidden" name="status" value="{{$st}}"><button class="btn btn-apply">Delete</button></form>{{end}}
-          <form method="post" action="/queue/sources/{{.ID}}/reject"><input type="hidden" name="status" value="{{$st}}"><input type="text" name="note" placeholder="Why keep it (kept as the record)"><button class="btn btn-no">Keep</button></form>
-        </div>
-        {{else}}
-        <p class="decision">{{.Status}}{{if .DecidedBy}} by {{.DecidedBy}}{{end}}{{if .DecidedAt}} on {{date .DecidedAt}}{{end}}{{if .DecisionNote}}: “{{.DecisionNote}}”{{end}}</p>
-        {{end}}
-      </div>
-    </details>
-    </li>
-    {{end}}
-  </ol>
-  {{end}}
   {{else}}
     <div class="empty">Nothing {{.Status}}.</div>
   {{end}}

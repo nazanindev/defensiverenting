@@ -319,16 +319,7 @@ func (s *srv) quality(w http.ResponseWriter, r *http.Request) {
 }
 
 // pendingProposalCount is what "N proposals waiting" means everywhere it is
-// shown: statement proposals and source proposals together, since one queue
-// page holds both.
+// shown: the statement proposals on the queue page.
 func (s *srv) pendingProposalCount(ctx context.Context) (int, error) {
-	stmts, err := s.pg.CountPendingProposals(ctx)
-	if err != nil {
-		return 0, err
-	}
-	srcs, err := s.pg.CountPendingSourceProposals(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return stmts + srcs, nil
+	return s.pg.CountPendingProposals(ctx)
 }

@@ -24,13 +24,6 @@ import (
 // swapped (D3), so it is subject to everything a save is — the reference-only
 // rule, live quote checks, the publish gate.
 
-// sourceItem is one unused-source proposal (ADR-014 D7). Approving it
-// deletes the source row; there is no page to save.
-type sourceItem struct {
-	store.SourceProposal
-	Age string
-}
-
 type queueItem struct {
 	store.ProposalRow
 	EvidenceText string
@@ -173,11 +166,6 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	sources, err := s.pg.ListSourceProposals(ctx, status)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
 	var resolved []int64
 	for _, row := range rows {
 		resolved = append(resolved, store.ResolvedFlagIDs(row.Evidence)...)
@@ -188,8 +176,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// One list, worked top to bottom: proposed edits first, then the
-	// checker's drift findings, each family in reading order. Sources no
-	// page cites come last on the page.
+	// checker's drift findings, each family in reading order.
 	items := make([]queueItem, 0, len(rows))
 	for _, row := range rows {
 		item := newQueueItem(row)
@@ -215,10 +202,6 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		items[i].Next = items[i+1].ID
 	}
 	groups = groupItems(items)
-	sourceItems := make([]sourceItem, 0, len(sources))
-	for _, sp := range sources {
-		sourceItems = append(sourceItems, sourceItem{SourceProposal: sp, Age: ago(sp.CreatedAt)})
-	}
 	// The item shown open: the one a decision handed on, else the first.
 	open, _ := strconv.ParseInt(r.URL.Query().Get("open"), 10, 64)
 	if open == 0 && len(items) > 0 {
@@ -238,8 +221,7 @@ func (s *srv) queue(w http.ResponseWriter, r *http.Request) {
 		"Items":    items,
 		"Groups":   groups,
 		"Open":     open,
-		"Sources":  sourceItems,
-		"Count":    len(items) + len(sourceItems),
+		"Count":    len(items),
 		"Checking": s.jobs.has("sources-check"),
 		"Msg":      r.URL.Query().Get("msg"),
 		"Err":      r.URL.Query().Get("err"),
@@ -321,56 +303,6 @@ func (s *srv) decideProposal(w http.ResponseWriter, r *http.Request, status stri
 		return
 	}
 	if err := s.pg.DecideProposal(r.Context(), id, status, actor(r), strings.TrimSpace(r.FormValue("note")), until); err != nil {
-		s.queueRedirect(w, r, "", err.Error())
-		return
-	}
-	s.queueRedirect(w, r, strings.ToUpper(status[:1])+status[1:]+".", "")
-}
-
-// approveSourceProposal deletes the source. The store refuses if a page has
-// come to cite it while the proposal waited.
-func (s *srv) approveSourceProposal(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	p, err := s.pg.GetSourceProposal(r.Context(), id)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	err = s.pg.ApproveSourceProposal(r.Context(), id, actor(r))
-	switch {
-	case errors.Is(err, store.ErrSourceInUse):
-		s.queueRedirect(w, r, "", "Not deleted: "+err.Error()+" Reject the proposal instead.")
-	case err != nil:
-		s.queueRedirect(w, r, "", "Not deleted: "+err.Error())
-	default:
-		s.queueRedirect(w, r, fmt.Sprintf("Deleted source %s.", p.URL), "")
-	}
-}
-
-func (s *srv) rejectSourceProposal(w http.ResponseWriter, r *http.Request) {
-	s.decideSourceProposal(w, r, "rejected", nil)
-}
-
-func (s *srv) snoozeSourceProposal(w http.ResponseWriter, r *http.Request) {
-	days, _ := strconv.Atoi(r.FormValue("days"))
-	if days <= 0 {
-		days = 7
-	}
-	until := time.Now().Add(time.Duration(days) * 24 * time.Hour)
-	s.decideSourceProposal(w, r, "snoozed", &until)
-}
-
-func (s *srv) decideSourceProposal(w http.ResponseWriter, r *http.Request, status string, until *time.Time) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	if err := s.pg.DecideSourceProposal(r.Context(), id, status, actor(r), strings.TrimSpace(r.FormValue("note")), until); err != nil {
 		s.queueRedirect(w, r, "", err.Error())
 		return
 	}

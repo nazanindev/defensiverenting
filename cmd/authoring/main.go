@@ -271,9 +271,6 @@ func main() {
 	mux.HandleFunc("POST /queue/{id}/approve", s.approveProposal)
 	mux.HandleFunc("POST /queue/{id}/reject", s.rejectProposal)
 	mux.HandleFunc("POST /queue/{id}/snooze", s.snoozeProposal)
-	mux.HandleFunc("POST /queue/sources/{id}/approve", s.approveSourceProposal)
-	mux.HandleFunc("POST /queue/sources/{id}/reject", s.rejectSourceProposal)
-	mux.HandleFunc("POST /queue/sources/{id}/snooze", s.snoozeSourceProposal)
 	mux.HandleFunc("GET /coverage", s.coverage)
 	mux.HandleFunc("GET /quality", s.quality)
 	mux.HandleFunc("GET /orgs", s.orgs)
@@ -984,10 +981,10 @@ func (s *srv) checkSources(w http.ResponseWriter, r *http.Request) {
 		}
 		s.log.Info("sourcecheck done",
 			slog.Int("sources", res.Sources), slog.Int("drifted", res.Drifted), slog.Int("proposals", res.Proposed),
-			slog.Int("unused", res.Unused), slog.Int("failed", res.Failed), slog.Int("unreadable", res.Unreadable),
+			slog.Int("failed", res.Failed), slog.Int("unreadable", res.Unreadable),
 			slog.Int("errored", res.Errored))
 	}()
-	http.Redirect(w, r, "/queue?msg="+url.QueryEscape("re-checking sources for changes — unused sources are filed now, drift as each fetch finishes; refresh in a moment"), http.StatusSeeOther)
+	http.Redirect(w, r, "/queue?msg="+url.QueryEscape("re-checking sources for changes — drift is filed as each fetch finishes; refresh in a moment"), http.StatusSeeOther)
 }
 
 // ---- source discovery -------------------------------------------------------

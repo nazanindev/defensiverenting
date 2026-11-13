@@ -58,9 +58,6 @@ func main() {
 	if res.Incomparable > 0 {
 		fmt.Printf("%d citation(s) not found, but confirmed under a better extractor than this machine has — not filed as drift; run the check where pdftotext is installed\n", res.Incomparable)
 	}
-	if res.Unused > 0 {
-		fmt.Printf("%d unused source(s) filed for deletion under Proposed changes\n", res.Unused)
-	}
 	if res.AdviceConfirmed+res.AdviceDrifted > 0 {
 		fmt.Printf("advice: %d quote(s) confirmed, %d missing from their source\n", res.AdviceConfirmed, res.AdviceDrifted)
 	}

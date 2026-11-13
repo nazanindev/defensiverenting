@@ -44,7 +44,6 @@ type Result struct {
 	Skipped      int // citations carrying no quote, so nothing could be verified
 	Moved        int // quotes that survived but whose surrounding text changed; a note was filed (ADR-024)
 	Stale        int // statements whose dated claim is about to pass; a note was filed (ADR-024)
-	Unused       int // unused-source deletion proposals filed for the review queue
 	Errored      int // sources whose check hit an error other than fetching; logged and skipped
 	// Advice quotes (ADR-016 A1): confirmed at their source, or missing from
 	// it. A missing one hides the entry's tip until it is fixed.
@@ -101,19 +100,12 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 	if skipped > 0 {
 		logf("⚠ %d citation(s) carry no verbatim quote and cannot be checked — they are not covered by this run", skipped)
 	}
-	// Sources no page cites cannot drift, but each still costs a fetch and
-	// clutters the picker. They are filed for deletion before the fetch loop
-	// so the queue shows them the moment a run starts (ADR-014 D7).
-	unused, err := db.FileUnusedSourceProposals(ctx, store.ActorSourceCheck)
-	if err != nil {
-		return Result{Skipped: skipped}, fmt.Errorf("file unused sources: %w", err)
-	}
-	if unused > 0 {
-		logf("○ %d source(s) no page cites — filed for deletion under Proposed changes", unused)
-	}
+	// A source no page cites is not filed anywhere (2026-11-13): it reaches
+	// no reader and fails no check, and its "delete this source" items sat
+	// undecided in the queue for months.
 	rows, err := db.ListCitationsForCheck(ctx)
 	if err != nil {
-		return Result{Skipped: skipped, Unused: unused}, err
+		return Result{Skipped: skipped}, err
 	}
 
 	order, bySrc := groupBySource(rows)
@@ -127,7 +119,7 @@ func Run(ctx context.Context, db store.Store, fetch FetchFunc, logf func(string,
 	// only not in source order.
 	var (
 		mu   sync.Mutex
-		res  = Result{Skipped: skipped, Unused: unused}
+		res  = Result{Skipped: skipped}
 		wg   sync.WaitGroup
 		slot = make(chan struct{}, max(Concurrency, 1))
 	)
@@ -297,7 +289,6 @@ func (r *Result) add(o Result) {
 	r.Skipped += o.Skipped
 	r.Moved += o.Moved
 	r.Stale += o.Stale
-	r.Unused += o.Unused
 	r.Errored += o.Errored
 	r.AdviceConfirmed += o.AdviceConfirmed
 	r.AdviceDrifted += o.AdviceDrifted
