@@ -25,7 +25,10 @@ type QualityPage struct {
 	// Statements is how many statements the page has, so a statement-by-
 	// check grid has a row for every one, passing or not.
 	Statements int
-	Checks     []QualityCheck
+	// Labels is the opening words of each statement, in page order, so a
+	// grid row is named by what the statement says.
+	Labels []string
+	Checks []QualityCheck
 }
 
 // Worst is the severity of the page's worst failing check, 0 when it passes.
@@ -151,6 +154,11 @@ func (pg *PG) AuthorQuality(ctx context.Context) ([]QualityPage, error) {
 
 	for id, in := range inputs {
 		pages[index[id]].Statements = len(in.Statements)
+		labels := make([]string, len(in.Statements))
+		for k, st := range in.Statements {
+			labels[k] = statementLabel(st.Body)
+		}
+		pages[index[id]].Labels = labels
 		pages[index[id]].Checks = pg.quality.checks(id, in)
 	}
 	pg.quality.keep(inputs)
@@ -311,4 +319,23 @@ func (in *QualityInput) hash() uint64 {
 		}
 	}
 	return h.Sum64()
+}
+
+// statementLabel is the opening words of a statement, cut at a word, short
+// enough to name a row.
+func statementLabel(body string) string {
+	const limit = 70
+	body = strings.Join(strings.Fields(body), " ")
+	r := []rune(body)
+	if len(r) <= limit {
+		return body
+	}
+	cut := limit
+	for cut > 0 && r[cut] != ' ' {
+		cut--
+	}
+	if cut == 0 {
+		cut = limit
+	}
+	return strings.TrimRight(string(r[:cut]), " ,;:") + "…"
 }

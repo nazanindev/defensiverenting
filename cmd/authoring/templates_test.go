@@ -526,7 +526,7 @@ func TestCoverageTemplateRenders(t *testing.T) {
 // The drill-down grids put every check on one row: the worst severity per
 // check, every detail kept, and the page's own checks on row 0.
 func TestQualityGrids(t *testing.T) {
-	p := store.QualityPage{ID: 1, Statements: 2, Checks: []store.QualityCheck{
+	p := store.QualityPage{ID: 1, Statements: 2, Labels: []string{"Pay the rent you owe", "Go to your trial"}, Checks: []store.QualityCheck{
 		{Code: "below-tier", Severity: store.SeverityRed, Stmt: 1, Detail: "one"},
 		{Code: "below-tier", Severity: store.SeverityYellow, Stmt: 2, Detail: "two"},
 		{Code: "first-step", Severity: store.SeverityOrange, Stmt: 0, Detail: "page"},
@@ -538,6 +538,9 @@ func TestQualityGrids(t *testing.T) {
 	rows := stmtGrid(p)
 	if len(rows) != 3 || rows[0].Cells["first-step"].Severity != store.SeverityOrange || rows[2].Cells["below-tier"].Severity != store.SeverityYellow {
 		t.Errorf("statement rows: %+v", rows)
+	}
+	if rows[0].Label != "" || rows[1].Label != "Pay the rent you owe" || rows[2].Label != "Go to your trial" {
+		t.Errorf("row labels: %q, %q, %q", rows[0].Label, rows[1].Label, rows[2].Label)
 	}
 }
 

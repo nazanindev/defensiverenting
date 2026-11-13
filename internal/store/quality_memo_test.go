@@ -24,3 +24,14 @@ func TestQualityMemoReusesUnchangedPages(t *testing.T) {
 		t.Error("keep left a page that is no longer on the map")
 	}
 }
+
+func TestStatementLabel(t *testing.T) {
+	if got := statementLabel("Go to your trial."); got != "Go to your trial." {
+		t.Errorf("short body: %q", got)
+	}
+	long := "Your landlord must give you a 3-day notice to pay or quit (pay the rent or move out) when you are behind on rent."
+	got := statementLabel(long)
+	if len([]rune(got)) > 71 || got[len(got)-len("…"):] != "…" || got == long {
+		t.Errorf("long body: %q", got)
+	}
+}

@@ -126,7 +126,9 @@ type pageRow struct {
 // stmtRow is one statement on the statement-by-check grid; N is 0 for the
 // row of checks that belong to the page as a whole.
 type stmtRow struct {
-	N     int
+	N int
+	// Label is the statement's opening words; "" on the page row.
+	Label string
 	Cells map[string]gridCell
 }
 
@@ -147,6 +149,9 @@ func stmtGrid(p store.QualityPage) []stmtRow {
 	rows := make([]stmtRow, p.Statements+1)
 	for i := range rows {
 		rows[i] = stmtRow{N: i, Cells: map[string]gridCell{}}
+		if i > 0 && i <= len(p.Labels) {
+			rows[i].Label = p.Labels[i-1]
+		}
 	}
 	for _, c := range p.Checks {
 		if c.Stmt > p.Statements {

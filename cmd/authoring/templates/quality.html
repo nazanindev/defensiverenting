@@ -108,7 +108,7 @@
     <tbody>
       {{range $row := .StmtRows}}
       <tr>
-        <td class="place">{{if $row.N}}<a href="/edit/{{$.One.ID}}#card_{{$row.N | dec}}">{{$row.N}}</a>{{else}}<a href="/view/{{$.One.ID}}">the page</a>{{end}}</td>
+        <td class="place">{{if $row.N}}<a href="/edit/{{$.One.ID}}#card_{{$row.N | dec}}">{{if $row.Label}}{{$row.Label}}{{else}}Statement {{$row.N}}{{end}}</a> <span class="meta">statement {{$row.N}}</span>{{else}}<a href="/view/{{$.One.ID}}">the page</a>{{end}}</td>
         {{range $c := $.Columns}}{{$cell := index $row.Cells $c.Code}}
         {{- if $cell.Severity}}<td class="c s{{$cell.Severity}}"><a href="{{if $row.N}}/edit/{{$.One.ID}}#card_{{$row.N | dec}}{{else}}/view/{{$.One.ID}}{{end}}" title="{{$cell.Detail}}" data-detail="{{$cell.Detail}}"></a></td>
         {{- else}}<td class="c"><span></span></td>{{end}}
