@@ -10,3 +10,5 @@ Monteith
 Resend
 Cloudflare
 analytics
+shutoff
+shutoffs

@@ -66,7 +66,7 @@ var renterWords = strings.Fields(`landlord landlords lease leases leasing renter
 	deposit deposits repair repairs rent rents rental rentals email emails online website
 	websites internet phone text texts app court judge legal lawyer lawyers form forms
 	hotline hotlines helpline helplines checklist weekday weekdays subtract roaches
-	rodents thermostat railing railings remodel prepaid keyless outage stubs
+	rodents thermostat railing railings remodel prepaid keyless outage shutoff shutoffs stubs
 	underline underlined reachable`)
 
 // contraction matches the contractions everyday English is made of.
