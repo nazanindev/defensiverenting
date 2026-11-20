@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -46,9 +47,11 @@ func (s *srv) copyList(w http.ResponseWriter, r *http.Request) {
 // what to say about it.
 type copyForm struct {
 	sitecopy.Info
-	Page      sitecopy.Page
-	Problems  []string
-	Saved     bool
+	Page     sitecopy.Page
+	Problems []string
+	Saved    bool
+	// Added names the explanations the save put in by itself.
+	Added     string
 	UpdatedBy string
 	UpdatedAt time.Time
 	SiteURL   string
@@ -60,7 +63,7 @@ func (s *srv) copyEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	f := copyForm{Info: info, Page: sitecopy.Default(info.Slug), Saved: r.URL.Query().Get("saved") == "1", SiteURL: s.siteURL}
+	f := copyForm{Info: info, Page: sitecopy.Default(info.Slug), Saved: r.URL.Query().Get("saved") == "1", Added: r.URL.Query().Get("added"), SiteURL: s.siteURL}
 	if p, found, err := s.pg.GetSitePage(r.Context(), info.Slug); err != nil {
 		s.serverError(w, err)
 		return
@@ -85,6 +88,10 @@ func (s *srv) copySave(w http.ResponseWriter, r *http.Request) {
 		// read cleanly.
 		Body: strings.TrimSpace(strings.ReplaceAll(r.FormValue("body"), "\r\n", "\n")),
 	}
+	// Official terms with one fixed explanation get it here, so the check
+	// below does not stop the save over them.
+	var added []string
+	page.Body, added = sitecopy.Explain(page.Body)
 	if problems := sitecopy.Check(page); len(problems) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		s.render(w, "copyedit.html", copyForm{Info: info, Page: page, Problems: problems, SiteURL: s.siteURL})
@@ -97,5 +104,11 @@ func (s *srv) copySave(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	http.Redirect(w, r, "/copy/"+info.Slug+"?saved=1", http.StatusSeeOther)
+	dest := "/copy/" + info.Slug + "?saved=1"
+	if len(added) > 0 {
+		dest += "&added=" + url.QueryEscape(strings.Join(added, "; "))
+	}
+	// Fixed "/copy/{slug}" path from the page registry; the added text only
+	// reaches the query-escaped parameter, so the destination cannot be steered.
+	http.Redirect(w, r, dest, http.StatusSeeOther) //nolint:gosec // G710: see above
 }

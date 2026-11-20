@@ -1542,6 +1542,30 @@ func (s *srv) parsePageContent(ctx context.Context, r *http.Request, lang, actor
 	return statements, notes, nil
 }
 
+// explainStatements adds the fixed explanation after official terms that
+// have one (voice.Explain), in the statements this save wrote or changed. A
+// statement whose text matches the stored page is left alone: a save must
+// not rewrite text nobody touched, and a changed body voids its review
+// stamp. The notes tell the author what was added.
+func explainStatements(lang string, statements []store.IngestStatementParams, stored []store.CitedStatement) []string {
+	untouched := make(map[string]bool, len(stored))
+	for _, st := range stored {
+		untouched[strings.TrimSpace(st.BodyMD)] = true
+	}
+	var notes []string
+	for i := range statements {
+		if untouched[statements[i].BodyMD] {
+			continue
+		}
+		body, added := voice.Explain(lang, statements[i].BodyMD)
+		statements[i].BodyMD = body
+		for _, a := range added {
+			notes = append(notes, fmt.Sprintf("statement %d: added the explanation %q", i+1, a))
+		}
+	}
+	return notes
+}
+
 // saveFlash summarizes a manual save for the redirect's flash message.
 func saveFlash(notes []string) string {
 	if len(notes) == 0 {
@@ -1630,6 +1654,11 @@ func (s *srv) submitForm(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(err.Error())
 		return
+	}
+	// Only a person's save adds text. An autosave would change the stored
+	// statement under an author who is still typing it.
+	if !autosave {
+		notes = append(notes, explainStatements(lang, statements, nil)...)
 	}
 
 	if err := s.pg.IngestPlaybook(ctx, store.IngestPlaybookParams{
@@ -2273,6 +2302,9 @@ func (s *srv) submitEditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	notes = append(notes, contentNotes...)
+	if !autosave {
+		notes = append(notes, explainStatements(lang, statements, existing.Statements)...)
+	}
 
 	if err := s.pg.AuthorUpdatePlaybook(ctx, store.AuthorUpdatePlaybookParams{
 		ID:             id,

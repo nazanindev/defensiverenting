@@ -147,6 +147,42 @@ func kindName(tag string) string {
 	}
 }
 
+// blockStart matches a line that opens its own block inside a run of lines:
+// a list item or a heading.
+var blockStart = regexp.MustCompile(`^\s*(?:[-*+]\s|\d+[.)]\s|#)`)
+
+// Explain adds the fixed explanation after official terms that have one
+// (voice.Explain), block by block, because the rule asks each paragraph,
+// list item and heading to explain the term itself. It returns the new body
+// and what it added.
+func Explain(body string) (string, []string) {
+	var added []string
+	lines := strings.Split(body, "\n")
+	flush := func(from, to int) {
+		if from >= to {
+			return
+		}
+		text, a := voice.Explain("en", strings.Join(lines[from:to], "\n"))
+		if len(a) == 0 {
+			return
+		}
+		added = append(added, a...)
+		copy(lines[from:to], strings.Split(text, "\n"))
+	}
+	start := 0
+	for i, l := range lines {
+		if strings.TrimSpace(l) == "" {
+			flush(start, i)
+			start = i + 1
+		} else if blockStart.MatchString(l) {
+			flush(start, i)
+			start = i
+		}
+	}
+	flush(start, len(lines))
+	return strings.Join(lines, "\n"), added
+}
+
 // Check returns every reason the page cannot be saved: an empty field, a
 // voice rule broken, or a word the dictionary does not know. Nil means save.
 func Check(p Page) []string {

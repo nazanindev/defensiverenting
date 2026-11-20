@@ -50,7 +50,7 @@
     {{if .UpdatedBy}}Last saved by {{.UpdatedBy}} on {{date .UpdatedAt}}.{{else}}Showing the built-in text; nobody has edited this page yet.{{end}}
   </p>
 
-  {{if .Saved}}<div class="saved">Saved. The live page updates within 5 minutes.</div>{{end}}
+  {{if .Saved}}<div class="saved">Saved. The live page updates within 5 minutes.{{if .Added}} Added the explanation: {{.Added}}.{{end}}</div>{{end}}
   {{if .Problems}}
   <div class="problems">
     <strong>Not saved. Fix these first:</strong>

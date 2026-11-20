@@ -56,3 +56,17 @@ func TestRenderEscapesRawHTML(t *testing.T) {
 		t.Errorf("render: %s", h)
 	}
 }
+
+func TestExplainWorksBlockByBlock(t *testing.T) {
+	in := "## Help with utilities\n\nWe write about utilities (water, electric, gas)\nand utility bills.\n\n- A utility shutoff\n- Rent"
+	want := "## Help with utilities (water, electric, gas)\n\nWe write about utilities (water, electric, gas)\nand utility bills.\n\n- A utility shutoff (water, electric, gas)\n- Rent"
+	got, added := Explain(in)
+	if got != want || len(added) != 2 {
+		t.Errorf("Explain:\n got %q %v\nwant %q", got, added, want)
+	}
+	for _, p := range Check(Page{Slug: "about", Title: "About", Description: "About this site.", Body: got}) {
+		if strings.Contains(p, "plain-words explanation") {
+			t.Errorf("explained body still refused: %s", p)
+		}
+	}
+}

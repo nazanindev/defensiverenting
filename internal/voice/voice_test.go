@@ -760,3 +760,36 @@ func TestLintEditRemovalOnlyIgnoresTheScoreCap(t *testing.T) {
 		}
 	}
 }
+
+func TestExplainAddsFixedGloss(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"A utility shutoff by your landlord is against the law.", "A utility shutoff (water, electric, gas) by your landlord is against the law."},
+		{"Your landlord cannot shut off your utilities. Utilities must stay on.", "Your landlord cannot shut off your utilities (water, electric, gas). Utilities must stay on."},
+		{"The court can enter a money judgment against you.", "The court can enter a money judgment (the court's final decision in your case) against you."},
+		{"The repair must materially affect your health.", "The repair must materially (seriously) affect your health."},
+		// Already explained, anywhere in the statement: nothing to add.
+		{"Utilities (water, electric, gas) must stay on. Your utility company can help.", ""},
+		// The explanation depends on the source: a person writes it.
+		{"Your landlord cannot charge for normal wear and tear.", ""},
+		{"See puc.gov/utilities for the form.", ""},
+	} {
+		got, added := Explain("en", c.in)
+		if c.want == "" {
+			if got != c.in || len(added) != 0 {
+				t.Errorf("Explain(%q) changed the text: %q %v", c.in, got, added)
+			}
+			continue
+		}
+		if got != c.want || len(added) != 1 {
+			t.Errorf("Explain(%q)\n got %q %v\nwant %q", c.in, got, added, c.want)
+		}
+		for _, v := range Lint("en", got) {
+			if strings.Contains(v, "needs a plain-words explanation") {
+				t.Errorf("Explain(%q) still fails the rule it fixes: %s", c.in, v)
+			}
+		}
+		if again, more := Explain("en", got); again != got || len(more) != 0 {
+			t.Errorf("Explain is not stable on %q: %q", got, again)
+		}
+	}
+}

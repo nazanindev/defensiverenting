@@ -49,6 +49,16 @@ type explainRule struct {
 	// explanation, so term-matches-but-explained-doesn't means a bare use.
 	explained *regexp.Regexp
 	hint      string
+	// gloss is the explanation a save may add by itself (see Explain). It is
+	// set only where one fixed wording is right in every statement. Empty
+	// means the right words depend on the source, so a person writes them.
+	gloss string
+}
+
+// adds marks the rule's explanation as fixed text a save may insert.
+func (r explainRule) adds(gloss string) explainRule {
+	r.gloss = gloss
+	return r
 }
 
 // mustExplain builds an explainRule. markers is the language's alternation of
@@ -218,22 +228,25 @@ var enRuleset = ruleset{
 	// assistance" is the phrase that finds the program), so name them, but
 	// never bare.
 	explain: []explainRule{
-		mustExplain(`(money |eviction )?judge?ments?`, enMarkers, `"a judgment (the court's final decision in your case)"`),
-		mustExplain(`mediations?`, enMarkers, `"mediation (a meeting with a neutral person who helps you and your landlord reach an agreement)"`),
-		mustExplain(`rental assistance`, enMarkers, `"rental assistance (money to help pay rent)"`),
+		mustExplain(`(money |eviction )?judge?ments?`, enMarkers, `"a judgment (the court's final decision in your case)"`).adds(`the court's final decision in your case`),
+		mustExplain(`mediations?`, enMarkers, `"mediation (a meeting with a neutral person who helps you and your landlord reach an agreement)"`).adds(`a meeting with a neutral person who helps you and your landlord reach an agreement`),
+		mustExplain(`rental assistance`, enMarkers, `"rental assistance (money to help pay rent)"`).adds(`money to help pay rent`),
 		// One gloss everywhere (Nazanin, 2026-10-06): "materially (seriously)".
 		{
 			term:      regexp.MustCompile(`(?i)\bmaterially\b`),
 			explained: regexp.MustCompile(`(?i)\bmaterially\s*\(seriously\)`),
 			hint:      `"materially (seriously)"`,
+			gloss:     `seriously`,
 		},
 		// Common in general English, opaque in its housing sense.
-		mustExplain(`utilit(?:y|ies)`, enMarkers, `"utilities (water, electric, gas)"`),
+		// The noun it describes stays with it, so the explanation follows
+		// "utility shutoff" and does not split it.
+		mustExplain(`utilit(?:y|ies)(?: (?:shut-?offs?|compan(?:y|ies)|bills?|services?|providers?))?`, enMarkers, `"utilities (water, electric, gas)"`).adds(`water, electric, gas`),
 		// No examples in the hint: faded paint and nail holes are not in the
 		// statutes, and a gloss must say only what a stored quote says.
 		mustExplain(`(normal |ordinary )?wear and tear`, enMarkers, `"normal wear and tear (normal use over time)"; add examples only if a quote gives them`),
 		mustExplain(`harassment`, enMarkers, `"harassment (unwanted, hostile treatment)"; a gloss must not add a legal test the source does not state`),
-		mustExplain(`grace periods?`, enMarkers, `"a grace period (extra days to pay before late fees start)"`),
+		mustExplain(`grace periods?`, enMarkers, `"a grace period (extra days to pay before late fees start)"`).adds(`extra days to pay before late fees start`),
 		// A renter does not know which side has to prove what.
 		mustExplain(`(rebuttable )?presum(e|es|ed|ption|ptions)`, enMarkers, `"presumed (the court treats it as true unless your landlord proves it is not)", naming who has to prove what`),
 	},
@@ -337,6 +350,48 @@ var (
 	sentenceEnd = regexp.MustCompile(`[.!?]\s`)
 	wordRe      = regexp.MustCompile(`\S+`)
 )
+
+// linkTarget matches the address half of a markdown link.
+var linkTarget = regexp.MustCompile(`\]\([^)]*\)`)
+
+// Explain adds the fixed explanation after the first bare use of each
+// official term that has one, and returns the new text with what it added,
+// like "utilities (water, electric, gas)". Text that already explains the
+// term comes back unchanged. Terms whose explanation depends on the source
+// (wear and tear, harassment, presumed) are left for the lint to refuse.
+func Explain(lang, text string) (string, []string) {
+	rs, ok := rulesets[lang]
+	if !ok {
+		return text, nil
+	}
+	var added []string
+	for _, r := range rs.explain {
+		if r.gloss == "" || r.explained.MatchString(text) {
+			continue
+		}
+		// A term inside a web address or a link target is not prose.
+		var skip [][]int
+		skip = append(skip, webAddress.FindAllStringIndex(text, -1)...)
+		skip = append(skip, linkTarget.FindAllStringIndex(text, -1)...)
+		for _, loc := range r.term.FindAllStringIndex(text, -1) {
+			inside := false
+			for _, sk := range skip {
+				if loc[0] < sk[1] && loc[1] > sk[0] {
+					inside = true
+					break
+				}
+			}
+			if inside {
+				continue
+			}
+			with := text[loc[0]:loc[1]] + " (" + r.gloss + ")"
+			text = text[:loc[0]] + with + text[loc[1]:]
+			added = append(added, with)
+			break
+		}
+	}
+	return text, added
+}
 
 // Lint checks one piece of renter-facing text (a title, intro, or statement
 // body) against the voice rules for lang. It returns one message per
